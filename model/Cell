@@ -1,0 +1,28 @@
+include('../auto')
+
+class Cell {
+	id
+	isWall
+	neighbors
+	constructor(id){
+		this.id = id
+		this.isWall = isObstacle(id)
+	}
+	initNeighbors(){
+		var x = getCellX(this.id), y = getCellY(this.id), result = []
+		// AREA_CIRCLE_1
+		var c = getCellFromXY(x, y-1);
+		if(c!=null && !Map.obstacles[c]) push(result, Map.getCell(c));
+		c = getCellFromXY(x, y+1);
+		if(c!=null && !Map.obstacles[c]) push(result, Map.getCell(c));
+		c = getCellFromXY(x-1, y);
+		if(c!=null && !Map.obstacles[c]) push(result, Map.getCell(c));
+		c = getCellFromXY(x+1, y);
+		if(c!=null && !Map.obstacles[c]) push(result, Map.getCell(c));
+
+		this.neighbors = result
+	}
+	string(){
+		return ""+this.id
+	}
+}

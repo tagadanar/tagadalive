@@ -1,0 +1,31 @@
+include('../auto')
+
+class Map {
+	static obstacles = []
+	static cells = []
+	static entityCells = []
+	constructor(){
+		for(var i in getObstacles()) Map.obstacles[i]=true
+		for(var i = 0; i < 613; i++) cells[i] = new Cell(i)
+		for(var cell in cells) cell.initNeighbors()
+		for(var entity in getAliveAllies()+getAliveEnemies()){
+			Map.entityCells[getCell(entity)] = entity
+		}
+	}
+		
+	static getCell(id) {
+		return Map.cells[id];
+	}
+	
+	static color(cells) {
+		for(var cell in cells){
+			mark(cell.id, COLOR_BLUE)
+		}
+	}
+	
+	static color(cells, color) {
+		for(var cell in cells){
+			mark(cell.id, color)
+		}
+	}
+}

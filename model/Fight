@@ -1,0 +1,34 @@
+include('../auto')
+class Fight {
+	private static _aliveEnemies = []
+	private static _aliveAllies = []
+	private static _aliveAll = []
+	static self
+	constructor() {
+		for(var e in getAliveEnemies()) {
+			var entity = Entity(e)
+			Fight._aliveEnemies[e] = entity
+			Fight._aliveAll[e] = entity
+		}
+		for(var a in getAliveAllies()) {
+			var entity = Entity(a)
+			Fight._aliveAllies[a] = entity
+			Fight._aliveAll[a] = entity
+		}
+		Fight.self = _aliveAll[getLeek()]
+	}
+	
+	static getEntity(id) {
+		return Fight._aliveAll[id]
+	}
+	
+	static getEnemiesAlive() {
+		return Fight._aliveEnemies
+	}
+	static getAlliesAlive() {
+		return Fight._aliveAllies
+	}
+	static getAllEntities() {
+		return Fight._aliveAllies+Fight._aliveEnemies
+	}
+}

@@ -1,0 +1,98 @@
+include('../auto')
+
+class Entity {
+	id
+	cell
+	totalLife
+	life
+	lifeMissing
+	effects
+	pwr
+	str
+	mgc
+	wsd
+	rst
+	agi
+	snc
+	tp
+	mp
+	relShield
+	absShield
+	dmgReturn
+	reachableCells
+	items
+	offensiveItems
+	
+	constructor(id){
+		this.id = id
+		this.cell = Map.getCell(getCell(id))
+		this.totalLife = getTotalLife(id)
+		this.life = getLife(id)
+		this.lifeMissing = this.totalLife - this.life
+		this.effects = getEffects(id)
+		this.pwr = getPower(id)
+		this.str = getStrength(id)
+		this.mgc = getMagic(id)
+		this.wsd = getWisdom(id)
+		this.rst = getResistance(id)
+		this.agi = getAgility(id)
+		this.snc = getScience(id)
+		this.tp = getTP(id)
+		this.mp = getMP(id)
+		this.relShield = getRelativeShield(id)
+		this.absShield = getAbsoluteShield(id)
+		this.dmgReturn = getDamageReturn(id)
+		this.reachableCells = this.getReachableCells([getCell(id):0], this.mp, [])
+		this.items = Items.getItems(id)
+	}
+
+	// return reachable cell as an array of [cell:dist]
+	// cells must be in form : [cell:dist]
+	getReachableCells(cells, mp, ignoreCells){
+		var stack = cells;
+		var tmp = cells;
+		var next = [];
+		while(mp-->0){
+			for(var currentWorkingCell : var dist in tmp){
+				for(var c in Map.cells[currentWorkingCell].neighbors){
+					
+					if(stack[c.id] == null && (isEmptyCell(c.id) || inArray(ignoreCells, c.id))){
+						stack[c.id] = dist+1;
+						next[c.id] = dist+1;
+					}
+				}
+			}
+			tmp = next;
+			next = [];
+		}
+		return stack
+	}
+	
+	refresh() {
+		// TODO all
+		this.mp = getMP(this.id)
+		this.reachableCells = this.getReachableCells([getCell(this.id):0], this.mp, [])
+	}
+	
+	string() {
+		return ""+this.id
+	}
+}
+
+// TODO
+
+	//psnlife: getLife(leek)-psnDmgTurn
+	//psnTurn: psnDmgTurn
+	//psnTotal: psnDmgTotal
+	//alterateStr: alterateStr
+	//alterateMgc: alterateMgc
+	//alterateTP: alterateTP
+	//alterateMP: alterateMP
+	//alterateAgi: alterateAgi
+	//scoreLibe: scoreLibe
+	//nbBulbs: count(bulbs)//todo check si ça vaut le coup de garder cette info..
+	//bulbs: @bulbs
+	//order: enemyOrder[leek]
+	//antidoteCD: inArray(getChips(leek), CHIP_ANTIDOTE) ? getCooldown(CHIP_ANTIDOTE) : 5
+	//liberationCD: inArray(getChips(leek), CHIP_LIBERATION) ? getCooldown(CHIP_LIBERATION) : 6
+	//canJump: inArray(getChips(leek), CHIP_JUMP) && getCooldown(CHIP_JUMP, leek)<=1

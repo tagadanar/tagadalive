@@ -1,0 +1,10 @@
+class Action {
+	public from;
+	public to;
+	public item;
+	constructor(from, to, item){
+		this.from = from;
+		this.to = to;
+		this.item = item;
+	}
+}

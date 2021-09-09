@@ -1,0 +1,39 @@
+class Item {
+	id
+	isWeap
+	haveCD
+	minRange
+	maxRange
+	isInLine
+	needLOS
+	cost
+	area
+	effects = []
+	constructor(id) {
+		this.id = id
+		this.isWeap = isWeapon(id)
+		if(this.isWeap){
+			this.haveCD = false
+			this.minRange = getWeaponMinRange(id)
+			this.maxRange = getWeaponMaxRange(id)
+			this.isInLine = isInlineWeapon(id)
+			this.needLOS = weaponNeedLos(id)
+			this.cost = getWeaponCost(id)
+			this.area = getWeaponArea(id)
+			for(var e in getWeaponEffects(id)){
+				push(this.effects, ItemEffect(e))
+			}
+		} else {
+			this.haveCD = getChipCooldown(id)!=0
+			this.minRange = getChipMinRange(id)
+			this.maxRange = getChipMaxRange(id)
+			this.isInLine = isInlineChip(id)
+			this.needLOS = chipNeedLos(id)
+			this.cost = getChipCost(id)
+			this.area = getChipArea(id)
+			for(var e in getChipEffects(id)){
+				push(this.effects, ItemEffect(e))
+			}
+		}	
+	}
+}

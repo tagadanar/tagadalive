@@ -1,0 +1,122 @@
+include('../auto')
+
+class MapDanger {
+	static _danger = []
+	static _cache_item_targetableCells = [] // [item:[fromCell:[targetCells]]]
+	static _map_entity_item_danger = [] // [e][item]
+	constructor() {
+		for(var e in Fight.getEnemiesAlive()){
+			_map_entity_item_danger[e] = [];//reset de la map
+			e.offensiveItems = Items.getOrderedOffensiveItems(e.id)
+			for(var item : var dmgPerTp in e.offensiveItems){
+				_map_entity_item_danger[e][item] = MapDanger.getDmgMap(e, item)
+			}
+		}
+	}
+	
+	static getCellDanger(cell) {
+		if(!_danger[cell]) {
+			var dmg = 0
+			for(var e in Fight.getEnemiesAlive()){
+				var tpleft = e.tp
+				for(var item : var dmgPerTp in e.offensiveItems){
+					var ratioDmg = _map_entity_item_danger[e][item][cell]
+					var tmpdmg = getDamage(e, item)* ratioDmg
+					while(item.cost<=tpleft){
+						dmg+=tmpdmg
+						tpleft-=item.cost
+						if(item.haveCD) break
+					}
+				}
+			}
+			_danger[cell] = dmg
+		}
+		return _danger[cell]
+	}
+	
+	static getDamage(enemy, item){
+		var dmg = 0;
+		for(var e in item.effects){
+			if(e.type == EFFECT_DAMAGE){
+				var tmp = e.avgmax*(1+(enemy.str/100))*(1+(enemy.pwr/100));
+				tmp = (tmp /* multiplier par laoe ratio ici*/ *(1-(Fight.self.relShield/100))) - Fight.self.absShield;
+				dmg+= tmp;
+			}
+			else if(e.type == EFFECT_POISON){
+				var duration = e.duration == 2 ? 1.8 : // 2 => 1
+					(e.duration == 3 ? 2.4 : // 3 => 1.25
+					(e.duration == 4 ? 2.8 : // 4 => 1.5
+					e.duration)); // 1 => 1
+				// TODO if(_CAN_ANTIDOTE) duration = 1;	
+				dmg += e.avgmax*(1+(enemy.mgc/100))*(1+(enemy.pwr/100)) /* multiplier par laoe ratio ici*/ *duration;
+			}
+		}
+		return dmg
+	}
+		
+	static getDmgMap(enemy, item){
+		var map = []//, map_mp = []
+		for(var idCell:var dist in enemy.reachableCells){
+			var targetableCells = MapDanger.getTargetableCells(item, idCell);
+			for(var cell in targetableCells){
+				if(map[cell]==null){
+					map[cell]=1;//coef
+					//map_mp[cell]=dist;
+				}
+			}
+		}
+		//aoe TODO
+		
+		return map // TODO add map_mp
+	}
+	
+	// fonction avec cache qui considère que los est tjr pareil.
+	static getTargetableCells(item, idCell){
+		// init du cache si nécessaire
+		if(_cache_item_targetableCells[item.id]==null) _cache_item_targetableCells[item.id] = []
+		if(MapDanger._cache_item_targetableCells[item.id][idCell]==null){
+			var result = [], x = getCellX(idCell), y = getCellY(idCell)
+			if(item.isInLine){
+				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
+					var dist =((x-x1)<0?-(x-x1):x-x1);
+					if(dist < item.minRange) continue;
+					var fromCell = getCellFromXY(x1, y);
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& Map.entityCells[fromCell]==null
+					&& (!item.needLOS || lineOfSight(fromCell, idCell, []))){
+						push(result, fromCell);
+					}
+				}
+				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
+					var dist =((y-y1)<0?-(y-y1):y-y1);
+					if(dist < item.minRange) continue;
+					var fromCell = getCellFromXY(x, y1);
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& Map.entityCells[fromCell]==null
+					&& (!item.needLOS || lineOfSight(fromCell, idCell, []))){
+						push(result, fromCell);
+					}
+				}
+			}else{
+				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
+					for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
+						var dist =((x-x1)<0?-(x-x1):x-x1)+(y-y1<0?-(y-y1):y-y1);//trick pour abs(x-x1)+abs(y-y1)..
+						if(dist > item.maxRange || dist < item.minRange) continue;
+						var fromCell = getCellFromXY(x1, y1);
+						if(fromCell!=null 
+						&& Map.obstacles[fromCell]==null 
+						&& Map.entityCells[fromCell]==null
+						&& (!item.needLOS || lineOfSight(fromCell, idCell, []))){
+							push(result, fromCell);
+						}
+					}
+				}
+			}
+			MapDanger._cache_item_targetableCells[item.id][idCell]= result;
+		}
+		return MapDanger._cache_item_targetableCells[item.id][idCell];
+	}
+
+}
