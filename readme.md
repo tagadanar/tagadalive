@@ -1,3 +1,3 @@
 # TAGADALIVE
 
-description quand j'aurais moins la flemme :)
+https://www.twitch.tv/ideesnoireslive
