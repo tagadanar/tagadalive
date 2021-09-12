@@ -4,28 +4,42 @@ class Map {
 	static obstacles = []
 	static cells = []
 	static entityCells = []
-	constructor(){
+	
+	static init(){
 		for(var i in getObstacles()) Map.obstacles[i]=true
 		for(var i = 0; i < 613; i++) cells[i] = new Cell(i)
 		for(var cell in cells) cell.initNeighbors()
 		for(var entity in getAliveAllies()+getAliveEnemies()){
-			Map.entityCells[getCell(entity)] = entity
+			if(entity!=getEntity()) Map.entityCells[getCell(entity)] = entity
 		}
 	}
 		
 	static getCell(id) {
 		return Map.cells[id];
 	}
-	
-	static color(cells) {
-		for(var cell in cells){
-			mark(cell.id, COLOR_BLUE)
+		
+	static color(cells, color) {
+		if(typeOf(cells) != TYPE_ARRAY){
+			if(cells instanceof Cell) mark(cells.id, color)
+			else mark(cells, color)
+		}else{
+			for(var cell in cells){
+				if(cell instanceof Cell) mark(cell.id, color)
+				else mark(cell, color)
+			}
 		}
 	}
 	
-	static color(cells, color) {
-		for(var cell in cells){
-			mark(cell.id, color)
+	static colorKey(cells, color){
+		for(var cell:var mp in cells){
+			if(cell instanceof Cell){
+				mark(cell.id, color)
+				markText(cell.id, mp)	
+			} else {
+				mark(cell, color)
+				markText(cell, mp)
+			}
+			
 		}
 	}
 }

@@ -4,12 +4,16 @@ class Cell {
 	id
 	isWall
 	neighbors
+	x
+	y
 	constructor(id){
 		this.id = id
 		this.isWall = isObstacle(id)
+		this.x = getCellX(id)
+		this.y = getCellY(id)
 	}
 	initNeighbors(){
-		var x = getCellX(this.id), y = getCellY(this.id), result = []
+		var x = this.x, y = this.y, result = []
 		// AREA_CIRCLE_1
 		var c = getCellFromXY(x, y-1);
 		if(c!=null && !Map.obstacles[c]) push(result, Map.getCell(c));
@@ -23,6 +27,6 @@ class Cell {
 		this.neighbors = result
 	}
 	string(){
-		return ""+this.id
+		return "<Cell "+this.id+">"
 	}
 }

@@ -3,8 +3,10 @@ class Fight {
 	private static _aliveEnemies = []
 	private static _aliveAllies = []
 	private static _aliveAll = []
+	static allEntitiesId
 	static self
-	constructor() {
+
+	static init(){
 		for(var e in getAliveEnemies()) {
 			var entity = Entity(e)
 			Fight._aliveEnemies[e] = entity
@@ -16,10 +18,15 @@ class Fight {
 			Fight._aliveAll[a] = entity
 		}
 		Fight.self = _aliveAll[getLeek()]
+		allEntitiesId = []
+		for(var entity in _aliveAll){
+			entity.init()
+			push(allEntitiesId, entity.id)
+		}
 	}
-	
-	static getEntity(id) {
-		return Fight._aliveAll[id]
+
+	static getEntity(entityId) {
+		return Fight._aliveAll[entityId]
 	}
 	
 	static getEnemiesAlive() {
@@ -30,5 +37,21 @@ class Fight {
 	}
 	static getAllEntities() {
 		return Fight._aliveAllies+Fight._aliveEnemies
+	}
+	static getListOfLeekWhoPlayBefore(entityId) {
+		if(entityId == Fight.self.id) return []
+		var list = [Fight.self]
+		var self = Fight.self.turnOrder
+		var limit = Fight.getEntity(entityId).turnOrder
+		for(var entity in Fight._aliveAll) {
+			var eTurnOrder = entity.turnOrder
+			if(self < limit){
+				if(self < entity.turnOrder && entity.turnOrder < limit) push(list, entity)
+			} else {
+				if(self < eTurnOrder) push(list, entity)
+				if(eTurnOrder < limit) push(list, entity)
+			}
+		}
+		return list;
 	}
 }

@@ -1,0 +1,26 @@
+include('../auto')
+
+class Combo {
+	actions = []
+	dmg = 0
+	
+	add(action){
+		push(this.actions, action)
+	}
+	
+	play(){
+		for(var action in this.actions){
+			moveTowardCell(action.from.id)
+			action.item.useItemOnCell(action.to)
+		}
+	}
+	
+	string(){
+		var str= '<Combo: [\n'
+		for(var action in this.actions){
+			str+= action+'\n'
+		}
+		str+= ' | dmg:'+this.dmg+']>'
+		return str
+	}
+}

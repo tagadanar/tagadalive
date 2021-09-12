@@ -1,5 +1,6 @@
 class Item {
 	id
+	name
 	isWeap
 	haveCD
 	minRange
@@ -11,6 +12,7 @@ class Item {
 	effects = []
 	constructor(id) {
 		this.id = id
+		this.name = getWeaponName(id)+getChipName(id)
 		this.isWeap = isWeapon(id)
 		if(this.isWeap){
 			this.haveCD = false
@@ -35,5 +37,16 @@ class Item {
 				push(this.effects, ItemEffect(e))
 			}
 		}	
+	}
+	
+	useItemOnCell(cell){
+		if(this.isWeap){
+			if(getWeapon()!=this.id) setWeapon(this.id)
+			useWeaponOnCell(cell.id)
+		} else useChipOnCell(this.id, cell.id)
+	}
+	
+	string() {
+		return "<Item "+this.id+">"
 	}
 }

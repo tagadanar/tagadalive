@@ -1,0 +1,13 @@
+include ('../auto')
+
+class Danger{
+	dmg
+	combo
+	constructor(dmg, str){
+		this.dmg = dmg
+		this.combo = str
+	}
+	string() {
+		return this.combo + ": " + this.dmg
+	}
+}

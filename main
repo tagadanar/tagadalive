@@ -2,51 +2,58 @@ include('auto');
 
 function init() {
 	if(getTurn()==1) {
-		Map()
-		Items()
-	} 
-	Fight()
-	MapDanger()
+		Map.init()
+		Items.init()
+	}
+	Fight.init()
+	MapDanger.init()
 }
 init() 
 
 
 if(getWeapon()==null) setWeapon(WEAPON_PISTOL);
-var enemy = Entity(getNearestEnemy());
+var enemy = Fight.getEntity(getNearestEnemy());
 
-// debug qui affiche les cases safe en vert et avec du danger en rouge
+// debug qui affiche les cases safe en vert et avec du danger en rouge.
+
 for(var c : var d in Fight.self.reachableCells) {
 	var danger = MapDanger.getCellDanger(c)
-	if(danger > 0) { 
-		mark(c, COLOR_RED)
+	if(danger.dmg > 0) { 
+		mark(c, getColor(danger.dmg, 0, 0))
+		markText(c, danger.dmg)
+		debug(danger)
+		pause()
 	}
 	else {
 		mark(c, COLOR_GREEN)
 	}
 }
 
-var cellToUsePistol = getCellToUseWeapon(enemy.id)
-var path = getPath(getCell(), cellToUsePistol)
-if(count(path)>getMP()){ // avance prudente
-	for(var cell in path){
-		var danger = MapDanger.getCellDanger(cell)
-		if(danger == 0) moveTowardCell(cell)
+var combo = MapDanger.getPotentialCombo(Fight.self, enemy.cell)
+if(count(combo.actions)>0) combo.play()
+else {
+	var cellToUsePistol = getCellToUseWeapon(WEAPON_PISTOL, enemy.id)
+	var path = getPath(getCell(), cellToUsePistol)
+	if(count(path)>getMP()){ // avance prudente
+		for(var cell in path){
+			var danger = MapDanger.getCellDanger(cell)
+			if(danger.dmg == 0) moveTowardCell(cell)
+		}
+	} else { // je peux tirer sur l'adv: gogo
+		debugE('SHOULD NOT BE HERE !')
+		moveTowardCell(cellToUsePistol)
+		while(useWeapon(enemy.id) > 0);
 	}
-} else { // je peux tirer sur l'adv: gogo
-	moveTowardCell(cellToUsePistol)
 }
-
-// On essaye de lui tirer dessus !
-while(useWeapon(enemy.id) > 0);
 
 if(getMP()>0){ // on se cache si possible !
 	Fight.self.refresh()
 	var safeCell = null, tmpDanger = 9999999
 	for(var cell:var mp in Fight.self.reachableCells){
 		var danger = MapDanger.getCellDanger(cell)
-		if(tmpDanger > danger) {
+		if(tmpDanger > danger.dmg) {
 			safeCell = cell
-			tmpDanger = danger
+			tmpDanger = danger.dmg
 		}
 	}
 	moveTowardCell(safeCell)

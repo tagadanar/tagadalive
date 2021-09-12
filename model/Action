@@ -1,10 +1,14 @@
 class Action {
-	public from;
-	public to;
-	public item;
-	constructor(from, to, item){
-		this.from = from;
-		this.to = to;
-		this.item = item;
+	public from
+	public to
+	public item
+	constructor(item, from, to){
+		this.item = item
+		this.from = from
+		this.to = to
+	}
+	
+	string(){
+		return "<Action "+this.item+":"+this.from+":"+this.to+">"
 	}
 }

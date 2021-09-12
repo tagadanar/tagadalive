@@ -21,7 +21,11 @@ class Entity {
 	dmgReturn
 	reachableCells
 	items
-	offensiveItems
+	offensiveItems // on enemy leeks only
+	offensiveItemsByTargets = [] // on ally leeks only
+	turnOrder
+	entityWhoPlayBefore
+	cellsToIgnore = []
 	
 	constructor(id){
 		this.id = id
@@ -42,8 +46,20 @@ class Entity {
 		this.relShield = getRelativeShield(id)
 		this.absShield = getAbsoluteShield(id)
 		this.dmgReturn = getDamageReturn(id)
-		this.reachableCells = this.getReachableCells([getCell(id):0], this.mp, [])
 		this.items = Items.getItems(id)
+		this.turnOrder = getEntityTurnOrder(id)
+	}
+
+	init(){
+		this.entityWhoPlayBefore = Fight.getListOfLeekWhoPlayBefore(id)
+		for(var entity in this.entityWhoPlayBefore) {
+			push(this.cellsToIgnore, entity.cell)
+		}
+		this.reachableCells = this.getReachableCells(
+			[getCell(id):0],
+			this.mp,
+			this.cellsToIgnore
+		)
 	}
 
 	// return reachable cell as an array of [cell:dist]
@@ -55,8 +71,7 @@ class Entity {
 		while(mp-->0){
 			for(var currentWorkingCell : var dist in tmp){
 				for(var c in Map.cells[currentWorkingCell].neighbors){
-					
-					if(stack[c.id] == null && (isEmptyCell(c.id) || inArray(ignoreCells, c.id))){
+					if(stack[c.id] == null && (isEmptyCell(c.id) || inArray(ignoreCells, c))){
 						stack[c.id] = dist+1;
 						next[c.id] = dist+1;
 					}
@@ -71,11 +86,76 @@ class Entity {
 	refresh() {
 		// TODO all
 		this.mp = getMP(this.id)
-		this.reachableCells = this.getReachableCells([getCell(this.id):0], this.mp, [])
+		this.reachableCells = this.getReachableCells(
+			[getCell(this.id):0],
+			this.mp,
+			Fight.getListOfLeekWhoPlayBefore(this.id)
+		)
 	}
 	
+	// renvoie un array de cell depuis lesquel on peut tirer sur cell
+	// pour les lignes de vue et _LEEKS pour les cases non accessibles (ou il y a tout le monde sauf le leek)
+	// donc pas pour les bulbes cette fonction !
+	getCellsToUseItemOnCell(item, cell){
+		var leekToIgnore = [this.id],result = [], x = cell.x, y = cell.y
+		if(item.isInLine){
+			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
+				var dist =((x-x1)<0?x1-x:x-x1);
+				if(dist < item.minRange) continue;
+				var fromCell = getCellFromXY(x1, y);
+				if(fromCell!=null 
+				&& Map.obstacles[fromCell]==null 
+				&& Map.entityCells[fromCell]==null
+				&& (!item.needLOS || lineOfSight(fromCell, cell.id, leekToIgnore))){
+					push(result, fromCell);
+				}
+			}
+			for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
+				var dist =((y-y1)<0?y1-y:y-y1);
+				if(dist < item.minRange) continue;
+				var fromCell = getCellFromXY(x, y1);
+				if(fromCell!=null 
+				&& Map.obstacles[fromCell]==null 
+				&& Map.entityCells[fromCell]==null
+				&& (!item.needLOS || lineOfSight(fromCell, cell.id, leekToIgnore))){
+					push(result, fromCell);
+				}
+			}
+		}else{
+			mark(getCellFromXY(x, y), COLOR_RED)
+			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
+				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
+					var dist =((x-x1)<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1);//trick pour abs(x-x1)+abs(y-y1)..
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var fromCell = getCellFromXY(x1, y1);
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& Map.entityCells[fromCell]==null
+					&& (!item.needLOS || lineOfSight(fromCell, cell.id, leekToIgnore))){
+						push(result, fromCell);
+					}
+				}
+			}
+		}
+		return result;
+	}
+		
+	getCellToUseItemOnCell(item, cell){
+		var cells = this.getCellsToUseItemOnCell(item, cell)
+		var closestCell = null
+		var tmpDist = 9999
+		for(var c in cells){
+			var distance = getCellDistance(this.cell.id, c)
+			if(tmpDist > distance){
+				tmpDist = distance
+				closestCell = c
+			}
+		}
+		return closestCell
+	}
+
 	string() {
-		return ""+this.id
+		return "<Entity "+this.id+">"
 	}
 }
 
