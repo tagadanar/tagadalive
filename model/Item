@@ -41,12 +41,12 @@ class Item {
 	
 	useItemOnCell(cell){
 		if(this.isWeap){
-			if(getWeapon()!=this.id) setWeapon(this.id)
+			if(getWeapon(Fight.self)!=this.id) setWeapon(this)
 			useWeaponOnCell(cell.id)
 		} else useChipOnCell(this.id, cell.id)
 	}
 	
 	string() {
-		return "<Item "+this.id+">"
+		return "<Item "+this.name+">"
 	}
 }

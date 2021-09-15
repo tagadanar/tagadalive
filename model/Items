@@ -21,18 +21,17 @@ class Items {
 		return result
 	}
 	
-	static getOrderedOffensiveItems(entityId) {
-		return Items.getOrderedOffensiveItems(entityId, Fight.self)
+	static getOrderedOffensiveItems(entity) {
+		return Items.getOrderedOffensiveItems(entity, Fight.self)
 	}
 	
 	// TODO faire de belles boucles propre
-	static getOrderedOffensiveItems(entityId, target) {
-		var entity = Fight.getEntity(entityId)
-		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entityId)
-		var absShield = getAbsoluteShield(target.id), relShield = getRelativeShield(target.id);
+	static getOrderedOffensiveItems(entity, target) {
+		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entity.id)
+		var absShield = target.absShield, relShield = target.relShield;
 		for(var item in stuff){
 			// reminder le cd est décrément au début du round, donc 1 est utilisable next rnd
-			if(item.haveCD && getCooldown(item.id, entityId)>1) continue;
+			if(item.haveCD && getCooldown(item, entity)>1) continue;
 			dmg=0;
 			for(var e in item.effects){
 				if(e.type == EFFECT_DAMAGE ){
@@ -56,13 +55,12 @@ class Items {
 		return allItems;
 	}
 	
-	static getOrderedDefensiveItems(entityId){
-		var entity = Fight.getEntity(entityId)
-		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entityId)
-		var absShield = getAbsoluteShield(), relShield = getRelativeShield();
+	static getOrderedDefensiveItems(entity){
+		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entity.id)
+		var absShield = Fight.self.absShield, relShield = Fight.self.relShield
 		for(var item in stuff){
 			// reminder le cd est décrément au début du round, donc 1 est utilisable next rnd
-			if(item.haveCD && getCooldown(item.id, entityId)>1) continue;
+			if(item.haveCD && getCooldown(item, entity)>1) continue;
 			dmg=0;
 			for(var e in effects){
 				if(e.type == EFFECT_HEAL){

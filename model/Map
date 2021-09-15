@@ -6,11 +6,11 @@ class Map {
 	static entityCells = []
 	
 	static init(){
-		for(var i in getObstacles()) Map.obstacles[i]=true
 		for(var i = 0; i < 613; i++) cells[i] = new Cell(i)
+		for(var i in getObstacles()) Map.obstacles[cells[i]]=true
 		for(var cell in cells) cell.initNeighbors()
 		for(var entity in getAliveAllies()+getAliveEnemies()){
-			if(entity!=getEntity()) Map.entityCells[getCell(entity)] = entity
+			if(entity!=getLeek()) Map.entityCells[Map.getCell(getCell(entity))] = Fight.getEntity(entity)
 		}
 	}
 		

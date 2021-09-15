@@ -8,6 +8,6 @@ class Danger{
 		this.combo = str
 	}
 	string() {
-		return this.combo + ": " + this.dmg
+		return '<Danger [\n'+this.combo+'\n | dmg: '+round(this.dmg)+']>'
 	}
 }

@@ -38,18 +38,17 @@ class Fight {
 	static getAllEntities() {
 		return Fight._aliveAllies+Fight._aliveEnemies
 	}
-	static getListOfLeekWhoPlayBefore(entityId) {
-		if(entityId == Fight.self.id) return []
+	static getListOfLeekWhoPlayBefore(entity) {
+		if(entity == Fight.self.id) return []
 		var list = [Fight.self]
 		var self = Fight.self.turnOrder
-		var limit = Fight.getEntity(entityId).turnOrder
-		for(var entity in Fight._aliveAll) {
-			var eTurnOrder = entity.turnOrder
+		var limit = entity.turnOrder
+		for(var e in Fight._aliveAll) {
 			if(self < limit){
-				if(self < entity.turnOrder && entity.turnOrder < limit) push(list, entity)
+				if(self < e.turnOrder && e.turnOrder < limit) push(list, e)
 			} else {
-				if(self < eTurnOrder) push(list, entity)
-				if(eTurnOrder < limit) push(list, entity)
+				if(self < e.turnOrder) push(list, e)
+				if(e.turnOrder < limit) push(list, e)
 			}
 		}
 		return list;

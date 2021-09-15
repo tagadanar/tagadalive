@@ -2,6 +2,7 @@ include('../auto')
 
 class Entity {
 	id
+	name
 	cell
 	totalLife
 	life
@@ -29,6 +30,7 @@ class Entity {
 	
 	constructor(id){
 		this.id = id
+		this.name = getName(id)
 		this.cell = Map.getCell(getCell(id))
 		this.totalLife = getTotalLife(id)
 		this.life = getLife(id)
@@ -51,15 +53,19 @@ class Entity {
 	}
 
 	init(){
-		this.entityWhoPlayBefore = Fight.getListOfLeekWhoPlayBefore(id)
+		this.entityWhoPlayBefore = Fight.getListOfLeekWhoPlayBefore(this)
 		for(var entity in this.entityWhoPlayBefore) {
 			push(this.cellsToIgnore, entity.cell)
 		}
 		this.reachableCells = this.getReachableCells(
-			[getCell(id):0],
+			[Map.getCell(getCell(id)):0],
 			this.mp,
 			this.cellsToIgnore
 		)
+	}
+	
+	getWeaponInHand(){
+		return Items.getItem(getWeapon(this))
 	}
 
 	// return reachable cell as an array of [cell:dist]
@@ -69,11 +75,11 @@ class Entity {
 		var tmp = cells;
 		var next = [];
 		while(mp-->0){
-			for(var currentWorkingCell : var dist in tmp){
-				for(var c in Map.cells[currentWorkingCell].neighbors){
-					if(stack[c.id] == null && (isEmptyCell(c.id) || inArray(ignoreCells, c))){
-						stack[c.id] = dist+1;
-						next[c.id] = dist+1;
+			for(var currentWorkingCell: var dist in tmp){
+				for(var c in currentWorkingCell.neighbors){
+					if(stack[c] == null && (isEmptyCell(c) || inArray(ignoreCells, c))){
+						stack[c] = dist+1;
+						next[c] = dist+1;
 					}
 				}
 			}
@@ -87,51 +93,50 @@ class Entity {
 		// TODO all
 		this.mp = getMP(this.id)
 		this.reachableCells = this.getReachableCells(
-			[getCell(this.id):0],
+			[Map.getCell(getCell(this.id)):0],
 			this.mp,
-			Fight.getListOfLeekWhoPlayBefore(this.id)
+			Fight.getListOfLeekWhoPlayBefore(this)
 		)
 	}
 	
 	// renvoie un array de cell depuis lesquel on peut tirer sur cell
 	// pour les lignes de vue et _LEEKS pour les cases non accessibles (ou il y a tout le monde sauf le leek)
 	// donc pas pour les bulbes cette fonction !
-	getCellsToUseItemOnCell(item, cell){
-		var leekToIgnore = [this.id],result = [], x = cell.x, y = cell.y
+	getCellsToUseItemOnCell(item, targetCell){
+		var leekToIgnore = [this.id],result = [], x = targetCell.x, y = targetCell.y
 		if(item.isInLine){
 			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
 				var dist =((x-x1)<0?x1-x:x-x1);
 				if(dist < item.minRange) continue;
-				var fromCell = getCellFromXY(x1, y);
+				var fromCell = Map.getCell(getCellFromXY(x1, y));
 				if(fromCell!=null 
 				&& Map.obstacles[fromCell]==null 
 				&& Map.entityCells[fromCell]==null
-				&& (!item.needLOS || lineOfSight(fromCell, cell.id, leekToIgnore))){
+				&& (!item.needLOS || lineOfSight(fromCell, targetCell, leekToIgnore))){
 					push(result, fromCell);
 				}
 			}
 			for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
 				var dist =((y-y1)<0?y1-y:y-y1);
 				if(dist < item.minRange) continue;
-				var fromCell = getCellFromXY(x, y1);
+				var fromCell = Map.getCell(getCellFromXY(x, y1));
 				if(fromCell!=null 
 				&& Map.obstacles[fromCell]==null 
 				&& Map.entityCells[fromCell]==null
-				&& (!item.needLOS || lineOfSight(fromCell, cell.id, leekToIgnore))){
+				&& (!item.needLOS || lineOfSight(fromCell, targetCell, leekToIgnore))){
 					push(result, fromCell);
 				}
 			}
 		}else{
-			mark(getCellFromXY(x, y), COLOR_RED)
 			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
 				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
 					var dist =((x-x1)<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1);//trick pour abs(x-x1)+abs(y-y1)..
 					if(dist > item.maxRange || dist < item.minRange) continue;
-					var fromCell = getCellFromXY(x1, y1);
+					var fromCell = Map.getCell(getCellFromXY(x1, y1));
 					if(fromCell!=null 
 					&& Map.obstacles[fromCell]==null 
 					&& Map.entityCells[fromCell]==null
-					&& (!item.needLOS || lineOfSight(fromCell, cell.id, leekToIgnore))){
+					&& (!item.needLOS || lineOfSight(fromCell, targetCell, leekToIgnore))){
 						push(result, fromCell);
 					}
 				}
@@ -145,7 +150,7 @@ class Entity {
 		var closestCell = null
 		var tmpDist = 9999
 		for(var c in cells){
-			var distance = getCellDistance(this.cell.id, c)
+			var distance = getCellDistance(this.cell, c)
 			if(tmpDist > distance){
 				tmpDist = distance
 				closestCell = c
@@ -155,7 +160,7 @@ class Entity {
 	}
 
 	string() {
-		return "<Entity "+this.id+">"
+		return "<Entity "+this.name+">"
 	}
 }
 
