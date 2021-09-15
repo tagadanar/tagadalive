@@ -11,22 +11,24 @@ function init() {
 init() 
 
 
-if(getWeapon()==null) setWeapon(WEAPON_PISTOL);
+if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_PISTOL));
 var enemy = Fight.getEntity(getNearestEnemy());
 
 // debug qui affiche les cases safe en vert et avec du danger en rouge.
-
+var arrayDanger = []
 for(var c : var d in Fight.self.reachableCells) {
 	var danger = MapDanger.getCellDanger(c)
 	if(danger.dmg > 0) { 
-		mark(c, getColor(danger.dmg, 0, 0))
-		markText(c, danger.dmg)
-		debug(danger)
-		pause()
+		mark(c.id, getColor(danger.dmg, 0, 0))
+		markText(c.id, round(danger.dmg))
+		arrayDanger[round(danger.dmg)] = danger
 	}
 	else {
-		mark(c, COLOR_GREEN)
+		mark(c.id, COLOR_GREEN)
 	}
+}
+for(var danger in arrayDanger){
+	debug(danger)
 }
 
 var combo = MapDanger.getPotentialCombo(Fight.self, enemy.cell)
@@ -36,13 +38,13 @@ else {
 	var path = getPath(getCell(), cellToUsePistol)
 	if(count(path)>getMP()){ // avance prudente
 		for(var cell in path){
-			var danger = MapDanger.getCellDanger(cell)
+			var danger = MapDanger.getCellDanger(Map.getCell(cell))
 			if(danger.dmg == 0) moveTowardCell(cell)
 		}
 	} else { // je peux tirer sur l'adv: gogo
 		debugE('SHOULD NOT BE HERE !')
 		moveTowardCell(cellToUsePistol)
-		while(useWeapon(enemy.id) > 0);
+		while(useWeapon(enemy) > 0);
 	}
 }
 

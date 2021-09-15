@@ -1,0 +1,76 @@
+include('../auto')
+
+global _getWeapon = clone(getWeapon)
+getWeapon = function(entity){
+	if(entity instanceof Entity) return _getWeapon(entity.id)
+	else {
+		debugW('getWeapon should always be called with an <Entity> and not int')
+		return _getWeapon(entity)
+	}
+}
+
+global _setWeapon = clone(setWeapon)
+setWeapon = function(item){
+	if(item instanceof Item) return _setWeapon(item.id)
+	else {
+		debugW('setWeapon should always be called with an <Item> and not int')
+		return _setWeapon(item)
+	}
+}
+
+global _getCellDistance = clone(getCellDistance)
+getCellDistance = function(c1, c2){
+	if(c1 instanceof Cell && c2 instanceof Cell) return _getCellDistance(c1.id, c2.id)
+	else {
+		debugW('getCellDistance should always be called with <Cell> and not int')
+		return _getCellDistance(c1, c2)
+	}
+}
+
+global _lineOfSight = clone(lineOfSight)
+lineOfSight = function(c1, c2, entityToIgnore){
+	if(c1 instanceof Cell && c2 instanceof Cell) return _lineOfSight(c1.id, c2.id, entityToIgnore)
+	else {
+		debugW('lineOfSight should always be called with <Cell> and not int')
+		return _lineOfSight(c1, c2, entityToIgnore)
+	}
+}
+
+global _isEmptyCell = clone(isEmptyCell)
+isEmptyCell = function(cell){
+	if(cell instanceof Cell) return _isEmptyCell(cell.id)
+	else {
+		debugW('isEmptyCell should always be called with <Cell> and not int')
+		return _isEmptyCell(cell)
+	}
+}
+
+global _getEntityOnCell = clone(getEntityOnCell)
+getEntityOnCell = function(cell){
+	if(cell instanceof Cell) return _getEntityOnCell(cell.id)
+	else {
+		debugW('getEntityOnCell should always be called with <Cell> and not int')
+		return _getEntityOnCell(cell)
+	}
+}
+
+global _getCooldown = clone(getCooldown)
+getCooldown = function(item, entity){
+	if(item instanceof Item && entity instanceof Entity) return _getCooldown(item.id, entity.id)
+	else {
+		debugW('getCooldown should always be called with <Item> and <Entity> and not int')
+		return _getCooldown(item, entity)
+	}
+}
+
+global _moveTowardCell = clone(moveTowardCell)
+moveTowardCell = function(cell){
+	if(cell instanceof Cell) return _moveTowardCell(cell.id)
+	else {
+		debugW('moveTowardCell should always be called with <Cell> and not int')
+		return _moveTowardCell(cell)
+	}
+}
+
+
+

@@ -9,8 +9,9 @@ class Combo {
 	}
 	
 	play(){
+		debug(this)
 		for(var action in this.actions){
-			moveTowardCell(action.from.id)
+			moveTowardCell(action.from)
 			action.item.useItemOnCell(action.to)
 		}
 	}
@@ -20,7 +21,7 @@ class Combo {
 		for(var action in this.actions){
 			str+= action+'\n'
 		}
-		str+= ' | dmg:'+this.dmg+']>'
+		str+= ' | dmg:'+round(this.dmg)+']>'
 		return str
 	}
 }
