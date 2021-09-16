@@ -6,7 +6,7 @@ class Fight {
 	static allEntitiesId
 	static self
 
-	static init(){
+	static refresh(){
 		for(var e in getAliveEnemies()) {
 			var entity = Entity(e)
 			Fight._aliveEnemies[e] = entity
@@ -35,9 +35,10 @@ class Fight {
 	static getAlliesAlive() {
 		return Fight._aliveAllies
 	}
-	static getAllEntities() {
-		return Fight._aliveAllies+Fight._aliveEnemies
+	static getAllAlive() {
+		return Fight._aliveAll
 	}
+	
 	static getListOfLeekWhoPlayBefore(entity) {
 		if(entity == Fight.self.id) return []
 		var list = [Fight.self]

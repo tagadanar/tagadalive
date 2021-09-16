@@ -6,7 +6,7 @@ class MapDanger {
 	static _cache_allies_item_targetableCells = []
 	static _map_entity_item_danger = [] // [e][item]
 	
-	static init(){
+	static refresh(){
 		_danger = []
 		for(var e in Fight.getEnemiesAlive()){
 			_map_entity_item_danger[e] = [];//reset de la map

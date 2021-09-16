@@ -1,12 +1,13 @@
 include('auto');
 
 function init() {
+	Fight.refresh()
 	if(getTurn()==1) {
 		Map.init()
 		Items.init()
 	}
-	Fight.init()
-	MapDanger.init()
+	Map.refresh()
+	MapDanger.refresh()
 }
 init() 
 
