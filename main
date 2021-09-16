@@ -1,15 +1,16 @@
 include('auto');
 
 function init() {
-	Fight.refresh()
 	if(getTurn()==1) {
 		Map.init()
 		Items.init()
 	}
+	Fight.refresh()
 	Map.refresh()
 	MapDanger.refresh()
 }
 init() 
+
 
 
 if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_PISTOL));
