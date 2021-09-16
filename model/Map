@@ -13,7 +13,7 @@ class Map {
 	
 	static refresh(){
 		for(var entity in Fight.getAllAlive()){
-			if(entity!=getLeek()) Map.entityCells[Map.getCell(getCell(entity))] = Fight.getEntity(entity)
+			if(entity!=getLeek()) Map.entityCells[entity.cell] = entity
 		}
 	}
 		
