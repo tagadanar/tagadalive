@@ -9,7 +9,10 @@ class Map {
 		for(var i = 0; i < 613; i++) cells[i] = new Cell(i)
 		for(var i in getObstacles()) Map.obstacles[cells[i]]=true
 		for(var cell in cells) cell.initNeighbors()
-		for(var entity in getAliveAllies()+getAliveEnemies()){
+	}
+	
+	static refresh(){
+		for(var entity in Fight.getAllAlive()){
 			if(entity!=getLeek()) Map.entityCells[Map.getCell(getCell(entity))] = Fight.getEntity(entity)
 		}
 	}

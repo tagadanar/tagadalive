@@ -58,7 +58,7 @@ class Entity {
 			push(this.cellsToIgnore, entity.cell)
 		}
 		this.reachableCells = this.getReachableCells(
-			[Map.getCell(getCell(id)):0],
+			[this.cell:0],
 			this.mp,
 			this.cellsToIgnore
 		)
@@ -92,8 +92,9 @@ class Entity {
 	refresh() {
 		// TODO all
 		this.mp = getMP(this.id)
+		this.cell = Map.getCell(getCell(this.id))
 		this.reachableCells = this.getReachableCells(
-			[Map.getCell(getCell(this.id)):0],
+			[this.cell:0],
 			this.mp,
 			Fight.getListOfLeekWhoPlayBefore(this)
 		)
