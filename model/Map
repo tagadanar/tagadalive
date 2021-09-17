@@ -3,7 +3,7 @@ include('../auto')
 class Map {
 	static obstacles = []
 	static cells = []
-	static entityCells = []
+	static entityCells
 	
 	static init(){
 		for(var i = 0; i < 613; i++) cells[i] = new Cell(i)
@@ -12,8 +12,9 @@ class Map {
 	}
 	
 	static refresh(){
+		Map.entityCells = []
 		for(var entity in Fight.getAllAlive()){
-			if(entity!=getLeek()) Map.entityCells[entity.cell] = entity
+			Map.entityCells[entity.cell] = entity
 		}
 	}
 		
