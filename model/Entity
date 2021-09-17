@@ -112,7 +112,7 @@ class Entity {
 				var fromCell = Map.getCell(getCellFromXY(x1, y));
 				if(fromCell!=null 
 				&& Map.obstacles[fromCell]==null 
-				&& Map.entityCells[fromCell]==null
+				&& (Map.entityCells[fromCell]==null || Map.entityCells[fromCell]==Fight.self)
 				&& (!item.needLOS || lineOfSight(fromCell, targetCell, leekToIgnore))){
 					push(result, fromCell);
 				}
@@ -123,7 +123,7 @@ class Entity {
 				var fromCell = Map.getCell(getCellFromXY(x, y1));
 				if(fromCell!=null 
 				&& Map.obstacles[fromCell]==null 
-				&& Map.entityCells[fromCell]==null
+				&& (Map.entityCells[fromCell]==null || Map.entityCells[fromCell]==Fight.self)
 				&& (!item.needLOS || lineOfSight(fromCell, targetCell, leekToIgnore))){
 					push(result, fromCell);
 				}
@@ -136,7 +136,7 @@ class Entity {
 					var fromCell = Map.getCell(getCellFromXY(x1, y1));
 					if(fromCell!=null 
 					&& Map.obstacles[fromCell]==null 
-					&& Map.entityCells[fromCell]==null
+					&& (Map.entityCells[fromCell]==null || Map.entityCells[fromCell]==Fight.self)
 					&& (!item.needLOS || lineOfSight(fromCell, targetCell, leekToIgnore))){
 						push(result, fromCell);
 					}
