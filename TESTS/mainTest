@@ -1,0 +1,21 @@
+include('includesTests');
+
+init()
+checkMap()
+checkCells()
+checkFight()
+checkItems() // TODO
+checkMapDanger() // TODO
+
+function init() {
+	if(getTurn()==1) {
+		Map.init()
+		Items.init()
+	}
+	Fight.refresh()
+	Map.refresh()
+	MapDanger.refresh()
+}
+
+if (getTurn() == 1)
+	setWeapon(WEAPON_PISTOL)

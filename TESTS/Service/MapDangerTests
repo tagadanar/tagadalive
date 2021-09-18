@@ -1,0 +1,46 @@
+include('../includesTests')
+
+function testGetCellDanger() {
+	testNumber += 1;
+	debugC(testNumber + " - MapDangerTests::testGetCellDanger - TODO", COLOR_BLUE)
+}
+
+function testGetPotentialCombo() {
+	testNumber += 1;
+	debugC(testNumber + " -  MapDangerTests::testGetPotentialCombo - TODO", COLOR_BLUE)
+}
+
+function testGetDamage() {
+	testNumber += 1;
+	debugC(testNumber + " -  MapDangerTests::testGetDamage - TODO", COLOR_BLUE)
+}
+
+function testGetAlliesDmgMap() {
+	testNumber += 1;
+	debugC(testNumber + " -  MapDangerTests::testGetAlliesDmgMap - TODO", COLOR_BLUE)
+}
+
+function testGetAlliesTargetableCells() {
+	testNumber += 1;
+	debugC(testNumber + " -  MapDangerTests::testGetAlliesTargetableCells - TODO", COLOR_BLUE)
+}
+
+function testGetEnemiesDmgMap() {
+	testNumber += 1;
+	debugC(testNumber + " -  MapDangerTests::testGetEnemiesDmgMap - TODO", COLOR_BLUE)
+}
+
+function testGetEnemiesTargetableCells() {
+	testNumber += 1;
+	debugC(testNumber + " -  MapDangerTests::testGetEnemiesTargetableCells - TODO", COLOR_BLUE)
+}
+
+function checkMapDanger() {
+	testGetCellDanger()
+	testGetPotentialCombo()
+	testGetDamage()
+	testGetAlliesDmgMap()
+	testGetAlliesTargetableCells()
+	testGetEnemiesDmgMap()
+	testGetEnemiesTargetableCells()
+}

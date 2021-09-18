@@ -1,5 +1,9 @@
 include ('../auto')
 
+/*
+ * L'objet Danger contient un combo représentant un ensemble d'actions et les dommages approximatifs de ces actions.
+ * Le combo est une chaîne de caractères et est utilisé à des fins de tests / debugs.
+ */
 class Danger{
 	dmg
 	combo
@@ -7,6 +11,10 @@ class Danger{
 		this.dmg = dmg
 		this.combo = str
 	}
+	
+	/*
+	 * Format chaîne de caracteres utilisée pour des tests / debugs.
+	 */
 	string() {
 		return '<Danger [\n'+this.combo+'\n | dmg: '+round(this.dmg)+']>'
 	}

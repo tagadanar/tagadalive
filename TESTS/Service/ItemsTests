@@ -1,0 +1,16 @@
+include('../includesTests')
+
+function testGetOrderedOffensiveItems() {
+	testNumber += 1;
+	debugC(testNumber + " - ItemsTests::testGetOrderedOffensiveItems - TODO", COLOR_BLUE)
+}
+
+function testGetOrderedDefensiveItems() {
+	testNumber += 1;
+	debugC(testNumber + " -  ItemsTests::testGetOrderedOffensiveItems - TODO", COLOR_BLUE)
+}
+
+function checkItems() {
+	testGetOrderedOffensiveItems()
+	testGetOrderedDefensiveItems()
+}
