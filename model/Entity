@@ -96,7 +96,7 @@ class Entity {
 		this.reachableCells = this.getReachableCells(
 			[this.cell:0],
 			this.mp,
-			Fight.getListOfLeekWhoPlayBefore(this)
+			this.cellsToIgnore
 		)
 	}
 	
