@@ -1,0 +1,5 @@
+/* global */
+global testNumber = 1;
+
+/* settings */
+global _DEBUG = false; // if true -> display both results and expected results after each tests

@@ -1,5 +1,8 @@
 include('../auto')
 
+/*
+ * Cellule de jeu contenant l'id, 'les coordonnées, les voisins et le type
+ */ 
 class Cell {
 	id
 	isWall
@@ -12,6 +15,10 @@ class Cell {
 		this.x = getCellX(id)
 		this.y = getCellY(id)
 	}
+	
+	/*
+	 * Initialise les cellules voisines
+	 */
 	initNeighbors(){
 		var x = this.x, y = this.y, result = []
 		// AREA_CIRCLE_1
@@ -26,6 +33,10 @@ class Cell {
 
 		this.neighbors = result
 	}
+	
+	/*
+	 * Format chaîne de caractères utilisée pour des tests / debugs.
+	 */
 	string(){
 		return "<Cell "+this.id+">"
 	}

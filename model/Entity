@@ -1,5 +1,9 @@
 include('../auto')
 
+/*
+ * L'objet Entity contient la synthèse des informations d'une entité allié ou adversaire.
+ * Il y a un objet Entity instancié pour chacune des entités présente sur le champ de bataille.
+ */
 class Entity {
 	id
 	name
@@ -52,6 +56,10 @@ class Entity {
 		this.turnOrder = getEntityTurnOrder(id)
 	}
 
+	/*
+	 * Initialise certaines informations de l'objet Entite 
+	 * Certaines peuvent être dépendantes d'autres classes.
+	 */
 	init(){
 		this.entityWhoPlayBefore = Fight.getListOfLeekWhoPlayBefore(this)
 		for(var entity in this.entityWhoPlayBefore) {
@@ -64,12 +72,22 @@ class Entity {
 		)
 	}
 	
+	/*
+	 * Retourne l'objet Item correspondant à l'arme dans les mains de l'entité'
+	 * @return une Item
+	 */
 	getWeaponInHand(){
 		return Items.getItem(getWeapon(this))
 	}
 
-	// return reachable cell as an array of [cell:dist]
-	// cells must be in form : [cell:dist]
+	/*
+	 * Renvoie l'ensemble de cellules accessibles depuis la cellule (cells) avec la quantité de points de mouvements (mp) en utilisant les voisins et la fonction de l'API leekWars isEmpty.
+	 * @param cells -> cellule à partir de laquelle je veux checker (format [cellule:distance]) donc par exemple ma [cellule courante:0]
+	 * @param mp -> les points de mouvements
+	 * @param ignoreCells -> cellules à ignorer par l'algorithme
+	 * @return  un tableau contenant pour chaque cellules accessible [Cell:distance]
+	 * 
+	 */
 	getReachableCells(cells, mp, ignoreCells){
 		var stack = cells;
 		var tmp = cells;
@@ -89,6 +107,9 @@ class Entity {
 		return stack
 	}
 	
+	/*
+	 * Actualise les informations de l'entité
+	 */
 	refresh() {
 		// TODO all
 		this.mp = getMP(this.id)
@@ -100,9 +121,15 @@ class Entity {
 		)
 	}
 	
-	// renvoie un array de cell depuis lesquel on peut tirer sur cell
-	// pour les lignes de vue et _LEEKS pour les cases non accessibles (ou il y a tout le monde sauf le leek)
-	// donc pas pour les bulbes cette fonction !
+
+	/*
+	 * Renvoie l'ensemble des cellules ou l'entité peut tirer sur la cellule ciblé avec l'arme/puce item
+	 * @info La fonction prend en compte les LOS et toutes les autres entitées sauf l'Entity elle même (afin de ne pas prendre en compte les cases non accessibles) 
+	 * à ne pas utiliser pour les bulbes 
+	 * @param item Arme ou Puce de l'entité
+	 * @param targetCell cellule ciblé par l'entité
+	 * @return un tableau de cellules 
+	 */
 	getCellsToUseItemOnCell(item, targetCell){
 		var leekToIgnore = [this.id],result = [], x = targetCell.x, y = targetCell.y
 		if(item.isInLine){
@@ -145,7 +172,14 @@ class Entity {
 		}
 		return result;
 	}
-		
+	
+	/*
+	 * Renvoie la cellule la plus proche ou l'entité peut tirer sur la cellule ciblée avec l'arme/puce item
+	 * @info utilise les résultats de getCellsToUseItemOnCell puis détecte la cellule la plus proche parmis celles qui sont renvoyées 
+	 * @param item Arme ou Puce de l'entité
+	 * @param cell cellule ciblé par l'entité
+	 * @return Cell
+	 */	
 	getCellToUseItemOnCell(item, cell){
 		var cells = this.getCellsToUseItemOnCell(item, cell)
 		var closestCell = null
@@ -160,6 +194,9 @@ class Entity {
 		return closestCell
 	}
 
+	/*
+	 * Format chaîne de caracteres utilisée pour des tests / debugs.
+	 */
 	string() {
 		return "<Entity "+this.name+">"
 	}

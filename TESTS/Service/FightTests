@@ -1,0 +1,78 @@
+include('../includesTests')
+
+function testGetEntity() {
+	var result = Fight.getEntity(getNearestEnemy()).id
+	var expected = getNearestEnemy()
+	
+	assertEquals("FightTests::testGetEntity", expected, result)
+}
+
+function testGetEnemiesAliveIsNotEmpty() {
+	var result = count(Fight.getEnemiesAlive())
+	var expected = count(getAliveEnemies())
+	
+	assertEquals("FightTests::testGetEnemiesAliveIsNotEmpty", expected, result)
+}
+
+function testGetEnemiesAlive() {
+	var result = []
+	for (var leek in getAliveEnemies()) 
+		push(result, Fight.getEnemiesAlive()[leek].id)
+	
+	var expected = getAliveEnemies()
+	
+	assertEquals("FightTests::testGetEnemiesAlive", expected, result)
+}
+
+function testGetAlliesAliveIsNotEmpty() {
+	var result = count(Fight.getAlliesAlive())
+	var expected = count(getAliveAllies())
+	
+	assertEquals("FightTests::testGetAlliesAliveIsNotEmpty", expected, result)
+}
+
+function testGetAlliesAlive() {
+	var result = []
+	for (var leek in getAliveAllies()) 
+		push(result, Fight.getAlliesAlive()[leek].id)
+	
+	var expected = getAliveAllies()
+	
+	assertEquals("FightTests::testGetAlliesAlive", expected, result)
+}
+
+function testGetAllAliveIsNotEmpty() {
+	var result = count(Fight.getAllAlive())
+	var expected = count(getAliveAllies()) + count(getAliveEnemies())
+	
+	assertEquals("FightTests::testGetAllAliveIsNotEmpty", expected, result)
+}
+
+function testGetAllAlive() {
+	var result = Fight.getAllAlive()
+	var expected = getAliveAllies() + getAliveEnemies()
+	
+	assertEquals("FightTests::testGetAllAlive", expected, result)
+}
+
+function testGetListOfLeekWhoPlayBefore() {
+	var expected = []
+	var result = Fight.getListOfLeekWhoPlayBefore(Entity(getEntity()));
+	
+	assertEquals("FightTests::testGetListOfLeekWhoPlayBefore - Test 1", expected, result)
+	
+	// Pour info, ce test fonctionne uniquement si dans le scenario de test j'ai qu'un seul ennemi
+	var expected2 = Entity(getEntity()).id
+	var result2 = Fight.getListOfLeekWhoPlayBefore(Entity(getNearestEnemy()))[0].id;
+	assertEquals("FightTests::testGetListOfLeekWhoPlayBefore - Test 2", expected2, result2)
+}
+
+function checkFight() {
+	testGetEntity()
+	testGetEnemiesAliveIsNotEmpty()
+	testGetEnemiesAlive()
+	testGetAlliesAliveIsNotEmpty()
+	testGetAlliesAlive()
+	testGetAllAliveIsNotEmpty()
+	testGetListOfLeekWhoPlayBefore()
+}
