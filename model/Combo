@@ -1,13 +1,25 @@
 include('../auto')
 
+/*
+ * Ensemble d'actions formant un combo 
+ * L'objet combo contient les dommages approximatifs calculé dans MapDanger::getPotentialCombo
+ */
 class Combo {
 	actions = []
 	dmg = 0
 	
+	/*
+	 * Ajout d'action dans l'ensemble d'actions du combo
+	 * @param action Action a ajouter dans le combo
+	 */
 	add(action){
 		push(this.actions, action)
 	}
 	
+	/*
+	 * pour chaque action dans l'ensemble d'actions
+	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
+	 */
 	play(){
 		debug(this)
 		for(var action in this.actions){
@@ -16,6 +28,9 @@ class Combo {
 		}
 	}
 	
+	/*
+	 * Format chaîne de caractères utilisée pour des tests / debugs.
+	 */
 	string(){
 		var str= '<Combo: [\n'
 		for(var action in this.actions){

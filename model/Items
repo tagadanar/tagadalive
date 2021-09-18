@@ -1,18 +1,35 @@
 include('../auto')
 
+/*
+ * Ensemble de méthodes et d'algorithmes permettant d'instancier les items de type Item et de les classer par ordre d'importance
+ */
 class Items {
 	private static _items = []
 	private static _stuff = []
+	
+	/*
+	 * Initialise toutes les équipements disponible dans le jeu
+	 */
 	static init() {
 		for(var i in getAllWeapons()+getAllChips()) {
 			_items[i] = new Item(i)
 		}
 	}
 	
+	/*
+	 * Renvoie toutes les informations de l'arme / puce en paramètre
+	 * @param itemId id de l'item 
+	 * @return Item 
+	 */
 	static getItem(itemId){
 		return _items[i]
 	}
 	
+	/*
+	 * Renvoie un tableau d'items équipé sur une Entity 
+	 * @param entityId id de l'Entity
+	 * @return tableau d'Item
+	 */
 	static getItems(entityId) {
 		if(!_stuff[entityId]){
 			_stuff[entityId] = []
@@ -23,10 +40,21 @@ class Items {
 		return _stuff[entityId]
 	}
 	
+	/*
+	 * Appel la fonction getOrderedOffensiveItems avec moi en guise de cible d'une entité en paramètre
+	 * @param entity Entity ennemie
+	 * @return tableau d'Item classé par dangerosité
+	 */
 	static getOrderedOffensiveItems(entity) {
 		return Items.getOrderedOffensiveItems(entity, Fight.self)
 	}
 	
+	/*
+	 * Classifie les Item items d'une Entity entity par dangerosité sur une Entity target
+	 * @param entity Entity attaquant
+	 * @param target Entity ciblé
+	 * @return tableau d'Item classé par dangerosité
+	 */
 	// TODO faire de belles boucles propre
 	static getOrderedOffensiveItems(entity, target) {
 		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entity.id)
@@ -57,6 +85,11 @@ class Items {
 		return allItems;
 	}
 	
+	/*
+	 * Classifie les Item items d'une Entity entity par effet bénéfique défensif
+	 * @param entity Entity 
+	 * @return tableau d'Item classé par effet bénéfique défensif
+	 */
 	static getOrderedDefensiveItems(entity){
 		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entity.id)
 		var absShield = Fight.self.absShield, relShield = Fight.self.relShield

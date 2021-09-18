@@ -1,0 +1,29 @@
+include('../includesTests')
+
+function assertEquals(testName, expected, result) {
+	testNumber += 1;
+	if (expected == result) {
+		debugC(testNumber + ' - ' + testName + ' SUCCESS', COLOR_GREEN);
+		if (_DEBUG)
+			debugC(testNumber + ' - expected :' + expected + ' result :' + result);
+	} else {
+		debugC(testNumber + ' - ' + testName + ' FAIL', COLOR_RED);
+		if (_DEBUG)
+			debugE(testNumber + ' - expected :' + expected + ' result :' + result);
+	}
+	
+	
+}
+
+function strictAssertEquals(testName, expected, result) {
+	testNumber += 1;
+	if (expected === result) {
+		debugC(testNumber + ' - ' + testName + ' SUCCESS', COLOR_GREEN);
+		if (_DEBUG)
+			debugC(testNumber + ' - expected :' + expected + ' result :' + result);
+	} else {
+		debugC(testNumber + ' - ' + testName + ' FAIL', COLOR_RED);
+		if (_DEBUG)
+			debugE(testNumber + ' - expected :' + expected + ' result :' + result);
+	}
+}
