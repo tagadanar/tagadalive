@@ -1,7 +1,7 @@
 include('../auto')
 
 /*
- * Contient les informations de la map (obstaclesn, cells, placement des Entity)
+ * Contient les informations de la map (obstacles, cells, placement des Entity)
  */
 class Map {
 	static obstacles = []
@@ -28,7 +28,7 @@ class Map {
 	}
 	
 	/*
-	 * Renvoie un objet Cell correspondant a l'id de la cellule
+	 * Renvoie un objet Cell correspondant à l'id de la cellule
 	 * @param id id de la cellule
 	 * @return Cell
 	 */	

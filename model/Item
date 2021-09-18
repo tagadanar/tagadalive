@@ -44,7 +44,7 @@ class Item {
 	}
 	
 	/*
-	 * Vérifie si je peux utiliser une item sur une cellule, si oui utilise l'item
+	 * VÃ©rifie si je peux utiliser une item sur une cellule, si oui utilise l'item
 	 * @param cell cellule de type Cell représentant l'endroit ou je veux utiliser l'Item avec id: (this.id)
 	 */
 	useItemOnCell(cell){
