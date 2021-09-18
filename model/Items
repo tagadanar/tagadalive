@@ -1,14 +1,14 @@
 include('../auto')
 
 /*
- * Ensemble de méthodes et d'algorithmes permettant d'instancier les items de type Item et de les classer par ordre d'importance
+ * Ensemble de mÃ©thodes et d'algorithmes permettant d'instancier les items de type Item et de les classer par ordre d'importance
  */
 class Items {
 	private static _items = []
 	private static _stuff = []
 	
 	/*
-	 * Initialise toutes les équipements disponible dans le jeu
+	 * Initialise toutes les Ã©quipements disponible dans le jeu
 	 */
 	static init() {
 		for(var i in getAllWeapons()+getAllChips()) {
@@ -17,7 +17,7 @@ class Items {
 	}
 	
 	/*
-	 * Renvoie toutes les informations de l'arme / puce en paramètre
+	 * Renvoie toutes les informations de l'arme / puce en paramÃ¨tre
 	 * @param itemId id de l'item 
 	 * @return Item 
 	 */
@@ -26,7 +26,7 @@ class Items {
 	}
 	
 	/*
-	 * Renvoie un tableau d'items équipé sur une Entity 
+	 * Renvoie un tableau d'items Ã©quipÃ© sur une Entity 
 	 * @param entityId id de l'Entity
 	 * @return tableau d'Item
 	 */
@@ -41,26 +41,26 @@ class Items {
 	}
 	
 	/*
-	 * Appel la fonction getOrderedOffensiveItems avec moi en guise de cible d'une entité en paramètre
+	 * Appel la fonction getOrderedOffensiveItems avec moi en guise de cible d'une entitÃ© en paramÃ¨tre
 	 * @param entity Entity ennemie
-	 * @return tableau d'Item classé par dangerosité
+	 * @return tableau d'Item classÃ© par dangerositÃ©
 	 */
 	static getOrderedOffensiveItems(entity) {
 		return Items.getOrderedOffensiveItems(entity, Fight.self)
 	}
 	
 	/*
-	 * Classifie les Item items d'une Entity entity par dangerosité sur une Entity target
+	 * Classifie les Item items d'une Entity entity par dangerositÃ© sur une Entity target
 	 * @param entity Entity attaquant
-	 * @param target Entity ciblé
-	 * @return tableau d'Item classé par dangerosité
+	 * @param target Entity ciblÃ©
+	 * @return tableau d'Item classÃ© par dangerositÃ©
 	 */
 	// TODO faire de belles boucles propre
 	static getOrderedOffensiveItems(entity, target) {
 		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entity.id)
 		var absShield = target.absShield, relShield = target.relShield;
 		for(var item in stuff){
-			// reminder le cd est décrément au début du round, donc 1 est utilisable next rnd
+			// reminder le cd est dÃ©crÃ©ment au dÃ©but du round, donc 1 est utilisable next rnd
 			if(item.haveCD && getCooldown(item, entity)>1) continue;
 			dmg=0;
 			for(var e in item.effects){
@@ -86,15 +86,15 @@ class Items {
 	}
 	
 	/*
-	 * Classifie les Item items d'une Entity entity par effet bénéfique défensif
+	 * Classifie les Item items d'une Entity entity par effet bÃ©nÃ©fique dÃ©fensif
 	 * @param entity Entity 
-	 * @return tableau d'Item classé par effet bénéfique défensif
+	 * @return tableau d'Item classÃ© par effet bÃ©nÃ©fique dÃ©fensif
 	 */
 	static getOrderedDefensiveItems(entity){
 		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entity.id)
 		var absShield = Fight.self.absShield, relShield = Fight.self.relShield
 		for(var item in stuff){
-			// reminder le cd est décrément au début du round, donc 1 est utilisable next rnd
+			// reminder le cd est dÃ©crÃ©ment au dÃ©but du round, donc 1 est utilisable next rnd
 			if(item.haveCD && getCooldown(item, entity)>1) continue;
 			dmg=0;
 			for(var e in effects){
@@ -105,7 +105,7 @@ class Items {
 					dmg += e.avg*(1+(entity.rst/100)) *e.duration;
 				}
 				else if(e.type == EFFECT_RELATIVE_SHIELD){
-					dmg += e.avg*(1+(entity.rst/100)) *e.duration *4; // FIXME le *4 devrait être une global de ratio abs/rel
+					dmg += e.avg*(1+(entity.rst/100)) *e.duration *4; // FIXME le *4 devrait Ãªtre une global de ratio abs/rel
 				}
 			}
 			if(dmg>0) allItems[item] = dmg/item.cost;

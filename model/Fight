@@ -1,7 +1,7 @@
 include('../auto')
 
 /*
- * Objet qui contient l'ensemble des entités vivante alliée et ennemie
+ * Objet qui contient l'ensemble des entitÃ©s vivante alliÃ©e et ennemie
  */
 class Fight {
 	private static _aliveEnemies
@@ -11,7 +11,7 @@ class Fight {
 	static self
 
 	/*
-	 * Actualise les tableaux contenant les entités vivante alliée et ennemie ainsi que l'ensemble des entités alliées + ennemies
+	 * Actualise les tableaux contenant les entitÃ©s vivante alliÃ©e et ennemie ainsi que l'ensemble des entitÃ©s alliÃ©es + ennemies
 	 */
 	static refresh(){
 		_aliveEnemies = []
@@ -36,7 +36,7 @@ class Fight {
 	}
 
 	/*
-	 * Renvoie Entity correspondant a l'id de l'entity demandée si elle est vivante
+	 * Renvoie Entity correspondant a l'id de l'entity demandÃ©e si elle est vivante
 	 * @param entityId Id de l'Entity
 	 * @return une Entity 
 	 */
@@ -53,7 +53,7 @@ class Fight {
 	}
 	
 	/*
-	 * Renvoie un tableau contenant les alliés vivants (moi compris dedans)
+	 * Renvoie un tableau contenant les alliÃ©s vivants (moi compris dedans)
 	 * @return un tableau d'Entity
 	 */
 	static getAlliesAlive() {
@@ -61,7 +61,7 @@ class Fight {
 	}
 	
 	/*
-	 * Renvoie un tableau contenant les ennemis et les alliés vivants (moi compris dedans)
+	 * Renvoie un tableau contenant les ennemis et les alliÃ©s vivants (moi compris dedans)
 	 * @return un tableau d'Entity
 	 */
 	static getAllAlive() {
@@ -69,11 +69,11 @@ class Fight {
 	}
 	
 	/*
-	 * Détecte les entités vivantes qui jouent avant l'entité entity en paramètre de la fonction
+	 * DÃ©tecte les entitÃ©s vivantes qui jouent avant l'entitÃ© entity en paramÃ¨tre de la fonction
 	 * @param entity Entity 
-	 * @return liste des entités vivantes alliés et ennemies 
+	 * @return liste des entitÃ©s vivantes alliÃ©s et ennemies 
 	 */
-	 // TODO: cette fonction return une list avec <entity> inclus actuellement, ça ne devrait pas, FIX IT 
+	 // TODO: cette fonction return une list avec <entity> inclus actuellement, Ã§a ne devrait pas, FIX IT 
 	 // voir test unitaire
 	static getListOfLeekWhoPlayBefore(entity) {
 		if(entity == self) return []

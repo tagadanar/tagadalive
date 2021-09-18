@@ -1,7 +1,7 @@
 include('../auto')
 
 /*
- *  Ensemble de méthodes et d'algorithmes permettant de calculer le Danger et les maps de dommages
+ *  Ensemble de mÃ©thodes et d'algorithmes permettant de calculer le Danger et les maps de dommages
  */
 class MapDanger {
 	static _danger = []
@@ -10,7 +10,7 @@ class MapDanger {
 	static _map_entity_item_danger = [] // [e][item]
 	
 	/*
-	 * Actualise les informations en fonctions des enemies et alliés encore vivant 
+	 * Actualise les informations en fonctions des enemies et alliÃ©s encore vivant 
 	 */
 	static refresh(){
 		_danger = []
@@ -37,10 +37,10 @@ class MapDanger {
 	}
 	
 			/*
-		 * Calcule le danger d'une Cell si elle n'a pas déjà été calculé.
-		 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de récupérations'
-		 * @param cell Cellule sur laquelle le danger va être calculé
-		 * @return le tableau de Cell avec le danger mis à jour
+		 * Calcule le danger d'une Cell si elle n'a pas dÃ©jÃ  Ã©tÃ© calculÃ©.
+		 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de rÃ©cupÃ©rations
+		 * @param cell Cellule sur laquelle le danger va Ãªtre calculÃ©
+		 * @return le tableau de Cell avec le danger mis Ã  jour
 		 */
 	static getCellDanger(cell) {
 		if(!_danger[cell]) {
@@ -68,10 +68,10 @@ class MapDanger {
 		
 		/*
 		 * Retourune le combo avec potentiellement le plus de dommages que entity peux faire a l'ennemi sur la cellule cell
-		 * @info pour l'instant c'est calculé en utilisant les données des dégats que je peux faire sur l'ennemi le plus proche
+		 * @info pour l'instant c'est calculÃ© en utilisant les donnÃ©es des dÃ©gats que je peux faire sur l'ennemi le plus proche
 		 * @param entity Entity
-		 * @param cell Cell de l'ennemie'
-		 * @return combo contenant le tableau d'actions et les dommages estimés
+		 * @param cell Cell de l'ennemie
+		 * @return combo contenant le tableau d'actions et les dommages estimÃ©s
 		 */
 	static getPotentialCombo(entity, cell){
 		var combo = Combo()
@@ -100,7 +100,7 @@ class MapDanger {
 		 * @param entitySource attaquant
 		 * @param entityTarget receveur
 		 * @param item Item
-		 * @return dmg Dommages calculés
+		 * @return dmg Dommages calculÃ©s
 		 */
 	static getDamage(entitySource, entityTarget, item){
 		var dmg = 0;
@@ -111,7 +111,7 @@ class MapDanger {
 				dmg+= tmp;
 			}
 			else if(e.type == EFFECT_POISON){
-				var duration = e.duration == 2 ? 1.8 : // TODO ces conversions devrait être dans des coefs globaux qqpart dans un scorings 
+				var duration = e.duration == 2 ? 1.8 : // TODO ces conversions devrait Ãªtre dans des coefs globaux qqpart dans un scorings 
 					(e.duration == 3 ? 2.4 :
 					(e.duration == 4 ? 2.8 :
 					e.duration));
@@ -123,9 +123,9 @@ class MapDanger {
 	}
 		
 		/*
-		 * Pour les cellules accessible par l'allié, initialise un tableau contenant les cases qu'il peut cibler avec l'item passé en paramètre
-		 * @info cette fonction est appelé pour chaque items de l'allié'
-		 * @param ally Entity allié
+		 * Pour les cellules accessible par l'alliÃ©, initialise un tableau contenant les cases qu'il peut cibler avec l'item passÃ© en paramÃ¨tre
+		 * @info cette fonction est appelÃ© pour chaque items de l'alliÃ©
+		 * @param ally Entity alliÃ©
 		 * @item Item item
 		 * @return map de Cells ciblables par l'Entity ally
 		 */
@@ -145,17 +145,17 @@ class MapDanger {
 		return map // TODO add map_mp
 	}
 		/*
-		 * Retourne les Cells pouvant être touché avec le parametre item par les alliés, la fonction est appelé pour chaque cellule accessible
+		 * Retourne les Cells pouvant Ãªtre touchÃ© avec le parametre item par les alliÃ©s, la fonction est appelÃ© pour chaque cellule accessible
 		 * Hum... =(
 		 * ++++++++++[>+>+++>+++++++>++++++++++<<<<-]>>>>-.<<+++++++++.>>++.++++++++++++++.+.<<-------.>>---.++++.--------------------.+++++++++++++.----------.<<.>>+++++++++.--------.++++++++.--------.<<.>>+++++++++++.---------------.++++++++++++++++++.<<.>>+.--.-------------.++++++++++++++.<<.>>----------------.+++++++++.-----------.++++++++.+++++++++.<<.>---------.<++++++++.
 		 * @see  https://fr.wikipedia.org/wiki/Brainfuck
 		 * @param item Item
-		 * @param cell une Cellule accesible par l'entité en question
+		 * @param cell une Cellule accesible par l'entitÃ© en question
 		 * @TODO corriger le commentaire
 		 * @return cache sous forme de double tableau
 		 */
 	static getAlliesTargetableCells(item, cell){ // TODO add ignoreleeks to ignore leeks who play before
-		// init du cache si nécessaire
+		// init du cache si nÃ©cessaire
 		if(_cache_allies_item_targetableCells[item]==null) _cache_allies_item_targetableCells[item] = []
 		if(MapDanger._cache_allies_item_targetableCells[item][cell]==null){
 			var result = [], x = cell.x, y = cell.y
@@ -201,8 +201,8 @@ class MapDanger {
 		
 		
 		/*
-		 * Pour les cellules accessible par l'ennemi, initialise un tableau contenant les cases qu'il peut cibler avec l'item passé en paramètre
-		 * @info cette fonction est appelé pour chaque items de l'ennemi'
+		 * Pour les cellules accessible par l'ennemi, initialise un tableau contenant les cases qu'il peut cibler avec l'item passÃ© en paramÃ¨tre
+		 * @info cette fonction est appelÃ© pour chaque items de l'ennemi'
 		 * @param enemy Entity ennemi
 		 * @item Item item
 		 * @return map de Cells ciblables par l'Entity enemy
@@ -224,15 +224,15 @@ class MapDanger {
 	}
 	
 		/*
-		 * Retourne les Cells pouvant être touché avec le parametre item par les ennemis, la fonction est appelé pour chaque cellule accessible
+		 * Retourne les Cells pouvant Ãªtre touchÃ© avec le parametre item par les ennemis, la fonction est appelÃ© pour chaque cellule accessible
 		 * @see getAlliesTargetableCells
 		 * @param item Item
-		 * @param cell une Cellule accesible par l'entité en question
+		 * @param cell une Cellule accesible par l'entitÃ© en question
 		 */
-	// TODO memoisé lineOfSight ignoring allEntitiesId
-	// fonction avec cache qui considère que los est tjr pareil.
+	// TODO memoisÃ© lineOfSight ignoring allEntitiesId
+	// fonction avec cache qui considÃ¨re que los est tjr pareil.
 	static getEnemiesTargetableCells(item, cell){
-		// init du cache si nécessaire
+		// init du cache si nÃ©cessaire
 		if(_cache_item_targetableCells[item]==null) _cache_item_targetableCells[item] = []
 		if(MapDanger._cache_item_targetableCells[item][cell]==null){
 			var result = [], x = cell.x, y = cell.y
