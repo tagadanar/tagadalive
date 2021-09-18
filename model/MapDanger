@@ -85,10 +85,10 @@ class MapDanger {
 				dmg+= tmp;
 			}
 			else if(e.type == EFFECT_POISON){
-				var duration = e.duration == 2 ? 1.8 : // 2 => 1
-					(e.duration == 3 ? 2.4 : // 3 => 1.25
-					(e.duration == 4 ? 2.8 : // 4 => 1.5
-					e.duration)); // 1 => 1
+				var duration = e.duration == 2 ? 1.8 : // TODO ces conversions devrait être dans des coefs globaux qqpart dans un scorings 
+					(e.duration == 3 ? 2.4 :
+					(e.duration == 4 ? 2.8 :
+					e.duration));
 				// TODO if(_CAN_ANTIDOTE) duration = 1;	
 				dmg += e.avgmax*(1+(entitySource.mgc/100))*(1+(entitySource.pwr/100)) /* multiplier par laoe ratio ici*/ *duration;
 			}

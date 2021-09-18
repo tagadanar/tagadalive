@@ -2,7 +2,7 @@ include('../auto')
 
 class Items {
 	private static _items = []
-	
+	private static _stuff = []
 	static init() {
 		for(var i in getAllWeapons()+getAllChips()) {
 			_items[i] = new Item(i)
@@ -14,11 +14,13 @@ class Items {
 	}
 	
 	static getItems(entityId) {
-		var result = []
-		for(var i in getWeapons(entityId)+getChips(entityId)){
-			push(result, _items[i]);
+		if(!_stuff[entityId]){
+			_stuff[entityId] = []
+			for(var i in getWeapons(entityId)+getChips(entityId)){
+				push(_stuff[entityId], _items[i]);
+			}
 		}
-		return result
+		return _stuff[entityId]
 	}
 	
 	static getOrderedOffensiveItems(entity) {
