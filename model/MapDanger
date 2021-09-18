@@ -1,11 +1,17 @@
 include('../auto')
 
+/*
+ *  Ensemble de méthodes et d'algorithmes permettant de calculer le Danger et les maps de dommages
+ */
 class MapDanger {
 	static _danger = []
 	static _cache_item_targetableCells = [] // [item:[fromCell:[targetCells]]]
 	static _cache_allies_item_targetableCells = []
 	static _map_entity_item_danger = [] // [e][item]
 	
+	/*
+	 * Actualise les informations en fonctions des enemies et alliés encore vivant 
+	 */
 	static refresh(){
 		_danger = []
 		for(var e in Fight.getEnemiesAlive()){
@@ -30,6 +36,12 @@ class MapDanger {
 		}
 	}
 	
+			/*
+		 * Calcule le danger d'une Cell si elle n'a pas déjà été calculé.
+		 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de récupérations'
+		 * @param cell Cellule sur laquelle le danger va être calculé
+		 * @return le tableau de Cell avec le danger mis à jour
+		 */
 	static getCellDanger(cell) {
 		if(!_danger[cell]) {
 			var dmg = 0
@@ -54,6 +66,13 @@ class MapDanger {
 		return _danger[cell]
 	}
 		
+		/*
+		 * Retourune le combo avec potentiellement le plus de dommages que entity peux faire a l'ennemi sur la cellule cell
+		 * @info pour l'instant c'est calculé en utilisant les données des dégats que je peux faire sur l'ennemi le plus proche
+		 * @param entity Entity
+		 * @param cell Cell de l'ennemie'
+		 * @return combo contenant le tableau d'actions et les dommages estimés
+		 */
 	static getPotentialCombo(entity, cell){
 		var combo = Combo()
 		var tpleft = entity.tp
@@ -76,6 +95,13 @@ class MapDanger {
 		return combo
 	}
 	
+		/*
+		 * Calcule les dommages que peux faire entitySource sur entityTarget avec une Item en fonction des effets de celle-ci
+		 * @param entitySource attaquant
+		 * @param entityTarget receveur
+		 * @param item Item
+		 * @return dmg Dommages calculés
+		 */
 	static getDamage(entitySource, entityTarget, item){
 		var dmg = 0;
 		for(var e in item.effects){
@@ -96,6 +122,13 @@ class MapDanger {
 		return dmg
 	}
 		
+		/*
+		 * Pour les cellules accessible par l'allié, initialise un tableau contenant les cases qu'il peut cibler avec l'item passé en paramètre
+		 * @info cette fonction est appelé pour chaque items de l'allié'
+		 * @param ally Entity allié
+		 * @item Item item
+		 * @return map de Cells ciblables par l'Entity ally
+		 */
 	static getAlliesDmgMap(ally, item){
 		var map = []//, map_mp = []
 		for(var cell:var dist in ally.reachableCells){
@@ -111,7 +144,16 @@ class MapDanger {
 		
 		return map // TODO add map_mp
 	}
-		
+		/*
+		 * Retourne les Cells pouvant être touché avec le parametre item par les alliés, la fonction est appelé pour chaque cellule accessible
+		 * Hum... =(
+		 * ++++++++++[>+>+++>+++++++>++++++++++<<<<-]>>>>-.<<+++++++++.>>++.++++++++++++++.+.<<-------.>>---.++++.--------------------.+++++++++++++.----------.<<.>>+++++++++.--------.++++++++.--------.<<.>>+++++++++++.---------------.++++++++++++++++++.<<.>>+.--.-------------.++++++++++++++.<<.>>----------------.+++++++++.-----------.++++++++.+++++++++.<<.>---------.<++++++++.
+		 * @see  https://fr.wikipedia.org/wiki/Brainfuck
+		 * @param item Item
+		 * @param cell une Cellule accesible par l'entité en question
+		 * @TODO corriger le commentaire
+		 * @return cache sous forme de double tableau
+		 */
 	static getAlliesTargetableCells(item, cell){ // TODO add ignoreleeks to ignore leeks who play before
 		// init du cache si nécessaire
 		if(_cache_allies_item_targetableCells[item]==null) _cache_allies_item_targetableCells[item] = []
@@ -157,6 +199,14 @@ class MapDanger {
 		return MapDanger._cache_allies_item_targetableCells[item][cell];
 	}
 		
+		
+		/*
+		 * Pour les cellules accessible par l'ennemi, initialise un tableau contenant les cases qu'il peut cibler avec l'item passé en paramètre
+		 * @info cette fonction est appelé pour chaque items de l'ennemi'
+		 * @param enemy Entity ennemi
+		 * @item Item item
+		 * @return map de Cells ciblables par l'Entity enemy
+		 */
 	static getEnemiesDmgMap(enemy, item){
 		var map = []//, map_mp = []
 		for(var cell:var dist in enemy.reachableCells){
@@ -173,6 +223,12 @@ class MapDanger {
 		return map // TODO add map_mp
 	}
 	
+		/*
+		 * Retourne les Cells pouvant être touché avec le parametre item par les ennemis, la fonction est appelé pour chaque cellule accessible
+		 * @see getAlliesTargetableCells
+		 * @param item Item
+		 * @param cell une Cellule accesible par l'entité en question
+		 */
 	// TODO memoisé lineOfSight ignoring allEntitiesId
 	// fonction avec cache qui considère que los est tjr pareil.
 	static getEnemiesTargetableCells(item, cell){

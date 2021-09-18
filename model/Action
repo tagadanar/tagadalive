@@ -1,3 +1,6 @@
+/*
+ * Action réalisable d'une entité vers une autre
+ */
 class Action {
 	public from
 	public to
@@ -8,6 +11,9 @@ class Action {
 		this.to = to
 	}
 	
+	/*
+	 * Format chaîne de caractères utilisée pour des tests / debugs.
+	 */
 	string(){
 		return "<Action "+this.item+":"+this.from+":"+this.to+">"
 	}

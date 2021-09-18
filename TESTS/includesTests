@@ -1,0 +1,9 @@
+include('../auto')
+
+include('Settings/TestSettings')
+include('Service/TestLib')
+include('Service/MapTests')
+include('Service/CellTests')
+include('Service/FightTests')
+include('Service/ItemsTests')
+include('Service/MapDangerTests')

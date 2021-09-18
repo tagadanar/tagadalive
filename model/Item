@@ -1,3 +1,7 @@
+/*
+ * Objet contenant les informations correspondante a une item
+ * On en instancie un pour chacun des équipements du jeu
+ */
 class Item {
 	id
 	name
@@ -39,6 +43,10 @@ class Item {
 		}	
 	}
 	
+	/*
+	 * Vérifie si je peux utiliser une item sur une cellule, si oui utilise l'item
+	 * @param cell cellule de type Cell représentant l'endroit ou je veux utiliser l'Item avec id: (this.id)
+	 */
 	useItemOnCell(cell){
 		if(this.isWeap){
 			if(getWeapon(Fight.self)!=this.id) setWeapon(this)
@@ -46,6 +54,9 @@ class Item {
 		} else useChipOnCell(this.id, cell.id)
 	}
 	
+	/*
+	 * Format chaîne de caracteres utilisée pour des tests / debugs.
+	 */
 	string() {
 		return "<Item "+this.name+">"
 	}
