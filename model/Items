@@ -55,13 +55,13 @@ class Items {
 	 * @param target Entity ciblé
 	 * @return tableau d'Item classé par dangerosité
 	 */
-	// TODO faire de belles boucles propre
 	static getOrderedOffensiveItems(entity, target) {
 		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entity.id)
 		var absShield = target.absShield, relShield = target.relShield;
 		for(var item in stuff){
-			// reminder le cd est décrément au début du round, donc 1 est utilisable next rnd
-			if(item.haveCD && getCooldown(item, entity)>1) continue;
+			// reminder le cd est décrément au début du round, donc 1 est utilisable next rnd, sauf pour moi même
+			var limitCD = entity == Fight.self ? 0 : 1
+			if(item.haveCD && getCooldown(item, entity)>limitCD) continue;
 			dmg=0;
 			for(var e in item.effects){
 				if(e.type == EFFECT_DAMAGE ){

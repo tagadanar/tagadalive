@@ -1,8 +1,8 @@
 include('../auto')
 
 /*
- * L'objet Entity contient la synthÃ¨se des informations d'une entitÃ© alliÃ© ou adversaire.
- * Il y a un objet Entity instanciÃ© pour chacune des entitÃ©s prÃ©sente sur le champ de bataille.
+ * L'objet Entity contient la synthèse des informations d'une entité allié ou adversaire.
+ * Il y a un objet Entity instancié pour chacune des entités présente sur le champ de bataille.
  */
 class Entity {
 	id
@@ -31,8 +31,6 @@ class Entity {
 	turnOrder
 	entityWhoPlayBefore
 	cellsToIgnore = []
-	isFriend
-	isBulb
 	
 	constructor(id){
 		this.id = id
@@ -56,13 +54,11 @@ class Entity {
 		this.dmgReturn = getDamageReturn(id)
 		this.items = Items.getItems(id)
 		this.turnOrder = getEntityTurnOrder(id)
-		this.isFriend = isAlly(id)
-		this.isBulb = isSummon(id)
 	}
 
 	/*
 	 * Initialise certaines informations de l'objet Entite 
-	 * Certaines peuvent Ãªtre dÃ©pendantes d'autres classes.
+	 * Certaines peuvent être dépendantes d'autres classes.
 	 */
 	init(){
 		this.entityWhoPlayBefore = Fight.getListOfLeekWhoPlayBefore(this)
@@ -77,7 +73,7 @@ class Entity {
 	}
 	
 	/*
-	 * Retourne l'objet Item correspondant Ã  l'arme dans les mains de l'entitÃ©
+	 * Retourne l'objet Item correspondant à l'arme dans les mains de l'entité'
 	 * @return une Item
 	 */
 	getWeaponInHand(){
@@ -85,10 +81,10 @@ class Entity {
 	}
 
 	/*
-	 * Renvoie l'ensemble de cellules accessibles depuis la cellule (cells) avec la quantitÃ© de points de mouvements (mp) en utilisant les voisins et la fonction de l'API leekWars isEmpty.
-	 * @param cells -> cellule Ã  partir de laquelle je veux checker (format [cellule:distance]) donc par exemple ma [cellule courante:0]
+	 * Renvoie l'ensemble de cellules accessibles depuis la cellule (cells) avec la quantité de points de mouvements (mp) en utilisant les voisins et la fonction de l'API leekWars isEmpty.
+	 * @param cells -> cellule à partir de laquelle je veux checker (format [cellule:distance]) donc par exemple ma [cellule courante:0]
 	 * @param mp -> les points de mouvements
-	 * @param ignoreCells -> cellules Ã  ignorer par l'algorithme
+	 * @param ignoreCells -> cellules à ignorer par l'algorithme
 	 * @return  un tableau contenant pour chaque cellules accessible [Cell:distance]
 	 * 
 	 */
@@ -112,7 +108,7 @@ class Entity {
 	}
 	
 	/*
-	 * Actualise les informations de l'entitÃ©
+	 * Actualise les informations de l'entité
 	 */
 	refresh() {
 		// TODO all
@@ -127,11 +123,11 @@ class Entity {
 	
 
 	/*
-	 * Renvoie l'ensemble des cellules ou l'entitÃ© peut tirer sur la cellule ciblÃ© avec l'arme/puce item
-	 * @info La fonction prend en compte les LOS et toutes les autres entitÃ©es sauf l'Entity elle mÃªme (afin de ne pas prendre en compte les cases non accessibles) 
-	 * Ã  ne pas utiliser pour les bulbes 
-	 * @param item Arme ou Puce de l'entitÃ©
-	 * @param targetCell cellule ciblÃ© par l'entitÃ©
+	 * Renvoie l'ensemble des cellules ou l'entité peut tirer sur la cellule ciblé avec l'arme/puce item
+	 * @info La fonction prend en compte les LOS et toutes les autres entitées sauf l'Entity elle même (afin de ne pas prendre en compte les cases non accessibles) 
+	 * à ne pas utiliser pour les bulbes 
+	 * @param item Arme ou Puce de l'entité
+	 * @param targetCell cellule ciblé par l'entité
 	 * @return un tableau de cellules 
 	 */
 	getCellsToUseItemOnCell(item, targetCell){
@@ -178,10 +174,10 @@ class Entity {
 	}
 	
 	/*
-	 * Renvoie la cellule la plus proche ou l'entitÃ© peut tirer sur la cellule ciblÃ©e avec l'arme/puce item
-	 * @info utilise les rÃ©sultats de getCellsToUseItemOnCell puis dÃ©tecte la cellule la plus proche parmis celles qui sont renvoyÃ©es 
-	 * @param item Arme ou Puce de l'entitÃ©
-	 * @param cell cellule ciblÃ© par l'entitÃ©
+	 * Renvoie la cellule la plus proche ou l'entité peut tirer sur la cellule ciblée avec l'arme/puce item
+	 * @info utilise les résultats de getCellsToUseItemOnCell puis détecte la cellule la plus proche parmis celles qui sont renvoyées 
+	 * @param item Arme ou Puce de l'entité
+	 * @param cell cellule ciblé par l'entité
 	 * @return Cell
 	 */	
 	getCellToUseItemOnCell(item, cell){
@@ -199,7 +195,7 @@ class Entity {
 	}
 
 	/*
-	 * Format chaÃ®ne de caracteres utilisÃ©e pour des tests / debugs.
+	 * Format chaîne de caracteres utilisée pour des tests / debugs.
 	 */
 	string() {
 		return "<Entity "+this.name+">"
@@ -217,7 +213,7 @@ class Entity {
 	//alterateMP: alterateMP
 	//alterateAgi: alterateAgi
 	//scoreLibe: scoreLibe
-	//nbBulbs: count(bulbs)//todo check si Ã§a vaut le coup de garder cette info..
+	//nbBulbs: count(bulbs)//todo check si ça vaut le coup de garder cette info..
 	//bulbs: @bulbs
 	//order: enemyOrder[leek]
 	//antidoteCD: inArray(getChips(leek), CHIP_ANTIDOTE) ? getCooldown(CHIP_ANTIDOTE) : 5

@@ -11,6 +11,24 @@ class Action {
 		this.to = to
 	}
 	
+	getScore(){
+		var targets = getItemTargets(this.item, this.to)
+		var score = 0
+		for(var targetId in targets){
+			var target = Fight.getEntity(targetId)
+			var dmg = 0
+			for(var effect in this.item.effects) {
+				if(effect.type == EFFECT_DAMAGE){
+					dmg+= effect.getValue(Fight.self, target)
+				} else {
+					debugW('unhandledEffect on ' + item + ' effect: '+ effect.type)
+				}
+			}
+			if(target.isFriend) score -= dmg
+			else score += dmg
+		}
+	}
+	
 	/*
 	 * Format chaîne de caractères utilisée pour des tests / debugs.
 	 */

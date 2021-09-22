@@ -108,7 +108,7 @@ class MapDanger {
 			if(e.type == EFFECT_DAMAGE){
 				var tmp = e.avgmax*(1+(entitySource.str/100))*(1+(entitySource.pwr/100));
 				tmp = (tmp /* multiplier par laoe ratio ici*/ *(1-(entityTarget.relShield/100))) - entityTarget.absShield;
-				dmg+= tmp;
+				dmg+= max(tmp, 0)
 			}
 			else if(e.type == EFFECT_POISON){
 				var duration = e.duration == 2 ? 1.8 : // TODO ces conversions devrait être dans des coefs globaux qqpart dans un scorings 
@@ -156,7 +156,7 @@ class MapDanger {
 		 */
 	static getAlliesTargetableCells(item, cell){ // TODO add ignoreleeks to ignore leeks who play before
 		// init du cache si nécessaire
-		if(_cache_allies_item_targetableCells[item]==null) _cache_allies_item_targetableCells[item] = []
+		if(MapDanger._cache_allies_item_targetableCells[item]==null) MapDanger._cache_allies_item_targetableCells[item] = []
 		if(MapDanger._cache_allies_item_targetableCells[item][cell]==null){
 			var result = [], x = cell.x, y = cell.y
 			if(item.isInLine){
@@ -233,7 +233,7 @@ class MapDanger {
 	// fonction avec cache qui considère que los est tjr pareil.
 	static getEnemiesTargetableCells(item, cell){
 		// init du cache si nécessaire
-		if(_cache_item_targetableCells[item]==null) _cache_item_targetableCells[item] = []
+		if(MapDanger._cache_item_targetableCells[item]==null) MapDanger._cache_item_targetableCells[item] = []
 		if(MapDanger._cache_item_targetableCells[item][cell]==null){
 			var result = [], x = cell.x, y = cell.y
 			if(item.isInLine){
