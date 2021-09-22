@@ -53,33 +53,33 @@ class Item {
 		}
 		
 		if(allies && enemies){ // ALL
-			if(onLeeks && onBulbs) this.targetSet = Fight.getAllAlive()
-			else if(onLeeks && !onBulbs) this.targetSet = Fight.getLeeksAlive()
-			else if(!onLeeks && onBulbs) this.targetSet = Fight.getBulbsAlive()
+			if(onLeeks && onBulbs) this.targetSet = Fight.getAllAlive
+			else if(onLeeks && !onBulbs) this.targetSet = Fight.getLeeksAlive
+			else if(!onLeeks && onBulbs) this.targetSet = Fight.getBulbsAlive
 			else{
 				debugW('strange targetSet in <Item> for '+this)
-				this.targetSet = []
+				this.targetSet = function() { return [] }
 			}
 		} else if(allies && !enemies){ // only ALLIES
-			if(onLeeks && onBulbs) this.targetSet = Fight.getAlliesAlive()
-			else if(onLeeks && !onBulbs) this.targetSet = Fight.getAlliesLeeksAlive()
-			else if(!onLeeks && onBulbs) this.targetSet = Fight.getAlliesBulbsAlive()
+			if(onLeeks && onBulbs) this.targetSet = Fight.getAlliesAlive
+			else if(onLeeks && !onBulbs) this.targetSet = Fight.getAlliesLeeksAlive
+			else if(!onLeeks && onBulbs) this.targetSet = Fight.getAlliesBulbsAlive
 			else{
 				debugW('strange targetSet in <Item> for '+this)
-				this.targetSet = []
+				this.targetSet = function() { return [] }
 			}
 
 		} else if(!allies && enemies){ // only ENEMIES
-			if(onLeeks && onBulbs) this.targetSet = Fight.getEnemiesAlive()
-			else if(onLeeks && !onBulbs) this.targetSet = Fight.getEnemiesLeeksAlive()
-			else if(!onLeeks && onBulbs) this.targetSet = Fight.getEnemiesBulbsAlive()
+			if(onLeeks && onBulbs) this.targetSet = Fight.getEnemiesAlive
+			else if(onLeeks && !onBulbs) this.targetSet = Fight.getEnemiesLeeksAlive
+			else if(!onLeeks && onBulbs) this.targetSet = Fight.getEnemiesBulbsAlive
 			else{
 				debugW('strange targetSet in <Item> for '+this)
-				this.targetSet = []
+				this.targetSet = function() { return [] }
 			}
 		} else { // none ?
 			debugW('strange targetSet in <Item> for '+this)
-			this.targetSet = []
+			this.targetSet = function() { return [] }
 		}
 	}
 	
