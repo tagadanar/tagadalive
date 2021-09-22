@@ -1,0 +1,30 @@
+include('../auto')
+
+class MapAction {
+	static _item_cell_actions
+	static refresh() {
+		_item_cell_actions = []
+		for(var item in Fight.self.items){
+			if(getCooldown(item, Fight.self) > 0) continue
+			
+			if(item.area == AREA_POINT){
+				for(var entity in Fight.getAllAlive()){
+					if(entity!=Fight.self){
+						var cells = getCellsToUseItemOnCell(item, entity.cell, [])
+						for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					} else {
+						// TODO if minrange = 0, cast on self
+					}				
+				}
+			}else{
+				debugW('AREA unhandled in MapAction.refresh(): ' + item.area)
+			}
+		}
+	}
+	
+	static addAction(item, fromCell, targetCell){
+		if(!_item_cell_actions[item]) _item_cell_actions[item] = []
+		if(!_item_cell_actions[item][fromCell]) _item_cell_actions[item][fromCell] = []
+		push(_item_cell_actions[item][fromCell], Action(item, fromCell, targetCell))
+	}
+}

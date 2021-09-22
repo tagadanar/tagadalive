@@ -1,0 +1,16 @@
+include('../auto')
+
+class Consequences {
+	_alterations = [] // [entity:[caracteristic:value]]
+	
+	constructor(){}
+	
+	addAlteration(entity, key, value){
+		if(!_alterations[entity]) _alterations[entity] = []
+		_alterations[entity][key] += value
+	}
+	
+	getAlteration(entity, key){
+		return _alterations[entity][key]
+	}
+}

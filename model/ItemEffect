@@ -11,6 +11,12 @@ class ItemEffect {
 	avgmax
 	avgmin
 	duration
+	targets
+	modifiers
+	targetType
+	stackable = false
+	multiplyByTarget = false
+	modifCaster = false
 	constructor(effect){
 		this.type = effect[0]
 		this.min = effect[1]
@@ -19,5 +25,26 @@ class ItemEffect {
 		this.avgmax = (effect[1]+effect[2]*3)/4
 		this.avgmin = (effect[1]*3+effect[2])/4
 		this.duration = effect[3] == 0 ? 1 : effect[3]
+		this.targets = effect[4]
+		this.modifiers = effect[5]
+		this.targetType = TargetType(this)
+		this.stackable = this.modifiers & EFFECT_MODIFIER_STACKABLE
+		this.multiplyByTarget = this.modifiers & EFFECT_MODIFIER_MULTIPLIED_BY_TARGETS
+		this.modifCaster = this.modifiers & EFFECT_MODIFIER_ON_CASTER
 	}
+	
+	getValue(entitySource, entityTarget) {
+		return ItemEffect.convertToValue[this.type](this, entitySource, entityTarget)
+	}
+	
+	static convertToValue = [
+		EFFECT_DAMAGE: function(effect, entitySource, entityTarget) {
+			var dmg = effect.avg*(1+(entitySource.str/100))*(1+(entitySource.pwr/100));
+			dmg = (dmg /* multiplier par laoe ratio ici*/ *(1-(entityTarget.relShield/100))) - entityTarget.absShield;
+			return max(dmg, 0)
+		},
+		EFFECT_POISON: function(){
+		}
+	]
+	
 }

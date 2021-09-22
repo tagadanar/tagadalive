@@ -7,6 +7,12 @@ class Fight {
 	private static _aliveEnemies
 	private static _aliveAllies
 	private static _aliveAll
+	private static _aliveAllLeeks
+	private static _aliveAllBulbs
+	private static _aliveEnemiesLeeks
+	private static _aliveEnemiesBulbs
+	private static _aliveAlliesLeeks
+	private static _aliveAlliesBulbs
 	static allEntitiesId
 	static self
 
@@ -17,16 +23,36 @@ class Fight {
 		_aliveEnemies = []
 		_aliveAllies = []
 		_aliveAll = []
+		_aliveAllLeeks = []
+		_aliveAllBulbs = []
+		_aliveEnemiesLeeks = []
+		_aliveEnemiesBulbs = []
+		_aliveAlliesLeeks = []
+		_aliveAlliesBulbs = []
 		allEntitiesId = []
 		for(var e in getAliveEnemies()) {
 			var entity = Entity(e)
 			_aliveEnemies[e] = entity
 			_aliveAll[e] = entity
+			if(entity.isBulb){
+				_aliveEnemiesBulbs[e] = entity
+				_aliveAllBulbs[e] = entity
+			} else {
+				_aliveEnemiesLeeks[e] = entity
+				_aliveAllLeeks[e] = entity
+			}
 		}
 		for(var a in getAliveAllies()) {
 			var entity = Entity(a)
 			_aliveAllies[a] = entity
 			_aliveAll[a] = entity
+			if(entity.isBulb){
+				_aliveAlliesBulbs[a] = entity
+				_aliveAllBulbs[a] = entity
+			} else {
+				_aliveAlliesLeeks[a] = entity
+				_aliveAllLeeks[a] = entity
+			}
 		}
 		self = _aliveAll[getLeek()]
 		for(var entity in _aliveAll){
@@ -53,11 +79,43 @@ class Fight {
 	}
 	
 	/*
+	 * Renvoie un tableau contenant les ennemis non bulbes vivants
+	 * @return un tableau d'Entity
+	 */
+	static getEnemiesLeeksAlive() {
+		return _aliveEnemiesLeeks
+	}
+	
+	/*
+	 * Renvoie un tableau contenant les ennemis bulbes vivants
+	 * @return un tableau d'Entity
+	 */
+	static getEnemiesBulbsAlive() {
+		return _aliveEnemiesBulbs
+	}
+	
+	/*
 	 * Renvoie un tableau contenant les alliés vivants (moi compris dedans)
 	 * @return un tableau d'Entity
 	 */
 	static getAlliesAlive() {
 		return _aliveAllies
+	}
+	
+	/*
+	 * Renvoie un tableau contenant les alliés non bulbes vivants (moi compris dedans)
+	 * @return un tableau d'Entity
+	 */
+	static getAlliesLeeksAlive() {
+		return _aliveAlliesLeeks
+	}
+	
+	/*
+	 * Renvoie un tableau contenant les alliés bulbes vivants (moi compris dedans si je suis un bulbe)
+	 * @return un tableau d'Entity
+	 */
+	static getAlliesBulbsAlive() {
+		return _aliveAlliesBulbs
 	}
 	
 	/*
@@ -76,7 +134,7 @@ class Fight {
 	 // TODO: cette fonction return une list avec <entity> inclus actuellement, ça ne devrait pas, FIX IT 
 	 // voir test unitaire
 	static getListOfLeekWhoPlayBefore(entity) {
-		if(entity == self) return []
+		if(entity == self) return [];
 		var list = [self]
 		var self = self.turnOrder
 		var limit = entity.turnOrder

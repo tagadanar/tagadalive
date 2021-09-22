@@ -14,6 +14,7 @@ class Item {
 	cost
 	area
 	effects = []
+	targetSet
 	constructor(id) {
 		this.id = id
 		this.name = getWeaponName(id)+getChipName(id)
@@ -40,11 +41,50 @@ class Item {
 			for(var e in getChipEffects(id)){
 				push(this.effects, ItemEffect(e))
 			}
-		}	
+		}
+		
+		// defining 
+		var allies = false, enemies = false, onBulbs = true, onLeeks = true;
+		for(var e in this.effects){
+			if(!allies) allies = e.targetType.allies
+			if(!enemies) enemies = e.targetType.enemies
+			if(onBulbs) onBulbs = e.targetType.onBulbs
+			if(onLeeks) onLeeks = e.targetType.onLeeks
+		}
+		
+		if(allies && enemies){ // ALL
+			if(onLeeks && onBulbs) this.targetSet = Fight.getAllAlive()
+			else if(onLeeks && !onBulbs) this.targetSet = Fight.getLeeksAlive()
+			else if(!onLeeks && onBulbs) this.targetSet = Fight.getBulbsAlive()
+			else{
+				debugW('strange targetSet in <Item> for '+this)
+				this.targetSet = []
+			}
+		} else if(allies && !enemies){ // only ALLIES
+			if(onLeeks && onBulbs) this.targetSet = Fight.getAlliesAlive()
+			else if(onLeeks && !onBulbs) this.targetSet = Fight.getAlliesLeeksAlive()
+			else if(!onLeeks && onBulbs) this.targetSet = Fight.getAlliesBulbsAlive()
+			else{
+				debugW('strange targetSet in <Item> for '+this)
+				this.targetSet = []
+			}
+
+		} else if(!allies && enemies){ // only ENEMIES
+			if(onLeeks && onBulbs) this.targetSet = Fight.getEnemiesAlive()
+			else if(onLeeks && !onBulbs) this.targetSet = Fight.getEnemiesLeeksAlive()
+			else if(!onLeeks && onBulbs) this.targetSet = Fight.getEnemiesBulbsAlive()
+			else{
+				debugW('strange targetSet in <Item> for '+this)
+				this.targetSet = []
+			}
+		} else { // none ?
+			debugW('strange targetSet in <Item> for '+this)
+			this.targetSet = []
+		}
 	}
 	
 	/*
-	 * VÃ©rifie si je peux utiliser une item sur une cellule, si oui utilise l'item
+	 * Vérifie si je peux utiliser une item sur une cellule, si oui utilise l'item
 	 * @param cell cellule de type Cell représentant l'endroit ou je veux utiliser l'Item avec id: (this.id)
 	 */
 	useItemOnCell(cell){
@@ -52,6 +92,17 @@ class Item {
 			if(getWeapon(Fight.self)!=this.id) setWeapon(this)
 			useWeaponOnCell(cell.id)
 		} else useChipOnCell(this.id, cell.id)
+	}
+	
+	/*
+	 * Vérifie si je peux utiliser une item sur une cellule, si oui utilise l'item
+	 * @param cell cellule de type Cell représentant l'endroit ou je veux utiliser l'Item avec id: (this.id)
+	 */
+	useItem(entity){
+		if(this.isWeap){
+			if(getWeapon(Fight.self)!=this.id) setWeapon(this)
+			useWeapon(entity.id)
+		} else useChip(this.id, entity.id)
 	}
 	
 	/*

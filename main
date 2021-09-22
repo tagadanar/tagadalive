@@ -1,38 +1,44 @@
 include('auto');
 
-function init() {
-	if(getTurn()==1) {
-		Map.init()
-		Items.init()
-	}
-	Fight.refresh()
-	Map.refresh()
-	MapDanger.refresh()
-}
 init() 
 
 
 
-if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_PISTOL));
+if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_MAGNUM));
 var enemy = Fight.getEntity(getNearestEnemy());
 
 // debug qui affiche les cases safe en vert et avec du danger en rouge.
-var arrayDanger = []
-for(var c : var d in Fight.self.reachableCells) {
-	var danger = MapDanger.getCellDanger(c)
-	if(danger.dmg > 0) { 
-		mark(c.id, getColor(danger.dmg, 0, 0))
-		markText(c.id, round(danger.dmg))
-		arrayDanger[round(danger.dmg)] = danger
+if(false) {
+	var arrayDanger = []
+	for(var c : var d in Fight.self.reachableCells) {
+		var danger = MapDanger.getCellDanger(c)
+		if(danger.dmg > 0) { 
+			mark(c.id, getColor(danger.dmg, 0, 0))
+			markText(c.id, round(danger.dmg))
+			arrayDanger[round(danger.dmg)] = danger
+		}
+		else {
+			mark(c.id, COLOR_GREEN)
+		}
 	}
-	else {
-		mark(c.id, COLOR_GREEN)
+	for(var danger in arrayDanger){
+		debug(danger)
 	}
-}
-for(var danger in arrayDanger){
-	debug(danger)
 }
 
+// debug de la map d'actions'
+if(false) {
+	for(var item :var array_cell_actions in MapAction._item_cell_actions){
+		debug(item)
+		for(var cell: var array_actions in array_cell_actions){
+			mark(cell.id, COLOR_BLUE)
+		}
+		pause()
+		clearMarks()
+	}
+}
+
+// approche + attaque
 var combo = MapDanger.getPotentialCombo(Fight.self, enemy.cell)
 if(count(combo.actions)>0) combo.play()
 else {
@@ -45,11 +51,10 @@ else {
 		}
 	} else { // je peux tirer sur l'adv: gogo
 		debugE('SHOULD NOT BE HERE !')
-		moveTowardCell(cellToUsePistol)
-		while(useWeapon(enemy) > 0);
 	}
 }
 
+// move défensif
 if(getMP()>0){ // on se cache si possible !
 	Fight.self.refresh()
 	var safeCell = null, tmpDanger = 9999999
@@ -62,3 +67,18 @@ if(getMP()>0){ // on se cache si possible !
 	}
 	moveTowardCell(safeCell)
 }
+
+// cast avec le reste des TP
+function failSafe(){
+	var tpleft = getTP()
+	Items.getItem(CHIP_MOTIVATION).useItem(Fight.self)
+	if(getAbsoluteShield(Fight.self)<=0) Items.getItem(CHIP_HELMET).useItem(Fight.self)
+	if(Fight.self.lifeMissing>0){
+		Items.getItem(CHIP_CURE).useItem(Fight.self)
+		Items.getItem(CHIP_BANDAGE).useItem(Fight.self)
+	}
+	Items.getItem(CHIP_PROTEIN).useItem(Fight.self)
+	if(getRelativeShield(Fight.self)<=0) Items.getItem(CHIP_WALL).useItem(Fight.self)
+	debug("failSafe TP used: "+(tpleft-getTP()))
+}
+failSafe()

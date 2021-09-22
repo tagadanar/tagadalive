@@ -7,7 +7,20 @@ include('model/ItemEffect')
 include('model/Action')
 include('model/Cell')
 include('model/MapDanger')
+include('model/MapAction')
 include('model/Combo')
 include('model/Danger')
+include('model/TargetType')
 
 include('API/compatibility')
+
+function init() {
+	if(getTurn()==1) {
+		Map.init()
+		Items.init()
+	}
+	Fight.refresh()
+	Map.refresh()
+	MapDanger.refresh()
+	MapAction.refresh()
+}

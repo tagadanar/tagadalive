@@ -72,5 +72,51 @@ moveTowardCell = function(cell){
 	}
 }
 
+global _getCellsToUseWeaponOnCell = clone(getCellsToUseWeaponOnCell)
+getCellsToUseWeaponOnCell = function(item, cell, ignoredCells){
+	if(item instanceof Item && cell instanceof Cell) return _getCellsToUseWeaponOnCell(item.id, cell.id, ignoredCells)
+	else {
+		debugW('getCellsToUseWeaponOnCell should always be called with <Item> and <Cell> and not int')
+		return _getCellsToUseWeaponOnCell(item, cell, ignoredCells)
+	}
+}
 
+global _getCellsToUseChipOnCell = clone(getCellsToUseChipOnCell)
+getCellsToUseChipOnCell = function(item, cell, ignoredCells){
+	if(item instanceof Item && cell instanceof Cell) return _getCellsToUseChipOnCell(item.id, cell.id, ignoredCells)
+	else {
+		debugW('getCellsToUseChipOnCell should always be called with <Item> and <Cell> and not int')
+		return _getCellsToUseChipOnCell(item, cell, ignoredCells)
+	}
+}
+
+function getCellsToUseItemOnCell(item, cell, ignoredCells){
+	if(item instanceof Item)
+		return item.isWeap ? getCellsToUseWeaponOnCell(item, cell, ignoredCells) : getCellsToUseChipOnCell(item, cell, ignoredCells)
+	else
+		debugE('getCellsToUseItemOnCell MUST be called with <Item> and not int')
+}
+
+global _getWeaponTargets = clone(getWeaponTargets)
+getWeaponTargets = function(item, cell) {
+	if(item instanceof Item && cell instanceof Cell) return _getWeaponTargets(item.id, cell.id)
+	else {
+		debugW('getWeaponTargets should always be called with <Item> and <Cell> and not int')
+		return _getWeaponTargets(item, cell)
+	}
+}
+
+global _getChipTargets = clone(getChipTargets)
+getChipTargets = function(item, cell) {
+	if(item instanceof Item && cell instanceof Cell) return _getChipTargets(item.id, cell.id)
+	else {
+		debugW('getChipTargets should always be called with <Item> and <Cell> and not int')
+		return _getChipTargets(item, cell)
+	}
+}
+
+function getItemTargets(item, cell){
+	if(item instanceof Item && cell instanceof Cell) return item.isWeap ? getWeaponTargets(item, cell) : getChipTargets(item, cell)
+	else debugE('getItemTargets MUST be called with <Item> and <Cell>, not int')
+}
 
