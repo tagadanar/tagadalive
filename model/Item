@@ -14,7 +14,32 @@ class Item {
 	cost
 	area
 	effects = []
-	targetSet
+	
+	targetKey
+	targetSet(){
+		if(this.targetKey==ALL) return Fight.getAllAlive()
+		if(this.targetKey==ALLLEEKS) return Fight.getAllLeeksAlive()
+		if(this.targetKey==ALLBULBS) return Fight.getAllBulbsAlive()
+		if(this.targetKey==ALLIES) return Fight.getAlliesAlive()
+		if(this.targetKey==ALLIESLEEKS) return Fight.getAlliesLeeksAlive()
+		if(this.targetKey==ALLIESBULBS) return Fight.getAlliesBulbsAlive()
+		if(this.targetKey==ENEMIES) return Fight.getEnemiesAlive()
+		if(this.targetKey==ENEMIESLEEKS) return Fight.getEnemiesLeeksAlive()
+		if(this.targetKey==ENEMIESBULBS) return Fight.getEnemiesBulbsAlive()
+		if(this.targetKey==NONE) return []
+	}
+	
+	static ALL = 0
+	static ALLLEEKS = 1
+	static ALLBULBS = 2
+	static ALLIES = 3
+	static ALLIESLEEKS = 4
+	static ALLIESBULBS = 5
+	static ENEMIES = 6
+	static ENEMIESLEEKS = 7
+	static ENEMIESBULBS = 8
+	static NONE = 9
+			
 	constructor(id) {
 		this.id = id
 		this.name = getWeaponName(id)+getChipName(id)
@@ -42,44 +67,55 @@ class Item {
 				push(this.effects, ItemEffect(e))
 			}
 		}
+
 		
+
 		// defining 
-		var allies = false, enemies = false, onBulbs = true, onLeeks = true;
+		var allies = false, enemies = false, onBulbs = false, onLeeks = false;
 		for(var e in this.effects){
 			if(!allies) allies = e.targetType.allies
 			if(!enemies) enemies = e.targetType.enemies
-			if(onBulbs) onBulbs = e.targetType.onBulbs
-			if(onLeeks) onLeeks = e.targetType.onLeeks
+			if(!onBulbs) onBulbs = e.targetType.onBulbs
+			if(!onLeeks) onLeeks = e.targetType.onLeeks
+		}
+		if(false){ // TODO FAIRE UNE PASSE SUR LES ITEMS POUR CHECK SI TOUT EST COMME JE LE SOUHAITE §
+			// + coder les items chelous dans TargetType
+			debug(this)
+			debug("allies:"+allies)
+			debug("enemies:"+enemies)
+			debug("onBulbs:"+onBulbs)
+			debug("onLeeks:"+onLeeks)
+			pause()
 		}
 		
 		if(allies && enemies){ // ALL
-			if(onLeeks && onBulbs) this.targetSet = Fight.getAllAlive
-			else if(onLeeks && !onBulbs) this.targetSet = Fight.getLeeksAlive
-			else if(!onLeeks && onBulbs) this.targetSet = Fight.getBulbsAlive
+			if(onLeeks && onBulbs) this.targetKey = Item.ALL
+			else if(onLeeks && !onBulbs) this.targetKey = Item.ALLLEEKS
+			else if(!onLeeks && onBulbs) this.targetKey = Item.ALLBULBS
 			else{
-				debugW('strange targetSet in <Item> for '+this)
-				this.targetSet = function() { return [] }
+				debugW('strange targetKey in <Item> for '+this)
+				this.targetKey = Item.NONE
 			}
 		} else if(allies && !enemies){ // only ALLIES
-			if(onLeeks && onBulbs) this.targetSet = Fight.getAlliesAlive
-			else if(onLeeks && !onBulbs) this.targetSet = Fight.getAlliesLeeksAlive
-			else if(!onLeeks && onBulbs) this.targetSet = Fight.getAlliesBulbsAlive
+			if(onLeeks && onBulbs) this.targetKey = Item.ALLIES
+			else if(onLeeks && !onBulbs) this.targetKey = Item.ALLIESLEEKS
+			else if(!onLeeks && onBulbs) this.targetKey = Item.ALLIESBULBS
 			else{
-				debugW('strange targetSet in <Item> for '+this)
-				this.targetSet = function() { return [] }
+				debugW('strange targetKey in <Item> for '+this)
+				this.targetKey = Item.NONE
 			}
 
 		} else if(!allies && enemies){ // only ENEMIES
-			if(onLeeks && onBulbs) this.targetSet = Fight.getEnemiesAlive
-			else if(onLeeks && !onBulbs) this.targetSet = Fight.getEnemiesLeeksAlive
-			else if(!onLeeks && onBulbs) this.targetSet = Fight.getEnemiesBulbsAlive
+			if(onLeeks && onBulbs) this.targetKey = Item.ENEMIES
+			else if(onLeeks && !onBulbs) this.targetKey = Item.ENEMIESLEEKS
+			else if(!onLeeks && onBulbs) this.targetKey = Item.ENEMIESBULBS
 			else{
-				debugW('strange targetSet in <Item> for '+this)
-				this.targetSet = function() { return [] }
+				debugW('strange targetKey in <Item> for '+this)
+				this.targetKey = Item.NONE
 			}
-		} else { // none ?
-			debugW('strange targetSet in <Item> for '+this)
-			this.targetSet = function() { return [] }
+		} else { // none: cas des actions avec des items de déplacements teleport, ou des invocs
+			debugW('no targetSet, should be handled somehow ? '+this)
+			this.targetSet = Item.NONE
 		}
 	}
 	

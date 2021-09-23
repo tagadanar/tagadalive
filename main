@@ -2,8 +2,6 @@ include('auto');
 
 init() 
 
-
-
 if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_MAGNUM));
 var enemy = Fight.getEntity(getNearestEnemy());
 
@@ -27,14 +25,19 @@ if(false) {
 }
 
 // debug de la map d'actions'
-if(false) {
-	for(var item :var array_cell_actions in MapAction._item_cell_actions){
-		debug(item)
-		for(var cell: var array_actions in array_cell_actions){
-			mark(cell.id, COLOR_BLUE)
-		}
-		pause()
+if(true) {
+	for(var cell :var array_item_action in MapAction._cell_item_bestAction){
 		clearMarks()
+		mark(cell.id, COLOR_BLUE)
+		var score = 0
+		for(var action in array_item_action){
+			if(score < action.score){
+				score=action.score
+			}
+			debug(action)
+		}
+		markText(cell.id, round(score))
+		pause()
 	}
 }
 
@@ -72,6 +75,7 @@ if(getMP()>0){ // on se cache si possible !
 function failSafe(){
 	var tpleft = getTP()
 	Items.getItem(CHIP_MOTIVATION).useItem(Fight.self)
+	if(getAbsoluteShield(Fight.self)<=0) Items.getItem(CHIP_SHIELD).useItem(Fight.self)
 	if(getAbsoluteShield(Fight.self)<=0) Items.getItem(CHIP_HELMET).useItem(Fight.self)
 	if(Fight.self.lifeMissing>0){
 		Items.getItem(CHIP_CURE).useItem(Fight.self)

@@ -5,10 +5,12 @@ class Action {
 	public from
 	public to
 	public item
+	public score
 	constructor(item, from, to){
 		this.item = item
 		this.from = from
 		this.to = to
+		this.score = this.getScore()
 	}
 	
 	getScore(){
@@ -16,23 +18,40 @@ class Action {
 		var score = 0
 		for(var targetId in targets){
 			var target = Fight.getEntity(targetId)
-			var dmg = 0
+			var dmg=0, heal=0, absShield=0, buffStr=0
 			for(var effect in this.item.effects) {
 				if(effect.type == EFFECT_DAMAGE){
 					dmg+= effect.getValue(Fight.self, target)
-				} else {
+				}else if(effect.type == EFFECT_HEAL){
+					heal+= effect.getValue(Fight.self, target)
+				}else if(effect.type == EFFECT_ABSOLUTE_SHIELD){
+					absShield+= effect.getValue(Fight.self, target)
+				}else if(effect.type == EFFECT_RAW_BUFF_STRENGTH){
+					buffStr+= effect.getValue(Fight.self, target)
+				}else{
 					debugW('unhandledEffect on ' + item + ' effect: '+ effect.type)
 				}
 			}
-			if(target.isFriend) score -= dmg
-			else score += dmg
+
+			if(target.isFriend){
+				score -= dmg
+				score += heal
+				score += absShield *3
+				score += buffStr
+			}else{
+				score += dmg
+				score -= heal
+				score -= absShield *3
+				score -= buffStr
+			}
 		}
+		return score
 	}
 	
 	/*
 	 * Format chaîne de caractères utilisée pour des tests / debugs.
 	 */
 	string(){
-		return "<Action "+this.item+":"+this.from+":"+this.to+">"
+		return "<Action "+this.item.name+"|from:"+this.from.id+"|to:"+this.to.id+"\nscore:"+this.score+">"
 	}
 }
