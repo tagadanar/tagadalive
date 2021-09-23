@@ -7,6 +7,9 @@ class TargetType {
 	onBulbs = false // FIXME le nomage bulb/leek pu, summon/notsummon est très moche, maybe summon/primary ?
 	onLeeks = false
 	onCaster = false
+	// TODO when onCaster, peut justifier des cibles autres que celle normalement autorisé par les types d'effet
+	// exemple broadsword / j_lazer
+	// TODO target empty cell for item that target nothing : summon, resu, teleport, broadsword to selfboost, etc... ?
 
 	static NONE = 0
 	static ENEMIES = 1
@@ -20,6 +23,7 @@ class TargetType {
 		EFFECT_LIFE_DAMAGE: TargetType.ENEMIES,
 		EFFECT_VULNERABILITY: TargetType.ENEMIES,
 		EFFECT_ABSOLUTE_VULNERABILITY: TargetType.ENEMIES,
+		EFFECT_KILL: TargetType.ENEMIES,
 		
 		EFFECT_ANTIDOTE: TargetType.ALLIES,
 		EFFECT_REMOVE_SHACKLES: TargetType.ALLIES,
@@ -56,8 +60,8 @@ class TargetType {
 		
 		// EFFECT_STEAL_ABSOLUTE_SHIELD:
 		
-		EFFECT_RESURRECT: TargetType.ALLIES, // FIXME ???
 		
+		EFFECT_RESURRECT: TargetType.NONE, // FIXME ???
 		EFFECT_TELEPORT: TargetType.NONE
 		EFFECT_SUMMON: TargetType.NONE
 	]
@@ -73,9 +77,9 @@ class TargetType {
 		}
 		// else everything should be on false for .NONE
 		this.onCaster = effect.targets & EFFECT_TARGET_CASTER
-		if (!(effect.targets & EFFECT_TARGET_ALLIES)) this.allies = false
-		if (!(effect.targets & EFFECT_TARGET_ENEMIES)) this.enemies = false
-		this.onBulbs = effect.targets & EFFECT_TARGET_SUMMONS
-		this.onLeeks = effect.targets & EFFECT_TARGET_NON_SUMMONS
+		if(!(effect.targets & EFFECT_TARGET_ALLIES)) this.allies = false
+		if(!(effect.targets & EFFECT_TARGET_ENEMIES)) this.enemies = false
+		if(effect.targets & EFFECT_TARGET_SUMMONS) this.onBulbs = true
+		if(effect.targets & EFFECT_TARGET_NON_SUMMONS) this.onLeeks = true
 	}
 }

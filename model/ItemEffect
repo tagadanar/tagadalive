@@ -39,12 +39,28 @@ class ItemEffect {
 	
 	static convertToValue = [
 		EFFECT_DAMAGE: function(effect, entitySource, entityTarget) {
-			var dmg = effect.avg*(1+(entitySource.str/100))*(1+(entitySource.pwr/100));
-			dmg = (dmg /* multiplier par laoe ratio ici*/ *(1-(entityTarget.relShield/100))) - entityTarget.absShield;
-			return max(dmg, 0)
+			var value = effect.avg*(1+(entitySource.str/100))*(1+(entitySource.pwr/100));
+			value = (value /* multiplier par laoe ratio ici*/ *(1-(entityTarget.relShield/100))) - entityTarget.absShield;
+			return max(value, 0)
 		},
-		EFFECT_POISON: function(){
-		}
+		EFFECT_HEAL: function(effect, entitySource, entityTarget) {
+			var value = effect.avg*(1+(entitySource.wsd/100));
+			return max(value, entityTarget.lifeMissing)
+		},
+		EFFECT_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget) {
+			var value = effect.avg*(1+(entitySource.rst/100));
+			return value
+		},
+		EFFECT_RAW_BUFF_STRENGTH: function(effect, entitySource, entityTarget) {
+			var value = effect.avg;
+			return value
+		},
 	]
 	
+	/*
+	 * Format chaîne de caracteres utilisée pour des tests / debugs.
+	 */
+	string() {
+		return "<ItemEffect min:"+round(this.min)+"/max:"+round(this.max)+"/duration:"+this.duration+">"
+	}
 }

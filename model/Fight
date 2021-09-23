@@ -15,6 +15,7 @@ class Fight {
 	private static _aliveAlliesBulbs
 	static allEntitiesId
 	static self
+	static selfCell = Cell(1312)
 
 	/*
 	 * Actualise les tableaux contenant les entités vivante alliée et ennemie ainsi que l'ensemble des entités alliées + ennemies
@@ -124,6 +125,22 @@ class Fight {
 	 */
 	static getAllAlive() {
 		return _aliveAll
+	}
+	
+	/*
+	 * Renvoie un tableau contenant les ennemis et les alliés non bulbes vivants (moi compris dedans)
+	 * @return un tableau d'Entity
+	 */
+	static getAllLeeksAlive() {
+		return _aliveAllLeeks
+	}
+	
+	/*
+	 * Renvoie un tableau contenant les ennemis et les alliés bulbes vivants (moi compris dedans)
+	 * @return un tableau d'Entity
+	 */
+	static getAllBulbsAlive() {
+		return _aliveAllBulbs
 	}
 	
 	/*

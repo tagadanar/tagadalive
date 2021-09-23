@@ -219,7 +219,6 @@ class Entity {
 	//scoreLibe: scoreLibe
 	//nbBulbs: count(bulbs)//todo check si ça vaut le coup de garder cette info..
 	//bulbs: @bulbs
-	//order: enemyOrder[leek]
 	//antidoteCD: inArray(getChips(leek), CHIP_ANTIDOTE) ? getCooldown(CHIP_ANTIDOTE) : 5
 	//liberationCD: inArray(getChips(leek), CHIP_LIBERATION) ? getCooldown(CHIP_LIBERATION) : 6
 	//canJump: inArray(getChips(leek), CHIP_JUMP) && getCooldown(CHIP_JUMP, leek)<=1
