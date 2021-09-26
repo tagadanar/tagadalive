@@ -1,12 +1,12 @@
 include('auto');
 
-init() 
+init()
 
 if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_MAGNUM));
 var enemy = Fight.getEntity(getNearestEnemy());
 
 // debug qui affiche les cases safe en vert et avec du danger en rouge.
-if(false) {
+if(true) {
 	var arrayDanger = []
 	for(var c : var d in Fight.self.reachableCells) {
 		var danger = MapDanger.getCellDanger(c)
@@ -24,33 +24,21 @@ if(false) {
 	}
 }
 
-// debug de la map d'actions'
-if(true) {
-	for(var cell :var array_item_action in MapAction._cell_item_bestAction){
-		clearMarks()
-		mark(cell.id, COLOR_BLUE)
-		var score = 0
-		for(var action in array_item_action){
-			if(score < action.score){
-				score=action.score
-			}
-			debug(action)
-		}
-		markText(cell.id, round(score))
-		pause()
-	}
-}
-
 // approche + attaque
-var combo = MapDanger.getPotentialCombo(Fight.self, enemy.cell)
+var comboOld = MapDanger.getPotentialCombo(Fight.self, enemy.cell)
+debug("Combo only offensive item from MapDanger:")
+debug(comboOld)
+var combo = MapAction.getPotentialCombo(Fight.self)
+debug("New Combo allstuff, from 1 cell, with MapAction:")
+debug(combo)
 if(count(combo.actions)>0) combo.play()
 else {
-	var cellToUsePistol = getCellToUseWeapon(WEAPON_PISTOL, enemy.id)
+	var cellToUsePistol = getCellToUseWeapon(WEAPON_MAGNUM, enemy.id)
 	var path = getPath(getCell(), cellToUsePistol)
 	if(count(path)>getMP()){ // avance prudente
 		for(var cell in path){
 			var danger = MapDanger.getCellDanger(Map.getCell(cell))
-			if(danger.dmg == 0) moveTowardCell(cell)
+			if(danger.dmg == 0) moveTowardCell(Map.getCell(cell))
 		}
 	} else { // je peux tirer sur l'adv: gogo
 		debugE('SHOULD NOT BE HERE !')
@@ -74,7 +62,7 @@ if(getMP()>0){ // on se cache si possible !
 // cast avec le reste des TP
 function failSafe(){
 	var tpleft = getTP()
-	Items.getItem(CHIP_MOTIVATION).useItem(Fight.self)
+	//Items.getItem(CHIP_MOTIVATION).useItem(Fight.self)
 	if(getAbsoluteShield(Fight.self)<=0) Items.getItem(CHIP_SHIELD).useItem(Fight.self)
 	if(getAbsoluteShield(Fight.self)<=0) Items.getItem(CHIP_HELMET).useItem(Fight.self)
 	if(Fight.self.lifeMissing>0){
@@ -82,7 +70,7 @@ function failSafe(){
 		Items.getItem(CHIP_BANDAGE).useItem(Fight.self)
 	}
 	Items.getItem(CHIP_PROTEIN).useItem(Fight.self)
-	if(getRelativeShield(Fight.self)<=0) Items.getItem(CHIP_WALL).useItem(Fight.self)
+	//if(getRelativeShield(Fight.self)<=0) Items.getItem(CHIP_WALL).useItem(Fight.self)
 	debug("failSafe TP used: "+(tpleft-getTP()))
 }
 failSafe()

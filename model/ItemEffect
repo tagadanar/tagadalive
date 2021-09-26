@@ -4,6 +4,7 @@ include('../auto')
  * Objet contenant les effets calculés correspondants à un item de type Item
  */
 class ItemEffect {
+	name
 	type
 	min
 	max
@@ -17,7 +18,9 @@ class ItemEffect {
 	stackable = false
 	multiplyByTarget = false
 	modifCaster = false
-	constructor(effect){
+	irreductible = false
+	constructor(effect, name){
+		this.name = name
 		this.type = effect[0]
 		this.min = effect[1]
 		this.max = effect[2]
@@ -27,33 +30,39 @@ class ItemEffect {
 		this.duration = effect[3] == 0 ? 1 : effect[3]
 		this.targets = effect[4]
 		this.modifiers = effect[5]
+		// désigne le type de cible intéressante pour cet effet
 		this.targetType = TargetType(this)
-		this.stackable = this.modifiers & EFFECT_MODIFIER_STACKABLE
-		this.multiplyByTarget = this.modifiers & EFFECT_MODIFIER_MULTIPLIED_BY_TARGETS
-		this.modifCaster = this.modifiers & EFFECT_MODIFIER_ON_CASTER
+		if(this.modifiers & EFFECT_MODIFIER_STACKABLE) this.stackable = true 
+		if(this.modifiers & EFFECT_MODIFIER_MULTIPLIED_BY_TARGETS) this.multiplyByTarget = true
+		if(this.modifiers & EFFECT_MODIFIER_ON_CASTER) this.modifCaster = true
+		if(this.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) this.irreductible = true
 	}
 	
-	getValue(entitySource, entityTarget) {
-		return ItemEffect.convertToValue[this.type](this, entitySource, entityTarget)
+	getConsequences(entitySource, entityTarget, consequences) {
+		// fixme: ce if marche pas, j'ai tjr true mm pour EFFECT_DAMAGE
+		//if(!ItemEffect.convertToValue[this.type]) debugW('unhandledEffect on ItemEffect typeID: '+ this.type)
+		return ItemEffect.convertToValue[this.type](this, entitySource, entityTarget, consequences)
 	}
 	
 	static convertToValue = [
-		EFFECT_DAMAGE: function(effect, entitySource, entityTarget) {
-			var value = effect.avg*(1+(entitySource.str/100))*(1+(entitySource.pwr/100));
-			value = (value /* multiplier par laoe ratio ici*/ *(1-(entityTarget.relShield/100))) - entityTarget.absShield;
-			return max(value, 0)
+		EFFECT_DAMAGE: function(effect, entitySource, entityTarget, consequences) {
+			var value = effect.avg*(1+(entitySource.str/100))*(1+(entitySource.pwr/100))
+			value = (value /* multiplier par laoe ratio ici*/ *(1-(entityTarget.relShield/100))) - entityTarget.absShield
+			value = max(value, 0)
+			consequences.add(entityTarget, Consequences.HP, -value)
 		},
-		EFFECT_HEAL: function(effect, entitySource, entityTarget) {
-			var value = effect.avg*(1+(entitySource.wsd/100));
-			return max(value, entityTarget.lifeMissing)
+		EFFECT_HEAL: function(effect, entitySource, entityTarget, consequences) {
+			var value = effect.avg*(1+(entitySource.wsd/100))
+			value = min(value, entityTarget.lifeMissing)
+			consequences.add(entityTarget, Consequences.HP, value)
 		},
-		EFFECT_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget) {
-			var value = effect.avg*(1+(entitySource.rst/100));
-			return value
+		EFFECT_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, consequences) {
+			var value = effect.avg*(1+(entitySource.rst/100))
+			consequences.add(entityTarget, Consequences.ABSSHIELD, value)
 		},
-		EFFECT_RAW_BUFF_STRENGTH: function(effect, entitySource, entityTarget) {
-			var value = effect.avg;
-			return value
+		EFFECT_RAW_BUFF_STRENGTH: function(effect, entitySource, entityTarget, consequences) {
+			var value = effect.avg
+			consequences.add(entityTarget, Consequences.STR, value)
 		},
 	]
 	
@@ -61,6 +70,6 @@ class ItemEffect {
 	 * Format chaîne de caracteres utilisée pour des tests / debugs.
 	 */
 	string() {
-		return "<ItemEffect min:"+round(this.min)+"/max:"+round(this.max)+"/duration:"+this.duration+">"
+		return "<ItemEffect "+this.name+">"
 	}
 }

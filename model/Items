@@ -22,7 +22,7 @@ class Items {
 	 * @return Item 
 	 */
 	static getItem(itemId){
-		return _items[i]
+		return _items[itemId]
 	}
 	
 	/*

@@ -16,6 +16,6 @@ class Danger{
 	 * Format chaîne de caracteres utilisée pour des tests / debugs.
 	 */
 	string() {
-		return '<Danger [\n'+this.combo+'\n | dmg: '+round(this.dmg)+']>'
+		return '<Danger '+round(this.dmg)+':'+this.combo+'>'
 	}
 }
