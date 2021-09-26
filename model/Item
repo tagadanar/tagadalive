@@ -16,18 +16,7 @@ class Item {
 	effects = []
 	
 	targetKey
-	targetSet(){
-		if(this.targetKey==ALL) return Fight.getAllAlive()
-		if(this.targetKey==ALLLEEKS) return Fight.getAllLeeksAlive()
-		if(this.targetKey==ALLBULBS) return Fight.getAllBulbsAlive()
-		if(this.targetKey==ALLIES) return Fight.getAlliesAlive()
-		if(this.targetKey==ALLIESLEEKS) return Fight.getAlliesLeeksAlive()
-		if(this.targetKey==ALLIESBULBS) return Fight.getAlliesBulbsAlive()
-		if(this.targetKey==ENEMIES) return Fight.getEnemiesAlive()
-		if(this.targetKey==ENEMIESLEEKS) return Fight.getEnemiesLeeksAlive()
-		if(this.targetKey==ENEMIESBULBS) return Fight.getEnemiesBulbsAlive()
-		if(this.targetKey==NONE) return []
-	}
+	targetEmptyCell = false
 	
 	static ALL = 0
 	static ALLLEEKS = 1
@@ -52,8 +41,9 @@ class Item {
 			this.needLOS = weaponNeedLos(id)
 			this.cost = getWeaponCost(id)
 			this.area = getWeaponArea(id)
+			var i = 0
 			for(var e in getWeaponEffects(id)){
-				push(this.effects, ItemEffect(e))
+				push(this.effects, ItemEffect(e, this.name+"-"+(i++)))
 			}
 		} else {
 			this.haveCD = getChipCooldown(id)!=0
@@ -63,14 +53,14 @@ class Item {
 			this.needLOS = chipNeedLos(id)
 			this.cost = getChipCost(id)
 			this.area = getChipArea(id)
+			var i = 0
 			for(var e in getChipEffects(id)){
-				push(this.effects, ItemEffect(e))
+				push(this.effects, ItemEffect(e, this.name+"-"+(i++)))
 			}
 		}
 
-		
-
-		// defining 
+		// on cherche à trouver quels sont les cibles valides et intéressante de l'item
+		// on set targetKey pour que targetSet pointe vers la fonction qui renvera uniquement les entités intéressante à cibler
 		var allies = false, enemies = false, onBulbs = false, onLeeks = false;
 		for(var e in this.effects){
 			if(!allies) allies = e.targetType.allies
@@ -78,6 +68,7 @@ class Item {
 			if(!onBulbs) onBulbs = e.targetType.onBulbs
 			if(!onLeeks) onLeeks = e.targetType.onLeeks
 		}
+		
 		if(false){ // TODO FAIRE UNE PASSE SUR LES ITEMS POUR CHECK SI TOUT EST COMME JE LE SOUHAITE §
 			// + coder les items chelous dans TargetType
 			debug(this)
@@ -114,13 +105,26 @@ class Item {
 				this.targetKey = Item.NONE
 			}
 		} else { // none: cas des actions avec des items de déplacements teleport, ou des invocs
-			debugW('no targetSet, should be handled somehow ? '+this)
-			this.targetSet = Item.NONE
+			this.targetKey = Item.NONE
+			targetEmptyCell = true // TODO handle this param in IA
 		}
 	}
 	
+	targetSet(){
+		if(this.targetKey==ALL) return Fight.getAllAlive()
+		if(this.targetKey==ALLLEEKS) return Fight.getAllLeeksAlive()
+		if(this.targetKey==ALLBULBS) return Fight.getAllBulbsAlive()
+		if(this.targetKey==ALLIES) return Fight.getAlliesAlive()
+		if(this.targetKey==ALLIESLEEKS) return Fight.getAlliesLeeksAlive()
+		if(this.targetKey==ALLIESBULBS) return Fight.getAlliesBulbsAlive()
+		if(this.targetKey==ENEMIES) return Fight.getEnemiesAlive()
+		if(this.targetKey==ENEMIESLEEKS) return Fight.getEnemiesLeeksAlive()
+		if(this.targetKey==ENEMIESBULBS) return Fight.getEnemiesBulbsAlive()
+		if(this.targetKey==NONE) return []
+	}
+	
 	/*
-	 * Vérifie si je peux utiliser une item sur une cellule, si oui utilise l'item
+	 * tente d'utiliser l'item
 	 * @param cell cellule de type Cell représentant l'endroit ou je veux utiliser l'Item avec id: (this.id)
 	 */
 	useItemOnCell(cell){
@@ -131,7 +135,7 @@ class Item {
 	}
 	
 	/*
-	 * Vérifie si je peux utiliser une item sur une cellule, si oui utilise l'item
+	 * tente d'utiliser l'item
 	 * @param cell cellule de type Cell représentant l'endroit ou je veux utiliser l'Item avec id: (this.id)
 	 */
 	useItem(entity){

@@ -26,8 +26,8 @@ class Entity {
 	dmgReturn
 	reachableCells
 	items
-	offensiveItems // on enemy leeks only
-	offensiveItemsByTargets = [] // on ally leeks only
+	offensiveItems // will have a value on enemy leeks only
+	offensiveItemsByTargets = [] // will have a value on ally leeks only
 	turnOrder
 	entityWhoPlayBefore
 	cellsToIgnore = []
@@ -138,7 +138,7 @@ class Entity {
 		var leekToIgnore = [this.id],result = [], x = targetCell.x, y = targetCell.y
 		if(item.isInLine){
 			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-				var dist =((x-x1)<0?x1-x:x-x1);
+				var dist = x-x1 < 0 ? x1-x : x-x1;
 				if(dist < item.minRange) continue;
 				var fromCell = Map.getCell(getCellFromXY(x1, y));
 				if(fromCell!=null 
@@ -149,7 +149,7 @@ class Entity {
 				}
 			}
 			for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-				var dist =((y-y1)<0?y1-y:y-y1);
+				var dist = y-y1 < 0 ? y1-y : y-y1;
 				if(dist < item.minRange) continue;
 				var fromCell = Map.getCell(getCellFromXY(x, y1));
 				if(fromCell!=null 
@@ -162,7 +162,7 @@ class Entity {
 		}else{
 			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
 				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-					var dist =((x-x1)<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1);//trick pour abs(x-x1)+abs(y-y1)..
+					var dist =(x-x1<0 ? x1-x : x-x1)+(y-y1<0 ? y1-y : y-y1);//trick pour abs(x-x1)+abs(y-y1)..
 					if(dist > item.maxRange || dist < item.minRange) continue;
 					var fromCell = Map.getCell(getCellFromXY(x1, y1));
 					if(fromCell!=null 

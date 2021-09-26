@@ -11,6 +11,7 @@ include('model/MapAction')
 include('model/Combo')
 include('model/Danger')
 include('model/TargetType')
+include('model/Consequences')
 
 include('API/compatibility')
 

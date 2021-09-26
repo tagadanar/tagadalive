@@ -6,7 +6,7 @@ include('../auto')
  */
 class Combo {
 	actions = []
-	dmg = 0
+	score = null
 	
 	/*
 	 * Ajout d'action dans l'ensemble d'actions du combo
@@ -21,22 +21,37 @@ class Combo {
 	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
 	 */
 	play(){
-		debug(this)
+		// debug(this)
 		for(var action in this.actions){
-			moveTowardCell(action.from)
-			action.item.useItemOnCell(action.to)
+			debug(action)
+			debug(action.consequences)
+			if(action.from != Fight.selfCell) moveTowardCell(action.from)
+			if(action.to == Fight.selfCell) action.item.useItemOnCell(Map.getCell(getCell()))
+			else action.item.useItemOnCell(action.to)
 		}
+	}
+	
+	/*
+	 * retourne la somme des scores des actions du combo
+	 */
+	getScore(){
+		if(this.score === null){
+			for(var action in this.actions){
+				this.score +=action.score
+			}
+		}
+		return this.score
 	}
 	
 	/*
 	 * Format chaîne de caractères utilisée pour des tests / debugs.
 	 */
 	string(){
-		var str= '<Combo: [\n'
+		var str= '<Combo: ['
 		for(var action in this.actions){
-			str+= action+'\n'
+			str+= '\n'+action
 		}
-		str+= ' | dmg:'+round(this.dmg)+']>'
+		str+=']>'
 		return str
 	}
 }

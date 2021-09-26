@@ -1,16 +1,78 @@
 include('../auto')
 
 class Consequences {
-	_alterations = [] // [entity:[caracteristic:value]]
+	_alterations // [entity:[caracteristic:value]]
+	score = null
 	
-	constructor(){}
+	static HP 			= 0
+	static DEBUFF 		= 1
+	static ANTIDOTE 	= 2
+	static ABSSHIELD 	= 3
+	static RELSHIELD 	= 4
+	static DMGRETURN 	= 5
+	static STR 			= 6
+	static PSN 			= 7
+	static MGC 			= 8
+	static RST 			= 9
+	static WSD 			= 10
+	static AGI 			= 11
+	static NOVA 		= 12
+	static TP 			= 13
+	static MP	 		= 14
 	
-	addAlteration(entity, key, value){
-		if(!_alterations[entity]) _alterations[entity] = []
-		_alterations[entity][key] += value
+	constructor(action, consequences){
+		if(!consequences) this._alterations = []
+		else this._alterations = consequences.getAlterations()
+		
+		var targets
+		if(action.to == Fight.selfCell) targets = [Fight.self.id] 
+		else targets = getItemTargets(action.item, action.to)
+		// FIXME itemTargets return null when i dont have the item ?
+		for(var targetId in targets){
+			var target = Fight.getEntity(targetId)
+			for(var effect in action.item.effects) {
+				effect.getConsequences(Fight.self, target, this)
+			}
+		}
 	}
 	
+	add(entity, key, value){
+		if(!_alterations[entity]) _alterations[entity] = []
+		_alterations[entity][key] += value // pour null, devrait se comporter comme si ça contenait 0
+			// ça ne marche qu'avec += en leekscriptv1, pas tester en v1.1 comment ça marche...
+			// j'avais des bugs sur les -=, donc il faut faire += -value si le comportement est le mm ici.
+		
+		// update du score
+		if(key == Consequences.HP) 			this.score+= entity.isFriend ? value : -value
+		if(key == Consequences.ABSSHIELD) 	this.score+= entity.isFriend ? value*3 : -(value*3)
+		if(key == Consequences.STR) 		this.score+= entity.isFriend ? value : -value
+	}
+	
+	getAlterations(){
+		return _alterations
+	}
+	
+	/* pas sur d'avoir besoin de ce truc en fait..
 	getAlteration(entity, key){
 		return _alterations[entity][key]
+	}
+	*/
+	
+	getScore(){
+		return this.score
+	}
+	
+	string(){
+		var str = "<Consequences"
+		for(var entity:var alteration in this._alterations){
+			str+= "\n" + entity.name + ":"
+			for(var key:var value in alteration){
+				if(key == Consequences.HP) 			str+= "|HP: "+round(value)
+				if(key == Consequences.ABSSHIELD) 	str+= "|ABSSHIELD: "+round(value)
+				if(key == Consequences.STR) 		str+= "|STR: "+round(value)
+			}
+		}
+		str+=">"
+		return str
 	}
 }

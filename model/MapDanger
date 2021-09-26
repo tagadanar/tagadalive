@@ -4,29 +4,48 @@ include('../auto')
  *  Ensemble de méthodes et d'algorithmes permettant de calculer le Danger et les maps de dommages
  */
 class MapDanger {
-	static _danger = []
+	// cache du danger estimé sur la case, reset à chaque tour, pour la v1 du danger, sera amener à évoluer quand on améliorera la map
+	static _danger = [] // [cell:danger]
+	
+	// cache contenant pour chaque item, pour chaque case, les cases qu'on peut toucher si rien ne bloque la LOS
+	// ne doit pas être reset en début de tour, l'info reste valide, et est lazyloader à la demande.
 	static _cache_item_targetableCells = [] // [item:[fromCell:[targetCells]]]
-	static _cache_allies_item_targetableCells = []
-	static _map_entity_item_danger = [] // [e][item]
+	
+	// cache contenant pour chaque ally, pour chaque item, pour chauqe case, les cases qu'on peut toucher, en prenant en compte la LOS
+	// doit être refresh à chaque tour, car on prend en compte la LOS
+	// TODO faire des tests de performances quand on rencontrera des problèmes d'opérations, c'est surement nettement + couteux...
+	static _cache_allies_item_targetableCells = [] // [ally:[item:[fromCell:[targetCells]]]]
+	
+	// cache pour chaque enemy des maps des cases où il peut tirer
+	// refresh à chaque tour
+	static _map_entity_item_danger = [] // [e][item:ratio]
 	
 	/*
 	 * Actualise les informations en fonctions des enemies et alliés encore vivant 
 	 */
 	static refresh(){
+		// reset du cache
 		_danger = []
+		_map_entity_item_danger = []
+		// pour chaque adv
 		for(var e in Fight.getEnemiesAlive()){
 			_map_entity_item_danger[e] = [];//reset de la map
 			e.offensiveItems = Items.getOrderedOffensiveItems(e)
+			// pour chaque item offensif
 			for(var item : var dmgPerTp in e.offensiveItems){
+				// on trouve les cases qu'il peut toucher avec son item
 				_map_entity_item_danger[e][item] = MapDanger.getEnemiesDmgMap(e, item)
 			}
 		}
 		_cache_allies_item_targetableCells = []
+		// pour chaque ally
 		for(var a in Fight.getAlliesAlive()){
 			_map_entity_item_danger[a] = [];//reset de la map
 			for(var e in Fight.getEnemiesAlive()){
+				// on récup les items offensif pour chaque adv
 				a.offensiveItemsByTargets[e] = Items.getOrderedOffensiveItems(a, e)
 			}
+			// pour chaque set d'items, chaque item, on récup la map des cases touchables
 			for(var offensiveItems in a.offensiveItemsByTargets){
 				for(var item : var dmgPerTp in offensiveItems){
 					_map_entity_item_danger[a][item] = MapDanger.getAlliesDmgMap(a, item)
@@ -36,7 +55,7 @@ class MapDanger {
 		}
 	}
 	
-			/*
+		/*
 		 * Calcule le danger d'une Cell si elle n'a pas déjà été calculé.
 		 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de récupérations
 		 * @param cell Cellule sur laquelle le danger va être calculé
@@ -53,7 +72,7 @@ class MapDanger {
 					var tmpdmg = MapDanger.getDamage(e, Fight.self, item)* ratioDmg
 					if(tmpdmg>0){
 						while(item.cost<=tpleft){
-							str += item.name + " "
+							str +=  " "+item.name
 							dmg+=tmpdmg
 							tpleft-=item.cost
 							if(item.haveCD) break
@@ -87,7 +106,6 @@ class MapDanger {
 					tpleft-=item.cost+switchCost
 					if(switchCost==1){ inHand = item; switchCost = 0 }
 					combo.add(Action(item, entity.getCellToUseItemOnCell(item, cell), cell))
-					combo.dmg += tmpdmg
 					if(item.haveCD) break
 				}
 			}
@@ -145,7 +163,7 @@ class MapDanger {
 		return map // TODO add map_mp
 	}
 		/*
-		 * Retourne les Cells pouvant être touché avec le parametre item par les alliés, la fonction est appelé pour chaque cellule accessible
+		 * Retourne les Cells pouvant être touché depuis la @cell avec l'@item par les alliés
 		 * Hum... =(
 		 * ++++++++++[>+>+++>+++++++>++++++++++<<<<-]>>>>-.<<+++++++++.>>++.++++++++++++++.+.<<-------.>>---.++++.--------------------.+++++++++++++.----------.<<.>>+++++++++.--------.++++++++.--------.<<.>>+++++++++++.---------------.++++++++++++++++++.<<.>>+.--.-------------.++++++++++++++.<<.>>----------------.+++++++++.-----------.++++++++.+++++++++.<<.>---------.<++++++++.
 		 * @see  https://fr.wikipedia.org/wiki/Brainfuck
@@ -161,29 +179,29 @@ class MapDanger {
 			var result = [], x = cell.x, y = cell.y
 			if(item.isInLine){
 				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-					var dist =((x-x1)<0?x1-x:x-x1);
+					var dist = x-x1<0?x1-x:x-x1
 					if(dist < item.minRange) continue;
-					var targetCell = Map.getCell(getCellFromXY(x1, y));
+					var targetCell = Map.getCell(getCellFromXY(x1, y))
 					if(targetCell!=null 
 					&& Map.obstacles[targetCell]==null 
 					&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
-						push(result, targetCell);
+						push(result, targetCell)
 					}
 				}
 				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-					var dist =((y-y1)<0?y1-y:y-y1);
+					var dist = y-y1<0?y1-y:y-y1
 					if(dist < item.minRange) continue;
-					var targetCell = Map.getCell(getCellFromXY(x, y1));
+					var targetCell = Map.getCell(getCellFromXY(x, y1))
 					if(targetCell!=null 
 					&& Map.obstacles[targetCell]==null 
 					&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
-						push(result, targetCell);
+						push(result, targetCell)
 					}
 				}
 			}else{
 				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
 					for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-						var dist =((x-x1)<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1);//trick pour abs(x-x1)+abs(y-y1)..
+						var dist =(x-x1<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1) // abs(x-x1)+abs(y-y1)..
 						if(dist > item.maxRange || dist < item.minRange) continue;
 						var targetCell = Map.getCell(getCellFromXY(x1, y1));
 						if(targetCell!=null 
@@ -238,9 +256,9 @@ class MapDanger {
 			var result = [], x = cell.x, y = cell.y
 			if(item.isInLine){
 				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-					var dist =((x-x1)<0?x1-x:x-x1);
+					var dist = x-x1<0?x1-x:x-x1
 					if(dist < item.minRange) continue;
-					var targetCell = Map.getCell(getCellFromXY(x1, y));
+					var targetCell = Map.getCell(getCellFromXY(x1, y))
 					if(targetCell!=null 
 					&& Map.obstacles[targetCell]==null 
 					&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
@@ -248,9 +266,9 @@ class MapDanger {
 					}
 				}
 				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-					var dist =((y-y1)<0?y1-y:y-y1);
+					var dist = y-y1<0?y1-y:y-y1
 					if(dist < item.minRange) continue;
-					var targetCell = Map.getCell(getCellFromXY(x, y1));
+					var targetCell = Map.getCell(getCellFromXY(x, y1))
 					if(targetCell!=null 
 					&& Map.obstacles[targetCell]==null 
 					&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
@@ -260,9 +278,9 @@ class MapDanger {
 			}else{
 				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
 					for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-						var dist =((x-x1)<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1);//trick pour abs(x-x1)+abs(y-y1)..
+						var dist = (x-x1<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1) // abs(x-x1)+abs(y-y1)..
 						if(dist > item.maxRange || dist < item.minRange) continue;
-						var targetCell = Map.getCell(getCellFromXY(x1, y1));
+						var targetCell = Map.getCell(getCellFromXY(x1, y1))
 						if(targetCell!=null 
 						&& Map.obstacles[targetCell]==null 
 						&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
