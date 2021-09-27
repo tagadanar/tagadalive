@@ -66,6 +66,7 @@ class MapAction {
 	static getPotentialCombo(entity){
 		var bestCombo = null
 		// all reachableCells
+		//var arrayCombo = []
 		for(var cell:var mp in entity.reachableCells){
 			if(!_cell_item_bestAction[cell]) continue;
 			var combo = Combo()
@@ -102,11 +103,23 @@ class MapAction {
 					if(item.haveCD) break
 				}
 			}
+			/*
+			var scor = round(combo.getScore())
+			arrayCombo[scor] = combo
+			mark(cell.id, COLOR_BLUE)
+			markText(cell.id, scor)
+			*/
 			if(!bestCombo || bestCombo.getScore() < combo.getScore()){
 				bestCombo = combo
 			}
 		}
-		
+		/*
+		for(var scor: var combo in arrayCombo) {
+			debug(scor + ": " + combo)
+		}
+		pause()
+		clearMarks()
+		*/
 		return bestCombo
 	}
 }
