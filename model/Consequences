@@ -19,6 +19,7 @@ class Consequences {
 	static NOVA 		= 12
 	static TP 			= 13
 	static MP	 		= 14
+	static PWR			= 15
 	
 	constructor(action, consequences){
 		if(!consequences) this._alterations = []

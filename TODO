@@ -1,0 +1,8 @@
+// faire des fonctions de benchmark pour estimer la consomation d'opération par fonction/objet/fonctionnalité
+// Gérer les différentes AREA_XXX dans la map d'action puis dans la map de danger
+// Gérer les réduction de dmg dans ItemEffects
+// Gérer tous les effets dans ItemEffects (sauf summon/teleport, etc..)
+// Améliorer le scoring
+
+
+// gérer summon/teleport.... :'(

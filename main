@@ -31,7 +31,7 @@ debug(comboOld)
 var combo = MapAction.getPotentialCombo(Fight.self)
 debug("New Combo allstuff, from 1 cell, with MapAction:")
 debug(combo)
-if(count(combo.actions)>0) combo.play()
+if(combo && count(combo.actions)>0) combo.play()
 else {
 	var cellToUsePistol = getCellToUseWeapon(WEAPON_MAGNUM, enemy.id)
 	var path = getPath(getCell(), cellToUsePistol)

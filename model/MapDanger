@@ -61,7 +61,7 @@ class MapDanger {
 		 * @param cell Cellule sur laquelle le danger va être calculé
 		 * @return le tableau de Cell avec le danger mis à jour
 		 */
-	static getCellDanger(cell) {
+	static getCellDanger(cell, consequences) {
 		if(!_danger[cell]) {
 			var dmg = 0
 			var str = ""
