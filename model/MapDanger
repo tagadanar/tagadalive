@@ -55,12 +55,22 @@ class MapDanger {
 		}
 	}
 	
-		/*
-		 * Calcule le danger d'une Cell si elle n'a pas déjà été calculé.
-		 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de récupérations
-		 * @param cell Cellule sur laquelle le danger va être calculé
-		 * @return le tableau de Cell avec le danger mis à jour
-		 */
+	/*
+	 * Calcule le danger d'une Cell, version sans Conséquences
+	 * @param <Cell> cell la case sur laquel on veut le danger
+	 * @return <Danger>
+	 */
+	static getCellDanger(cell){
+		return MapDanger.getCellDanger(cell, null)
+	}
+		
+	/*
+	 * TODO gestion des consequences
+	 * Calcule le danger d'une Cell si elle n'a pas déjà été calculé.
+	 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de récupérations
+	 * @param cell Cellule sur laquelle le danger va être calculé
+	 * @return le tableau de Cell avec le danger mis à jour
+	 */
 	static getCellDanger(cell, consequences) {
 		if(!_danger[cell]) {
 			var dmg = 0
