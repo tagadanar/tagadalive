@@ -14,7 +14,7 @@ class Map {
 	static init(){
 		for(var i = 0; i < 613; i++) cells[i] = new Cell(i)
 		for(var i in getObstacles()) Map.obstacles[cells[i]]=true
-		for(var cell in cells) cell.initNeighbors()
+		for(var cell in cells) cell.init()
 	}
 	
 	/*

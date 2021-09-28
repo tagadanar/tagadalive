@@ -1,0 +1,43 @@
+class Benchmark{
+	static _DEBUG = true
+	
+	static _debug_operation
+	static _count_func = [];
+	static _cumul_func = [];
+	static _laststart_func = [];
+	
+	// mesure d'opération simple
+	static startOp(){
+		_debug_operation = getOperations();
+	}
+	static stopOp(title){
+		if(_DEBUG) debug(title + ": " + (getOperations()-_debug_operation-6-2-length(title)));	
+	}
+	static stopOpk(title){
+		if(_DEBUG) debug(title + ": " + round((getOperations()-_debug_operation)/1000) + "k");
+	}
+	
+	// mesure de consommation d'opération moyenne d'une fonction
+	static reset(){
+		_count_func = [];
+		_cumul_func = [];
+		_laststart_func = [];
+	}
+	static start(name){
+		if(_count_func[name]==null) _count_func[name]=0;
+		if(_cumul_func[name]==null) _cumul_func[name]=0;
+		_laststart_func[name] = getOperations();
+	}
+	static stop(name){
+		_cumul_func[name]+= getOperations()-_laststart_func[name];
+		_count_func[name]++;
+	}
+	static display(){
+		var str = "BENCHMARK Turn " + getTurn()
+		for(var name:var nbCall in _count_func){
+			str+= "\n" + name + ": " + nbCall + " call. Moy= " + round(_cumul_func[name]/nbCall) + " Total= " + round((_cumul_func[name])/1000) + "k"
+		}
+		debug(str)
+	}
+
+}

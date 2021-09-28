@@ -14,8 +14,11 @@ include('model/TargetType')
 include('model/Consequences')
 
 include('API/compatibility')
+include('TESTS/Debug/Benchmark')
 
 function init() {
+	Benchmark.reset()
+	Benchmark.start('init')
 	if(getTurn()==1) {
 		Map.init()
 		Items.init()
@@ -24,4 +27,6 @@ function init() {
 	Map.refresh()
 	MapDanger.refresh()
 	MapAction.refresh()
+	Benchmark.stop('init')
+	Benchmark.display()
 }
