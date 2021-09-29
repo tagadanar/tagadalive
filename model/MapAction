@@ -68,7 +68,8 @@ class MapAction {
 		// all reachableCells
 		//var arrayCombo = []
 		for(var cell:var mp in entity.reachableCells){
-			if(!_cell_item_bestAction[cell]) continue;
+			if(!_cell_item_bestAction[cell]) _cell_item_bestAction[cell] = [];
+			//when i handle move after combo
 			var combo = Combo()
 			var tpleft = entity.tp
 			var inHand = entity.getWeaponInHand()
@@ -103,6 +104,10 @@ class MapAction {
 					if(item.haveCD) break
 				}
 			}
+			// recherche d'une case de fin de tour
+			var currentCell = combo.getCurrentCell()
+			var mpleft = Fight.self.mp - Fight.self.reachableCells[currentCell]
+			combo.addFinalDanger(MapDanger.findBestDanger(currentCell, mpleft))
 			/*
 			var scor = round(combo.getScore())
 			arrayCombo[scor] = combo
@@ -120,6 +125,7 @@ class MapAction {
 		pause()
 		clearMarks()
 		*/
+
 		return bestCombo
 	}
 }

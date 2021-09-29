@@ -145,13 +145,16 @@ class Fight {
 	
 	/*
 	 * Détecte les entités vivantes qui jouent avant l'entité entity en paramètre de la fonction
+	 * cette fonction return une list avec @entity inclus, WORKING AS INTENDED !
+	 * cette fonction est utile pour les cases à ignorer dans les fonctions de déplacement, je dois m'ignorer aussi
+	 * ne devrait pas poser de problème ailleurs, mais je laisse ces commentaires pour qu'on y fasse attention
+	 * quand on reviendra sur l'ordre de jeu, il est possible que cette fonction mérite un rename pour la distinguer d'une autre sans self
 	 * @param entity Entity 
 	 * @return liste des entités vivantes alliés et ennemies 
 	 */
-	 // TODO: cette fonction return une list avec <entity> inclus actuellement, ça ne devrait pas, FIX IT 
-	 // voir test unitaire
+	 // todo changez le test unitaire
 	static getListOfLeekWhoPlayBefore(entity) {
-		if(entity == self) return [];
+		if(entity == self) return [self];
 		var list = [self]
 		var self = self.turnOrder
 		var limit = entity.turnOrder

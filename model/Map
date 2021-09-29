@@ -12,8 +12,8 @@ class Map {
 	 * Fonction d'initialisation, initialise les Cellules Cell, et pour chaque Cell, les obstacles et leurs voisins.
 	 */
 	static init(){
-		for(var i = 0; i < 613; i++) cells[i] = new Cell(i)
-		for(var i in getObstacles()) Map.obstacles[cells[i]]=true
+		for(var i = 0; i < 613; i++) Map.cells[i] = new Cell(i)
+		for(var i in getObstacles()) Map.obstacles[Map.cells[i]]=true
 		for(var cell in cells) cell.init()
 	}
 	

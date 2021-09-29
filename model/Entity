@@ -85,8 +85,8 @@ class Entity {
 	}
 
 	/*
-	 * Renvoie l'ensemble de cellules accessibles depuis la cellule (cells) avec la quantité de points de mouvements (mp) en utilisant les voisins et la fonction de l'API leekWars isEmpty.
-	 * @param cells -> cellule à partir de laquelle je veux checker (format [cellule:distance]) donc par exemple ma [cellule courante:0]
+	 * Renvoie l'ensemble de cellules accessibles depuis la cellule (cells) avec la quantité de points de mouvements (mp) en utilisant les voisins.
+	 * @param cells -> cellule à partir de laquelle je veux checker (format [Cell:distance]) donc par exemple ma [cellule courante:0]
 	 * @param mp -> les points de mouvements
 	 * @param ignoreCells -> cellules à ignorer par l'algorithme
 	 * @return  un tableau contenant pour chaque cellules accessible [Cell:distance]
@@ -99,7 +99,7 @@ class Entity {
 		while(mp-->0){
 			for(var currentWorkingCell: var dist in tmp){
 				for(var c in currentWorkingCell.neighbors){
-					if(stack[c] == null && (isEmptyCell(c) || inArray(ignoreCells, c))){
+					if(stack[c] == null && (!Map.entityCells[c] || inArray(ignoreCells, c))){
 						stack[c] = dist+1;
 						next[c] = dist+1;
 					}
