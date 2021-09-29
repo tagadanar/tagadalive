@@ -7,6 +7,7 @@ class Cell {
 	id
 	isWall
 	neighbors
+	neighborsObstacles
 	x
 	y
 	_AREAS = []
@@ -19,6 +20,7 @@ class Cell {
 	
 	init(){
 		this.initNeighbors()
+		this.initNeighborsObstacles()
 		this.initAreas()
 	}
 	
@@ -29,15 +31,38 @@ class Cell {
 		var result = []
 
 		var c = getCellFromXY(x, y-1);
-		if(c!=null && !Map.obstacles[c]) push(result, Map.getCell(c));
+		if(c!=null && !Map.obstacles[Map.cells[c]]) push(result, Map.getCell(c));
 		c = getCellFromXY(x, y+1);
-		if(c!=null && !Map.obstacles[c]) push(result, Map.getCell(c));
+		if(c!=null && !Map.obstacles[Map.cells[c]]) push(result, Map.getCell(c));
 		c = getCellFromXY(x-1, y);
-		if(c!=null && !Map.obstacles[c]) push(result, Map.getCell(c));
+		if(c!=null && !Map.obstacles[Map.cells[c]]) push(result, Map.getCell(c));
 		c = getCellFromXY(x+1, y);
-		if(c!=null && !Map.obstacles[c]) push(result, Map.getCell(c));
+		if(c!=null && !Map.obstacles[Map.cells[c]]) push(result, Map.getCell(c));
 
 		this.neighbors = result
+	}
+	
+	initNeighborsObstacles(){
+		var result = []
+
+		var c = getCellFromXY(x, y-1);
+		if(c!=null) push(result, Map.getCell(c));
+		c = getCellFromXY(x, y+1);
+		if(c!=null) push(result, Map.getCell(c));
+		c = getCellFromXY(x-1, y);
+		if(c!=null) push(result, Map.getCell(c));
+		c = getCellFromXY(x+1, y);
+		if(c!=null) push(result, Map.getCell(c));
+
+		this.neighborsObstacles = result
+	}
+
+	/*
+	 * Retourne un tableau de Cell correspondant aux cases de l'@area en params depuis cette case
+	 */
+	getAreaCells(area){
+		if(!_AREAS[area]) debugE('unhandled AREA in Cell.getAreaCells(): '+ area)
+		return _AREAS[area]
 	}
 	
 	/*
@@ -193,11 +218,6 @@ class Cell {
 		_AREAS[AREA_X_3] = result
 	}
 
-	getAreaCells(area){
-		if(!_AREAS[area]) debugE('unhandled AREA in Cell.getAreaCells(): '+ area)
-		return _AREAS[area]
-	}
-	
 	/*
 	 * Format chaîne de caractères utilisée pour des tests / debugs.
 	 */

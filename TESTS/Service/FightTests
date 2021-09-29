@@ -56,14 +56,14 @@ function testGetAllAlive() {
 }
 
 function testGetListOfLeekWhoPlayBefore() {
-	var expected = []
-	var result = Fight.getListOfLeekWhoPlayBefore(Entity(getEntity()));
+	var expected = [Fight.self]
+	var result = Fight.getListOfLeekWhoPlayBefore(Fight.self)
 	
 	assertEquals("FightTests::testGetListOfLeekWhoPlayBefore - Test 1", expected, result)
 	
 	// Pour info, ce test fonctionne uniquement si dans le scenario de test j'ai qu'un seul ennemi
 	var expected2 = Entity(getEntity()).id
-	var result2 = Fight.getListOfLeekWhoPlayBefore(Entity(getNearestEnemy()))[0].id;
+	var result2 = Fight.getListOfLeekWhoPlayBefore(Entity(getNearestEnemy()))[0].id
 	assertEquals("FightTests::testGetListOfLeekWhoPlayBefore - Test 2", expected2, result2)
 }
 

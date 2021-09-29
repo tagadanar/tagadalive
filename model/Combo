@@ -6,6 +6,7 @@ include('../auto')
  */
 class Combo {
 	actions = []
+	finalDanger = null
 	score = null
 	
 	/*
@@ -14,6 +15,10 @@ class Combo {
 	 */
 	add(action){
 		push(this.actions, action)
+	}
+	
+	addFinalDanger(cell){
+		this.finalDanger = cell
 	}
 	
 	/*
@@ -29,6 +34,11 @@ class Combo {
 			if(action.to == Fight.selfCell) action.item.useItemOnCell(Map.getCell(getCell()))
 			else action.item.useItemOnCell(action.to)
 		}
+		if(this.finalDanger){
+			MapDanger.showDanger(Map.getCell(getCell()), getMP())
+			debug(this.finalDanger)
+			moveTowardCell(this.finalDanger.cell)
+		}
 	}
 	
 	/*
@@ -37,10 +47,24 @@ class Combo {
 	getScore(){
 		if(this.score === null){
 			for(var action in this.actions){
-				this.score +=action.score
+				this.score+= action.score
 			}
+			this.score+= this.finalDanger.score
 		}
 		return this.score
+	}
+	
+	/*
+	 * retourne la cell où on serait si on jouait le combo en l'état
+	 */
+	getCurrentCell(){
+		var currentCell
+		if(this.finalDanger) currentCell = this.finalDanger.cell
+		else if(count(this.actions)>0) currentCell = actions[count(this.actions)-1].from
+		else currentCell = Fight.self.cell
+
+		if(currentCell == Fight.selfCell) currentCell = Fight.self.cell
+		return currentCell
 	}
 	
 	/*
@@ -51,7 +75,7 @@ class Combo {
 		for(var action in this.actions){
 			str+= '\n'+action
 		}
-		str+=']>'
+		str+= '\n'+this.finalDanger+']>'
 		return str
 	}
 }

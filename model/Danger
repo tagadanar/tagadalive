@@ -5,17 +5,21 @@ include ('../auto')
  * Le combo est une chaîne de caractères et est utilisé à des fins de tests / debugs.
  */
 class Danger{
+	cell
 	dmg
 	combo
-	constructor(dmg, str){
+	score
+	constructor(cell, dmg, str){
+		this.cell = cell
 		this.dmg = dmg
 		this.combo = str
+		this.score = -dmg // je souhaite le minimum de dmg, à raison de 1score par dmg reçu, == dmg dealt pour le moment
 	}
 	
 	/*
 	 * Format chaîne de caracteres utilisée pour des tests / debugs.
 	 */
 	string() {
-		return '<Danger '+round(this.dmg)+':'+this.combo+'>'
+		return '<Danger on '+this.cell+':'+round(this.dmg)+':'+this.combo+'>'
 	}
 }

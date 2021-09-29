@@ -7,5 +7,4 @@ checkFight()
 checkItems() // TODO
 checkMapDanger() // TODO
 
-if (getTurn() == 1)
-	setWeapon(WEAPON_PISTOL)
+pause()

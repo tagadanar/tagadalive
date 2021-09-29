@@ -9,7 +9,7 @@ function initCells() {
 	for (var i = 0; i < 613; i++) {
 		testCells[i] = new Cell(i)
 	}
-	for(var cell in testCells) cell.initNeighbors()
+	for(var cell in testCells) cell.init()
 }
 
 /*
@@ -19,12 +19,12 @@ function testCellWith1Neighbors() {
 	var expected = [0, 17, 595, 612];
 	var result = []
 	for (var i = 0; i < 613; i++) {
-		if (count(testCells[i].neighbors) == 1) {
+		if (count(testCells[i].neighborsObstacles) == 1) {
 			push(result, i);
 		}
 	}
 
-	assertEquals("MapTests::testCellWith1Neighbors", expected, result)
+	assertEquals("CellTests::testCellWith1Neighbors", expected, result)
 }
 
 /*
@@ -39,12 +39,12 @@ function testCellWith2Neighbors() {
 
 	var result = []
 	for (var i = 0; i < 613; i++) {
-		if (count(testCells[i].neighbors) == 2) {
+		if (count(testCells[i].neighborsObstacles) == 2) {
 			push(result, i);
 		}
 	}
 
-	assertEquals("MapTests::testCellWith2Neighbors", expected, result)
+	assertEquals("CellTests::testCellWith2Neighbors", expected, result)
 }
 
 /*
@@ -85,12 +85,23 @@ function testCellWith4Neighbors() {
 
 	var result = []
 	for (var i = 0; i < 613; i++) {
-		if (count(testCells[i].neighbors) == 4) {
+		if (count(testCells[i].neighborsObstacles) == 4) {
 			push(result, i);
 		}
 	}
 
-	assertEquals("MapTests::testCellWith4Neighbors", expected, result)
+	assertEquals("CellTests::testCellWith4Neighbors", expected, result)
+}
+
+function testCellNeighborsMustNotBeObstacle() {
+	var result = true
+	for(var i = 0 ; i < 613 ; i++) {
+		var cells = testCells[i].neighbors
+		if(cells) for(var cell in cells) if(isObstacle(cell.id)) result = false
+		
+	}
+	
+	assertEquals("CellTests::testCellNeighborsMustNotBeObstacle", true, result)
 }
 
 /*
@@ -101,4 +112,5 @@ function checkCells() {
 	testCellWith1Neighbors();
 	testCellWith2Neighbors();
 	testCellWith4Neighbors();
+	testCellNeighborsMustNotBeObstacle()
 }
