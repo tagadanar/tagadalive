@@ -12,7 +12,15 @@ class Action {
 		this.item = item
 		this.from = from
 		this.to = to
-		this.consequences = Consequences(this, null) // todo if chain of action, pass consequence as param instead of null
+		this.consequences = Consequences(this, null)
+		this.score = this.consequences.getScore()
+	}
+	
+	constructor(item, from, to, consequences){
+		this.item = item
+		this.from = from
+		this.to = to
+		this.consequences = Consequences(this, consequences)
 		this.score = this.consequences.getScore()
 	}
 	

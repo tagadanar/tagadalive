@@ -56,12 +56,18 @@ class Fight {
 			}
 		}
 		self = _aliveAll[getLeek()]
+	}
+	
+	/*
+	 * initialise les entités, doit être call à la fin du refresh de la Map pour bien init les reachableCells avec les bonnes cases occupés dans la Map
+	 */
+	static refreshEntities(){
 		for(var entity in _aliveAll){
 			entity.init()
 			push(allEntitiesId, entity.id)
 		}
 	}
-
+	
 	/*
 	 * Renvoie Entity correspondant a l'id de l'entity demandée si elle est vivante
 	 * @param entityId Id de l'Entity

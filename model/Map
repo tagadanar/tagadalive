@@ -25,6 +25,7 @@ class Map {
 		for(var entity in Fight.getAllAlive()){
 			Map.entityCells[entity.cell] = entity
 		}
+		Fight.refreshEntities() // init des entities après avoir refresh les positions sur la map
 	}
 	
 	/*
