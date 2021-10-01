@@ -39,6 +39,7 @@ class Combo {
 			debug(this.finalDanger)
 			moveTowardCell(this.finalDanger.cell)
 		}
+		if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_MAGNUM))
 	}
 	
 	/*
