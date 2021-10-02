@@ -14,7 +14,13 @@ class Combo {
 	 * @param action Action a ajouter dans le combo
 	 */
 	add(action){
-		push(this.actions, action)
+		if(count(this.actions) == 0) push(this.actions, action)
+		else {
+			var actualized = Action(action, this.getCurrentConsequences())
+			if(actualized.score > 0) push(this.actions, actualized)
+			else return false
+		}
+		return true
 	}
 	
 	addFinalDanger(cell){
@@ -27,6 +33,7 @@ class Combo {
 	 */
 	play(){
 		// debug(this)
+		// étape 1: je fais mes actions
 		for(var action in this.actions){
 			debug(action)
 			debug(action.consequences)
@@ -34,12 +41,15 @@ class Combo {
 			if(action.to == Fight.selfCell) action.item.useItemOnCell(Map.getCell(getCell()))
 			else action.item.useItemOnCell(action.to)
 		}
+		// étape 2: je vais me planquer
 		if(this.finalDanger){
 			MapDanger.showDanger(Map.getCell(getCell()), getMP())
-			debug(this.finalDanger)
+			//debug(this.finalDanger)
 			moveTowardCell(this.finalDanger.cell)
 		}
+		// étape 3: si il reste des TP, je prend en main la meilleure arme vis à vis de la situation
 		if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_MAGNUM))
+		
 	}
 	
 	/*
@@ -66,6 +76,14 @@ class Combo {
 
 		if(currentCell == Fight.selfCell) currentCell = Fight.self.cell
 		return currentCell
+	}
+	
+	/*
+	 * retourne la cell où on serait si on jouait le combo en l'état
+	 */
+	getCurrentConsequences(){
+		if(count(this.actions)>0) return actions[count(this.actions)-1].consequences
+		else return null
 	}
 	
 	/*

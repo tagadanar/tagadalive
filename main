@@ -5,12 +5,15 @@ init()
 var enemy = Fight.getEntity(getNearestEnemy());
 
 // approche + attaque
+/*
 var comboOld = MapDanger.getPotentialCombo(Fight.self, enemy.cell)
 debug("Combo only offensive item from MapDanger:")
 debug(comboOld)
 var combo = MapAction.getPotentialCombo(Fight.self)
 debug("New Combo allstuff, from 1 cell, with MapAction:")
 debug(combo)
+*/
+var combo = MapAction.getPotentialCombo(Fight.self)
 if(combo && count(combo.actions)>0) combo.play()
 else {
 	debugE('SHOULD NOT BE HERE !')
@@ -31,3 +34,4 @@ function failSafe(){
 	debug("failSafe TP used: "+(tpleft-getTP()))
 }
 failSafe()
+Benchmark.display()

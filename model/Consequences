@@ -1,7 +1,8 @@
 include('../auto')
 
 class Consequences {
-	_alterations // [entity:[caracteristic:value]]
+	_alterations = []// [entity:[caracteristic:value]]
+	_killed = []
 	score = null
 	
 	static HP 			= 0
@@ -20,19 +21,28 @@ class Consequences {
 	static TP 			= 13
 	static MP	 		= 14
 	static PWR			= 15
+	static KILL			= 16
+	
+	constructor(action){
+		construct(action)
+	}
 	
 	constructor(action, consequences){
-		if(!consequences) this._alterations = []
-		else this._alterations = consequences.getAlterations()
-		
+		this._alterations = clone(consequences._alterations, 2)
+		this._killed = clone(consequences._killed)
+		construct(action)
+	}
+	
+	construct(action){
 		var targets
 		if(action.to == Fight.selfCell) targets = [Fight.self.id] 
 		else targets = getItemTargets(action.item, action.to)
 		// FIXME itemTargets return null when i dont have the item ?
 		for(var targetId in targets){
 			var target = Fight.getEntity(targetId)
+			if(this._killed[target]==true) continue
 			for(var effect in action.item.effects) {
-				effect.getConsequences(Fight.self, target, this)
+				effect.updateConsequences(Fight.self, target, this)
 			}
 		}
 	}
@@ -49,18 +59,48 @@ class Consequences {
 		if(key == Consequences.STR) 		this.score+= entity.isFriend ? value : -value
 	}
 	
+	add(entity, key){
+		if(key == Consequences.KILL){
+			this._killed[entity]=true
+			var score = entity.isFriend ? -1000 : 1000
+			score*= entity.isBulb ? 0.2 : 1
+			this.score+= score
+		} else {
+			debugW('called Consequences.add() with wrong key or value')
+		}
+	}
+	
 	getAlterations(){
 		return _alterations
 	}
+		
+	getKilled(){
+		return _killed
+	}
 	
-	/* pas sur d'avoir besoin de ce truc en fait..
 	getAlteration(entity, key){
 		return _alterations[entity][key]
 	}
-	*/
 	
 	getScore(){
 		return this.score
+	}
+	
+	computeScore(){
+		var totalScore = 0;
+		for(var entity:var key in this._alterations){
+			var value = this.getAlteration(entity, key)
+			if(key == Consequences.HP) 			totalScore+= entity.isFriend ? value : -value
+			if(key == Consequences.ABSSHIELD) 	totalScore+= entity.isFriend ? value*3 : -(value*3)
+			if(key == Consequences.STR) 		totalScore+= entity.isFriend ? value : -value
+			
+		}
+		for(var entity:var bool in this._killed){
+			var killScore = 10000
+			killScore*= entity.isBulb ? 0.5 : 1
+			totalScore+= entity.isFriend ? -killScore : killScore
+		}
+		return totalScore
 	}
 	
 	string(){
@@ -73,6 +113,7 @@ class Consequences {
 				if(key == Consequences.STR) 		str+= "|STR: "+round(value)
 			}
 		}
+		for(var entity:var isDead in this._killed) str+= "\n|KILL: "+ entity
 		str+=">"
 		return str
 	}

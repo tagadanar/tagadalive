@@ -69,11 +69,48 @@ class MapAction {
 		//var arrayCombo = []
 		for(var cell:var mp in entity.reachableCells){
 			if(!_cell_item_bestAction[cell]) _cell_item_bestAction[cell] = [];
+			// cas 1 : uniquement les items sur d'autres leeks:
+			
 			//when i handle move after combo
 			var combo = Combo()
 			var tpleft = entity.tp
 			var inHand = entity.getWeaponInHand()
-						
+			
+			// tri par score des actions
+			_cell_item_bestAction[cell] = arraySort(_cell_item_bestAction[cell], function(a,b){	
+				if(a.score<b.score) return 1;
+				else if(a.score>b.score) return -1;
+				return 0;
+			});
+			
+			// ajout du meilleur score sur la case jusqu'à épuisement des TP/CD
+			for(var item:var action in _cell_item_bestAction[cell]){
+				var switchCost = item.isWeap && item != inHand ? 1 : 0
+				while(item.cost+switchCost<=tpleft){
+					if(combo.add(action)){
+						tpleft-=item.cost+switchCost
+						if(switchCost==1){ inHand = item; switchCost = 0 }
+					} else break
+					if(item.haveCD) break
+				}
+			}
+			// recherche d'une case de fin de tour
+			var currentCell = combo.getCurrentCell()
+			var mpleft = Fight.self.mp - Fight.self.reachableCells[currentCell]
+			combo.addFinalDanger(MapDanger.findBestDanger(currentCell, mpleft))
+
+			if(!bestCombo || bestCombo.getScore() < combo.getScore()){
+				bestCombo = combo
+			}
+				
+			// cas 2: en ajoutant les items que je peux selfcast
+			
+			//when i handle move after combo
+			var combo2 = Combo()
+			var tpleft2 = entity.tp
+			var inHand2 = entity.getWeaponInHand()
+			
+			
 			// ajout des actions sur moi mm dans les meilleurs moves sur cette case
 			if(_cell_item_bestAction[Fight.selfCell]){
 				for(var item: var action in _cell_item_bestAction[Fight.selfCell]){
@@ -87,6 +124,7 @@ class MapAction {
 			// note : cette façon de faire en dessous "casse" les clés, le string() renvoie tjr le bon item, mais les champs sont null
 			//_cell_item_bestAction[cell] += _cell_item_bestAction[Fight.selfCell]
 			
+			
 			// tri par score des actions
 			_cell_item_bestAction[cell] = arraySort(_cell_item_bestAction[cell], function(a,b){	
 				if(a.score<b.score) return 1;
@@ -96,35 +134,25 @@ class MapAction {
 			
 			// ajout du meilleur score sur la case jusqu'à épuisement des TP/CD
 			for(var item:var action in _cell_item_bestAction[cell]){
-				var switchCost = item.isWeap && item != inHand ? 1 : 0
-				while(item.cost+switchCost<=tpleft){
-					tpleft-=item.cost+switchCost
-					if(switchCost==1){ inHand = item; switchCost = 0 }
-					combo.add(action)
+				var switchCost = item.isWeap && item != inHand2 ? 1 : 0
+				while(item.cost+switchCost<=tpleft2){
+					if(combo2.add(action)){
+						tpleft2-=item.cost+switchCost
+						if(switchCost==1){ inHand2 = item; switchCost = 0 }
+					} else break
 					if(item.haveCD) break
 				}
 			}
 			// recherche d'une case de fin de tour
-			var currentCell = combo.getCurrentCell()
-			var mpleft = Fight.self.mp - Fight.self.reachableCells[currentCell]
-			combo.addFinalDanger(MapDanger.findBestDanger(currentCell, mpleft))
-			/*
-			var scor = round(combo.getScore())
-			arrayCombo[scor] = combo
-			mark(cell.id, COLOR_BLUE)
-			markText(cell.id, scor)
-			*/
-			if(!bestCombo || bestCombo.getScore() < combo.getScore()){
-				bestCombo = combo
-			}
+			var currentCell2 = combo2.getCurrentCell()
+			var mpleft2 = Fight.self.mp - Fight.self.reachableCells[currentCell2]
+			combo2.addFinalDanger(MapDanger.findBestDanger(currentCell2, mpleft2))
+
+			if(!bestCombo || bestCombo.getScore() < combo2.getScore()){
+				bestCombo = combo2
+			}	
+				
 		}
-		/*
-		for(var scor: var combo in arrayCombo) {
-			debug(scor + ": " + combo)
-		}
-		pause()
-		clearMarks()
-		*/
 
 		return bestCombo
 	}

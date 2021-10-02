@@ -20,13 +20,29 @@ function init() {
 	Benchmark.reset()
 	Benchmark.start('init')
 	if(getTurn()==1) {
+		Benchmark.start('Map.init')
 		Map.init()
+		Benchmark.stop('Map.init')
+		
+		Benchmark.start('Items.init')
 		Items.init()
+		Benchmark.stop('Items.init')
 	}
+	Benchmark.start('Fight.refresh')
 	Fight.refresh()
+	Benchmark.stop('Fight.refresh')
+	
+	Benchmark.start('Map.refresh')
 	Map.refresh()
+	Benchmark.stop('Map.refresh')
+	
+	Benchmark.start('MapDanger.refresh')
 	MapDanger.refresh()
+	Benchmark.stop('MapDanger.refresh')
+	
+	Benchmark.start('MapAction.refresh')
 	MapAction.refresh()
+	Benchmark.stop('MapAction.refresh')
+	
 	Benchmark.stop('init')
-	Benchmark.display()
 }

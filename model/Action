@@ -5,21 +5,21 @@ class Action {
 	public from
 	public to
 	public item
-	public score
 	public consequences
+	public score
 
 	constructor(item, from, to){
 		this.item = item
 		this.from = from
 		this.to = to
-		this.consequences = Consequences(this, null)
+		this.consequences = Consequences(this)
 		this.score = this.consequences.getScore()
 	}
 	
-	constructor(item, from, to, consequences){
-		this.item = item
-		this.from = from
-		this.to = to
+	constructor(action, consequences){
+		this.item = action.item
+		this.from = action.from
+		this.to = action.to
 		this.consequences = Consequences(this, consequences)
 		this.score = this.consequences.getScore()
 	}
