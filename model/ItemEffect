@@ -38,7 +38,7 @@ class ItemEffect {
 		if(this.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) this.irreductible = true
 	}
 	
-	getConsequences(entitySource, entityTarget, consequences) {
+	updateConsequences(entitySource, entityTarget, consequences) {
 		// fixme: ce if marche pas, j'ai tjr true mm pour EFFECT_DAMAGE
 		//if(!ItemEffect.convertToValue[this.type]) debugW('unhandledEffect on ItemEffect typeID: '+ this.type)
 		return ItemEffect.convertToValue[this.type](this, entitySource, entityTarget, consequences)
@@ -50,6 +50,9 @@ class ItemEffect {
 			value = (value /* multiplier par laoe ratio ici*/ *(1-(entityTarget.relShield/100))) - entityTarget.absShield
 			value = max(value, 0)
 			consequences.add(entityTarget, Consequences.HP, -value)
+			
+			if(entityTarget.life + consequences.getAlteration(entityTarget, Consequences.HP) <= 0) 
+				consequences.add(entityTarget, Consequences.KILL)
 		},
 		EFFECT_HEAL: function(effect, entitySource, entityTarget, consequences) {
 			var value = effect.avg*(1+(entitySource.wsd/100))

@@ -270,7 +270,24 @@ class MapDanger {
 				}
 			}
 		}
-		//aoe TODO
+		
+		//aoe TODO AREA_PLUS_, AREA_X_, AREA_SQUARE_
+		if(item.area==AREA_CIRCLE_1 || item.area==AREA_CIRCLE_2 || item.area==AREA_CIRCLE_3){
+			for(var distance = 1; distance<=item.area-2; distance++){ // ici trick pour réduire les opé, par du principe que AREA_CIRCLE_1 = 3 et AREA_CIRCLE_3 = 5
+				var ratio = 1 - 0.2 * distance
+				if(ratio ==0) break;
+				var circle = [];
+				for(var c:var value in map){
+					if(value>0)
+						for(var cell in c.neighborsObstacles)
+							if(map[cell]==null || map[cell]==0) push(circle, cell);
+				}
+				for(var cell in circle){
+					map[cell] = ratio;
+					//map_mp[cell] = eMp;
+				}
+			}
+		}
 		
 		return map // TODO add map_mp
 	}
