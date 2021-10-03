@@ -36,7 +36,9 @@ class Combo {
 		// étape 1: je fais mes actions
 		for(var action in this.actions){
 			debug(action)
+			Benchmark.startOp()
 			debug(action.consequences)
+			Benchmark.stopOp('print consequences.string()')
 			if(action.from != Fight.selfCell) moveTowardCell(action.from)
 			if(action.to == Fight.selfCell) action.item.useItemOnCell(Map.getCell(getCell()))
 			else action.item.useItemOnCell(action.to)
@@ -84,6 +86,18 @@ class Combo {
 	getCurrentConsequences(){
 		if(count(this.actions)>0) return actions[count(this.actions)-1].consequences
 		else return null
+	}
+	
+	/*
+	 * retourne les reachableCells atteignable depuis l'emplacement actuel du combo
+	 */
+	getCurrentReachableCells(){
+		var from = this.getCurrentCell()
+		// FIXME : ici je pars du principe que le seul chemin parcouru est depuis ma cell de début et currentCell
+		// TODO: this.getCurrentMP() qui simule les déplacements entre les actions.
+		// voir plutôt avoir une variable currentCell et currentMP que j'actualise à chaque ajout d'action.
+		var mpleft = Fight.self.mp - Fight.self.reachableCells[from]
+		return Fight.self.getReachableCells([from:0], mpleft, Fight.self.cellsToIgnore)
 	}
 	
 	/*

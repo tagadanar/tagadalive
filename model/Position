@@ -1,0 +1,10 @@
+include('../auto')
+
+class Position{
+	danger
+	consequences
+	
+	constructor(){
+	
+	}
+}

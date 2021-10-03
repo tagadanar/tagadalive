@@ -4,16 +4,7 @@ init()
 
 var enemy = Fight.getEntity(getNearestEnemy());
 
-// approche + attaque
-/*
-var comboOld = MapDanger.getPotentialCombo(Fight.self, enemy.cell)
-debug("Combo only offensive item from MapDanger:")
-debug(comboOld)
-var combo = MapAction.getPotentialCombo(Fight.self)
-debug("New Combo allstuff, from 1 cell, with MapAction:")
-debug(combo)
-*/
-var combo = MapAction.getPotentialCombo(Fight.self)
+var combo = AI.getPotentialCombo()
 if(combo && count(combo.actions)>0) combo.play()
 else {
 	debugE('SHOULD NOT BE HERE !')
@@ -31,7 +22,10 @@ function failSafe(){
 	}
 	Items.getItem(CHIP_PROTEIN).useItem(Fight.self)
 	//if(getRelativeShield(Fight.self)<=0) Items.getItem(CHIP_WALL).useItem(Fight.self)
-	debug("failSafe TP used: "+(tpleft-getTP()))
+	var tpused = tpleft-getTP()
+	if(tpused>0) debugE("failSafe TP used: "+tpused)
 }
 failSafe()
+
+
 Benchmark.display()

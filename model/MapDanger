@@ -18,7 +18,7 @@ class MapDanger {
 	
 	// cache pour chaque enemy des maps des cases où il peut tirer
 	// refresh à chaque tour
-	static _map_entity_item_danger = [] // [e][item:ratio]
+	static _map_entity_item_danger = [] // [e:[item:[cell:ratio]]]
 	
 	/*
 	 * Actualise les informations en fonctions des enemies et alliés encore vivant 
@@ -94,57 +94,6 @@ class MapDanger {
 		}
 		return _danger[cell]
 	}
-		
-	/*
-	 * Premier exemple d'algo naif où je cherche uniquement à maximiser les dégats sur nearest enemy
-	 * @param entity Entity
-	 * @param cell Cell de l'ennemie
-	 * @return combo contenant le tableau d'actions et les dommages estimés
-	 */
-	static getPotentialCombo(entity, cell){
-		var combo = Combo()
-		var tpleft = entity.tp
-		var inHand = entity.getWeaponInHand()
-		var enemy = Fight.getEntity(getNearestEnemy())
-		for(var item : var dmgPerTp in entity.offensiveItemsByTargets[enemy]){
-			var ratioDmg = _map_entity_item_danger[entity][item][cell]
-			var tmpdmg = MapDanger.getDamage(entity, Fight.getEntity(getEntityOnCell(cell)), item)* ratioDmg
-			var switchCost = item.isWeap && item != inHand ? 1 : 0
-			if(tmpdmg > 0){
-				while(item.cost+switchCost<=tpleft){
-					tpleft-=item.cost+switchCost
-					if(switchCost==1){ inHand = item; switchCost = 0 }
-					combo.add(Action(item, entity.getCellToUseItemOnCell(item, cell), cell))
-					if(item.haveCD) break
-				}
-			}
-		}
-		return combo
-	}
-	
-	/*
-	 * Premier exemple d'algo naif de recherche de case de fin de tour
-	 * je minimise les dégats, puis à danger équivalent je choisi la case la plus proche de l'adversaire
-	 */
-	static findBestDanger(from, mpleft){
-		var shouldGetCloseTo = Fight.getEntity(getNearestEnemy()).cell
-		var bestDanger = null
-		// depuis la case @from, avec les mp restant
-		var reachableCells = Fight.self.getReachableCells([from:0], mpleft, Fight.self.cellsToIgnore)
-		for(var cell:var mp in reachableCells){
-			var danger = MapDanger.getCellDanger(cell)
-			if(!bestDanger || bestDanger.dmg > danger.dmg) {
-				bestDanger = danger
-			} else if(bestDanger.dmg == danger.dmg){
-				// en cas de danger équivalent, je m'approche le plus possible de l'adv
-				if(getCellDistance(shouldGetCloseTo, bestDanger.cell) > getCellDistance(shouldGetCloseTo, danger.cell)){
-					bestDanger = danger
-				}
-			}
-		}
-		return bestDanger
-	}
-
 	
 	/*
 	 * Calcule les dommages que peux faire entitySource sur entityTarget avec une Item en fonction des effets de celle-ci
