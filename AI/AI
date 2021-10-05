@@ -1,0 +1,162 @@
+include('../auto')
+
+class AI {
+	
+	/*
+	 * Premier exemple d'algo naif où je cherche uniquement à maximiser les dégats sur nearest enemy
+	 * en exploitant uniquement les données de la MapDanger
+	 * TODO n'ajoute pas de déplacement de repli à la fin de la combo !
+	 * ne check pas le nombre de MP nécessaire entre les actions, qui peuvent être depuis plusieurs cases !
+	 * @return combo contenant le tableau d'actions et les dommages estimés
+	 */
+	static getSimpleOffensiveCombo(){
+		var combo = Combo()
+		var tpleft = Fight.self.tp
+		var inHand = Fight.self.getWeaponInHand()
+		var enemy = Fight.getEntity(getNearestEnemy())
+		for(var item : var dmgPerTp in Fight.self.offensiveItemsByTargets[enemy]){
+			var ratioDmg = MapDanger._map_entity_item_danger[Fight.self][item][enemy.cell]
+			var tmpdmg = MapDanger.getDamage(Fight.self, Fight.getEntity(getEntityOnCell(enemy.cell)), item, ratioDmg, null)
+			var switchCost = item.isWeap && item != inHand ? 1 : 0
+			if(tmpdmg > 0){
+				while(item.cost+switchCost<=tpleft){
+					tpleft-=item.cost+switchCost
+					if(switchCost==1){ inHand = item; switchCost = 0 }
+					combo.add(Action(item, Fight.self.getCellToUseItemOnCell(item, enemy.cell), enemy.cell))
+					if(item.haveCD) break
+				}
+			}
+		}
+		return combo
+	}
+	
+	/* 
+	 * Exploration des actions simple, recherche de move en 2 déplacements :
+	 * - pour chaque cell accessible:
+		* 	dans un combo j'ajoute la meilleure action par score jusqu'à épuisement
+	 	*	puis je trouve une case de repli.
+		*	je recommence un combo en ajoutant les actions que je peux me lancer sur moi mm
+	 * je retourne le meilleure combo trouvé
+	 */
+	static getPotentialCombo(){
+		var mapBestAction = MapAction.getMapBestAction()
+		var bestCombo = null
+		// all reachableCells
+		//var arrayCombo = []
+		for(var cell:var mp in Fight.self.reachableCells){
+			if(!mapBestAction[cell]) mapBestAction[cell] = [];
+			// cas 1 : uniquement les items sur d'autres leeks:
+						
+			//when i handle move after combo
+			var combo = Combo()
+			var tpleft = Fight.self.tp
+			var inHand = Fight.self.getWeaponInHand()
+			
+			// tri par score des actions
+			mapBestAction[cell] = arraySort(mapBestAction[cell], function(a,b){	
+				if(a.score<b.score) return 1;
+				else if(a.score>b.score) return -1;
+				return 0;
+			});
+			
+			// ajout du meilleur score sur la case jusqu'à épuisement des TP/CD
+			for(var item:var action in mapBestAction[cell]){
+				var switchCost = item.isWeap && item != inHand ? 1 : 0
+				while(item.cost+switchCost<=tpleft){
+					if(combo.add(action)){
+						tpleft-=item.cost+switchCost
+						if(switchCost==1){ inHand = item; switchCost = 0 }
+					} else break
+					if(item.haveCD) break
+				}
+			}
+			// recherche d'une case de fin de tour
+			combo.addFinalDanger(AI.findBestDanger(combo))
+
+			if(!bestCombo || bestCombo.getScore() < combo.getScore()){
+				bestCombo = combo
+			}
+				
+			// cas 2: en ajoutant les items que je peux selfcast
+			
+			//when i handle move after combo
+			var combo2 = Combo()
+			var tpleft2 = Fight.self.tp
+			var inHand2 = Fight.self.getWeaponInHand()
+			
+			// ajout des actions sur moi mm dans les meilleurs moves sur cette case
+			if(mapBestAction[Fight.selfCell]){
+				for(var item: var action in mapBestAction[Fight.selfCell]){
+					if(mapBestAction[cell][item]){
+						if(action.score > mapBestAction[cell][item].score) mapBestAction[cell][item] = action
+					}else{
+						mapBestAction[cell][item] = action
+					}
+				}
+			}
+			// note : cette façon de faire en dessous "casse" les clés, le string() renvoie tjr le bon item, mais les champs sont null
+			//mapBestAction[cell] += mapBestAction[Fight.selfCell]
+			
+			// tri par score des actions
+			mapBestAction[cell] = arraySort(mapBestAction[cell], function(a,b){	
+				if(a.score<b.score) return 1;
+				else if(a.score>b.score) return -1;
+				return 0;
+			});
+			
+			// ajout du meilleur score sur la case jusqu'à épuisement des TP/CD
+			for(var item:var action in mapBestAction[cell]){
+				var switchCost = item.isWeap && item != inHand2 ? 1 : 0
+				while(item.cost+switchCost<=tpleft2){
+					if(combo2.add(action)){
+						tpleft2-=item.cost+switchCost
+						if(switchCost==1){ inHand2 = item; switchCost = 0 }
+					} else break
+					if(item.haveCD) break
+				}
+			}
+			// recherche d'une case de fin de tour
+			combo2.addFinalDanger(AI.findBestDanger(combo2))
+
+			if(!bestCombo || bestCombo.getScore() < combo2.getScore()){
+				bestCombo = combo2
+			}	
+				
+		}
+
+		return bestCombo
+	}
+	
+	/*
+	 * Premier exemple d'algo naif de recherche de case de fin de tour
+	 * je minimise les dégats, puis à danger équivalent je choisi la case la plus proche de l'adversaire
+	 */
+	static findBestDanger(combo){
+		var consequences = combo.getCurrentConsequences()		
+		var shouldGetCloseTo = Fight.getEntity(getNearestEnemy()).cell
+		var bestDanger = null
+		// depuis la case @from, avec les mp restant
+		var reachableCells = combo.getCurrentReachableCells()
+		for(var cell:var mp in reachableCells){
+			var danger = MapDanger.getCellDanger(cell, consequences)
+			if(!bestDanger || bestDanger.dmg > danger.dmg) {
+				bestDanger = danger
+			} else if(bestDanger.dmg == danger.dmg){
+				// en cas de danger équivalent, je m'approche le plus possible de l'adv
+				if(getCellDistance(shouldGetCloseTo, bestDanger.cell) > getCellDistance(shouldGetCloseTo, danger.cell)){
+					bestDanger = danger
+				}
+			}
+		}
+		return bestDanger
+	}
+			
+	/*
+	 * Recherche de case de fin de tour avancé, prenant en compte de multiples problématiques
+	 */
+	static findBestPosition(combo){
+		var reachableCells = combo.getCurrentReachableCells()
+		
+		// TODO
+	}
+}

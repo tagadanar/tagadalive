@@ -6,6 +6,7 @@ include('../auto')
 class MapDanger {
 	// cache du danger estimé sur la case, reset à chaque tour, pour la v1 du danger, sera amener à évoluer quand on améliorera la map
 	static _danger = [] // [cell:danger]
+	static _hash_danger = [] // [consequences.hash:[cell:danger]]
 	
 	// cache contenant pour chaque item, pour chaque case, les cases qu'on peut toucher si rien ne bloque la LOS
 	// ne doit pas être reset en début de tour, l'info reste valide, et est lazyloader à la demande.
@@ -26,6 +27,7 @@ class MapDanger {
 	static refresh(){
 		// reset du cache
 		_danger = []
+		_hash_danger = []
 		_map_entity_item_danger = []
 		// pour chaque adv
 		for(var e in Fight.getEnemiesAlive()){
@@ -65,63 +67,80 @@ class MapDanger {
 	}
 		
 	/*
-	 * TODO gestion des consequences
-	 * Calcule le danger d'une Cell si elle n'a pas déjà été calculé.
-	 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de récupérations
+	 * renvoie le cache du danger d'une Cell, la calcule si elle n'a pas déjà été calculé.
 	 * @param cell Cellule sur laquelle le danger va être calculé
-	 * @return le tableau de Cell avec le danger mis à jour
+	 * @param consequences Consequences qui contient les altérations de la série d'action précédente dans le combo
+	 * @return un objet <Danger>
 	 */
 	static getCellDanger(cell, consequences) {
-		if(!_danger[cell]) {
-			var dmg = 0
-			var str = ""
-			for(var e in Fight.getEnemiesAlive()){
-				var tpleft = e.tp
-				for(var item : var dmgPerTp in e.offensiveItems){
-					var ratioDmg = _map_entity_item_danger[e][item][cell]
-					var tmpdmg = MapDanger.getDamage(e, Fight.self, item)* ratioDmg
-					if(tmpdmg>0){
-						while(item.cost<=tpleft){
-							str+=" "+item.name
-							dmg+=tmpdmg
-							tpleft-=item.cost
-							if(item.haveCD) break
-						}
+		if(consequences && consequences.isAlteringDanger){
+			if(!_hash_danger[consequences.hashcode]) _hash_danger[consequences.hashcode] = []
+			if(!_hash_danger[consequences.hashcode][cell]){
+				_hash_danger[consequences.hashcode][cell] = MapDanger.computeDanger(cell, consequences)
+			}
+			return _hash_danger[consequences.hashcode][cell]
+		}else{
+			if(!_danger[cell]) {
+				_danger[cell] = MapDanger.computeDanger(cell, null)
+			}
+			return _danger[cell]
+		}
+	}
+
+	/*
+	 * TODO gestion des consequences
+	 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de récupérations
+	 * @param cell Cellule sur laquelle le danger va être calculé
+	 * @param consequences Consequences qui contient les altérations de la série d'action précédente dans le combo
+	 * @return un objet <Danger>
+	 */
+	static computeDanger(cell, consequences){
+		var dmg = 0
+		var str = ""
+		for(var e in Fight.getEnemiesAlive()){ // TODO boucle sur ordered all
+			if(consequences.isKilled(e)) continue
+			var tpleft = e.getCurrentTP(consequences)
+			for(var item : var dmgPerTp in e.offensiveItems){
+				var ratioDmg = _map_entity_item_danger[e][item][cell]
+				var tmpdmg = MapDanger.getDamage(e, Fight.self, item, ratioDmg, consequences)
+				if(tmpdmg>0){
+					while(item.cost<=tpleft){
+						str+=" "+item.name
+						dmg+=tmpdmg
+						tpleft-=item.cost
+						if(item.haveCD) break
 					}
 				}
 			}
-			_danger[cell] = Danger(cell, dmg, str)
 		}
-		return _danger[cell]
+		return Danger(cell, dmg, str)
 	}
 	
 	/*
-	 * Calcule les dommages que peux faire entitySource sur entityTarget avec une Item en fonction des effets de celle-ci
-	 * @param entitySource attaquant
-	 * @param entityTarget receveur
+	 * Calcule les dommages que peux faire eSource sur eTarget avec une Item en fonction des effets de celle-ci
+	 * @param eSource attaquant
+	 * @param eTarget receveur
 	 * @param item Item
 	 * @return dmg Dommages calculés
 	 */
-	static getDamage(entitySource, entityTarget, item){
+	static getDamage(eSource, eTarget, item, ratioDmg, conseq){
 		var dmg = 0;
 		for(var e in item.effects){
 			if(e.type == EFFECT_DAMAGE){
-				var tmp = e.avgmax*(1+(entitySource.str/100))*(1+(entitySource.pwr/100));
-				tmp = (tmp /* multiplier par laoe ratio ici*/ *(1-(entityTarget.relShield/100))) - entityTarget.absShield;
-				dmg+= max(tmp, 0)
+				var tmp = e.avgmax *(1+(eSource.getCurrentStr(conseq))/100) *(1+(eSource.pwr/100));
+				tmp = tmp *ratioDmg *(1-(eTarget.getCurrentRel(conseq))/100) - (eTarget.getCurrentAbs(conseq))
+				dmg+= tmp>0?tmp:0
 			}
 			else if(e.type == EFFECT_POISON){
-				var duration = e.duration == 2 ? 1.8 : // TODO ces conversions devrait être dans des coefs globaux qqpart dans un scorings 
-					(e.duration == 3 ? 2.4 :
-					(e.duration == 4 ? 2.8 :
-					e.duration));
-				// TODO if(_CAN_ANTIDOTE) duration = 1;	
-				dmg += e.avgmax*(1+(entitySource.mgc/100))*(1+(entitySource.pwr/100)) /* multiplier par laoe ratio ici*/ *duration;
+				var duration = Scoring.defensive_duration_mitigation[e.duration]
+				// TODO if(_CAN_ANTIDOTE) duration = 1;
+				// TODO add consequences for pwr !
+				dmg += e.avgmax *(1+(eSource.getCurrentMgc(conseq))/100) *(1+(eSource.pwr/100)) *ratioDmg*duration
 			}
 		}
 		return dmg
 	}
-		
+
 	/*
 	 * Pour les cellules accessible par l'allié, initialise un tableau contenant les cases qu'il peut cibler avec l'item passé en paramètre
 	 * @info cette fonction est appelé pour chaque items de l'allié
@@ -294,11 +313,11 @@ class MapDanger {
 		return MapDanger._cache_item_targetableCells[item][cell];
 	}
 		
-	static showDanger(from, mpleft) {
+	static showDanger(from, mpleft, consequences) {
 		var reachableCells = Fight.self.getReachableCells([from:0], mpleft, Fight.self.cellsToIgnore)
 		var arrayDanger = []
 		for(var c : var d in reachableCells) {
-			var danger = MapDanger.getCellDanger(c)
+			var danger = MapDanger.getCellDanger(c, consequences)
 			var red = (danger.dmg*255)/Fight.self.life
 			if(red>255) mark(c.id, getColor(0, 0, 0))
 			else mark(c.id, getColor(red, 255-red, 0))
