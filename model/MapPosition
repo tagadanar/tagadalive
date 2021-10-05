@@ -4,7 +4,7 @@ class MapPosition{
 	static _placement_cell_distance = []
 	static _placement_cell_coef = []
 	
-	static init(){
+	static refresh(){
 		for(var ally in Fight.getAlliesLeeksAlive()){
 			if(ally.isBulb){
 				

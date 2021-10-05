@@ -1,20 +1,23 @@
 include('model/Fight')
 include('model/Map')
-include('model/Items')
+include('model/Cell')
 include('model/Entity')
+include('model/Items')
 include('model/Item')
 include('model/ItemEffect')
-include('model/Action')
-include('model/Cell')
-include('model/MapDanger')
-include('model/MapAction')
-include('model/Combo')
-include('model/Danger')
 include('model/TargetType')
-include('model/Consequences')
+include('model/MapDanger')
+include('model/Danger')
 include('model/MapPosition')
 include('model/Position')
-include('model/AI')
+include('model/MapAction')
+include('model/Action')
+include('model/Consequences')
+include('model/Combo')
+
+include('AI/Scoring')
+include('AI/AI')
+
 
 include('API/compatibility')
 include('TESTS/Debug/Benchmark')
@@ -39,13 +42,21 @@ function init() {
 	Map.refresh()
 	Benchmark.stop('Map.refresh')
 	
+	Benchmark.start('Scoring.refresh')
+	Scoring.refresh()
+	Benchmark.stop('Scoring.refresh')
+	
 	Benchmark.start('MapDanger.refresh')
 	MapDanger.refresh()
 	Benchmark.stop('MapDanger.refresh')
 	
+	Benchmark.start('MapPosition.refresh')
+	MapPosition.refresh()
+	Benchmark.stop('MapPosition.refresh')
+	
 	Benchmark.start('MapAction.refresh')
 	MapAction.refresh()
 	Benchmark.stop('MapAction.refresh')
-	
+		
 	Benchmark.stop('init')
 }

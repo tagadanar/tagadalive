@@ -28,33 +28,6 @@ class Combo {
 	}
 	
 	/*
-	 * pour chaque action dans l'ensemble d'actions
-	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
-	 */
-	play(){
-		// debug(this)
-		// étape 1: je fais mes actions
-		for(var action in this.actions){
-			debug(action)
-			Benchmark.startOp()
-			debug(action.consequences)
-			Benchmark.stopOp('print consequences.string()')
-			if(action.from != Fight.selfCell) moveTowardCell(action.from)
-			if(action.to == Fight.selfCell) action.item.useItemOnCell(Map.getCell(getCell()))
-			else action.item.useItemOnCell(action.to)
-		}
-		// étape 2: je vais me planquer
-		if(this.finalDanger){
-			MapDanger.showDanger(Map.getCell(getCell()), getMP())
-			//debug(this.finalDanger)
-			moveTowardCell(this.finalDanger.cell)
-		}
-		// étape 3: si il reste des TP, je prend en main la meilleure arme vis à vis de la situation
-		if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_MAGNUM))
-		
-	}
-	
-	/*
 	 * retourne la somme des scores des actions du combo
 	 */
 	getScore(){
@@ -98,6 +71,32 @@ class Combo {
 		// voir plutôt avoir une variable currentCell et currentMP que j'actualise à chaque ajout d'action.
 		var mpleft = Fight.self.mp - Fight.self.reachableCells[from]
 		return Fight.self.getReachableCells([from:0], mpleft, Fight.self.cellsToIgnore)
+	}
+	
+	/*
+	 * pour chaque action dans l'ensemble d'actions
+	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
+	 */
+	play(){
+		// debug(this)
+		// étape 1: je fais mes actions
+		for(var action in this.actions){
+			debug(action)
+			debug(action.consequences)
+			if(action.from != Fight.selfCell) moveTowardCell(action.from)
+			if(action.to == Fight.selfCell) action.item.useItemOnCell(Map.getCell(getCell()))
+			else action.item.useItemOnCell(action.to)
+		}
+		// étape 2: je vais me planquer
+		if(this.finalDanger){
+			MapDanger.showDanger(Map.getCell(getCell()), getMP(), this.getCurrentConsequences())
+			//debug(this.finalDanger)
+			moveTowardCell(this.finalDanger.cell)
+		}
+		// étape 3: si il reste des TP, je prend en main la meilleure arme vis à vis de la situation
+		if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_MAGNUM))
+		// étape 4: si il reste des TP, je dis des trucs
+		// todo pipotron
 	}
 	
 	/*

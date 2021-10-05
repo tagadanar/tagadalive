@@ -7,7 +7,7 @@ var enemy = Fight.getEntity(getNearestEnemy());
 var combo = AI.getPotentialCombo()
 if(combo && count(combo.actions)>0) combo.play()
 else {
-	debugE('SHOULD NOT BE HERE !')
+	debugE('/!\ turn '+getTurn()+' Combo null or empty ! SHOULD NOT BE HERE !')
 }
 
 // cast avec le reste des TP
@@ -23,9 +23,8 @@ function failSafe(){
 	Items.getItem(CHIP_PROTEIN).useItem(Fight.self)
 	//if(getRelativeShield(Fight.self)<=0) Items.getItem(CHIP_WALL).useItem(Fight.self)
 	var tpused = tpleft-getTP()
-	if(tpused>0) debugE("failSafe TP used: "+tpused)
+	if(tpused>0) debugE('/!\ turn '+getTurn()+" failSafe TP used: "+tpused)
 }
 failSafe()
-
 
 Benchmark.display()

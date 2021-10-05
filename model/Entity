@@ -111,11 +111,30 @@ class Entity {
 		return stack
 	}
 	
+	getCurrentTP(consequences){
+		return consequences ? this.tp+consequences.getAlteration(this, Consequences.TP) : this.tp 
+	}
+	getCurrentMP(consequences){
+		return consequences ? this.mp+consequences.getAlteration(this, Consequences.MP) : this.mp 
+	}
+	getCurrentStr(consequences){
+		return consequences ? this.str+consequences.getAlteration(this, Consequences.STR) : this.str 
+	}
+	getCurrentMgc(consequences){
+		return consequences ? this.mgc+consequences.getAlteration(this, Consequences.MGC) : this.mgc 
+	}
+	getCurrentAbs(consequences){
+		return consequences?this.absShield+consequences.getAlteration(this,Consequences.ABSSHIELD):this.absShield 
+	}
+	getCurrentRel(consequences){
+		return consequences?this.relShield+consequences.getAlteration(this,Consequences.RELSHIELD):this.relShield
+	}
+	
 	/*
 	 * Actualise les informations de l'entité
 	 */
 	refresh() {
-		// TODO all
+		// TODO make a real full refresh based on consequences? might be used for bulb?
 		this.mp = getMP(this.id)
 		this.cell = Map.getCell(getCell(this.id))
 		this.reachableCells = this.getReachableCells(
@@ -125,7 +144,6 @@ class Entity {
 		)
 	}
 	
-
 	/*
 	 * Renvoie l'ensemble des cellules ou l'entité peut tirer sur la cellule ciblé avec l'arme/puce item
 	 * @info La fonction prend en compte les LOS et toutes les autres entitées sauf l'Entity elle même (afin de ne pas prendre en compte les cases non accessibles) 

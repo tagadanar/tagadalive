@@ -13,7 +13,9 @@ class Danger{
 		this.cell = cell
 		this.dmg = dmg
 		this.combo = str
-		this.score = -dmg // je souhaite le minimum de dmg, à raison de 1score par dmg reçu, == dmg dealt pour le moment
+		this.score = -dmg // je souhaite le min de dmg, à raison de -1score par dmg, == dmg dealt pour le moment
+		if(dmg >= Fight.self.life) // TODO gérer les conséquences de heal dans le danger
+			this.score += Scoring.DEATH_VALUE
 	}
 	
 	/*
