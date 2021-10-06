@@ -38,33 +38,33 @@ class ItemEffect {
 		if(this.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) this.irreductible = true
 	}
 	
-	updateConsequences(entitySource, entityTarget, consequences) {
+	updateConsequences(entitySource, entityTarget, ratioDmg, consequences) {
 		// fixme: ce if marche pas, j'ai tjr true mm pour EFFECT_DAMAGE
 		//if(!ItemEffect.convertToValue[this.type]) debugW('unhandledEffect on ItemEffect typeID: '+ this.type)
-		return ItemEffect.convertToValue[this.type](this, entitySource, entityTarget, consequences)
+		return ItemEffect.convertToValue[this.type](this, entitySource, entityTarget, ratioDmg, consequences)
 	}
 	
 	static convertToValue = [
-		EFFECT_DAMAGE: function(effect, entitySource, entityTarget, consequences) {
+		EFFECT_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, consequences) {
 			var value = effect.avg*(1+(entitySource.str/100))*(1+(entitySource.pwr/100))
-			value = (value /* multiplier par laoe ratio ici*/ *(1-(entityTarget.relShield/100))) - entityTarget.absShield
-			value = max(value, 0)
+			value = (value *ratioDmg *(1-(entityTarget.relShield/100))) - entityTarget.absShield
+			value = value<0?0:value
 			consequences.add(entityTarget, Consequences.HP, -value)
 			
-			if(entityTarget.life + consequences.getAlteration(entityTarget, Consequences.HP) <= 0) 
+			if(entityTarget.getCurrentHP(consequences) <= 0) 
 				consequences.add(entityTarget, Consequences.KILL)
 		},
-		EFFECT_HEAL: function(effect, entitySource, entityTarget, consequences) {
-			var value = effect.avg*(1+(entitySource.wsd/100))
+		EFFECT_HEAL: function(effect, entitySource, entityTarget, ratioDmg, consequences) {
+			var value = effect.avg*(1+(entitySource.wsd/100)) *ratioDmg
 			value = min(value, entityTarget.lifeMissing)
 			consequences.add(entityTarget, Consequences.HP, value)
 		},
-		EFFECT_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, consequences) {
-			var value = effect.avg*(1+(entitySource.rst/100))
+		EFFECT_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, consequences) {
+			var value = effect.avg*(1+(entitySource.rst/100)) *ratioDmg
 			consequences.add(entityTarget, Consequences.ABSSHIELD, value)
 		},
-		EFFECT_RAW_BUFF_STRENGTH: function(effect, entitySource, entityTarget, consequences) {
-			var value = effect.avg
+		EFFECT_RAW_BUFF_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, consequences) {
+			var value = effect.avg *ratioDmg
 			consequences.add(entityTarget, Consequences.STR, value)
 		},
 	]

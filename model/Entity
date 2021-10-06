@@ -111,6 +111,10 @@ class Entity {
 		return stack
 	}
 	
+	
+	getCurrentHP(consequences){
+		return consequences ? this.life+consequences.getAlteration(this, Consequences.HP) : this.life 
+	}
 	getCurrentTP(consequences){
 		return consequences ? this.tp+consequences.getAlteration(this, Consequences.TP) : this.tp 
 	}
