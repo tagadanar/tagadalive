@@ -9,12 +9,12 @@ class Danger{
 	dmg
 	combo
 	score
-	constructor(cell, dmg, str){
+	constructor(cell, dmg, str, consequences){
 		this.cell = cell
 		this.dmg = dmg
 		this.combo = str
 		this.score = -dmg // je souhaite le min de dmg, à raison de -1score par dmg, == dmg dealt pour le moment
-		if(dmg >= Fight.self.life) // TODO gérer les conséquences de heal dans le danger
+		if(dmg >= Fight.self.getCurrentHP(consequences)) // TODO gérer les conséquences de heal dans le danger ?
 			this.score += Scoring.DEATH_VALUE
 	}
 	
@@ -22,6 +22,6 @@ class Danger{
 	 * Format chaîne de caracteres utilisée pour des tests / debugs.
 	 */
 	string() {
-		return '<Danger on '+this.cell+':'+round(this.dmg)+':'+this.combo+'>'
+		return '<Danger '+this.cell+':'+round(this.dmg)+':'+this.combo+'>'
 	}
 }

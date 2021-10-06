@@ -11,7 +11,7 @@ class Benchmark{
 		_debug_operation = getOperations();
 	}
 	static stopOp(title){
-		if(_DEBUG) debug(title + ": " + (getOperations()-_debug_operation-6-2-length(title)));	
+		if(_DEBUG) debug(title + ": " + (getOperations()-_debug_operation-5-length(title)));	
 	}
 	static stopOpk(title){
 		if(_DEBUG) debug(title + ": " + round((getOperations()-_debug_operation)/1000) + "k");

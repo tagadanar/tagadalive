@@ -45,8 +45,13 @@ class Consequences {
 		for(var targetId in targets){
 			var target = Fight.getEntity(targetId)
 			if(this._killed[target]) continue
+			var ratioDmg = 1-(0.2*getCellDistance(action.to, target.cell))
+			if(ratioDmg<=0){
+				debugE('Bug in Consequences constructor, SHOULD NOT HAPPEN !')
+				continue
+			}
 			for(var effect in action.item.effects) {
-				effect.updateConsequences(Fight.self, target, this)
+				effect.updateConsequences(Fight.self, target, ratioDmg, this)
 			}
 		}
 	}
