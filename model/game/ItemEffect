@@ -1,5 +1,3 @@
-include('../../auto')
-
 /*
  * Objet contenant les effets calculés correspondants à un item de type Item
  */

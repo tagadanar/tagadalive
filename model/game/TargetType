@@ -1,5 +1,3 @@
-include('../../auto')
-
 class TargetType {
 	enemies = false
 	allies = false
