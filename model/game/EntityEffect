@@ -1,0 +1,27 @@
+include('../../auto')
+
+class EntityEffect {
+	type
+	value
+	caster
+	turns
+	critical
+	item
+	target
+	modifiers
+	constructor(effect){
+		// [type, value, caster_id, turns, critical, item_id, target_id, modifiers]
+		this.type = effect[0]
+		this.value = effect[1]
+		this.caster = Fight.getEntity(effect[2])
+		this.turns = effect[3]
+		// special case, infinite duration is ==-1, MUST handle this or any *duration later will inverse everything
+		if(this.turns==-1) this.turns = 7 // TODO this should probably be in scoring... //66-getTurn()
+		// TODO add a this.durations field, and check entities order to set duration to the right amount of time.
+		this.critical = effect[4]
+		this.item = Items.getItem(effect[5])
+		this.target = Fight.getEntity(effect[6])
+		// pas sur d'avoir besoin des modifiers ici, je save ocazou
+		this.modifiers = effect[7]
+	}
+}

@@ -5,7 +5,7 @@ init()
 var combo = AI.getPotentialCombo()
 if(combo) combo.play()
 else {
-	debugE('/!\ turn '+getTurn()+' Combo null or empty ! SHOULD NOT BE HERE !')
+	debugE('/!\ turn '+getTurn()+' Combo null or empty !')
 }
 
 // cast avec le reste des TP

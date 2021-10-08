@@ -11,7 +11,6 @@ class Entity {
 	totalLife
 	life
 	lifeMissing
-	effects
 	pwr
 	str
 	mgc
@@ -33,6 +32,17 @@ class Entity {
 	cellsToIgnore = []
 	isFriend
 	isBulb
+	effects = []
+	effects_items = []
+	psnTurn = 0
+	psnTotal = 0
+	psnlife
+	altStr = 0
+	altMgc = 0
+	altAgi = 0
+	altTP = 0
+	altMP = 0
+
 	
 	constructor(id){
 		this.id = id
@@ -40,7 +50,6 @@ class Entity {
 		this.cell = Map.getCell(getCell(id))
 		this.totalLife = getTotalLife(id)
 		this.life = getLife(id)
-		this.effects = getEffects(id)
 		this.pwr = getPower(id)
 		this.str = getStrength(id)
 		this.mgc = getMagic(id)
@@ -57,6 +66,39 @@ class Entity {
 		this.turnOrder = getEntityTurnOrder(id)
 		this.isFriend = isAlly(id)
 		this.isBulb = isSummon(id)
+		for(var e in getEffects(id)){
+			var effect = EntityEffect(e)
+			push(effects, effect)
+			if(!this.effects_items[effect.item]) this.effects_items[effect.item] = []
+			push(this.effects_items[effect.item], effect)
+			// piste d'optimisation en ayant une meilleure structure pour les effets ici ?
+			// les eval en dessous pourrait être déléguer à un tab pour éviter les ifelseif?
+			// et ptete ajouter d'autres alt pour les autres stats ?
+			if(effect.type == EFFECT_POISON){
+				this.psnTurn+= effect.value
+				this.psnTotal+= effect.value * effect.turns
+			}else if(effect.type == EFFECT_HEAL){
+				this.psnTurn+= -effect.value
+				this.psnTotal+= -effect.value * effect.turns
+			}else if(effect.type == EFFECT_SHACKLE_STRENGTH){
+				this.altStr += -effect.value;
+			//	}else if(effect.type == EFFECT_SHACKLE_MAGIC){
+			//		this.altMgc -= value;
+			}else if(effect.type == EFFECT_SHACKLE_TP){
+				this.altTP += -effect.value;
+			}else if(effect.type == EFFECT_SHACKLE_MP){
+				this.altMP += -effect.value;
+			}else if(effect.type == EFFECT_BUFF_STRENGTH || effect.type == EFFECT_RAW_BUFF_STRENGTH){
+				this.altStr += effect.value;
+			}else if(effect.type == EFFECT_BUFF_TP || effect.type == EFFECT_RAW_BUFF_TP){
+				this.altTP += effect.value;
+			}else if(effect.type == EFFECT_BUFF_MP || effect.type == EFFECT_RAW_BUFF_MP){
+				this.altMP += effect.value;
+			}else if(effect.type == EFFECT_BUFF_AGILITY || effect.type == EFFECT_RAW_BUFF_AGILITY){
+				this.altAgi += effect.value;
+			}
+		}
+		this.psnlife= this.life-this.psnTurn
 	}
 
 	/*
@@ -252,14 +294,6 @@ class Entity {
 
 // TODO
 
-	//psnlife: getLife(leek)-psnDmgTurn
-	//psnTurn: psnDmgTurn
-	//psnTotal: psnDmgTotal
-	//alterateStr: alterateStr
-	//alterateMgc: alterateMgc
-	//alterateTP: alterateTP
-	//alterateMP: alterateMP
-	//alterateAgi: alterateAgi
 	//scoreLibe: scoreLibe
 	//nbBulbs: count(bulbs)//todo check si ça vaut le coup de garder cette info..
 	//bulbs: @bulbs

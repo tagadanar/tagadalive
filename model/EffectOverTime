@@ -1,0 +1,10 @@
+class EffectOverTime{
+	type
+	value
+	duration
+	constructor(type, value, duration){
+		this.type = type
+		this.value = value
+		this.duration = duration
+	}
+}
