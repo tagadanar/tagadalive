@@ -1,4 +1,4 @@
-include('../auto')
+include('../../auto')
 
 /*
  *  Ensemble de méthodes et d'algorithmes permettant de calculer le Danger et les maps de dommages
@@ -98,7 +98,7 @@ class MapDanger {
 		var dmg = 0
 		var str = ""
 		for(var e in Fight.getEnemiesAlive()){ // TODO boucle sur ordered all
-			if(consequences.isKilled(e)) continue
+			if(consequences && consequences.isKilled(e)) continue
 			var tpleft = e.getCurrentTP(consequences)
 			for(var item : var dmgPerTp in e.offensiveItems){
 				var ratioDmg = _map_entity_item_danger[e][item][cell]

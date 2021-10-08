@@ -1,0 +1,61 @@
+class Stats {
+	// The Singleton's instance is stored in a static field.
+	private static _instance = null
+	private constructor(){}
+	
+	// This is the static method that controls the access to the singleton instance.
+	// On the first run, it creates a singleton object and places it into the static field.
+	// On subsequent runs, it returns the existing object stored in the static field.
+	public static getInstance(){
+		if (_instance == null){
+			_instance = new HiddenSingleton();
+		}
+		return _instance;
+	}
+	
+	public static getFields(){
+		return Stats.getInstance().class.fields
+	}
+
+	static HP 			= Stats.getInstance().HP
+	static HPTIME		= Stats.getInstance().HPTIME
+	static HPMAX		= Stats.getInstance().HPMAX
+	static DEBUFF 		= Stats.getInstance().DEBUFF
+	static ANTIDOTE 	= Stats.getInstance().ANTIDOTE
+	static ABSSHIELD 	= Stats.getInstance().ABSSHIELD
+	static RELSHIELD 	= Stats.getInstance().RELSHIELD
+	static DMGRETURN 	= Stats.getInstance().DMGRETURN
+	static STR 			= Stats.getInstance().STR
+	static MGC 			= Stats.getInstance().MGC
+	static RST 			= Stats.getInstance().RST
+	static WSD 			= Stats.getInstance().WSD
+	static AGI 			= Stats.getInstance().AGI
+	static SNC			= Stats.getInstance().SNC
+	static TP 			= Stats.getInstance().TP
+	static MP	 		= Stats.getInstance().MP
+	static PWR			= Stats.getInstance().PWR
+	static KILL			= Stats.getInstance().KILL
+}
+
+// n'est utilisé que pour sa propriété class.fields pour parcourir les stats, ne jamais instancier ailleurs
+// OUI J'aurais pu faire un tableau "key":value, MAIS .fields c'est quand mm beaucoup plus class non ?
+class HiddenSingleton{
+	HP 			= 0
+	HPTIME		= 1
+	HPMAX		= 2
+	DEBUFF 		= 3
+	ANTIDOTE 	= 4
+	ABSSHIELD 	= 5
+	RELSHIELD 	= 6
+	DMGRETURN 	= 7
+	STR 		= 8
+	MGC 		= 9
+	RST 		= 10
+	WSD 		= 11
+	AGI 		= 12
+	SNC			= 13
+	TP 			= 14
+	MP	 		= 15
+	PWR			= 16
+	KILL		= 17
+}

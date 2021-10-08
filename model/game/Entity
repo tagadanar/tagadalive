@@ -1,4 +1,4 @@
-include('../auto')
+include('../../auto')
 
 /*
  * L'objet Entity contient la synthèse des informations d'une entité allié ou adversaire.
@@ -40,7 +40,6 @@ class Entity {
 		this.cell = Map.getCell(getCell(id))
 		this.totalLife = getTotalLife(id)
 		this.life = getLife(id)
-		this.lifeMissing = this.totalLife - this.life
 		this.effects = getEffects(id)
 		this.pwr = getPower(id)
 		this.str = getStrength(id)
@@ -111,27 +110,50 @@ class Entity {
 		return stack
 	}
 	
-	
+	getCurrentMaxHP(consequences){
+		return consequences ? this.totalLife+consequences.getAlteration(this, Stats.HPMAX) : this.totalLife 
+	}
 	getCurrentHP(consequences){
-		return consequences ? this.life+consequences.getAlteration(this, Consequences.HP) : this.life 
+		return consequences ? this.life+consequences.getAlteration(this, Stats.HP) : this.life 
+	}
+	getCurrentHPMissing(consequences){
+		return this.getCurrentMaxHP(consequences) - this.getCurrentHP(consequences) 
 	}
 	getCurrentTP(consequences){
-		return consequences ? this.tp+consequences.getAlteration(this, Consequences.TP) : this.tp 
+		return consequences ? this.tp+consequences.getAlteration(this, Stats.TP) : this.tp 
 	}
 	getCurrentMP(consequences){
-		return consequences ? this.mp+consequences.getAlteration(this, Consequences.MP) : this.mp 
+		return consequences ? this.mp+consequences.getAlteration(this, Stats.MP) : this.mp 
 	}
 	getCurrentStr(consequences){
-		return consequences ? this.str+consequences.getAlteration(this, Consequences.STR) : this.str 
+		return consequences ? this.str+consequences.getAlteration(this, Stats.STR) : this.str 
 	}
 	getCurrentMgc(consequences){
-		return consequences ? this.mgc+consequences.getAlteration(this, Consequences.MGC) : this.mgc 
+		return consequences ? this.mgc+consequences.getAlteration(this, Stats.MGC) : this.mgc 
+	}
+	getCurrentPwr(consequences){
+		return consequences ? this.pwr+consequences.getAlteration(this, Stats.PWR) : this.pwr 
+	}
+	getCurrentWsd(consequences){
+		return consequences ? this.wsd+consequences.getAlteration(this, Stats.WSD) : this.wsd 
+	}
+	getCurrentRst(consequences){
+		return consequences ? this.rst+consequences.getAlteration(this, Stats.RST) : this.rst 
+	}
+	getCurrentAgi(consequences){
+		return consequences ? this.agi+consequences.getAlteration(this, Stats.AGI) : this.agi 
+	}
+	getCurrentSnc(consequences){
+		return consequences ? this.snc+consequences.getAlteration(this, Stats.SNC) : this.snc 
 	}
 	getCurrentAbs(consequences){
-		return consequences?this.absShield+consequences.getAlteration(this,Consequences.ABSSHIELD):this.absShield 
+		return consequences ? this.absShield+consequences.getAlteration(this, Stats.ABSSHIELD) : this.absShield 
 	}
 	getCurrentRel(consequences){
-		return consequences?this.relShield+consequences.getAlteration(this,Consequences.RELSHIELD):this.relShield
+		return consequences ? this.relShield+consequences.getAlteration(this, Stats.RELSHIELD) : this.relShield
+	}
+	getCurrentDmgReturn(consequences){
+		return consequences ? this.dmgReturn+consequences.getAlteration(this, Stats.DMGRETURN) : this.dmgReturn
 	}
 	
 	/*

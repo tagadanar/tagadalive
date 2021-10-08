@@ -1,4 +1,4 @@
-include ('../auto')
+include ('../../auto')
 
 /*
  * L'objet Danger contient un combo représentant un ensemble d'actions et les dommages approximatifs de ces actions.

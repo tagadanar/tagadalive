@@ -6,25 +6,7 @@ class Consequences {
 	score = null
 	isAlteringDanger = false
 	hashcode = 17
-	
-	static HP 			= 0
-	static HPTIME		= 1
-	static HPMAX		= 2
-	static DEBUFF 		= 3
-	static ANTIDOTE 	= 4
-	static ABSSHIELD 	= 5
-	static RELSHIELD 	= 6
-	static DMGRETURN 	= 7
-	static STR 			= 8
-	static MGC 			= 9
-	static RST 			= 10
-	static WSD 			= 11
-	static AGI 			= 12
-	static TP 			= 13
-	static MP	 		= 14
-	static PWR			= 15
-	
-	static KILL			= 16
+	targets
 	
 	constructor(action){
 		construct(action)
@@ -38,20 +20,24 @@ class Consequences {
 	}
 	
 	construct(action){
-		var targets
-		if(action.to == Fight.selfCell) targets = [Fight.self.id] 
-		else targets = getItemTargets(action.item, action.to)
+		if(action.to == Fight.selfCell) this.targets = [Fight.self.id] 
+		else this.targets = getItemTargets(action.item, action.to)
 		// FIXME itemTargets return null when i dont have the item ?
-		for(var targetId in targets){
+		// FIXME sur les items qui affecte le lanceur, self est dans les targets, et je le veux pas !
+		// pour le moment j'ai add un if qui gère le cas chelou, todo recoder getItemTargets pour qu'elle fasse
+		// ce que je veux !
+		for(var targetId in this.targets){
 			var target = Fight.getEntity(targetId)
+			if(target == Fight.self && action.to != Fight.selfCell) continue // FIX du prob mentionné au dessus^
 			if(this._killed[target]) continue
-			var ratioDmg = 1-(0.2*getCellDistance(action.to, target.cell))
+			var ratioDmg = action.to == Fight.selfCell ? 1 : 1-(0.2*getCellDistance(action.to, target.cell))
 			if(ratioDmg<=0){
 				debugE('Bug in Consequences constructor, SHOULD NOT HAPPEN !')
+				debugE(action)
 				continue
 			}
 			for(var effect in action.item.effects) {
-				effect.updateConsequences(Fight.self, target, ratioDmg, this)
+				this.updateConsequences(effect, Fight.self, target, ratioDmg)
 			}
 		}
 	}
@@ -63,17 +49,17 @@ class Consequences {
 			// j'avais des bugs sur les -=, donc il faut faire += -value si le comportement est le mm ici.
 		
 		if(entity==Fight.self && (
-			   key==Consequences.HP
-			|| key==Consequences.ABSSHIELD
-			|| key==Consequences.RELSHIELD
-			|| key==Consequences.DEBUFF)){
+			   key==Stats.HP
+			|| key==Stats.ABSSHIELD
+			|| key==Stats.RELSHIELD
+			|| key==Stats.DEBUFF)){
 				this.isAlteringDanger=true
 				this.hashcode = 31 * this.hashcode + (value|0)
 		} else if(!entity.isFriend && (
-			   key==Consequences.DEBUFF
-			|| key==Consequences.STR
-			|| key==Consequences.TP
-			|| key==Consequences.MP)){
+			   key==Stats.DEBUFF
+			|| key==Stats.STR
+			|| key==Stats.TP
+			|| key==Stats.MP)){
 				this.isAlteringDanger=true
 				this.hashcode = 31 * this.hashcode + entity.id
 				this.hashcode = 31 * this.hashcode + (value|0)
@@ -84,7 +70,7 @@ class Consequences {
 	}
 	
 	add(entity, key){
-		if(key == Consequences.KILL){
+		if(key == Stats.KILL){
 			this.isAlteringDanger=true
 			this.hashcode = 31 * this.hashcode + entity.id
 			this._killed[entity]=true
@@ -110,13 +96,265 @@ class Consequences {
 		return this.score
 	}
 	
+	updateConsequences(effect, entitySource, entityTarget, ratioDmg) {
+		// fixme: ce if marche pas, j'ai tjr true mm pour EFFECT_DAMAGE
+		//if(!ItemEffect.convertToValue[this.type]) debugW('unhandledEffect on ItemEffect typeID: '+ this.type)
+		var target = effect.modifCaster ? entitySource : entityTarget
+		return Consequences.convertToValue[effect.type](effect, entitySource, target, ratioDmg, this)
+	}
+	
+	static convertToValue = [
+		EFFECT_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			var targetsCount = effect.multiplyByTarget ? count(conseq.targets) : 1;
+			var beforeShield = effect.avg *targetsCount *ratioDmg *(1+(entitySource.getCurrentStr(conseq)/100))
+				*(1+(entitySource.getCurrentPwr(conseq)/100)) // TODO power in consequences !!!!
+			var value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100))) 
+				- entityTarget.getCurrentAbs(conseq)
+			value = value < 0 ? 0 : value // on ne fait pas de dmg négatif
+			conseq.add(entityTarget, Stats.HP, -value)
+			
+			if(entityTarget.getCurrentHP(conseq) <= 0) 
+				conseq.add(entityTarget, Stats.KILL)
+			// TODO if killed leek, add all bulb in kill, if tower add win score ?
+			
+			// TODO érosion !
+			
+			// vol de vie
+			var lifeSteal = value * (entitySource.getCurrentWsd(conseq)/1000)
+			var lifeMissing = entitySource.getCurrentHPMissing(conseq)
+			lifeSteal = lifeSteal>lifeMissing ? lifeMissing : lifeSteal
+			if(lifeSteal>0) conseq.add(entitySource, Stats.HP, lifeSteal)
+
+			// dmg return
+			var dmgReturn = beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100)
+			if(dmgReturn>0){
+				if(dmgReturn>=entitySource.getCurrentHP(conseq)) conseq.add(entitySource, Stats.KILL) 
+				else conseq.add(entitySource, Stats.HP, -dmgReturn)
+			}
+		},
+		EFFECT_POISON: function(effect, entitySource, entityTarget, ratioDmg, conseq){
+			// devrait être au niveau au dessus si d'autres items que covid ont notReplaceable, en attendant, ici on économise des opérations.
+			if(effect.notReplaceable){}//TODO check if target is already undereffect
+			
+			// FIXME: dans mon autre IA, je gère deux notions, les dmgNextTurn, qui pemettent de définir un kill
+			// et les dmg*duration, qui doivent être minoré plus ça dure
+			// TODO réfléchir à comment j'organise l'infos dans HPTIME... ptete besoin d'objet hptime avec value duration dans les conseq ??
+			
+			// TODO érosion ?
+			
+			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+				*(1+(entitySource.getCurrentPwr(conseq)/100)) *effect.duration // TODO power in consequences !!!!
+			conseq.add(entityTarget, Stats.HPTIME, value)
+		},
+		EFFECT_LIFE_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq){
+			var beforeShield = entitySource.life*(effect.avg/100)
+			var value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100))) 
+				- entityTarget.getCurrentAbs(conseq)
+			value = value < 0 ? 0 : value // on ne fait pas de dmg négatif
+			conseq.add(entityTarget, Stats.HP, -value)
+			
+			if(entityTarget.getCurrentHP(conseq) <= 0) 
+				conseq.add(entityTarget, Stats.KILL)
+			// TODO if killed leek, add all bulb in kill, if tower add win score ?
+
+			// TODO érosion !
+			
+			if(entityTarget != entitySource){
+				// dmg return
+				var dmgReturn = beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100)
+				if(dmgReturn>0){
+					if(dmgReturn>=entitySource.getCurrentHP(conseq)) conseq.add(entitySource, Stats.KILL) 
+					else conseq.add(entitySource, Stats.HP, -dmgReturn)
+				}
+			}
+		},
+		EFFECT_NOVA_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq){
+			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+			value = min(value, entityTarget.getCurrentHPMissing(conseq))
+			conseq.add(entityTarget, Stats.HPMAX, -value)
+		},
+		EFFECT_HEAL: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			if(effect.duration>1){ // HPTIME
+				// TODO même prob que pour le poison, modèle du hptime dans conseq ?
+				// TODO une fois qu'on aura les effets sur les entitys, check si pas déjà sous l'effet !
+				var value = effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg *effect.duration
+				value = min(value, entityTarget.getCurrentHPMissing(conseq))
+				conseq.add(entityTarget, Stats.HPTIME, value)
+			} else { // HP
+				var value = effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg
+				value = min(value, entityTarget.getCurrentHPMissing(conseq))
+				conseq.add(entityTarget, Stats.HP, value)
+			}
+		},
+		EFFECT_BOOST_MAX_LIFE: function(effect, entitySource, entityTarget, ratioDmg, conseq){
+			var value = effect.avg *(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.HPMAX, value)
+		},
+		EFFECT_NOVA_VITALITY: function(effect, entitySource, entityTarget, ratioDmg, conseq){
+			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.HPMAX, value)
+		},
+		EFFECT_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg // *effect.duration
+			conseq.add(entityTarget, Stats.ABSSHIELD, value)
+		},
+		EFFECT_RELATIVE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg // *effect.duration
+			conseq.add(entityTarget, Stats.RELSHIELD, value)
+		},
+		EFFECT_ABSOLUTE_VULNERABILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			// pas de ratiodmg pour le moment, tous les items sont à 1
+			var value = effect.avg // *ratioDmg // *effect.duration
+			conseq.add(entityTarget, Stats.ABSSHIELD, -value)
+		},
+		EFFECT_VULNERABILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *ratioDmg // *effect.duration
+			conseq.add(entityTarget, Stats.RELSHIELD, -value)
+		},
+		EFFECT_STEAL_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			// pas de ratiodmg pour le moment, tous les items sont à 1
+			var value = effect.avg // *ratioDmg // *effect.duration
+			conseq.add(entityTarget, Stats.ABSSHIELD, value)
+		},
+		EFFECT_DAMAGE_RETURN: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentAgi(conseq)/100)) *ratioDmg // *effect.duration
+			conseq.add(entityTarget, Stats.DMGRETURN, value)
+		},
+		EFFECT_RAW_BUFF_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *ratioDmg
+			conseq.add(entityTarget, Stats.STR, value)
+		},
+		EFFECT_RAW_BUFF_MAGIC: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *ratioDmg
+			conseq.add(entityTarget, Stats.MGC, value)
+		},
+		EFFECT_RAW_BUFF_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *ratioDmg
+			conseq.add(entityTarget, Stats.AGI, value)
+		},
+		EFFECT_RAW_BUFF_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *ratioDmg
+			conseq.add(entityTarget, Stats.WSD, value)
+		},
+		EFFECT_RAW_BUFF_RESISTANCE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *ratioDmg
+			conseq.add(entityTarget, Stats.RST, value)
+		},
+		EFFECT_RAW_BUFF_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *ratioDmg
+			conseq.add(entityTarget, Stats.TP, value)
+		},
+		EFFECT_RAW_BUFF_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *ratioDmg
+			conseq.add(entityTarget, Stats.MP, value)
+		},
+		EFFECT_BUFF_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.STR, value)
+		},
+		EFFECT_BUFF_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.AGI, value)
+		},
+		EFFECT_BUFF_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.WSD, value)
+		},
+		EFFECT_BUFF_RESISTANCE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.RST, value)
+		},
+		EFFECT_BUFF_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.TP, value)
+		},
+		EFFECT_BUFF_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.MP, value)
+		},
+		EFFECT_SHACKLE_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.STR, -value)
+		},
+		EFFECT_SHACKLE_MAGIC: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.MGC, -value)
+		},
+		EFFECT_SHACKLE_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.TP, -value)
+		},
+		EFFECT_SHACKLE_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO mm prob en fait pour tous les effets sur la durée
+			// TODO check si l'entity est pas déjà sous l'effet
+			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+			conseq.add(entityTarget, Stats.MP, -value)
+		},
+		EFFECT_DEBUFF: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO
+		},
+		EFFECT_ANTIDOTE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO
+		},
+		EFFECT_KILL: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO
+		},
+		EFFECT_AFTEREFFECT: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO
+		},
+	]
+	
 	computeScore(){
 		var totalScore = 0;
 		for(var entity:var key in this._alterations){
 			var value = this.getAlteration(entity, key)
-			if(key == Consequences.HP) 			totalScore+= entity.isFriend ? value : -value
-			if(key == Consequences.ABSSHIELD) 	totalScore+= entity.isFriend ? value*3 : -(value*3)
-			if(key == Consequences.STR) 		totalScore+= entity.isFriend ? value : -value
+			if(key == Stats.HP) 			totalScore+= entity.isFriend ? value : -value
+			if(key == Stats.ABSSHIELD) 	totalScore+= entity.isFriend ? value*3 : -(value*3)
+			if(key == Stats.STR) 		totalScore+= entity.isFriend ? value : -value
 			
 		}
 		for(var entity:var bool in this._killed){
@@ -131,11 +369,18 @@ class Consequences {
 		var str = "<Consequences"
 		for(var entity:var alteration in this._alterations){
 			str+= "\n" + entity.name + ":"
-			for(var key:var value in alteration){
-				if(key == Consequences.HP) 			str+= "|HP: "+round(value)
-				if(key == Consequences.ABSSHIELD) 	str+= "|ABSSHIELD: "+round(value)
-				if(key == Consequences.STR) 		str+= "|STR: "+round(value)
+			for(var strKey in Stats.getFields()){
+				var key = Stats.getInstance()[strKey]
+				//var key = Stats.getInstance()[strKey]
+				if(alteration[key] != null) str+= "|"+strKey+": "+round(alteration[key])
 			}
+			/*
+			for(var key:var value in alteration){
+				if(key == Stats.HP) 			str+= "|HP: "+round(value)
+				if(key == Stats.ABSSHIELD) 	str+= "|ABSSHIELD: "+round(value)
+				if(key == Stats.STR) 		str+= "|STR: "+round(value)
+			}
+			*/
 		}
 		for(var entity:var isDead in this._killed) str+= "\n|KILL: "+ entity
 		str+="\nhashcode:"+this.hashcode+">"

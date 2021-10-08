@@ -2,10 +2,8 @@ include('auto');
 
 init()
 
-var enemy = Fight.getEntity(getNearestEnemy());
-
 var combo = AI.getPotentialCombo()
-if(combo && count(combo.actions)>0) combo.play()
+if(combo) combo.play()
 else {
 	debugE('/!\ turn '+getTurn()+' Combo null or empty ! SHOULD NOT BE HERE !')
 }

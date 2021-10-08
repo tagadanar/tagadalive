@@ -1,4 +1,4 @@
-include('../auto')
+include('../../auto')
 
 class Position{
 	danger

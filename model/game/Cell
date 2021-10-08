@@ -1,4 +1,4 @@
-include('../auto')
+include('../../auto')
 
 /*
  * Cellule de jeu contenant l'id, 'les coordonnées, les voisins et le type
