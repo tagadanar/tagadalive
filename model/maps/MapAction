@@ -1,4 +1,4 @@
-include('../auto')
+include('../../auto')
 
 class MapAction {
 	static _item_cell_actions // [item:[cell:[actions]]]

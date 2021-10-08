@@ -1,10 +1,12 @@
 include('includesTests');
 
-init()
-checkMap()
-checkCells()
-checkFight()
-checkItems() // TODO
-checkMapDanger() // TODO
+if(getTurn()==1){
+	init()
+	checkMap()
+	checkCells()
+	checkFight()
+	checkItems() // TODO
+	checkMapDanger() // TODO
 
-pause()
+	pause()
+}

@@ -1,4 +1,4 @@
-include('../auto')
+include('../../auto')
 
 /*
  * Contient les informations de la map (obstacles, cells, placement des Entity)

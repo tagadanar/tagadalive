@@ -1,4 +1,4 @@
-include('../auto')
+include('../../auto')
 
 /*
  * Ensemble de méthodes et d'algorithmes permettant d'instancier les items de type Item et de les classer par ordre d'importance
