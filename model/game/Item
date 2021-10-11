@@ -13,6 +13,7 @@ class Item {
 	needLOS
 	cost
 	area
+	isAOE
 	effects = []
 	
 	targetKey
@@ -59,6 +60,8 @@ class Item {
 			}
 		}
 
+		if(this.area == AREA_POINT || this.area == AREA_LASER_LINE) this.isAOE = false
+		else this.isAOE = true
 		// on cherche à trouver quels sont les cibles valides et intéressante de l'item
 		// on set targetKey pour que targetSet pointe vers la fonction qui renvera uniquement les entités intéressante à cibler
 		var allies = false, enemies = false, onBulbs = false, onLeeks = false;
@@ -77,6 +80,14 @@ class Item {
 			debug("onBulbs:"+onBulbs)
 			debug("onLeeks:"+onLeeks)
 			pause()
+		}
+		
+		// si c'est un lazer, je veux potentiellement tirer à travers tout le monde ^^
+		if(this.area == AREA_LASER_LINE){
+			allies = true
+			enemies = true
+			onBulbs = true
+			onLeeks = true
 		}
 		
 		if(allies && enemies){ // ALL

@@ -23,6 +23,8 @@ class Map {
 	static refresh(){
 		Map.entityCells = []
 		for(var entity in Fight.getAllAlive()){
+			// FIXME à vérif mais je pense qu'il faut que je m'ignore là, je me bloque jamais moi mm non ?
+			if(entity==Fight.self) continue
 			Map.entityCells[entity.cell] = entity
 		}
 		Fight.refreshEntities() // init des entities après avoir refresh les positions sur la map

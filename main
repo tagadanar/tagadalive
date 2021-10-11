@@ -1,11 +1,14 @@
 include('auto');
-
+Benchmark.reset()
+Benchmark.start('FULL TURN')
 init()
 
+Benchmark.start('COMBO SEARCH')
 var combo = AI.getPotentialCombo()
+Benchmark.stop('COMBO SEARCH')
 if(combo) combo.play()
 else {
-	debugE('/!\ turn '+getTurn()+' Combo null or empty !')
+	debugE('/!\ turn '+getTurn()+' Combo null !')
 }
 
 // cast avec le reste des TP
@@ -25,4 +28,5 @@ function failSafe(){
 }
 failSafe()
 
+Benchmark.stop('FULL TURN')
 Benchmark.display()

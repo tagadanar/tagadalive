@@ -12,11 +12,142 @@ class MapAction {
 			for(var entity in item.targetSet()){
 				if(entity==Fight.self){
 					// si c'est moi la cible, je ne peux que le lancer sur moi même, si la minrange le permet
-					if(item.minRange == 0) MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
+					if(item.minRange == 0){
+						MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
+					}
 				} else {
 					// sinon je liste toutes les cases depuis lesquelles je peux tirer sur la cible
-					var cells = getCellsToUseItemOnCell(item, entity.cell, [])
+					var cells = TargetsService.getCellsToUseItemOnCell(item, entity.cell, [Fight.self.cell])
 					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_CIRCLE_1: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 1){}
+				for(var cell in entity.cell.getAreaCells(AREA_CIRCLE_1)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_CIRCLE_2: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 2){}
+				for(var cell in entity.cell.getAreaCells(AREA_CIRCLE_2)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_CIRCLE_3: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 3){}
+				for(var cell in entity.cell.getAreaCells(AREA_CIRCLE_3)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_PLUS_2: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 2){}
+				for(var cell in entity.cell.getAreaCells(AREA_PLUS_2)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_PLUS_3: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 3){}
+				for(var cell in entity.cell.getAreaCells(AREA_PLUS_3)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_SQUARE_1: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 2){}
+				for(var cell in entity.cell.getAreaCells(AREA_SQUARE_1)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_SQUARE_2: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 4){}
+				for(var cell in entity.cell.getAreaCells(AREA_SQUARE_2)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_X_1: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 2){}
+				for(var cell in entity.cell.getAreaCells(AREA_X_1)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_X_2: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 4){}
+				for(var cell in entity.cell.getAreaCells(AREA_X_2)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_X_3: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue
+				// TODO réfléchir à l'implem de ce genre de move.
+				// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
+				// if(entity==Fight.self && item.minRange <= 6){}
+				for(var cell in entity.cell.getAreaCells(AREA_X_3)){
+					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
+					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+				}
+			}
+		},
+		AREA_LASER_LINE: function(item){
+			for(var entity in item.targetSet()){
+				if(entity==Fight.self) continue // on peut jamais se tirer dessus au lazer
+				var cellsFrom = TargetsService.getLazerCellsToUseItemOnCell(item, entity.cell)
+				for(var cell in cellsFrom){
+					MapAction.addAction(item, cell, entity.cell)
 				}
 			}
 		},
@@ -45,6 +176,8 @@ class MapAction {
 	}
 	
 	static addAction(item, fromCell, targetCell){
+		if(targetCell != Fight.selfCell && Fight.self.reachableCells[fromCell]==null) return;
+		Benchmark.start("addAction")
 		var action = Action(item, fromCell, targetCell)
 		
 		// ajout dans la map par item puis cells
@@ -65,5 +198,6 @@ class MapAction {
 		if(!_cell_item_bestAction[fromCell]) _cell_item_bestAction[fromCell] = []
 		if(!_cell_item_bestAction[fromCell][item]) _cell_item_bestAction[fromCell][item] = action
 		else if(_cell_item_bestAction[fromCell][item].score < action.score) _cell_item_bestAction[fromCell][item] = action
+		Benchmark.stop("addAction")
 	}
 }
