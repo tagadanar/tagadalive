@@ -19,6 +19,7 @@ include('model/maps/Action')
 include('model/Consequences')
 include('model/Combo')
 include('model/EffectOverTime')
+include('model/TargetsService')
 
 include('AI/Scoring')
 include('AI/AI')
@@ -28,7 +29,6 @@ include('API/compatibility')
 include('TESTS/Debug/Benchmark')
 
 function init() {
-	//Benchmark.reset()
 	Benchmark.start('init')
 	if(getTurn()==1) {
 		Benchmark.start('Map.init')

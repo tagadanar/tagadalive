@@ -165,7 +165,7 @@ class MapDanger {
 	}
 
 	/*
-	 * Retourne les Cells pouvant être touché depuis la @cell avec l'@item par les alliés
+	 * Retourne les Cells pouvant être touché depuis la @cell avec l'@item (prend en compte les los)
 	 * Hum... =(
 	 * ++++++++++[>+>+++>+++++++>++++++++++<<<<-]>>>>-.<<+++++++++.>>++.++++++++++++++.+.<<-------.>>---.++++.--------------------.+++++++++++++.----------.<<.>>+++++++++.--------.++++++++.--------.<<.>>+++++++++++.---------------.++++++++++++++++++.<<.>>+.--.-------------.++++++++++++++.<<.>>----------------.+++++++++.-----------.++++++++.+++++++++.<<.>---------.<++++++++.
 	 * @see  https://fr.wikipedia.org/wiki/Brainfuck
@@ -261,7 +261,7 @@ class MapDanger {
 	}
 	
 	/*
-	 * Retourne les Cells pouvant être touché avec le parametre item par les ennemis, la fonction est appelé pour chaque cellule accessible
+	 * Retourne les Cells pouvant être touché avec le parametre item par les ennemis, ignore la los
 	 * @see getAlliesTargetableCells
 	 * @param item Item
 	 * @param cell une Cellule accesible par l'entité en question

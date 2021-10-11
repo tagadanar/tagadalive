@@ -9,28 +9,34 @@ class Consequences {
 	targets
 	
 	constructor(action){
+		Benchmark.start("Consequences")
 		construct(action)
+		Benchmark.stop("Consequences")
 	}
 	
 	constructor(action, consequences){
+		Benchmark.start("Consequences.fromConseq")
 		this._alterations = clone(consequences._alterations, 2)
 		this._killed = clone(consequences._killed)
 		this.hashcode = consequences.hashcode
 		construct(action)
+		Benchmark.stop("Consequences.fromConseq")
 	}
 	
 	construct(action){
-		if(action.to == Fight.selfCell) this.targets = [Fight.self.id] 
-		else this.targets = getItemTargets(action.item, action.to)
+		this.targets = TargetsService.getTargets(action)
+
 		// FIXME itemTargets return null when i dont have the item ?
 		// FIXME sur les items qui affecte le lanceur, self est dans les targets, et je le veux pas !
 		// pour le moment j'ai add un if qui gère le cas chelou, todo recoder getItemTargets pour qu'elle fasse
 		// ce que je veux !
-		for(var targetId in this.targets){
-			var target = Fight.getEntity(targetId)
-			if(target == Fight.self && action.to != Fight.selfCell) continue // FIX du prob mentionné au dessus^
+		// note: il faut aussi handle le cas où je lance un item aoe et je suis assez proche de la zone
+		// pour être affecté....
+		for(var target in this.targets){
+			//if(target == Fight.self && action.to != Fight.selfCell) continue //fixed in getItemTargets
 			if(this._killed[target]) continue
-			var ratioDmg = action.to == Fight.selfCell ? 1 : 1-(0.2*getCellDistance(action.to, target.cell))
+			// this line is bugged, should have info of area to not decrease on lazer
+			var ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(action.to, target.cell)) : 1
 			if(ratioDmg<=0){
 				debugE('Bug in Consequences constructor, SHOULD NOT HAPPEN !')
 				debugE(action)
@@ -102,10 +108,12 @@ class Consequences {
 		var target = effect.modifCaster ? entitySource : entityTarget
 		return Consequences.convertToValue[effect.type](effect, entitySource, target, ratioDmg, this)
 	}
-	
+		
+		
+	// TODO reste à faire l'agi/les crit, et avgmin/avgmax ?
 	static convertToValue = [
 		EFFECT_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			var targetsCount = effect.multiplyByTarget ? count(conseq.targets) : 1;
+			var targetsCount = effect.multiplyByTarget ? count(conseq.targets) : 1
 			var beforeShield = effect.avg *targetsCount *ratioDmg *(1+(entitySource.getCurrentStr(conseq)/100))
 				*(1+(entitySource.getCurrentPwr(conseq)/100)) // TODO power in consequences !!!!
 			var value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100))) 
@@ -117,7 +125,8 @@ class Consequences {
 				conseq.add(entityTarget, Stats.KILL)
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
 			
-			// TODO érosion !
+			// érosion !
+			conseq.add(entityTarget, Stats.HPMAX, -value/20) // TODO le 20 ici devrait être dans une constante
 			
 			// vol de vie
 			var lifeSteal = value * (entitySource.getCurrentWsd(conseq)/1000)
@@ -128,8 +137,13 @@ class Consequences {
 			// dmg return
 			var dmgReturn = beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100)
 			if(dmgReturn>0){
-				if(dmgReturn>=entitySource.getCurrentHP(conseq)) conseq.add(entitySource, Stats.KILL) 
-				else conseq.add(entitySource, Stats.HP, -dmgReturn)
+				conseq.add(entitySource, Stats.HP, -dmgReturn)
+				
+				// érosion !
+				conseq.add(entitySource, Stats.HPMAX, -dmgReturn/20) // TODO le 20 ici devrait être dans constante
+				
+				if(dmgReturn>=entitySource.getCurrentHP(conseq)) 
+					conseq.add(entitySource, Stats.KILL) 
 			}
 		},
 		EFFECT_POISON: function(effect, entitySource, entityTarget, ratioDmg, conseq){
@@ -137,14 +151,16 @@ class Consequences {
 			if(effect.notReplaceable){}//TODO check if target is already undereffect
 			
 			// FIXME: dans mon autre IA, je gère deux notions, les dmgNextTurn, qui pemettent de définir un kill
-			// et les dmg*duration, qui doivent être minoré plus ça dure
+			// en solo, et les dmg*duration, qui doivent être minoré plus ça dure
 			// TODO réfléchir à comment j'organise l'infos dans HPTIME... ptete besoin d'objet hptime avec value duration dans les conseq ??
-			
-			// TODO érosion ?
 			
 			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
 				*(1+(entitySource.getCurrentPwr(conseq)/100)) *effect.duration // TODO power in consequences !!!!
 			conseq.add(entityTarget, Stats.HPTIME, value)
+			
+			// érosion ! c'est moche de rediv par durée, FIXME quand j'aurais géré la durée dans les conseq
+			conseq.add(entityTarget, Stats.HPMAX, -value/effect.duration/10)
+			//TODO le 10 au dessus devrait être dans une constante
 		},
 		EFFECT_LIFE_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq){
 			var beforeShield = entitySource.life*(effect.avg/100)
@@ -157,14 +173,19 @@ class Consequences {
 				conseq.add(entityTarget, Stats.KILL)
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
 
-			// TODO érosion !
+			// érosion !
+			conseq.add(entityTarget, Stats.HPMAX, -value/20) // TODO le 20 ici devrait être dans une constante
 			
 			if(entityTarget != entitySource){
 				// dmg return
 				var dmgReturn = beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100)
 				if(dmgReturn>0){
-					if(dmgReturn>=entitySource.getCurrentHP(conseq)) conseq.add(entitySource, Stats.KILL) 
-					else conseq.add(entitySource, Stats.HP, -dmgReturn)
+					conseq.add(entitySource, Stats.HP, -dmgReturn)
+					// érosion !
+					conseq.add(entitySource, Stats.HPMAX, -dmgReturn/20) // TODO le 20 ici devrait être dans constante
+					
+					if(dmgReturn>=entitySource.getCurrentHP(conseq))
+						conseq.add(entitySource, Stats.KILL) 
 				}
 			}
 		},
@@ -178,7 +199,6 @@ class Consequences {
 				// TODO même prob que pour le poison, modèle du hptime dans conseq ?
 				// TODO une fois qu'on aura les effets sur les entitys, check si pas déjà sous l'effet !
 				var value = effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg *effect.duration
-				value = min(value, entityTarget.getCurrentHPMissing(conseq))
 				conseq.add(entityTarget, Stats.HPTIME, value)
 			} else { // HP
 				var value = effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg
@@ -189,6 +209,7 @@ class Consequences {
 		EFFECT_BOOST_MAX_LIFE: function(effect, entitySource, entityTarget, ratioDmg, conseq){
 			var value = effect.avg *(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg
 			conseq.add(entityTarget, Stats.HPMAX, value)
+			conseq.add(entityTarget, Stats.HP, value)
 		},
 		EFFECT_NOVA_VITALITY: function(effect, entitySource, entityTarget, ratioDmg, conseq){
 			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg

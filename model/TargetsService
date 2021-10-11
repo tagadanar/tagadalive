@@ -1,0 +1,144 @@
+include('../auto')
+
+class TargetsService{
+	
+	static getTargets(action){
+		var targets
+		if(action.to == Fight.selfCell) targets = [Fight.self]
+		else{
+			if(action.item.area == AREA_LASER_LINE) 
+				targets = TargetsService.getLazerTargetsFromCell(action.item, action.from, action.to)
+			else 
+				targets = getItemTargets(action.item, action.to)
+		}
+		return targets
+	}
+	
+	/*
+	 * pour chaque direction, je parcours les cases et notes les cases depuis je pourrais tirer sur la cible
+	 */
+	static getLazerCellsToUseItemOnCell(item, cell){
+		var result = [], c = Map.getCell(getCellFromXY(cell.x+item.minRange, cell.y)), inc = 1
+		if(c!=null && !Map.obstacles[c] && !Map.entityCells[c] && lineOfSight(cell, c, [Fight.self.cell.id])){
+			while(c!=null && !Map.obstacles[c] && !Map.entityCells[c] && getCellDistance(cell, c)<=item.maxRange){
+				push(result, c)
+				c = Map.getCell(getCellFromXY(cell.x+item.minRange+inc++, cell.y))
+			}
+		}
+		c = Map.getCell(getCellFromXY(cell.x-item.minRange, cell.y)); inc = 1
+		if(c!=null && !Map.obstacles[c] && !Map.entityCells[c] && lineOfSight(cell, c, [Fight.self.cell.id])){
+			while(c!=null && !Map.obstacles[c] && !Map.entityCells[c] && getCellDistance(cell, c)<=item.maxRange){
+				push(result, c)
+				c = Map.getCell(getCellFromXY(cell.x-item.minRange-inc++, cell.y))
+			}
+		}
+		c = Map.getCell(getCellFromXY(cell.x, cell.y+item.minRange)); inc = 1
+		if(c!=null && !Map.obstacles[c] && !Map.entityCells[c] && lineOfSight(cell, c, [Fight.self.cell.id])){
+			while(c!=null && !Map.obstacles[c] && !Map.entityCells[c] && getCellDistance(cell, c)<=item.maxRange){
+				push(result, c);
+				c = Map.getCell(getCellFromXY(cell.x, cell.y+item.minRange+inc++))
+			}
+		}
+		c = Map.getCell(getCellFromXY(cell.x, cell.y-item.minRange)); inc = 1
+		if(c!=null && !Map.obstacles[c] && !Map.entityCells[c] && lineOfSight(cell, c, [Fight.self.cell.id])){
+			while(c!=null && !Map.obstacles[c] && !Map.entityCells[c] && getCellDistance(cell, c)<=item.maxRange){
+				push(result, c);
+				c = Map.getCell(getCellFromXY(cell.x, cell.y-item.minRange-inc++))
+			}
+		}
+		return result;
+	}
+	
+	/*
+	 * retourne la liste des <Entity> touchées par un tir de lazer avec @item depuis @from vers @to
+	 */
+	static getLazerTargetsFromCell(item, from, to){
+		var result = [], inc = 0, maxInc = item.maxRange-getCellDistance(from, to), tmpCell
+		if(from.x==to.x){
+			if(from.y<to.y){ // y++
+				while(true){
+					tmpCell = Map.getCell(getCellFromXY(to.x, to.y+inc))
+					if(tmpCell == null || Map.obstacles[tmpCell] || inc > maxInc) break;
+					var entityOnCell = Map.entityCells[tmpCell]
+					if(entityOnCell instanceof Entity) push(result, entityOnCell);
+					inc++;
+				}
+			}else{ // y--
+				while(true){
+					tmpCell = Map.getCell(getCellFromXY(to.x, to.y-inc))
+					if(tmpCell == null || Map.obstacles[tmpCell] || inc > maxInc) break;
+					var entityOnCell = Map.entityCells[tmpCell]
+					if(entityOnCell instanceof Entity) push(result, entityOnCell);
+					inc++;
+				}
+			}
+		}else if(from.y==to.y){
+			if(from.x<to.x){ // x++
+				while(true){
+					tmpCell = Map.getCell(getCellFromXY(to.x+inc, to.y))
+					if(tmpCell == null || Map.obstacles[tmpCell] || inc > maxInc) break;
+					var entityOnCell = Map.entityCells[tmpCell]
+					if(entityOnCell instanceof Entity) push(result, entityOnCell);
+					inc++;
+				}
+			}else{ // x--
+				while(true){
+					tmpCell = Map.getCell(getCellFromXY(to.x-inc, to.y))
+					if(tmpCell == null || Map.obstacles[tmpCell] || inc > maxInc) break;
+					var entityOnCell = Map.entityCells[tmpCell]
+					if(entityOnCell instanceof Entity) push(result, entityOnCell);
+					inc++;
+				}
+			}
+		}
+		return result;
+	}
+	
+	// renvoie un array de cell depuis lesquel on peut tirer sur cell
+	// j'utilise leekToIgnore pour les lignes de vue
+	// et Map.entityCells pour les cases non accessibles (ou il y a tout le monde sauf self)
+	// donc pas encore compatible pour les bulbes cette fonction, uniquement pour moi !
+	static getCellsToUseItemOnCell(item, cell, leekToIgnore){
+		var result = []
+		if(item.isInLine){
+			for(var x1 = cell.x-item.maxRange; x1 <= cell.x+item.maxRange; x1++){
+				var dist =cell.x-x1 < 0 ? x1-cell.x : cell.x-x1
+				if(dist < item.minRange) continue
+				var fromCell = Map.getCell(getCellFromXY(x1, cell.y))
+				if(fromCell!=null 
+				&& Map.obstacles[fromCell]==null 
+				&& Map.entityCells[fromCell]==null
+				&& (!item.needLOS || lineOfSight(fromCell, cell, leekToIgnore))){
+					push(result, fromCell)
+				}
+			}
+			for(var y1 = cell.y-item.maxRange; y1 <= cell.y+item.maxRange; y1++){
+				var dist = cell.y-y1 < 0 ? y1-cell.y : cell.y-y1
+				if(dist < item.minRange) continue
+				var fromCell = Map.getCell(getCellFromXY(cell.x, y1))
+				if(fromCell!=null
+				&& Map.obstacles[fromCell]==null 
+				&& Map.obstacles[fromCell]==null
+				&& (!item.needLOS || lineOfSight(fromCell, cell, leekToIgnore))){
+					push(result, fromCell)
+				}
+			}
+		}else{
+			for(var x1 = cell.x-item.maxRange; x1 <= cell.x+item.maxRange; x1++){
+				for(var y1 = cell.y-item.maxRange; y1 <= cell.y+item.maxRange; y1++){
+					var dist = (cell.x-x1 < 0 ? x1-cell.x : cell.x-x1) + (cell.y-y1 < 0 ? y1-cell.y : cell.y-y1)
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var fromCell = Map.getCell(getCellFromXY(x1, y1))
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& Map.entityCells[fromCell]==null
+					&& (!item.needLOS || lineOfSight(fromCell, cell, leekToIgnore))){
+						push(result, fromCell)
+					}
+				}
+			}
+		}
+		return result;
+	}
+
+}

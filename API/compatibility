@@ -116,7 +116,15 @@ getChipTargets = function(item, cell) {
 }
 
 function getItemTargets(item, cell){
-	if(item instanceof Item && cell instanceof Cell) return item.isWeap ? getWeaponTargets(item, cell) : getChipTargets(item, cell)
+	if(item instanceof Item && cell instanceof Cell){
+		var targetsId = item.isWeap ? getWeaponTargets(item, cell) : getChipTargets(item, cell)
+		var targets = []
+		for(var targetId in targetsId){
+			if(targetId == Fight.self.id && cell != Fight.selfCell) continue // skip moi mm si c'est pas selfcast
+			// TODO better, handle minrange & fromcell ?
+			push(targets, Fight.getEntity(targetId))
+		}
+		return targets
+	} 
 	else debugE('getItemTargets MUST be called with <Item> and <Cell>, not int')
 }
-

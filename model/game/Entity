@@ -42,7 +42,8 @@ class Entity {
 	altAgi = 0
 	altTP = 0
 	altMP = 0
-
+	// todo add more alt ?
+	// todo add passive effect
 	
 	constructor(id){
 		this.id = id
@@ -102,7 +103,7 @@ class Entity {
 	}
 
 	/*
-	 * Initialise certaines informations de l'objet Entite 
+	 * Initialise certaines informations de l'objet Entity
 	 * Certaines peuvent être dépendantes d'autres classes.
 	 */
 	init(){
@@ -196,6 +197,10 @@ class Entity {
 	}
 	getCurrentDmgReturn(consequences){
 		return consequences ? this.dmgReturn+consequences.getAlteration(this, Stats.DMGRETURN) : this.dmgReturn
+	}
+	
+	getCurrentEffect(item){
+		return this.effects_items[item]
 	}
 	
 	/*
