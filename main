@@ -1,6 +1,5 @@
 include('auto');
-Benchmark.reset()
-Benchmark.start('FULL TURN')
+
 init()
 
 Benchmark.start('COMBO SEARCH')
@@ -28,5 +27,8 @@ function failSafe(){
 }
 failSafe()
 
-Benchmark.stop('FULL TURN')
 Benchmark.display()
+var opUsed = getOperations()
+var mega = floor(opUsed/1000000)
+var kilo = round((opUsed-(mega*1000000))/1000)
+debug('UTILISATION TOTALE DU TOUR: ' + (mega>0?mega+" ":"") + kilo + "k")

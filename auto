@@ -29,6 +29,7 @@ include('API/compatibility')
 include('TESTS/Debug/Benchmark')
 
 function init() {
+	Benchmark.reset()
 	Benchmark.start('init')
 	if(getTurn()==1) {
 		Benchmark.start('Map.init')

@@ -128,3 +128,21 @@ function getItemTargets(item, cell){
 	} 
 	else debugE('getItemTargets MUST be called with <Item> and <Cell>, not int')
 }
+
+global _mark = clone(mark)
+mark = function(cell, color) {
+	if(cell instanceof Cell) return _mark(cell.id, color)
+	else {
+		debugW('mark should always be called with <Cell> and not int')
+		return _mark(cell, color)
+	}
+}
+
+global _markText = clone(markText)
+markText = function(cell, text) {
+	if(cell instanceof Cell) return _markText(cell.id, text)
+	else {
+		debugW('markText should always be called with <Cell> and not int')
+		return _markText(cell, text)
+	}
+}
