@@ -70,7 +70,7 @@ class Cell {
 	 * C'est long et pas joli, on pourrait faire plus concis avec des for surement, mais là c'est relativement opti en opération
 	 */
 	initAreas(){
-		var c, result = []
+		var c, result = [this]
 		// AREA_CIRCLE_1
 		c = getCellFromXY(x, y-1);
 		if(c!=null) push(result, Map.getCell(c));

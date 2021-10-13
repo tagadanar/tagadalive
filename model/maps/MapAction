@@ -18,7 +18,7 @@ class MapAction {
 				} else {
 					// sinon je liste toutes les cases depuis lesquelles je peux tirer sur la cible
 					var cells = TargetsService.getCellsToUseItemOnCell(item, entity.cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, entity.cell)
 				}
 			}
 		},
@@ -30,7 +30,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 1){}
 				for(var cell in entity.cell.getAreaCells(AREA_CIRCLE_1)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},
@@ -42,7 +42,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 2){}
 				for(var cell in entity.cell.getAreaCells(AREA_CIRCLE_2)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},
@@ -54,7 +54,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 3){}
 				for(var cell in entity.cell.getAreaCells(AREA_CIRCLE_3)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},
@@ -66,7 +66,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 2){}
 				for(var cell in entity.cell.getAreaCells(AREA_PLUS_2)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},
@@ -78,7 +78,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 3){}
 				for(var cell in entity.cell.getAreaCells(AREA_PLUS_3)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},
@@ -90,7 +90,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 2){}
 				for(var cell in entity.cell.getAreaCells(AREA_SQUARE_1)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},
@@ -102,7 +102,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 4){}
 				for(var cell in entity.cell.getAreaCells(AREA_SQUARE_2)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},
@@ -114,7 +114,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 2){}
 				for(var cell in entity.cell.getAreaCells(AREA_X_1)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},
@@ -126,7 +126,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 4){}
 				for(var cell in entity.cell.getAreaCells(AREA_X_2)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},
@@ -138,7 +138,7 @@ class MapAction {
 				// if(entity==Fight.self && item.minRange <= 6){}
 				for(var cell in entity.cell.getAreaCells(AREA_X_3)){
 					var cells = TargetsService.getCellsToUseItemOnCell(item, cell, [Fight.self.cell])
-					for(var cellId in cells) MapAction.addAction(item, Map.getCell(cellId), entity.cell)
+					for(var c in cells) MapAction.addAction(item, c, cell)
 				}
 			}
 		},

@@ -141,4 +141,85 @@ class TargetsService{
 		return result;
 	}
 
+	// TODO merge avec la fonction au dessus, le code est quasi pareil...
+	static getAlliesTargetableCells(item, cell){
+		var result = [], x = cell.x, y = cell.y
+		if(item.isInLine){
+			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
+				var dist = x-x1<0?x1-x:x-x1
+				if(dist < item.minRange) continue;
+				var targetCell = Map.getCell(getCellFromXY(x1, y))
+				if(targetCell!=null 
+				&& Map.obstacles[targetCell]==null 
+				&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
+					push(result, targetCell)
+				}
+			}
+			for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
+				var dist = y-y1<0?y1-y:y-y1
+				if(dist < item.minRange) continue;
+				var targetCell = Map.getCell(getCellFromXY(x, y1))
+				if(targetCell!=null 
+				&& Map.obstacles[targetCell]==null 
+				&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
+					push(result, targetCell)
+				}
+			}
+		}else{
+			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
+				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
+					var dist =(x-x1<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1) // abs(x-x1)+abs(y-y1)..
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var targetCell = Map.getCell(getCellFromXY(x1, y1));
+					if(targetCell!=null 
+					&& Map.obstacles[targetCell]==null 
+					&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
+						push(result, targetCell);
+					}
+				}
+			}
+		}
+		return result
+	}
+	
+	// TODO merge avec la fonction au dessus, le code est quasi pareil...
+	static getEnemiesTargetableCells(item, cell){
+		var result = [], x = cell.x, y = cell.y
+		if(item.isInLine){
+			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
+				var dist = x-x1<0?x1-x:x-x1
+				if(dist < item.minRange) continue;
+				var targetCell = Map.getCell(getCellFromXY(x1, y))
+				if(targetCell!=null 
+				&& Map.obstacles[targetCell]==null 
+				&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
+					push(result, targetCell);
+				}
+			}
+			for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
+				var dist = y-y1<0?y1-y:y-y1
+				if(dist < item.minRange) continue;
+				var targetCell = Map.getCell(getCellFromXY(x, y1))
+				if(targetCell!=null 
+				&& Map.obstacles[targetCell]==null 
+				&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
+					push(result, targetCell);
+				}
+			}
+		}else{
+			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
+				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
+					var dist = (x-x1<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1) // abs(x-x1)+abs(y-y1)..
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var targetCell = Map.getCell(getCellFromXY(x1, y1))
+					if(targetCell!=null 
+					&& Map.obstacles[targetCell]==null 
+					&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
+						push(result, targetCell);
+					}
+				}
+			}
+		}
+		return result
+	}
 }

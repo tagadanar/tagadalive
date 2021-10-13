@@ -166,58 +166,23 @@ class MapDanger {
 
 	/*
 	 * Retourne les Cells pouvant être touché depuis la @cell avec l'@item (prend en compte les los)
-	 * Hum... =(
-	 * ++++++++++[>+>+++>+++++++>++++++++++<<<<-]>>>>-.<<+++++++++.>>++.++++++++++++++.+.<<-------.>>---.++++.--------------------.+++++++++++++.----------.<<.>>+++++++++.--------.++++++++.--------.<<.>>+++++++++++.---------------.++++++++++++++++++.<<.>>+.--.-------------.++++++++++++++.<<.>>----------------.+++++++++.-----------.++++++++.+++++++++.<<.>---------.<++++++++.
-	 * @see  https://fr.wikipedia.org/wiki/Brainfuck
 	 * @param item Item
 	 * @param cell une Cellule accesible par l'entité en question
-	 * @TODO corriger le commentaire
 	 * @return cache sous forme de double tableau
 	 */
 	static getAlliesTargetableCells(item, cell){ // TODO add ignoreleeks to ignore leeks who play before
 		// init du cache si nécessaire
-		if(MapDanger._cache_allies_item_targetableCells[item]==null) MapDanger._cache_allies_item_targetableCells[item] = []
+		if(MapDanger._cache_allies_item_targetableCells[item]==null) 
+			MapDanger._cache_allies_item_targetableCells[item] = []
 		if(MapDanger._cache_allies_item_targetableCells[item][cell]==null){
-			var result = [], x = cell.x, y = cell.y
-			if(item.isInLine){
-				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-					var dist = x-x1<0?x1-x:x-x1
-					if(dist < item.minRange) continue;
-					var targetCell = Map.getCell(getCellFromXY(x1, y))
-					if(targetCell!=null 
-					&& Map.obstacles[targetCell]==null 
-					&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
-						push(result, targetCell)
-					}
-				}
-				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-					var dist = y-y1<0?y1-y:y-y1
-					if(dist < item.minRange) continue;
-					var targetCell = Map.getCell(getCellFromXY(x, y1))
-					if(targetCell!=null 
-					&& Map.obstacles[targetCell]==null 
-					&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
-						push(result, targetCell)
-					}
-				}
-			}else{
-				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-					for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-						var dist =(x-x1<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1) // abs(x-x1)+abs(y-y1)..
-						if(dist > item.maxRange || dist < item.minRange) continue;
-						var targetCell = Map.getCell(getCellFromXY(x1, y1));
-						if(targetCell!=null 
-						&& Map.obstacles[targetCell]==null 
-						&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
-							push(result, targetCell);
-						}
-					}
-				}
-			}
-			MapDanger._cache_allies_item_targetableCells[item][cell]= result;
+			MapDanger._cache_allies_item_targetableCells[item][cell] =
+				TargetsService.getAlliesTargetableCells(item, cell)
 		}
+			
 		return MapDanger._cache_allies_item_targetableCells[item][cell];
 	}
+		
+	
 		
 		
 	/*
@@ -272,43 +237,8 @@ class MapDanger {
 		// init du cache si nécessaire
 		if(MapDanger._cache_item_targetableCells[item]==null) MapDanger._cache_item_targetableCells[item] = []
 		if(MapDanger._cache_item_targetableCells[item][cell]==null){
-			var result = [], x = cell.x, y = cell.y
-			if(item.isInLine){
-				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-					var dist = x-x1<0?x1-x:x-x1
-					if(dist < item.minRange) continue;
-					var targetCell = Map.getCell(getCellFromXY(x1, y))
-					if(targetCell!=null 
-					&& Map.obstacles[targetCell]==null 
-					&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
-						push(result, targetCell);
-					}
-				}
-				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-					var dist = y-y1<0?y1-y:y-y1
-					if(dist < item.minRange) continue;
-					var targetCell = Map.getCell(getCellFromXY(x, y1))
-					if(targetCell!=null 
-					&& Map.obstacles[targetCell]==null 
-					&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
-						push(result, targetCell);
-					}
-				}
-			}else{
-				for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-					for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-						var dist = (x-x1<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1) // abs(x-x1)+abs(y-y1)..
-						if(dist > item.maxRange || dist < item.minRange) continue;
-						var targetCell = Map.getCell(getCellFromXY(x1, y1))
-						if(targetCell!=null 
-						&& Map.obstacles[targetCell]==null 
-						&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
-							push(result, targetCell);
-						}
-					}
-				}
-			}
-			MapDanger._cache_item_targetableCells[item][cell]= result;
+			MapDanger._cache_item_targetableCells[item][cell] =
+				TargetsService.getEnemiesTargetableCells(item, cell)
 		}
 		return MapDanger._cache_item_targetableCells[item][cell];
 	}
@@ -319,9 +249,9 @@ class MapDanger {
 		for(var c : var d in reachableCells) {
 			var danger = MapDanger.getCellDanger(c, consequences)
 			var red = (danger.dmg*255)/Fight.self.life
-			if(red>255) mark(c.id, getColor(0, 0, 0))
-			else mark(c.id, getColor(red, 255-red, 0))
-			markText(c.id, round(danger.dmg))
+			if(red>255) mark(c, getColor(0, 0, 0))
+			else mark(c, getColor(red, 255-red, 0))
+			markText(c, round(danger.dmg))
 			arrayDanger[round(danger.dmg)] = danger
 		}
 		for(var danger in arrayDanger){

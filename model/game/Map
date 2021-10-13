@@ -14,7 +14,7 @@ class Map {
 	static init(){
 		for(var i = 0; i < 613; i++) Map.cells[i] = new Cell(i)
 		for(var i in getObstacles()) Map.obstacles[Map.cells[i]]=true
-		for(var cell in cells) cell.init()
+		for(var cell in Map.cells) cell.init()
 	}
 	
 	/*
@@ -36,7 +36,8 @@ class Map {
 	 * @return Cell
 	 */	
 	static getCell(id) {
-		return Map.cells[id];
+		if(id==null) return null // sinon ça retourne la cell 0 !
+		return Map.cells[id]
 	}
 	
 	/*
