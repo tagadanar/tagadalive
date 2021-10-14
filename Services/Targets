@@ -1,13 +1,13 @@
 include('../auto')
 
-class TargetsService{
+class Targets{
 	
 	static getTargets(action){
 		var targets
 		if(action.to == Fight.selfCell) targets = [Fight.self]
 		else{
 			if(action.item.area == AREA_LASER_LINE) 
-				targets = TargetsService.getLazerTargetsFromCell(action.item, action.from, action.to)
+				targets = Targets.getLazerTargetsFromCell(action.item, action.from, action.to)
 			else 
 				targets = getItemTargets(action.item, action.to)
 		}
@@ -60,16 +60,16 @@ class TargetsService{
 					tmpCell = Map.getCell(getCellFromXY(to.x, to.y+inc))
 					if(tmpCell == null || Map.obstacles[tmpCell] || inc > maxInc) break;
 					var entityOnCell = Map.entityCells[tmpCell]
-					if(entityOnCell instanceof Entity) push(result, entityOnCell);
-					inc++;
+					if(entityOnCell instanceof Entity) push(result, entityOnCell)
+					inc++
 				}
 			}else{ // y--
 				while(true){
 					tmpCell = Map.getCell(getCellFromXY(to.x, to.y-inc))
 					if(tmpCell == null || Map.obstacles[tmpCell] || inc > maxInc) break;
 					var entityOnCell = Map.entityCells[tmpCell]
-					if(entityOnCell instanceof Entity) push(result, entityOnCell);
-					inc++;
+					if(entityOnCell instanceof Entity) push(result, entityOnCell)
+					inc++
 				}
 			}
 		}else if(from.y==to.y){
@@ -78,27 +78,37 @@ class TargetsService{
 					tmpCell = Map.getCell(getCellFromXY(to.x+inc, to.y))
 					if(tmpCell == null || Map.obstacles[tmpCell] || inc > maxInc) break;
 					var entityOnCell = Map.entityCells[tmpCell]
-					if(entityOnCell instanceof Entity) push(result, entityOnCell);
-					inc++;
+					if(entityOnCell instanceof Entity) push(result, entityOnCell)
+					inc++
 				}
 			}else{ // x--
 				while(true){
 					tmpCell = Map.getCell(getCellFromXY(to.x-inc, to.y))
 					if(tmpCell == null || Map.obstacles[tmpCell] || inc > maxInc) break;
 					var entityOnCell = Map.entityCells[tmpCell]
-					if(entityOnCell instanceof Entity) push(result, entityOnCell);
-					inc++;
+					if(entityOnCell instanceof Entity) push(result, entityOnCell)
+					inc++
 				}
 			}
 		}
-		return result;
+		return result
 	}
 	
-	// renvoie un array de cell depuis lesquel on peut tirer sur cell
-	// j'utilise leekToIgnore pour les lignes de vue
-	// et Map.entityCells pour les cases non accessibles (ou il y a tout le monde sauf self)
-	// donc pas encore compatible pour les bulbes cette fonction, uniquement pour moi !
-	static getCellsToUseItemOnCell(item, cell, leekToIgnore){
+	/* TODO clean this comment
+	 * Renvoie l'ensemble des <Cell> depuis lesquelles on peut tirer sur la @cell avec l'@item 
+	 * j'utilise Map.entityCells pour les cases non accessibles (ou il y a tout le monde sauf self)
+	 * FIXME maybe je devrais filtrer les entitiesIdToIgnore dans les entityCells ? genre si j'ignore qq
+	 * pour la los, je devrais aussi l'ignore dans les cases disponibles depuis lesquelles je devrais tirer,
+	 * puisque si il est pas la pour la los, il est pas là non plus si je veux me mettre à sa place pour tirer.
+	 * à voir selon les usages de cette fonction, actuellement je ne traite pas le tour les bulbes,
+	 * et j'ai pas encore de modèle pour gérer les kills/déplacement d'entity en cours de tour.
+	 * @param item Arme ou Puce de l'entité
+	 * @param cell cellule ciblé par l'entité
+	 * @param entitiesIdToIgnore array of id for lineOfSight()
+	 * @return un tableau de cellules 
+	 */
+	// 
+	static getCellsToUseItemOnCell(item, cell, entitiesIdToIgnore){
 		var result = []
 		if(item.isInLine){
 			for(var x1 = cell.x-item.maxRange; x1 <= cell.x+item.maxRange; x1++){
@@ -108,7 +118,7 @@ class TargetsService{
 				if(fromCell!=null 
 				&& Map.obstacles[fromCell]==null 
 				&& Map.entityCells[fromCell]==null
-				&& (!item.needLOS || lineOfSight(fromCell, cell, leekToIgnore))){
+				&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
 					push(result, fromCell)
 				}
 			}
@@ -119,7 +129,7 @@ class TargetsService{
 				if(fromCell!=null
 				&& Map.obstacles[fromCell]==null 
 				&& Map.obstacles[fromCell]==null
-				&& (!item.needLOS || lineOfSight(fromCell, cell, leekToIgnore))){
+				&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
 					push(result, fromCell)
 				}
 			}
@@ -132,7 +142,7 @@ class TargetsService{
 					if(fromCell!=null 
 					&& Map.obstacles[fromCell]==null 
 					&& Map.entityCells[fromCell]==null
-					&& (!item.needLOS || lineOfSight(fromCell, cell, leekToIgnore))){
+					&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
 						push(result, fromCell)
 					}
 				}
@@ -140,9 +150,35 @@ class TargetsService{
 		}
 		return result;
 	}
+	
+	/*
+	 * Renvoie la cellule la plus proche ou l'entité peut tirer sur la cellule ciblée avec l'arme/puce item
+	 * @info utilise les résultats de getCellsToUseItemOnCell puis détecte la cellule la plus proche parmis celles qui sont renvoyées 
+	 * @param entity L'entité
+	 * @param item Arme ou Puce de l'entité
+	 * @param cell cellule ciblé par l'entité
+	 * @param entitiesIdToIgnore array d'id d'entity à ignorer pour lineOfSight()
+	 * @return Cell
+	 */	
+	static getCellToUseItemOnCell(entity, item, cell, entitiesIdToIgnore){
+		var cells = Targets.getCellsToUseItemOnCell(item, cell, entitiesIdToIgnore)
+		var closestCell = null
+		var tmpDist = 99999
+		for(var c in cells){
+			var distance = getCellDistance(entity.cell, c)
+			if(tmpDist > distance){
+				tmpDist = distance
+				closestCell = c
+			}
+		}
+		return closestCell
+	}
 
-	// TODO merge avec la fonction au dessus, le code est quasi pareil...
-	static getAlliesTargetableCells(item, cell){
+	// la fonction getTargetableCells est quasi identique à getCellsToUse, à la différence qu'elle considère une case occupé comme ciblable (puisque je veux savoir si on peut tirer dessus), alors que getCellsToUse considère une case occupé comme non disponible (puisqu'on est censé y aller pour tirer sur la cible)
+	// je pourrais ptete fusionner les deux fonctions pour limiter la duplication du code
+	// mais en même temps, c'est une distinction qui me semble pas anodine... je laisse les deux pour le moment
+	// on verra plus tard si je prend une décision
+	static getTargetableCells(item, cell, leeksIdToIgnore){
 		var result = [], x = cell.x, y = cell.y
 		if(item.isInLine){
 			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
@@ -151,7 +187,7 @@ class TargetsService{
 				var targetCell = Map.getCell(getCellFromXY(x1, y))
 				if(targetCell!=null 
 				&& Map.obstacles[targetCell]==null 
-				&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
+				&& (!item.needLOS || lineOfSight(cell, targetCell, leeksIdToIgnore))){
 					push(result, targetCell)
 				}
 			}
@@ -161,7 +197,7 @@ class TargetsService{
 				var targetCell = Map.getCell(getCellFromXY(x, y1))
 				if(targetCell!=null 
 				&& Map.obstacles[targetCell]==null 
-				&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
+				&& (!item.needLOS || lineOfSight(cell, targetCell, leeksIdToIgnore))){
 					push(result, targetCell)
 				}
 			}
@@ -170,51 +206,10 @@ class TargetsService{
 				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
 					var dist =(x-x1<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1) // abs(x-x1)+abs(y-y1)..
 					if(dist > item.maxRange || dist < item.minRange) continue;
-					var targetCell = Map.getCell(getCellFromXY(x1, y1));
-					if(targetCell!=null 
-					&& Map.obstacles[targetCell]==null 
-					&& (!item.needLOS || lineOfSight(cell, targetCell, []))){
-						push(result, targetCell);
-					}
-				}
-			}
-		}
-		return result
-	}
-	
-	// TODO merge avec la fonction au dessus, le code est quasi pareil...
-	static getEnemiesTargetableCells(item, cell){
-		var result = [], x = cell.x, y = cell.y
-		if(item.isInLine){
-			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-				var dist = x-x1<0?x1-x:x-x1
-				if(dist < item.minRange) continue;
-				var targetCell = Map.getCell(getCellFromXY(x1, y))
-				if(targetCell!=null 
-				&& Map.obstacles[targetCell]==null 
-				&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
-					push(result, targetCell);
-				}
-			}
-			for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-				var dist = y-y1<0?y1-y:y-y1
-				if(dist < item.minRange) continue;
-				var targetCell = Map.getCell(getCellFromXY(x, y1))
-				if(targetCell!=null 
-				&& Map.obstacles[targetCell]==null 
-				&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
-					push(result, targetCell);
-				}
-			}
-		}else{
-			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-					var dist = (x-x1<0?x1-x:x-x1)+(y-y1<0?y1-y:y-y1) // abs(x-x1)+abs(y-y1)..
-					if(dist > item.maxRange || dist < item.minRange) continue;
 					var targetCell = Map.getCell(getCellFromXY(x1, y1))
 					if(targetCell!=null 
 					&& Map.obstacles[targetCell]==null 
-					&& (!item.needLOS || lineOfSight(cell, targetCell, Fight.allEntitiesId))){
+					&& (!item.needLOS || lineOfSight(cell, targetCell, leeksIdToIgnore))){
 						push(result, targetCell);
 					}
 				}
@@ -222,4 +217,5 @@ class TargetsService{
 		}
 		return result
 	}
+
 }

@@ -1,35 +1,38 @@
-include('model/game/Fight')
-include('model/game/Map')
-include('model/game/Cell')
-include('model/game/Entity')
-include('model/game/EntityEffect')
-include('model/game/Items')
-include('model/game/Item')
-include('model/game/ItemEffect')
-include('model/game/TargetType')
-include('model/game/Stats')
+include('API/compatibility')
 
-include('model/maps/MapDanger')
-include('model/maps/Danger')
-include('model/maps/MapPosition')
-include('model/maps/Position')
-include('model/maps/MapAction')
-include('model/maps/Action')
+include('Model/GameObject/Cell')
+include('Model/GameObject/Entity')
+include('Model/GameObject/EntityEffect')
+include('Model/GameObject/Item')
+include('Model/GameObject/ItemEffect')
+include('Model/GameObject/TargetType')
 
-include('model/Consequences')
-include('model/Combo')
-include('model/EffectOverTime')
-include('model/TargetsService')
+include('Model/GameDescription/Fight')
+include('Model/GameDescription/Map')
+include('Model/GameDescription/Items')
+include('Model/GameDescription/Stats')
+
+include('Model/Maps/MapDanger')
+include('Model/Maps/MapPosition')
+include('Model/Maps/MapAction')
+
+include('Model/Combos/Danger')
+include('Model/Combos/Position')
+include('Model/Combos/Action')
+include('Model/Combos/Consequences')
+include('Model/Combos/Combo')
+
+include('Model/EffectOverTime')
+
+include('Services/Targets')
 
 include('AI/Scoring')
 include('AI/AI')
 
 
-include('API/compatibility')
 include('TESTS/Debug/Benchmark')
 
 function init() {
-	Benchmark.reset()
 	Benchmark.start('init')
 	if(getTurn()==1) {
 		Benchmark.start('Map.init')

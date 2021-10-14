@@ -1,4 +1,4 @@
-include('../auto')
+include('../../auto')
 
 class Consequences {
 	_alterations = []// [entity:[caracteristic:value]]
@@ -24,7 +24,7 @@ class Consequences {
 	}
 	
 	construct(action){
-		this.targets = TargetsService.getTargets(action)
+		this.targets = Targets.getTargets(action)
 
 		// FIXME itemTargets return null when i dont have the item ?
 		// FIXME sur les items qui affecte le lanceur, self est dans les targets, et je le veux pas !
@@ -111,6 +111,7 @@ class Consequences {
 		
 		
 	// TODO reste à faire l'agi/les crit, et avgmin/avgmax ?
+	// TODO & les remplacements d'effet, + effet sur la durée dans les conseq
 	static convertToValue = [
 		EFFECT_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			var targetsCount = effect.multiplyByTarget ? count(conseq.targets) : 1

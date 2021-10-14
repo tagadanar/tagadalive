@@ -1,4 +1,4 @@
-include('../auto')
+include('../../auto')
 
 /*
  * Ensemble d'actions formant un combo 
