@@ -10,7 +10,6 @@ class Entity {
 	cell
 	totalLife
 	life
-	lifeMissing
 	pwr
 	str
 	mgc
@@ -208,6 +207,7 @@ class Entity {
 	 */
 	refresh() {
 		// TODO make a real full refresh based on consequences? might be used for bulb?
+		// OR delete this shit ? full refresh by instantiating the entity again, and replacing it in Fight ?
 		this.mp = getMP(this.id)
 		this.cell = Map.getCell(getCell(this.id))
 		this.reachableCells = this.getReachableCells(
@@ -215,78 +215,6 @@ class Entity {
 			this.mp,
 			this.cellsToIgnore
 		)
-	}
-	
-	/*
-	 * Renvoie l'ensemble des cellules ou l'entité peut tirer sur la cellule ciblé avec l'arme/puce item
-	 * @info La fonction prend en compte les LOS et toutes les autres entitées sauf l'Entity elle même (afin de ne pas prendre en compte les cases non accessibles) 
-	 * à ne pas utiliser pour les bulbes 
-	 * @param item Arme ou Puce de l'entité
-	 * @param targetCell cellule ciblé par l'entité
-	 * @return un tableau de cellules 
-	 */
-	getCellsToUseItemOnCell(item, targetCell){
-		var leekToIgnore = [this.id],result = [], x = targetCell.x, y = targetCell.y
-		if(item.isInLine){
-			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-				var dist = x-x1 < 0 ? x1-x : x-x1;
-				if(dist < item.minRange) continue;
-				var fromCell = Map.getCell(getCellFromXY(x1, y));
-				if(fromCell!=null 
-				&& Map.obstacles[fromCell]==null 
-				&& (Map.entityCells[fromCell]==null || Map.entityCells[fromCell]==Fight.self)
-				&& (!item.needLOS || lineOfSight(fromCell, targetCell, leekToIgnore))){
-					push(result, fromCell);
-				}
-			}
-			for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-				var dist = y-y1 < 0 ? y1-y : y-y1;
-				if(dist < item.minRange) continue;
-				var fromCell = Map.getCell(getCellFromXY(x, y1));
-				if(fromCell!=null 
-				&& Map.obstacles[fromCell]==null 
-				&& (Map.entityCells[fromCell]==null || Map.entityCells[fromCell]==Fight.self)
-				&& (!item.needLOS || lineOfSight(fromCell, targetCell, leekToIgnore))){
-					push(result, fromCell);
-				}
-			}
-		}else{
-			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
-				for(var y1 = y-item.maxRange; y1 <= y+item.maxRange; y1++){
-					var dist =(x-x1<0 ? x1-x : x-x1)+(y-y1<0 ? y1-y : y-y1);//trick pour abs(x-x1)+abs(y-y1)..
-					if(dist > item.maxRange || dist < item.minRange) continue;
-					var fromCell = Map.getCell(getCellFromXY(x1, y1));
-					if(fromCell!=null 
-					&& Map.obstacles[fromCell]==null 
-					&& (Map.entityCells[fromCell]==null || Map.entityCells[fromCell]==Fight.self)
-					&& (!item.needLOS || lineOfSight(fromCell, targetCell, leekToIgnore))){
-						push(result, fromCell);
-					}
-				}
-			}
-		}
-		return result;
-	}
-	
-	/*
-	 * Renvoie la cellule la plus proche ou l'entité peut tirer sur la cellule ciblée avec l'arme/puce item
-	 * @info utilise les résultats de getCellsToUseItemOnCell puis détecte la cellule la plus proche parmis celles qui sont renvoyées 
-	 * @param item Arme ou Puce de l'entité
-	 * @param cell cellule ciblé par l'entité
-	 * @return Cell
-	 */	
-	getCellToUseItemOnCell(item, cell){
-		var cells = this.getCellsToUseItemOnCell(item, cell)
-		var closestCell = null
-		var tmpDist = 9999
-		for(var c in cells){
-			var distance = getCellDistance(this.cell, c)
-			if(tmpDist > distance){
-				tmpDist = distance
-				closestCell = c
-			}
-		}
-		return closestCell
 	}
 
 	/*

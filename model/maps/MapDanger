@@ -176,7 +176,7 @@ class MapDanger {
 			MapDanger._cache_allies_item_targetableCells[item] = []
 		if(MapDanger._cache_allies_item_targetableCells[item][cell]==null){
 			MapDanger._cache_allies_item_targetableCells[item][cell] =
-				TargetsService.getAlliesTargetableCells(item, cell)
+				Targets.getTargetableCells(item, cell, [])
 		}
 			
 		return MapDanger._cache_allies_item_targetableCells[item][cell];
@@ -227,6 +227,7 @@ class MapDanger {
 	
 	/*
 	 * Retourne les Cells pouvant être touché avec le parametre item par les ennemis, ignore la los
+	 * ce qui permet de garder en cache le résultat pour des bonnes perfs
 	 * @see getAlliesTargetableCells
 	 * @param item Item
 	 * @param cell une Cellule accesible par l'entité en question
@@ -238,7 +239,7 @@ class MapDanger {
 		if(MapDanger._cache_item_targetableCells[item]==null) MapDanger._cache_item_targetableCells[item] = []
 		if(MapDanger._cache_item_targetableCells[item][cell]==null){
 			MapDanger._cache_item_targetableCells[item][cell] =
-				TargetsService.getEnemiesTargetableCells(item, cell)
+				Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
 		}
 		return MapDanger._cache_item_targetableCells[item][cell];
 	}
