@@ -158,7 +158,6 @@ class Fight {
 	 * @param entity Entity 
 	 * @return liste des entités vivantes alliés et ennemies 
 	 */
-	 // todo changez le test unitaire
 	static getListOfLeekWhoPlayBefore(entity) {
 		if(entity == self) return [self];
 		var list = [self]

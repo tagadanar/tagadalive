@@ -54,7 +54,7 @@ class AI {
 			
 			// tri par score des actions
 			mapBestAction[cell] = arraySort(mapBestAction[cell], function(a,b){	
-				return b.score-a.score; // TODO PARTOUT + SORT_DESC global ?
+				return Sort.desc(a.score, b.score)
 			});
 			
 			// ajout du meilleur score sur la case jusqu'à épuisement des TP/CD

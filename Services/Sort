@@ -1,0 +1,9 @@
+class Sort {
+	static desc(a, b){
+		return b-a
+	}
+	
+	static asc(a, b){
+		return a-b
+	}
+}
