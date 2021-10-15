@@ -1,0 +1,166 @@
+include ('../../auto')
+
+class MapPath{
+	static _cache_reachable = []
+	static _cache_reachable_size = []
+	
+	/*
+	 * Renvoie l'ensemble de cellules accessibles depuis la cellule (cells) avec la quantité de points de mouvements (mp) en utilisant les voisins.
+	 * @param cells -> cellule à partir de laquelle je veux checker (format [Cell:distance]) donc par exemple ma [cellule courante:0]
+	 * @param mp -> les points de mouvements
+	 * @param ignoreCells -> cellules à ignorer par l'algorithme
+	 * @return  un tableau contenant pour chaque cellules accessible [Cell:distance]
+	 * 
+	 */
+	static getReachableCells(cells, mp, ignoreCells){
+		var stack = cells;
+		var tmp = cells;
+		var next = [];
+		while(mp-->0){
+			for(var currentWorkingCell: var dist in tmp){
+				for(var c in currentWorkingCell.neighbors){
+					if(stack[c] == null && (!Map.entityCells[c] || inArray(ignoreCells, c))){
+						stack[c] = dist+1;
+						next[c] = dist+1;
+					}
+				}
+			}
+			tmp = next;
+			next = [];
+		}
+		return stack
+	}
+	
+	
+	static updateReachableCellsAfterJump(howToJump, origin, pathToJump, reachableWithJump, reachableWithoutJump, mp, ignoreCells){
+		//handling the case I jump to:	
+		if(reachableWithoutJump[howToJump.to] == null
+		&& reachableWithJump[howToJump.to]==null){
+			pathToJump[howToJump.to]=howToJump;
+			reachableWithJump[howToJump.to] = origin[howToJump.to];
+		}
+		var stack = origin;
+		var tmp = origin;
+		var next = [];
+		while(mp-->0){
+			for(var currentWorkingCell : var dist in tmp){
+				for(var c in currentWorkingCell.neighbors){
+					if((reachableWithoutJump[c]==null ||reachableWithoutJump[c]>dist+1)
+					  && stack[c] == null 
+					  && (isEmptyCell(c) || inArray(ignoreCells, c))){
+						//add to jumpCells if faster or inexistant
+						if(reachableWithoutJump[c] == null
+						&&(reachableWithJump[c]==null || reachableWithJump[c]>dist+1)){
+							pathToJump[c]=howToJump;
+							reachableWithJump[c] = dist+1;
+						}
+						stack[c] = dist+1;
+						next[c] = dist+1;
+					}
+				}
+			}
+			tmp = next;
+			next = [];
+		}
+	}
+
+	// cells [idcell:mp]
+	static getJumpReachableCells(cells, mp, ignoreCells, pathToJump){
+		var stack = cells;
+		var tmp = cells;
+		var next = [];
+		var maxmp = mp
+		var could_jump_from = [];
+		// normal walking reachableCells
+		while(mp-->0){
+			for(var currentWorkingCell : var dist in tmp){
+				for(var c in currentWorkingCell.neighborsObstacles){
+					if(Map.obstacles[c]){ // try jumping
+						// TODO FIXME BUG HERE, I SHOULD TRY TO JUMP OVER LEEK ALSO !!!
+						// careful, for enemy mp I shouldnt jump over leek I ignore in ignoreCells !
+						could_jump_from[currentWorkingCell] = mp+1;
+					}else if(stack[c] == null && (!Map.entityCells[c] || inArray(ignoreCells, c))){
+						stack[c] = dist+1;
+						next[c] = dist+1;
+					}
+				}
+			}
+			tmp = next;
+			next = [];
+			if(mp==0){
+				for(var c:var m in tmp){
+					could_jump_from[c]=0;
+				}
+			}
+		}
+		// adding jump only cells
+		var jumpCells = [];
+		var stackJump = [];
+		// TODO cette boucle devrait être basé sur min/maxrange de jump pour rester dynamique en cas de maj
+		for(var cellFrom:var mpleft in could_jump_from){
+			jumpCells[cellFrom] = [];
+			for(var c in cellFrom.neighbors){
+				if(stack[c]==null
+				|| stack[c] > maxmp-mpleft+1){ // shortcut
+					MapPath.updateReachableCellsAfterJump(Jump(cellFrom, c), [c:mpleft], pathToJump, stackJump, stack, mpleft, ignoreCells);
+					//debugW("jump1case?");
+				}
+			}
+			for(var c in cellFrom.getArea(AREA_CIRCLE_2)){ // todo only area2 circle?
+				if(stack[c]==null
+				|| stack[c] > maxmp-mpleft+2){ // shortcut
+					MapPath.updateReachableCellsAfterJump(Jump(cellFrom, c), [c:mpleft], pathToJump, stackJump, stack, mpleft, ignoreCells);
+					//debugW("jump2case?");
+				}
+			}
+			for(var c in cellFrom.getArea(AREA_CIRCLE_3)){ // todo only area3 circle?
+				if(stack[c]==null
+				|| stack[c] > maxmp-mpleft+3){ // shortcut
+					MapPath.updateReachableCellsAfterJump(Jump(cellFrom, c), [c:mpleft], pathToJump, stackJump, stack, mpleft, ignoreCells);
+					//debugW("jump3case?");
+				}
+			}
+		}
+		//for(var @c:var @mpp in stack){
+			//mark(c, COLOR_GREEN);
+		//}
+		//pause();
+		for(var c:var mpp in stackJump){
+			if(stack[c]!=null)debugE("BUG INSIDE MAPPATH.REACHABLEJUMP!!");
+			stack[c]=mpp;
+			//mark(c, COLOR_RED);
+		}
+		//pause();
+		return stack;
+	}
+	
+	static getHashcode(from, dead){
+		var hash = 31
+		hash = hash*37+from
+		for(var d in dead){
+			hash = hash*37+d.id
+		}
+		return hash
+	}
+		
+	static getCachedReachableCells(fromCell, mp, dead){
+		var hash = MapPath.getHashcode(fromCell, dead)
+		var result = MapPath._cache_reachable[hash]
+		if(result==null){
+			var ignored = [Fight.self.cell]
+			for(var d in dead) push(ignored, d.cell);
+			result = MapPath.getReachableCells([fromCell:0], mp, ignored)
+			_cache_reachable_size[hash] = mp;
+			_cache_reachable[hash] = result;
+		}else if(MapPath._cache_reachable_size[hash] < mp){
+			var ignored = [Fight.self.cell]
+			for(var d in dead) push(ignored, d.cell)
+			result = getReachableCells(MapPath._cache_reachable[hash], mp-MapPath._cache_reachable_size[hash], ignored)
+			MapPath._cache_reachable_size[hash] = mp;
+			MapPath._cache_reachable[hash] = result;
+		}
+		return result;
+	}
+
+
+}

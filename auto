@@ -7,15 +7,18 @@ include('Model/GameObject/Item')
 include('Model/GameObject/ItemEffect')
 include('Model/GameObject/TargetType')
 
-include('Model/GameDescription/Fight')
-include('Model/GameDescription/Map')
-include('Model/GameDescription/Items')
-include('Model/GameDescription/Stats')
+include('Model/Const/Stats')
 
+include('Controlers/Fight')
+include('Controlers/Map')
+include('Controlers/Items')
+
+include('Model/Maps/MapPath')
 include('Model/Maps/MapDanger')
 include('Model/Maps/MapPosition')
 include('Model/Maps/MapAction')
 
+include('Model/Combos/Jump')
 include('Model/Combos/Danger')
 include('Model/Combos/Position')
 include('Model/Combos/Action')
@@ -25,12 +28,14 @@ include('Model/Combos/Combo')
 include('Model/EffectOverTime')
 
 include('Services/Targets')
+include('Services/Sort')
+include('Services/Benchmark')
+
 
 include('AI/Scoring')
 include('AI/AI')
 
 
-include('TESTS/Debug/Benchmark')
 
 function init() {
 	Benchmark.start('init')
