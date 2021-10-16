@@ -70,7 +70,7 @@ class Combo {
 		// TODO: this.getCurrentMP() qui simule les déplacements entre les actions.
 		// voir plutôt avoir une variable currentCell et currentMP que j'actualise à chaque ajout d'action.
 		var mpleft = Fight.self.mp - Fight.self.reachableCells[from]
-		return Fight.self.getReachableCells([from:0], mpleft, Fight.self.cellsToIgnore)
+		return MapPath.getReachableCells([from:0], mpleft, Fight.self.cellsToIgnore)
 	}
 	
 	/*

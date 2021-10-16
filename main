@@ -29,10 +29,7 @@ function failSafe(){
 failSafe()
 
 Benchmark.display()
-var opUsed = getOperations()
-var mega = floor(opUsed/1000000)
-var kilo = round((opUsed-(mega*1000000))/1000)
-debug('UTILISATION TOTALE DU TOUR: ' + (mega>0?mega+" ":"") + kilo + "k")
+debug('UTILISATION TOTALE DU TOUR: ' + Benchmark.format(getOperations()) )
 
 
 

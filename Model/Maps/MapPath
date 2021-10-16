@@ -1,8 +1,13 @@
 include ('../../auto')
 
 class MapPath{
-	static _cache_reachable = []
-	static _cache_reachable_size = []
+	static _cache_reachable
+	static _cache_reachable_size
+	
+	static refresh(){
+		MapPath._cache_reachable = []
+		MapPath._cache_reachable_size = []
+	}
 	
 	/*
 	 * Renvoie l'ensemble de cellules accessibles depuis la cellule (cells) avec la quantité de points de mouvements (mp) en utilisant les voisins.

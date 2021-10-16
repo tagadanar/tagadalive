@@ -35,9 +35,18 @@ class Benchmark{
 	static display(){
 		var str = "BENCHMARK Turn " + getTurn()
 		for(var name:var nbCall in _count_func){
-			str+= "\n" + name + ": " + nbCall + " call. Moy= " + round(_cumul_func[name]/nbCall) + " Total= " + round((_cumul_func[name])/1000) + "k"
+			str+= "\n" + name + ": " + nbCall + " call. Moy= " + Benchmark.format(_cumul_func[name]/nbCall) + " Total= " + Benchmark.format(_cumul_func[name])
 		}
 		debug(str)
 	}
-
+	
+	static format(num){
+		num = num | 0
+		if(num >= 1000){
+			var mega = floor(num/1000000)
+			var kilo = round((num-(mega*1000000))/1000)
+			var formated = (mega>0?mega+" ":"") + kilo + "k"
+			return formated
+		}else return num
+	}
 }
