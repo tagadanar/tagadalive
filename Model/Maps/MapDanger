@@ -245,7 +245,7 @@ class MapDanger {
 	}
 		
 	static showDanger(from, mpleft, consequences) {
-		var reachableCells = Fight.self.getReachableCells([from:0], mpleft, Fight.self.cellsToIgnore)
+		var reachableCells = MapPath.getReachableCells([from:0], mpleft, Fight.self.cellsToIgnore)
 		var arrayDanger = []
 		for(var c : var d in reachableCells) {
 			var danger = MapDanger.getCellDanger(c, consequences)

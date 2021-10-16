@@ -60,6 +60,10 @@ function init() {
 	Scoring.refresh()
 	Benchmark.stop('Scoring.refresh')
 	
+	Benchmark.start('MapPath.refresh')
+	MapPath.refresh()
+	Benchmark.stop('MapPath.refresh')
+	
 	Benchmark.start('MapDanger.refresh')
 	MapDanger.refresh()
 	Benchmark.stop('MapDanger.refresh')
@@ -71,6 +75,6 @@ function init() {
 	Benchmark.start('MapAction.refresh')
 	MapAction.refresh()
 	Benchmark.stop('MapAction.refresh')
-		
+			
 	Benchmark.stop('init')
 }
