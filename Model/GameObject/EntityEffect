@@ -24,4 +24,8 @@ class EntityEffect {
 		// pas sur d'avoir besoin des modifiers ici, je save ocazou
 		this.modifiers = effect[7]
 	}
+	
+	string(){
+		return "<EntityEffect type:"+ this.type +" |value:"+ this.value +">"
+	}
 }

@@ -26,16 +26,10 @@ class Consequences {
 	construct(action){
 		this.targets = Targets.getTargets(action)
 
-		// FIXME itemTargets return null when i dont have the item ?
-		// FIXME sur les items qui affecte le lanceur, self est dans les targets, et je le veux pas !
-		// pour le moment j'ai add un if qui gère le cas chelou, todo recoder getItemTargets pour qu'elle fasse
-		// ce que je veux !
-		// note: il faut aussi handle le cas où je lance un item aoe et je suis assez proche de la zone
+		// FIXME il faut aussi handle le cas où je lance un item aoe et je suis assez proche de la zone
 		// pour être affecté....
 		for(var target in this.targets){
-			//if(target == Fight.self && action.to != Fight.selfCell) continue //fixed in getItemTargets
 			if(this._killed[target]) continue
-			// this line is bugged, should have info of area to not decrease on lazer
 			var ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(action.to, target.cell)) : 1
 			if(ratioDmg<=0){
 				debugE('Bug in Consequences constructor, SHOULD NOT HAPPEN !')
@@ -48,11 +42,14 @@ class Consequences {
 		}
 	}
 	
-	add(entity, key, value){
+	add(entity, key, effect){
 		if(!_alterations[entity]) _alterations[entity] = []
+		var isOverTime = effect instanceof EffectOverTime
+		var value = isOverTime ? effect.value : effect
+		
 		_alterations[entity][key] += value // pour null, devrait se comporter comme si ça contenait 0
-			// ça ne marche qu'avec += en leekscriptv1, pas tester en v1.1 comment ça marche...
-			// j'avais des bugs sur les -=, donc il faut faire += -value si le comportement est le mm ici.
+		// ça ne marche qu'avec += en leekscriptv1, pas tester en v1.1 comment ça marche...
+		// j'avais des bugs sur les -=, donc il faut faire += -value si le comportement est le mm ici.
 		
 		if(entity==Fight.self && (
 			   key==Stats.HP
@@ -70,20 +67,17 @@ class Consequences {
 				this.hashcode = 31 * this.hashcode + entity.id
 				this.hashcode = 31 * this.hashcode + (value|0)
 		}
-
+		
 		// update du score
-		this.score+= value * Scoring.getCoef(entity, key)
+		if(!isOverTime) this.score+= value * Scoring.getCoef(entity, key)
+		else this.score+=value*Scoring.getCoef(entity, key)*Scoring.offensive_duration_mitigation[effect.duration]
 	}
 	
-	add(entity, key){
-		if(key == Stats.KILL){
-			this.isAlteringDanger=true
-			this.hashcode = 31 * this.hashcode + entity.id
-			this._killed[entity]=true
-			this.score+= Scoring.KILL_VALUE * Scoring.getCoef(entity, key)
-		} else {
-			debugW('called Consequences.add() with wrong key or value')
-		}
+	addKill(entity){
+		this.isAlteringDanger=true
+		this.hashcode = 31 * this.hashcode + entity.id
+		this._killed[entity]=true
+		this.score+= Scoring.KILL_VALUE * Scoring.getCoef(entity, Stats.KILL)
 	}
 	
 	getAlterations(){
@@ -106,12 +100,13 @@ class Consequences {
 		// fixme: ce if marche pas, j'ai tjr true mm pour EFFECT_DAMAGE
 		//if(!ItemEffect.convertToValue[this.type]) debugW('unhandledEffect on ItemEffect typeID: '+ this.type)
 		var target = effect.modifCaster ? entitySource : entityTarget
+		ratioDmg = effect.modifCaster ? 1 : ratioDmg
 		return Consequences.convertToValue[effect.type](effect, entitySource, target, ratioDmg, this)
 	}
 		
 		
 	// TODO reste à faire l'agi/les crit, et avgmin/avgmax ?
-	// TODO & les remplacements d'effet, + effet sur la durée dans les conseq
+	// TODO EROSION sur la durée ?
 	static convertToValue = [
 		EFFECT_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			var targetsCount = effect.multiplyByTarget ? count(conseq.targets) : 1
@@ -123,9 +118,9 @@ class Consequences {
 			conseq.add(entityTarget, Stats.HP, -value)
 			
 			if(entityTarget.getCurrentHP(conseq) <= 0) 
-				conseq.add(entityTarget, Stats.KILL)
+				conseq.addKill(entityTarget)
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
-			
+
 			// érosion !
 			conseq.add(entityTarget, Stats.HPMAX, -value/20) // TODO le 20 ici devrait être dans une constante
 			
@@ -144,12 +139,15 @@ class Consequences {
 				conseq.add(entitySource, Stats.HPMAX, -dmgReturn/20) // TODO le 20 ici devrait être dans constante
 				
 				if(dmgReturn>=entitySource.getCurrentHP(conseq)) 
-					conseq.add(entitySource, Stats.KILL) 
+					conseq.addKill(entitySource) 
 			}
 		},
 		EFFECT_POISON: function(effect, entitySource, entityTarget, ratioDmg, conseq){
+			// pas de tests sur stackable car tous les poisons sont stackable actuellement
 			// devrait être au niveau au dessus si d'autres items que covid ont notReplaceable, en attendant, ici on économise des opérations.
-			if(effect.notReplaceable){}//TODO check if target is already undereffect
+			if(effect.notReplaceable){
+				if(entityTarget.getItemEffects(effect.item)) return;
+			}
 			
 			// FIXME: dans mon autre IA, je gère deux notions, les dmgNextTurn, qui pemettent de définir un kill
 			// en solo, et les dmg*duration, qui doivent être minoré plus ça dure
@@ -157,7 +155,8 @@ class Consequences {
 			
 			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
 				*(1+(entitySource.getCurrentPwr(conseq)/100)) *effect.duration // TODO power in consequences !!!!
-			conseq.add(entityTarget, Stats.HPTIME, value)
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.HPTIME, eot)
 			
 			// érosion ! c'est moche de rediv par durée, FIXME quand j'aurais géré la durée dans les conseq
 			conseq.add(entityTarget, Stats.HPMAX, -value/effect.duration/10)
@@ -171,7 +170,7 @@ class Consequences {
 			conseq.add(entityTarget, Stats.HP, -value)
 			
 			if(entityTarget.getCurrentHP(conseq) <= 0) 
-				conseq.add(entityTarget, Stats.KILL)
+				conseq.addKill(entityTarget)
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
 
 			// érosion !
@@ -186,7 +185,7 @@ class Consequences {
 					conseq.add(entitySource, Stats.HPMAX, -dmgReturn/20) // TODO le 20 ici devrait être dans constante
 					
 					if(dmgReturn>=entitySource.getCurrentHP(conseq))
-						conseq.add(entitySource, Stats.KILL) 
+						conseq.addKill(entitySource) 
 				}
 			}
 		},
@@ -197,10 +196,17 @@ class Consequences {
 		},
 		EFFECT_HEAL: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(effect.duration>1){ // HPTIME
-				// TODO même prob que pour le poison, modèle du hptime dans conseq ?
-				// TODO une fois qu'on aura les effets sur les entitys, check si pas déjà sous l'effet !
-				var value = effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg *effect.duration
-				conseq.add(entityTarget, Stats.HPTIME, value)
+				if(!effect.stackable){
+					var itemEffects = entityTarget.getItemEffects(effect.item)
+					if(itemEffects){
+						// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+						var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+						conseq.add(entityTarget, Stats.HPTIME, eot)
+					}
+				}
+				var value = effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg
+				var eot = EffectOverTime(effect.item, value, effect.duration)
+				conseq.add(entityTarget, Stats.HPTIME, eot)
 			} else { // HP
 				var value = effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg
 				value = min(value, entityTarget.getCurrentHPMissing(conseq))
@@ -217,147 +223,268 @@ class Consequences {
 			conseq.add(entityTarget, Stats.HPMAX, value)
 		},
 		EFFECT_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
-			var value = effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg // *effect.duration
-			conseq.add(entityTarget, Stats.ABSSHIELD, value)
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.ABSSHIELD, eot)
+				}
+			}
+			var value = effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 		},
 		EFFECT_RELATIVE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.RELSHIELD, eot)
+				}
+			}
 			var value = effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg // *effect.duration
+			var eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.RELSHIELD, value)
 		},
 		EFFECT_ABSOLUTE_VULNERABILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
-			// pas de ratiodmg pour le moment, tous les items sont à 1
-			var value = effect.avg // *ratioDmg // *effect.duration
-			conseq.add(entityTarget, Stats.ABSSHIELD, -value)
+			// pas de check stackable car always stackable actuellement
+			var value = effect.avg *ratioDmg
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 		},
 		EFFECT_VULNERABILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
-			var value = effect.avg *ratioDmg // *effect.duration
-			conseq.add(entityTarget, Stats.RELSHIELD, -value)
+			// pas de check stackable car always stackable actuellement
+			var value = effect.avg *ratioDmg
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.RELSHIELD, eot)
 		},
 		EFFECT_STEAL_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
-			// pas de ratiodmg pour le moment, tous les items sont à 1
-			var value = effect.avg // *ratioDmg // *effect.duration
-			conseq.add(entityTarget, Stats.ABSSHIELD, value)
+			// pas de check stackable car always stackable actuellement
+			var value = effect.avg *ratioDmg // *effect.duration
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 		},
 		EFFECT_DAMAGE_RETURN: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
-			var value = effect.avg *(1+(entitySource.getCurrentAgi(conseq)/100)) *ratioDmg // *effect.duration
-			conseq.add(entityTarget, Stats.DMGRETURN, value)
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.DMGRETURN, eot)
+				}
+			}
+			var value = effect.avg *(1+(entitySource.getCurrentAgi(conseq)/100)) *ratioDmg
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.DMGRETURN, eot)
 		},
 		EFFECT_RAW_BUFF_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.STR, eot)
+				}
+			}
 			var value = effect.avg *ratioDmg
-			conseq.add(entityTarget, Stats.STR, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.STR, eot)
 		},
 		EFFECT_RAW_BUFF_MAGIC: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.MGC, eot)
+				}
+			}
 			var value = effect.avg *ratioDmg
-			conseq.add(entityTarget, Stats.MGC, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.MGC, eot)
 		},
 		EFFECT_RAW_BUFF_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.AGI, eot)
+				}
+			}
 			var value = effect.avg *ratioDmg
-			conseq.add(entityTarget, Stats.AGI, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.AGI, eot)
 		},
 		EFFECT_RAW_BUFF_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.WSD, eot)
+				}
+			}
 			var value = effect.avg *ratioDmg
-			conseq.add(entityTarget, Stats.WSD, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.WSD, eot)
 		},
 		EFFECT_RAW_BUFF_RESISTANCE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.RST, eot)
+				}
+			}
 			var value = effect.avg *ratioDmg
-			conseq.add(entityTarget, Stats.RST, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.RST, eot)
 		},
 		EFFECT_RAW_BUFF_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.TP, eot)
+				}
+			}
 			var value = effect.avg *ratioDmg
-			conseq.add(entityTarget, Stats.TP, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.TP, eot)
 		},
 		EFFECT_RAW_BUFF_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.MP, eot)
+				}
+			}
 			var value = effect.avg *ratioDmg
-			conseq.add(entityTarget, Stats.MP, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.MP, eot)
 		},
 		EFFECT_BUFF_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.STR, eot)
+				}
+			}
 			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.STR, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.STR, eot)
 		},
 		EFFECT_BUFF_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.AGI, eot)
+				}
+			}
 			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.AGI, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.AGI, eot)
 		},
 		EFFECT_BUFF_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.WSD, eot)
+				}
+			}
 			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.WSD, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.WSD, eot)
 		},
 		EFFECT_BUFF_RESISTANCE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.RST, eot)
+				}
+			}
 			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.RST, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.RST, eot)
 		},
 		EFFECT_BUFF_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.TP, eot)
+				}
+			}
 			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.TP, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.TP, eot)
 		},
 		EFFECT_BUFF_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			if(!effect.stackable){
+				var itemEffects = entityTarget.getItemEffects(effect.item)
+				if(itemEffects){
+					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
+					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					conseq.add(entityTarget, Stats.MP, eot)
+				}
+			}
 			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.MP, value)
+			var eot = EffectOverTime(effect.item, value, effect.duration)
+			conseq.add(entityTarget, Stats.MP, eot)
 		},
 		EFFECT_SHACKLE_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
 			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.STR, -value)
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.STR, eot)
 		},
 		EFFECT_SHACKLE_MAGIC: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
 			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.MGC, -value)
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.MGC, eot)
 		},
 		EFFECT_SHACKLE_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
 			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.TP, -value)
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.TP, eot)
 		},
 		EFFECT_SHACKLE_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO mm prob en fait pour tous les effets sur la durée
-			// TODO check si l'entity est pas déjà sous l'effet
+			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
 			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			conseq.add(entityTarget, Stats.MP, -value)
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.MP, eot)
 		},
 		EFFECT_DEBUFF: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO
+			for(var entityEffect in entityTarget.effects){
+				// ici le CONVERTER sert à set la value en négatif si c'est un malus, genre un poison fait
+				// des dmg en HPTIME, il en redonne pas.
+				var value = entityEffect.value * (effect.avg/100) *TargetType.CONVERTER[entityEffect.type]
+				var eot = EffectOverTime(effect.item, -value, entityEffect.turns)
+				var stat = Stats.entityEffectType_to_stats[entityEffect.type]
+				if(stat==null) debugE("LIBERATION effect to stat unhandled :"+entityEffect)
+				conseq.add(entityTarget, stat, eot)
+			}
+			// TODO FIX THIS FUNCTION §§§§§§§§§
+			// probablement un bug car l'algo fait pas la diff entre HPTIME vaccin & poison... 
+			// TODO check if effect is irreductible ?
 		},
 		EFFECT_ANTIDOTE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			// TODO
@@ -366,6 +493,9 @@ class Consequences {
 			// TODO
 		},
 		EFFECT_AFTEREFFECT: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// TODO
+		},
+		EFFECT_PROPAGATION: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			// TODO
 		},
 	]

@@ -10,10 +10,12 @@ class TargetType {
 	// exemple broadsword / j_lazer
 	// TODO target empty cell for item that target nothing : summon, resu, teleport, broadsword to selfboost, etc... ?
 
-	static ENEMIES = 1
-	static ALLIES = 2
-	static ALL = 3
-	static EMPTY = 4
+	// ALLIES et ENEMIES permettent de définir un effet positif ou négatif, et sont utilisés pour savoir
+	// si la value d'un entityEffect doit être négative ou positive
+	static ENEMIES = -1
+	static ALLIES = 1
+	static ALL = 2
+	static EMPTY = 3
 	
 	static CONVERTER = [
 		EFFECT_DAMAGE: 					TargetType.ENEMIES,
@@ -29,8 +31,12 @@ class TargetType {
 		EFFECT_SHACKLE_STRENGTH:		TargetType.ENEMIES,
 		EFFECT_SHACKLE_MP:				TargetType.ENEMIES,
 		EFFECT_SHACKLE_TP:				TargetType.ENEMIES,
-		
-		EFFECT_PROPAGATION:				TargetType.ENEMIES, // présent uniquement sur covid, TODO .ALL target si on code bien ensuite ;)
+		// présent uniquement sur un item de boost réservé aux allys, mais c'est un effet négatif
+		// et j'utilise ça pour valuer libération... 
+		// tant pis pour les économies d'opés en mettant ça sur allies, au moins mon code est cohérent..
+		EFFECT_AFTEREFFECT: 			TargetType.ENEMIES,
+		// présent uniquement sur covid, TODO .ALL target si on code bien ensuite ;)
+		EFFECT_PROPAGATION:				TargetType.ENEMIES,
 		
 		EFFECT_ANTIDOTE: 				TargetType.ALLIES,
 		EFFECT_REMOVE_SHACKLES: 		TargetType.ALLIES,
@@ -46,7 +52,6 @@ class TargetType {
 		EFFECT_RAW_BUFF_TP: 			TargetType.ALLIES,
 		EFFECT_RAW_BUFF_WISDOM: 		TargetType.ALLIES,
 		EFFECT_BUFF_AGILITY: 			TargetType.ALLIES,
-		EFFECT_BUFF_FORCE: 				TargetType.ALLIES,
 		EFFECT_BUFF_MP: 				TargetType.ALLIES,
 		EFFECT_BUFF_RESISTANCE: 		TargetType.ALLIES,
 		EFFECT_BUFF_STRENGTH: 			TargetType.ALLIES,
@@ -57,7 +62,7 @@ class TargetType {
 		EFFECT_DAMAGE_RETURN: 			TargetType.ALLIES,
 		EFFECT_NOVA_VITALITY: 			TargetType.ALLIES,
 		EFFECT_REMOVE_SHACKLES: 		TargetType.ALLIES,
-		EFFECT_AFTEREFFECT: 			TargetType.ALLIES, // présent uniquement sur un item de boost réservé aux allys
+		
 		
 		//
 		EFFECT_ATTRACT: 				TargetType.ALL,
@@ -71,11 +76,6 @@ class TargetType {
 		EFFECT_TELEPORT: 				TargetType.EMPTY,
 		EFFECT_SUMMON: 					TargetType.EMPTY
 	]
-	
-	/*
-[DrFrankenstein] unhandled type in TargetType on effect: <ItemEffect covid-1>
-[DrFrankenstein] unhandled type in TargetType on effect: <ItemEffect crushing-1>
-	*/
 
 	constructor(effect){
 		// THIS is the fact that effect does hit caster if in aoe (like CHIP_LIGHTNING is false)

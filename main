@@ -10,6 +10,12 @@ else {
 	debugE('/!\ turn '+getTurn()+' Combo null !')
 }
 
+for(var c:var a in MapAction._item_cell_actions[Items.getItem(CHIP_LIBERATION)]){
+	debug(a)
+	//pause()
+}
+
+
 // cast avec le reste des TP
 function failSafe(){
 	var tpleft = getTP()
@@ -30,6 +36,4 @@ failSafe()
 
 Benchmark.display()
 debug('UTILISATION TOTALE DU TOUR: ' + Benchmark.format(getOperations()) )
-
-
 

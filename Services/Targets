@@ -94,63 +94,6 @@ class Targets{
 		return result
 	}
 	
-	/* TODO clean this comment
-	 * Renvoie l'ensemble des <Cell> depuis lesquelles on peut tirer sur la @cell avec l'@item 
-	 * j'utilise Map.entityCells pour les cases non accessibles (ou il y a tout le monde sauf self)
-	 * FIXME maybe je devrais filtrer les entitiesIdToIgnore dans les entityCells ? genre si j'ignore qq
-	 * pour la los, je devrais aussi l'ignore dans les cases disponibles depuis lesquelles je devrais tirer,
-	 * puisque si il est pas la pour la los, il est pas là non plus si je veux me mettre à sa place pour tirer.
-	 * à voir selon les usages de cette fonction, actuellement je ne traite pas le tour les bulbes,
-	 * et j'ai pas encore de modèle pour gérer les kills/déplacement d'entity en cours de tour.
-	 * @param item Arme ou Puce de l'entité
-	 * @param cell cellule ciblé par l'entité
-	 * @param entitiesIdToIgnore array of id for lineOfSight()
-	 * @return un tableau de cellules 
-	 */
-	// 
-	static getCellsToUseItemOnCell(item, cell, entitiesIdToIgnore){
-		var result = []
-		if(item.isInLine){
-			for(var x1 = cell.x-item.maxRange; x1 <= cell.x+item.maxRange; x1++){
-				var dist =cell.x-x1 < 0 ? x1-cell.x : cell.x-x1
-				if(dist < item.minRange) continue
-				var fromCell = Map.getCell(getCellFromXY(x1, cell.y))
-				if(fromCell!=null 
-				&& Map.obstacles[fromCell]==null 
-				&& Map.entityCells[fromCell]==null
-				&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
-					push(result, fromCell)
-				}
-			}
-			for(var y1 = cell.y-item.maxRange; y1 <= cell.y+item.maxRange; y1++){
-				var dist = cell.y-y1 < 0 ? y1-cell.y : cell.y-y1
-				if(dist < item.minRange) continue
-				var fromCell = Map.getCell(getCellFromXY(cell.x, y1))
-				if(fromCell!=null
-				&& Map.obstacles[fromCell]==null 
-				&& Map.obstacles[fromCell]==null
-				&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
-					push(result, fromCell)
-				}
-			}
-		}else{
-			for(var x1 = cell.x-item.maxRange; x1 <= cell.x+item.maxRange; x1++){
-				for(var y1 = cell.y-item.maxRange; y1 <= cell.y+item.maxRange; y1++){
-					var dist = (cell.x-x1 < 0 ? x1-cell.x : cell.x-x1) + (cell.y-y1 < 0 ? y1-cell.y : cell.y-y1)
-					if(dist > item.maxRange || dist < item.minRange) continue;
-					var fromCell = Map.getCell(getCellFromXY(x1, y1))
-					if(fromCell!=null 
-					&& Map.obstacles[fromCell]==null 
-					&& Map.entityCells[fromCell]==null
-					&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
-						push(result, fromCell)
-					}
-				}
-			}
-		}
-		return result;
-	}
-	
 	/*
 	 * Renvoie la cellule la plus proche ou l'entité peut tirer sur la cellule ciblée avec l'arme/puce item
 	 * @info utilise les résultats de getCellsToUseItemOnCell puis détecte la cellule la plus proche parmis celles qui sont renvoyées 
@@ -173,21 +116,226 @@ class Targets{
 		}
 		return closestCell
 	}
+	
+	/* TODO clean this comment
+	 * Renvoie l'ensemble des <Cell> depuis lesquelles on peut tirer sur la @cell avec l'@item 
+	 * j'utilise Map.entityCells pour les cases non accessibles (ou il y a tout le monde sauf self)
+	 * FIXME maybe je devrais filtrer les entitiesIdToIgnore dans les entityCells ? genre si j'ignore qq
+	 * pour la los, je devrais aussi l'ignore dans les cases disponibles depuis lesquelles je devrais tirer,
+	 * puisque si il est pas la pour la los, il est pas là non plus si je veux me mettre à sa place pour tirer.
+	 * à voir selon les usages de cette fonction, actuellement je ne traite pas le tour les bulbes,
+	 * et j'ai pas encore de modèle pour gérer les kills/déplacement d'entity en cours de tour.
+	 * @param item Arme ou Puce de l'entité
+	 * @param cell cellule ciblé par l'entité
+	 * @param entitiesIdToIgnore array of id for lineOfSight()
+	 * @return un tableau de cellules 
+	 */
+	static getCellsToUseItemOnCell(item, cell, entitiesIdToIgnore){
+		return Targets.launchType[item.launchType](item, cell, entitiesIdToIgnore, false)
+		/*
+		var result = []
+		if(item.launchType == LAUNCH_TYPE_LINE){
+			for(var x1 = cell.x-item.maxRange; x1 <= cell.x+item.maxRange; x1++){
+				var dist =cell.x-x1 < 0 ? x1-cell.x : cell.x-x1
+				if(dist < item.minRange) continue
+				var fromCell = Map.getCell(getCellFromXY(x1, cell.y))
+				if(fromCell!=null 
+				&& Map.obstacles[fromCell]==null 
+				&& Map.entityCells[fromCell]==null
+				&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+					push(result, fromCell)
+				}
+			}
+			for(var y1 = cell.y-item.maxRange; y1 <= cell.y+item.maxRange; y1++){
+				var dist = cell.y-y1 < 0 ? y1-cell.y : cell.y-y1
+				if(dist < item.minRange) continue
+				var fromCell = Map.getCell(getCellFromXY(cell.x, y1))
+				if(fromCell!=null
+				&& Map.obstacles[fromCell]==null 
+				&& Map.entityCells[fromCell]==null
+				&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+					push(result, fromCell)
+				}
+			}
+		}else{
+			for(var x1 = cell.x-item.maxRange; x1 <= cell.x+item.maxRange; x1++){
+				for(var y1 = cell.y-item.maxRange; y1 <= cell.y+item.maxRange; y1++){
+					var dist = (cell.x-x1 < 0 ? x1-cell.x : cell.x-x1) + (cell.y-y1 < 0 ? y1-cell.y : cell.y-y1)
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var fromCell = Map.getCell(getCellFromXY(x1, y1))
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& Map.entityCells[fromCell]==null
+					&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+						push(result, fromCell)
+					}
+				}
+			}
+		}
+		return result;
+		*/
+	}
+	
+	static launchType = [
+		LAUNCH_TYPE_LINE: function(item, cell, entitiesIdToIgnore, shouldReturnOccupiedCells){
+			var result = []
+			for(var x = cell.x-item.maxRange; x <= cell.x+item.maxRange; x++){
+				var dist =cell.x-x < 0 ? x-cell.x : cell.x-x
+				if(dist < item.minRange) continue
+				var fromCell = Map.getCell(getCellFromXY(x, cell.y))
+				if(fromCell!=null 
+				&& Map.obstacles[fromCell]==null 
+				&& (shouldReturnOccupiedCells || Map.entityCells[fromCell]==null)
+				&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+					push(result, fromCell)
+				}
+			}
+			for(var y = cell.y-item.maxRange; y <= cell.y+item.maxRange; y++){
+				var dist = cell.y-y < 0 ? y-cell.y : cell.y-y
+				if(dist < item.minRange) continue
+				var fromCell = Map.getCell(getCellFromXY(cell.x, y))
+				if(fromCell!=null
+				&& Map.obstacles[fromCell]==null 
+				&& (shouldReturnOccupiedCells || Map.entityCells[fromCell]==null)
+				&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+					push(result, fromCell)
+				}
+			}
+			return result
+		},
+		LAUNCH_TYPE_DIAGONAL: function(item, cell, entitiesIdToIgnore, shouldReturnOccupiedCells){
+			var result = []
+			for(var x = cell.x-item.maxRange; x <= cell.x+item.maxRange; x++){
+				for(var y = cell.y-item.maxRange; y <= cell.y+item.maxRange; y++){
+					if( abs(cell.x-x) != abs(cell.y-y) ) continue // si je suis pas sur une diagonale, skip
+					var dist = (cell.x-x < 0 ? x-cell.x : cell.x-x) + (cell.y-y < 0 ? y-cell.y : cell.y-y)
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var fromCell = Map.getCell(getCellFromXY(x, y))
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& (shouldReturnOccupiedCells || Map.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+						push(result, fromCell)
+					}
+				}
+			}
+			return result
+		},
+		LAUNCH_TYPE_STAR: function(item, cell, entitiesIdToIgnore, shouldReturnOccupiedCells){
+			var result = []
+			for(var x = cell.x-item.maxRange; x <= cell.x+item.maxRange; x++){
+				for(var y = cell.y-item.maxRange; y <= cell.y+item.maxRange; y++){
+					if( abs(cell.x-x) != abs(cell.y-y) // si je suis pas sur une diagonale
+					   && (x != cell.x) // et pas en ligne avec x
+					   && (y != cell.y) // et pas en ligne avec y
+					   ) continue // skip
+					var dist = (cell.x-x < 0 ? x-cell.x : cell.x-x) + (cell.y-y < 0 ? y-cell.y : cell.y-y)
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var fromCell = Map.getCell(getCellFromXY(x, y))
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& (shouldReturnOccupiedCells || Map.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+						push(result, fromCell)
+					}
+				}
+			}
+			return result
+		},
+		LAUNCH_TYPE_STAR_INVERTED: function(item, cell, entitiesIdToIgnore, shouldReturnOccupiedCells){
+			var result = []
+			for(var x = cell.x-item.maxRange; x <= cell.x+item.maxRange; x++){
+				for(var y = cell.y-item.maxRange; y <= cell.y+item.maxRange; y++){
+					if( abs(cell.x-x) == abs(cell.y-y) // si je suis sur une diagonale
+					   || (x == cell.x) // ou en ligne avec x
+					   || (y == cell.y) // ou en ligne avec y
+					   ) continue // skip
+					var dist = (cell.x-x < 0 ? x-cell.x : cell.x-x) + (cell.y-y < 0 ? y-cell.y : cell.y-y)
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var fromCell = Map.getCell(getCellFromXY(x, y))
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& (shouldReturnOccupiedCells || Map.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+						push(result, fromCell)
+					}
+				}
+			}
+			return result
+		},
+		LAUNCH_TYPE_DIAGONAL_INVERTED: function(item, cell, entitiesIdToIgnore, shouldReturnOccupiedCells){
+			var result = []
+			for(var x = cell.x-item.maxRange; x <= cell.x+item.maxRange; x++){
+				for(var y = cell.y-item.maxRange; y <= cell.y+item.maxRange; y++){
+					if( abs(cell.x-x) == abs(cell.y-y) ) continue // si je suis sur une diagonale, skip
+					var dist = (cell.x-x < 0 ? x-cell.x : cell.x-x) + (cell.y-y < 0 ? y-cell.y : cell.y-y)
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var fromCell = Map.getCell(getCellFromXY(x, y))
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& (shouldReturnOccupiedCells || Map.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+						push(result, fromCell)
+					}
+				}
+			}
+			return result
+		},
+		LAUNCH_TYPE_LINE_INVERTED: function(item, cell, entitiesIdToIgnore, shouldReturnOccupiedCells){
+			var result = []
+			for(var x = cell.x-item.maxRange; x <= cell.x+item.maxRange; x++){
+				for(var y = cell.y-item.maxRange; y <= cell.y+item.maxRange; y++){
+					if( (x == cell.x) // si je suis en ligne avec x
+					   || (y == cell.y) // ou en ligne avec y
+					   ) continue // skip
+					var dist = (cell.x-x < 0 ? x-cell.x : cell.x-x) + (cell.y-y < 0 ? y-cell.y : cell.y-y)
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var fromCell = Map.getCell(getCellFromXY(x, y))
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& (shouldReturnOccupiedCells || Map.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+						push(result, fromCell)
+					}
+				}
+			}
+			return result
+		},
+		LAUNCH_TYPE_CIRCLE: function(item, cell, entitiesIdToIgnore, shouldReturnOccupiedCells){
+			var result = []
+			for(var x1 = cell.x-item.maxRange; x1 <= cell.x+item.maxRange; x1++){
+				for(var y1 = cell.y-item.maxRange; y1 <= cell.y+item.maxRange; y1++){
+					var dist = (cell.x-x1 < 0 ? x1-cell.x : cell.x-x1) + (cell.y-y1 < 0 ? y1-cell.y : cell.y-y1)
+					if(dist > item.maxRange || dist < item.minRange) continue;
+					var fromCell = Map.getCell(getCellFromXY(x1, y1))
+					if(fromCell!=null 
+					&& Map.obstacles[fromCell]==null 
+					&& (shouldReturnOccupiedCells || Map.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell, cell, entitiesIdToIgnore))){
+						push(result, fromCell)
+					}
+				}
+			}
+			return result
+		},
+	]
 
 	// la fonction getTargetableCells est quasi identique à getCellsToUse, à la différence qu'elle considère une case occupé comme ciblable (puisque je veux savoir si on peut tirer dessus), alors que getCellsToUse considère une case occupé comme non disponible (puisqu'on est censé y aller pour tirer sur la cible)
 	// je pourrais ptete fusionner les deux fonctions pour limiter la duplication du code
 	// mais en même temps, c'est une distinction qui me semble pas anodine... je laisse les deux pour le moment
 	// on verra plus tard si je prend une décision
-	static getTargetableCells(item, cell, leeksIdToIgnore){
+	static getTargetableCells(item, cell, entitiesIdToIgnore){
+		return Targets.launchType[item.launchType](item, cell, entitiesIdToIgnore, true)
+		/*
 		var result = [], x = cell.x, y = cell.y
-		if(item.isInLine){
+		if(item.launchType == LAUNCH_TYPE_LINE){
 			for(var x1 = x-item.maxRange; x1 <= x+item.maxRange; x1++){
 				var dist = x-x1<0?x1-x:x-x1
 				if(dist < item.minRange) continue;
 				var targetCell = Map.getCell(getCellFromXY(x1, y))
 				if(targetCell!=null 
 				&& Map.obstacles[targetCell]==null 
-				&& (!item.needLOS || lineOfSight(cell, targetCell, leeksIdToIgnore))){
+				&& (!item.needLOS || lineOfSight(cell, targetCell, entitiesIdToIgnore))){
 					push(result, targetCell)
 				}
 			}
@@ -197,7 +345,7 @@ class Targets{
 				var targetCell = Map.getCell(getCellFromXY(x, y1))
 				if(targetCell!=null 
 				&& Map.obstacles[targetCell]==null 
-				&& (!item.needLOS || lineOfSight(cell, targetCell, leeksIdToIgnore))){
+				&& (!item.needLOS || lineOfSight(cell, targetCell, entitiesIdToIgnore))){
 					push(result, targetCell)
 				}
 			}
@@ -209,13 +357,14 @@ class Targets{
 					var targetCell = Map.getCell(getCellFromXY(x1, y1))
 					if(targetCell!=null 
 					&& Map.obstacles[targetCell]==null 
-					&& (!item.needLOS || lineOfSight(cell, targetCell, leeksIdToIgnore))){
+					&& (!item.needLOS || lineOfSight(cell, targetCell, entitiesIdToIgnore))){
 						push(result, targetCell);
 					}
 				}
 			}
 		}
 		return result
+		*/
 	}
 
 }

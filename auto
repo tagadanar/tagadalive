@@ -24,8 +24,7 @@ include('Model/Combos/Position')
 include('Model/Combos/Action')
 include('Model/Combos/Consequences')
 include('Model/Combos/Combo')
-
-include('Model/EffectOverTime')
+include('Model/Combos/EffectOverTime')
 
 include('Services/Targets')
 include('Services/Sort')

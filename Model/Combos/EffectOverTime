@@ -1,0 +1,14 @@
+class EffectOverTime{
+	item
+	value
+	duration
+	constructor(item, value, duration){
+		this.item = item
+		this.value = value
+		this.duration = duration
+	}
+	
+	string(){
+		return '<EffectOverTime '+this.item+'\n|value: '+this.value+' |duration: '+this.duration+'>'
+	}
+}
