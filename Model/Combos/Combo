@@ -94,7 +94,7 @@ class Combo {
 			moveTowardCell(this.finalDanger.cell)
 		}
 		// étape 3: si il reste des TP, je prend en main la meilleure arme vis à vis de la situation
-		if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_MAGNUM))
+		if(getWeapon(Fight.self)==null) setWeapon(Items.getItem(WEAPON_DESTROYER))
 		// étape 4: si il reste des TP, je dis des trucs
 		// todo pipotron
 	}

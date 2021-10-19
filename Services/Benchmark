@@ -24,12 +24,14 @@ class Benchmark{
 		_laststart_func = [];
 	}
 	static start(name){
+		//Crée l'entrée pour ne pas avoir de surcout pour la création de la clé à la fin
+		_laststart_func[name] = 0;
 		if(_count_func[name]==null) _count_func[name]=0;
 		if(_cumul_func[name]==null) _cumul_func[name]=0;
 		_laststart_func[name] = getOperations();
 	}
 	static stop(name){
-		_cumul_func[name]+= getOperations()-_laststart_func[name];
+		_cumul_func[name] += getOperations() - _laststart_func[name] - 5;
 		_count_func[name]++;
 	}
 	static display(){

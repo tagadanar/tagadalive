@@ -3,6 +3,7 @@
  */
 class ItemEffect {
 	name
+	item
 	type
 	min
 	max
@@ -18,8 +19,9 @@ class ItemEffect {
 	modifCaster = false
 	irreductible = false
 	notReplaceable = false
-	constructor(effect, name){
-		this.name = name
+	constructor(effect, item, id){
+		this.name = item.name+'-'+id
+		this.item = item
 		this.type = effect[0]
 		this.min = effect[1]
 		this.max = effect[2]

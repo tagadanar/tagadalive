@@ -18,6 +18,18 @@ class Scoring {
 		8 : 4.4,
 	]
 	
+	static offensive_duration_mitigation = [
+		0 : 1,
+		1 : 1,
+		2 : 1.8,
+		3 : 2.4,
+		4 : 2.8,
+		5 : 3.2,
+		6 : 3.6,
+		7 : 4,
+		8 : 4.4,
+	]
+	
 	static computeCoef = [
 		Stats.HP: function(entity) {
 			if(Scoring._cache_coef[entity][Stats.HP] == null) {

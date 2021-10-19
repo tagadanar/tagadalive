@@ -8,6 +8,7 @@ class Entity {
 	id
 	name
 	cell
+	// stats
 	totalLife
 	life
 	pwr
@@ -22,15 +23,20 @@ class Entity {
 	relShield
 	absShield
 	dmgReturn
+	// déplacement
 	reachableCells
+	// inventaire organisé en fonction des cibles
 	items
 	offensiveItems // will have a value on enemy leeks only
 	offensiveItemsByTargets = [] // will have a value on ally leeks only
+	// play order
 	turnOrder
 	entityWhoPlayBefore
 	cellsToIgnore = []
+	// booleans
 	isFriend
 	isBulb
+	// gestions des effets
 	effects = []
 	effects_items = []
 	psnTurn = 0
@@ -123,6 +129,9 @@ class Entity {
 	 */
 	getWeaponInHand(){
 		return Items.getItem(getWeapon(this))
+	}
+	getItemEffects(item){
+		return this.effects_items[item]
 	}
 	
 	getCurrentMaxHP(consequences){

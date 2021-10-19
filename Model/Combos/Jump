@@ -6,4 +6,8 @@ class Jump {
 		this.from = from
 		this.to = to
 	}
+	
+	string(){
+		return '<Jump from:'+this.from+' to:'+this.to+'>'
+	}
 }

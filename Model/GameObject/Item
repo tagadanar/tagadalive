@@ -9,7 +9,7 @@ class Item {
 	haveCD
 	minRange
 	maxRange
-	isInLine
+	launchType
 	needLOS
 	cost
 	area
@@ -38,25 +38,25 @@ class Item {
 			this.haveCD = false
 			this.minRange = getWeaponMinRange(id)
 			this.maxRange = getWeaponMaxRange(id)
-			this.isInLine = isInlineWeapon(id)
+			this.launchType = getWeaponLaunchType(id)
 			this.needLOS = weaponNeedLos(id)
 			this.cost = getWeaponCost(id)
 			this.area = getWeaponArea(id)
 			var i = 0
 			for(var e in getWeaponEffects(id)){
-				push(this.effects, ItemEffect(e, this.name+"-"+(i++)))
+				push(this.effects, ItemEffect(e, this, i++))
 			}
 		} else {
 			this.haveCD = getChipCooldown(id)!=0
 			this.minRange = getChipMinRange(id)
 			this.maxRange = getChipMaxRange(id)
-			this.isInLine = isInlineChip(id)
+			this.launchType = getChipLaunchType(id)
 			this.needLOS = chipNeedLos(id)
 			this.cost = getChipCost(id)
 			this.area = getChipArea(id)
 			var i = 0
 			for(var e in getChipEffects(id)){
-				push(this.effects, ItemEffect(e, this.name+"-"+(i++)))
+				push(this.effects, ItemEffect(e, this, i++))
 			}
 		}
 
