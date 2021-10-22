@@ -26,6 +26,15 @@ class Items {
 	}
 	
 	/*
+	 * Renvoie toutes les informations de l'arme / puce en paramètre
+	 * @param itemId id de l'item 
+	 * @return Item 
+	 */
+	static getAllItems(){
+		return _items
+	}
+	
+	/*
 	 * Renvoie un tableau d'items équipé sur une Entity 
 	 * @param entityId id de l'Entity
 	 * @return tableau d'Item

@@ -23,8 +23,8 @@ class Combo {
 		return true
 	}
 	
-	addFinalDanger(cell){
-		this.finalDanger = cell
+	addFinalDanger(danger){
+		this.finalDanger = danger
 	}
 	
 	/*
@@ -49,6 +49,7 @@ class Combo {
 		else if(count(this.actions)>0) currentCell = actions[count(this.actions)-1].from
 		else currentCell = Fight.self.cell
 
+		// TODO avoir la case de l'action d'avant jusqu'à avoir une vrai case ou Fight.self.cell si que selfcast
 		if(currentCell == Fight.selfCell) currentCell = Fight.self.cell
 		return currentCell
 	}
@@ -56,21 +57,36 @@ class Combo {
 	/*
 	 * retourne la cell où on serait si on jouait le combo en l'état
 	 */
+	getCurrentMP(){
+		var currentMP
+		if(this.finalDanger) currentMP = 0 // TODO avoir les mp restant dans un objet conséquences d'un placement!
+		else if(count(this.actions)>0) currentMP = actions[count(this.actions)-1].consequences.currentMP
+		else currentMP = Fight.self.mp
+
+		if(currentMP == Fight.selfCell) currentMP = Fight.self.cell
+		return currentMP
+	}
+	
+	/*
+	 * retourne la cell où on serait si on jouait le combo en l'état
+	 */
 	getCurrentConsequences(){
+		// TODO une fois qu'on aura des conseq dans le placement final, handle here !
 		if(count(this.actions)>0) return actions[count(this.actions)-1].consequences
-		else return null
+		else return Consequences()
 	}
 	
 	/*
 	 * retourne les reachableCells atteignable depuis l'emplacement actuel du combo
 	 */
 	getCurrentReachableCells(){
-		var from = this.getCurrentCell()
-		// FIXME : ici je pars du principe que le seul chemin parcouru est depuis ma cell de début et currentCell
-		// TODO: this.getCurrentMP() qui simule les déplacements entre les actions.
-		// voir plutôt avoir une variable currentCell et currentMP que j'actualise à chaque ajout d'action.
-		var mpleft = Fight.self.mp - Fight.self.reachableCells[from]
-		return MapPath.getReachableCells([from:0], mpleft, Fight.self.cellsToIgnore)
+		var currentCell = this.getCurrentCell()
+		var currentMP = this.getCurrentMP()
+		var ignoreCells = Fight.self.cellsToIgnore
+		for(var e in this.getCurrentConsequences()._killed){
+			push(ignoreCells, e.cell)
+		}
+		return MapPath.getCachedReachableCells(currentCell, currentMP, Fight.self.cellsToIgnore)
 	}
 	
 	/*

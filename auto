@@ -13,10 +13,10 @@ include('Controlers/Fight')
 include('Controlers/Map')
 include('Controlers/Items')
 
-include('Model/Maps/MapPath')
-include('Model/Maps/MapDanger')
-include('Model/Maps/MapPosition')
-include('Model/Maps/MapAction')
+include('Controlers/Maps/MapPath')
+include('Controlers/Maps/MapDanger')
+include('Controlers/Maps/MapPosition')
+include('Controlers/Maps/MapAction')
 
 include('Model/Combos/Jump')
 include('Model/Combos/Danger')
@@ -26,6 +26,7 @@ include('Model/Combos/Consequences')
 include('Model/Combos/Combo')
 include('Model/Combos/EffectOverTime')
 
+include('Services/Damages')
 include('Services/Targets')
 include('Services/Sort')
 include('Services/Benchmark')
@@ -47,6 +48,10 @@ function init() {
 		Items.init()
 		Benchmark.stop('Items.init')
 	}
+	Benchmark.start('MapPath.refresh')
+	MapPath.refresh()
+	Benchmark.stop('MapPath.refresh')
+	
 	Benchmark.start('Fight.refresh')
 	Fight.refresh()
 	Benchmark.stop('Fight.refresh')
@@ -58,10 +63,6 @@ function init() {
 	Benchmark.start('Scoring.refresh')
 	Scoring.refresh()
 	Benchmark.stop('Scoring.refresh')
-	
-	Benchmark.start('MapPath.refresh')
-	MapPath.refresh()
-	Benchmark.stop('MapPath.refresh')
 	
 	Benchmark.start('MapDanger.refresh')
 	MapDanger.refresh()

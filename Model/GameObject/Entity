@@ -38,7 +38,7 @@ class Entity {
 	isBulb
 	// gestions des effets
 	effects = []
-	effects_items = []
+	items_effectOverTime = []
 	psnTurn = 0
 	psnTotal = 0
 	psnlife
@@ -49,6 +49,7 @@ class Entity {
 	altMP = 0
 	// todo add more alt ?
 	// todo add passive effect
+	launchedEffects
 	
 	constructor(id){
 		this.id = id
@@ -72,11 +73,18 @@ class Entity {
 		this.turnOrder = getEntityTurnOrder(id)
 		this.isFriend = isAlly(id)
 		this.isBulb = isSummon(id)
+		/*
+		this.launchedEffects = []
+		for(var e in getLaunchedEffects(id)){
+			push(this.launchedEffects, 
+		}
+		*/
+		
 		for(var e in getEffects(id)){
 			var effect = EntityEffect(e)
 			push(effects, effect)
-			if(!this.effects_items[effect.item]) this.effects_items[effect.item] = []
-			push(this.effects_items[effect.item], effect)
+			if(!this.items_effectOverTime[effect.item]) this.items_effectOverTime[effect.item] = []
+			push(this.items_effectOverTime[effect.item], EffectOverTime(effect))
 			// piste d'optimisation en ayant une meilleure structure pour les effets ici ?
 			// les eval en dessous pourrait être déléguer à un tab pour éviter les ifelseif?
 			// et ptete ajouter d'autres alt pour les autres stats ?
@@ -116,8 +124,8 @@ class Entity {
 		for(var entity in this.entityWhoPlayBefore) {
 			push(this.cellsToIgnore, entity.cell)
 		}
-		this.reachableCells = MapPath.getReachableCells(
-			[this.cell:0],
+		this.reachableCells = MapPath.getCachedReachableCells(
+			this.cell,
 			this.mp,
 			this.cellsToIgnore
 		)
@@ -130,8 +138,13 @@ class Entity {
 	getWeaponInHand(){
 		return Items.getItem(getWeapon(this))
 	}
-	getItemEffects(item){
-		return this.effects_items[item]
+	
+	// n'est used que pour check les !stackable item, d'où le count(-1) et [0], maybe rename pour préciser ?
+	getCurrentItemEffect(item, consequences){
+		if(consequences && consequences._altEffects[this] && consequences._altEffects[this][item]){
+			return consequences._altEffects[this][item][count(consequences._altEffects[item])-1]
+		}
+		return this.items_effectOverTime[item] ? this.items_effectOverTime[item][0] : null
 	}
 	
 	getCurrentMaxHP(consequences){
@@ -180,20 +193,17 @@ class Entity {
 		return consequences ? this.dmgReturn+consequences.getAlteration(this, Stats.DMGRETURN) : this.dmgReturn
 	}
 	
-	getCurrentEffect(item){
-		return this.effects_items[item]
-	}
-	
 	/*
 	 * Actualise les informations de l'entité
+	 * FIXME: UNUSED FUNCTION
 	 */
 	refresh() {
 		// TODO make a real full refresh based on consequences? might be used for bulb?
 		// OR delete this shit ? full refresh by instantiating the entity again, and replacing it in Fight ?
 		this.mp = getMP(this.id)
 		this.cell = Map.getCell(getCell(this.id))
-		this.reachableCells = MapPath.getReachableCells(
-			[this.cell:0],
+		this.reachableCells = MapPath.getCachedReachableCells(
+			this.cell,
 			this.mp,
 			this.cellsToIgnore
 		)

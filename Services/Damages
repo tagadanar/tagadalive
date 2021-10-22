@@ -1,0 +1,57 @@
+include('../auto')
+
+class Damages{
+	/*
+	 * TODO gestion des consequences
+	 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de récupérations
+	 * @param cell Cellule sur laquelle le danger va être calculé
+	 * @param consequences Consequences qui contient les altérations de la série d'action précédente dans le combo
+	 * @return un objet <Danger>
+	 */
+	static computeDanger(cell, consequences){
+		var dmg = 0
+		var str = ""
+		for(var e in Fight.getEnemiesAlive()){ // TODO boucle sur ordered all
+			if(consequences && consequences.isKilled(e)) continue
+			var tpleft = e.getCurrentTP(consequences)
+			for(var item : var dmgPerTp in e.offensiveItems){
+				var ratioDmg = MapDanger._map_entity_item_danger[e][item][cell]
+				var tmpdmg = Damages.getDamage(e, Fight.self, item, ratioDmg, consequences)
+				if(tmpdmg>0){
+					while(item.cost<=tpleft){
+						str+=" "+item.name
+						dmg+=tmpdmg
+						tpleft-=item.cost
+						if(item.haveCD) break
+					}
+				}
+			}
+		}
+		return Danger(cell, dmg, str, consequences)
+	}
+		
+	/*
+	 * Calcule les dommages que peux faire eSource sur eTarget avec une Item en fonction des effets de celle-ci
+	 * @param eSource attaquant
+	 * @param eTarget receveur
+	 * @param item Item
+	 * @return dmg Dommages calculés
+	 */
+	static getDamage(eSource, eTarget, item, ratioDmg, conseq){
+		var dmg = 0;
+		for(var e in item.effects){
+			if(e.type == EFFECT_DAMAGE){
+				var tmp = e.avgmax *(1+(eSource.getCurrentStr(conseq))/100) *(1+(eSource.pwr/100));
+				tmp = tmp *ratioDmg *(1-(eTarget.getCurrentRel(conseq))/100) - (eTarget.getCurrentAbs(conseq))
+				dmg+= tmp>0?tmp:0
+			}
+			else if(e.type == EFFECT_POISON){
+				var duration = Scoring.defensive_duration_mitigation[e.duration]
+				// TODO if(_CAN_ANTIDOTE) duration = 1;
+				// TODO add consequences for pwr !
+				dmg += e.avgmax *(1+(eSource.getCurrentMgc(conseq))/100) *(1+(eSource.pwr/100)) *ratioDmg*duration
+			}
+		}
+		return dmg
+	}
+}

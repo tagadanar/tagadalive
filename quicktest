@@ -1,0 +1,11 @@
+include('auto')
+
+debug("1 > null: " + (1 > null))
+debug("1 < null: " + (1 < null))
+debug("1 + null: " + (1 + null))
+debug("1 - null: " + (1 - null))
+debug("null - null: " + (null - null))
+debug("null + null: " + (null + null))
+debug("null < null: " + (null < null))
+debug("null > null: " + (null > null))
+pause()

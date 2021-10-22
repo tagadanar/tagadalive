@@ -2,21 +2,30 @@ include('../../auto')
 
 class Consequences {
 	_alterations = []// [entity:[caracteristic:value]]
+	_altEffects = []// [entity:[item:[EffectOverTime]]]
 	_killed = []
 	score = null
 	isAlteringDanger = false
 	hashcode = 17
 	targets
+	currentCell
+	currentMP
+	private _boostMP_before = 0
 	
 	constructor(action){
 		Benchmark.start("Consequences")
+		this.currentCell = Fight.self.cell
+		this.currentMP = Fight.self.mp
 		construct(action)
 		Benchmark.stop("Consequences")
 	}
 	
 	constructor(action, consequences){
 		Benchmark.start("Consequences.fromConseq")
+		this.currentCell = consequences.currentCell
+		this.currentMP = consequences.currentMP
 		this._alterations = clone(consequences._alterations, 2)
+		this._altEffects = clone(consequences._altEffects, 3)
 		this._killed = clone(consequences._killed)
 		this.hashcode = consequences.hashcode
 		construct(action)
@@ -24,10 +33,21 @@ class Consequences {
 	}
 	
 	construct(action){
+		// actualisation du placement virtuel :
+		var reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
+		// déplacement jusqu'à la case de l'action
+		if(action.from != Fight.selfCell){
+			if(reachableCells[action.from] != null) this.currentMP = this.currentMP - reachableCells[action.from] 
+			else debugW('Impossible action: unreachable cell !!\n'+action+'\n'+this)
+			if(this.currentMP < 0) debugW('Impossible action: negative MP !!\n'+action+'\n'+this)
+			// actualisation de la case actuelle
+			this.currentCell = action.from
+		}
+		// on retient les boosts mp déjà appliquer à soit mm pour après
+		var boostMPbefore = this._alterations[Fight.self][Stats.MP]
+		
+		// actualisation des conséquences de l'action sur le jeu
 		this.targets = Targets.getTargets(action)
-
-		// FIXME il faut aussi handle le cas où je lance un item aoe et je suis assez proche de la zone
-		// pour être affecté....
 		for(var target in this.targets){
 			if(this._killed[target]) continue
 			var ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(action.to, target.cell)) : 1
@@ -40,13 +60,25 @@ class Consequences {
 				this.updateConsequences(effect, Fight.self, target, ratioDmg)
 			}
 		}
+		
+		// actualisation des MP en cas de self boost de mp
+		var boostMP = this._alterations[Fight.self][Stats.MP]
+		// si je viens de m'ajouter des MP
+		if(boostMP && boostMP > boostMPbefore){
+			this.currentMP += boostMP - boostMPbefore // j'ajoute les mp gagnés
+		}
 	}
 	
 	add(entity, key, effect){
 		if(!_alterations[entity]) _alterations[entity] = []
 		var isOverTime = effect instanceof EffectOverTime
 		var value = isOverTime ? effect.value : effect
+		if(isOverTime){
+			if(!_altEffects[entity]) _altEffects[entity] = []
+			if(!_altEffects[entity][effect.item]) _altEffects[entity][effect.item] = []
 		
+			push(_altEffects[entity][effect.item], effect)
+		}
 		_alterations[entity][key] += value // pour null, devrait se comporter comme si ça contenait 0
 		// ça ne marche qu'avec += en leekscriptv1, pas tester en v1.1 comment ça marche...
 		// j'avais des bugs sur les -=, donc il faut faire += -value si le comportement est le mm ici.
@@ -76,7 +108,7 @@ class Consequences {
 	addKill(entity){
 		this.isAlteringDanger=true
 		this.hashcode = 31 * this.hashcode + entity.id
-		this._killed[entity]=true
+		this._killed[entity]=entity
 		this.score+= Scoring.KILL_VALUE * Scoring.getCoef(entity, Stats.KILL)
 	}
 	
@@ -85,7 +117,7 @@ class Consequences {
 	}
 		
 	isKilled(entity){
-		return _killed[entity]
+		return _killed[entity] != null
 	}
 	
 	getAlteration(entity, key){
@@ -97,14 +129,13 @@ class Consequences {
 	}
 	
 	updateConsequences(effect, entitySource, entityTarget, ratioDmg) {
-		// fixme: ce if marche pas, j'ai tjr true mm pour EFFECT_DAMAGE
-		//if(!ItemEffect.convertToValue[this.type]) debugW('unhandledEffect on ItemEffect typeID: '+ this.type)
+		// fixme: ce if marche pas, j'ai tjr true mm pour EFFECT_DAMAGE :'(
+		//if(!Consequences.convertToValue[effect.type]) debugW('unhandledEffect on effect: '+ effect)
 		var target = effect.modifCaster ? entitySource : entityTarget
 		ratioDmg = effect.modifCaster ? 1 : ratioDmg
 		return Consequences.convertToValue[effect.type](effect, entitySource, target, ratioDmg, this)
 	}
-		
-		
+
 	// TODO reste à faire l'agi/les crit, et avgmin/avgmax ?
 	// TODO EROSION sur la durée ?
 	static convertToValue = [
@@ -146,12 +177,12 @@ class Consequences {
 			// pas de tests sur stackable car tous les poisons sont stackable actuellement
 			// devrait être au niveau au dessus si d'autres items que covid ont notReplaceable, en attendant, ici on économise des opérations.
 			if(effect.notReplaceable){
-				if(entityTarget.getItemEffects(effect.item)) return;
+				if(entityTarget.getCurrentItemEffect(effect.item, conseq)) return;
 			}
 			
 			// FIXME: dans mon autre IA, je gère deux notions, les dmgNextTurn, qui pemettent de définir un kill
 			// en solo, et les dmg*duration, qui doivent être minoré plus ça dure
-			// TODO réfléchir à comment j'organise l'infos dans HPTIME... ptete besoin d'objet hptime avec value duration dans les conseq ??
+			// TODO handle kill condition selon si la cible peut s'antidote/libé ?
 			
 			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
 				*(1+(entitySource.getCurrentPwr(conseq)/100)) *effect.duration // TODO power in consequences !!!!
@@ -197,10 +228,9 @@ class Consequences {
 		EFFECT_HEAL: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(effect.duration>1){ // HPTIME
 				if(!effect.stackable){
-					var itemEffects = entityTarget.getItemEffects(effect.item)
-					if(itemEffects){
-						// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-						var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+					if(itemEffect){
+						var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 						conseq.add(entityTarget, Stats.HPTIME, eot)
 					}
 				}
@@ -224,10 +254,9 @@ class Consequences {
 		},
 		EFFECT_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 				}
 			}
@@ -237,10 +266,9 @@ class Consequences {
 		},
 		EFFECT_RELATIVE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.RELSHIELD, eot)
 				}
 			}
@@ -268,10 +296,9 @@ class Consequences {
 		},
 		EFFECT_DAMAGE_RETURN: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.DMGRETURN, eot)
 				}
 			}
@@ -281,10 +308,9 @@ class Consequences {
 		},
 		EFFECT_RAW_BUFF_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.STR, eot)
 				}
 			}
@@ -294,10 +320,9 @@ class Consequences {
 		},
 		EFFECT_RAW_BUFF_MAGIC: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.MGC, eot)
 				}
 			}
@@ -307,10 +332,9 @@ class Consequences {
 		},
 		EFFECT_RAW_BUFF_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.AGI, eot)
 				}
 			}
@@ -320,10 +344,9 @@ class Consequences {
 		},
 		EFFECT_RAW_BUFF_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.WSD, eot)
 				}
 			}
@@ -333,10 +356,9 @@ class Consequences {
 		},
 		EFFECT_RAW_BUFF_RESISTANCE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.RST, eot)
 				}
 			}
@@ -346,10 +368,9 @@ class Consequences {
 		},
 		EFFECT_RAW_BUFF_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.TP, eot)
 				}
 			}
@@ -359,10 +380,10 @@ class Consequences {
 		},
 		EFFECT_RAW_BUFF_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
 					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.MP, eot)
 				}
 			}
@@ -372,10 +393,9 @@ class Consequences {
 		},
 		EFFECT_BUFF_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.STR, eot)
 				}
 			}
@@ -385,10 +405,9 @@ class Consequences {
 		},
 		EFFECT_BUFF_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.AGI, eot)
 				}
 			}
@@ -398,10 +417,9 @@ class Consequences {
 		},
 		EFFECT_BUFF_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.WSD, eot)
 				}
 			}
@@ -411,10 +429,9 @@ class Consequences {
 		},
 		EFFECT_BUFF_RESISTANCE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.RST, eot)
 				}
 			}
@@ -424,10 +441,9 @@ class Consequences {
 		},
 		EFFECT_BUFF_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.TP, eot)
 				}
 			}
@@ -437,10 +453,9 @@ class Consequences {
 		},
 		EFFECT_BUFF_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			if(!effect.stackable){
-				var itemEffects = entityTarget.getItemEffects(effect.item)
-				if(itemEffects){
-					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffects[0].value, itemEffects[0].turns)
+				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				if(itemEffect){
+					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
 					conseq.add(entityTarget, Stats.MP, eot)
 				}
 			}
@@ -460,6 +475,18 @@ class Consequences {
 			var eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.MGC, eot)
 		},
+		EFFECT_SHACKLE_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
+			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.AGI, eot)
+		},
+		EFFECT_SHACKLE_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
+			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.WSD, eot)
+		},
 		EFFECT_SHACKLE_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
 			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
 			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
@@ -476,28 +503,71 @@ class Consequences {
 			for(var entityEffect in entityTarget.effects){
 				// ici le CONVERTER sert à set la value en négatif si c'est un malus, genre un poison fait
 				// des dmg en HPTIME, il en redonne pas.
+				// parce que je boucle sur entityEffect et EffectOverTime
+				// dans EffectOverTime j'ai une valeur +/- en fonction de Stats
+				// dans entityEffect j'ai la valeur de l'effet, tjr positive
+				// maybe mettre en négatif directement dans entityEffect ?
+				// c'est pas terrible de faire la conversion ici je trouve...
+				
+				// FIXME pour tous les effets !stackable je renvoie le dernier effet
+				// cette façon de faire ne marche pas pour récup le dernier effet
+				// je devrais faire -100% puis + le reste après 60% de reduc
+				
 				var value = entityEffect.value * (effect.avg/100) *TargetType.CONVERTER[entityEffect.type]
 				var eot = EffectOverTime(effect.item, -value, entityEffect.turns)
 				var stat = Stats.entityEffectType_to_stats[entityEffect.type]
 				if(stat==null) debugE("LIBERATION effect to stat unhandled :"+entityEffect)
 				conseq.add(entityTarget, stat, eot)
 			}
-			// TODO FIX THIS FUNCTION §§§§§§§§§
-			// probablement un bug car l'algo fait pas la diff entre HPTIME vaccin & poison... 
 			// TODO check if effect is irreductible ?
 		},
 		EFFECT_ANTIDOTE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO
+			for(var entityEffect in entityTarget.effects){
+				if(entityEffect.type == EFFECT_POISON){
+					var eot = EffectOverTime(effect.item, entityEffect.value, entityEffect.turns)
+					conseq.add(entityTarget, Stats.HPTIME, eot)
+				}
+			}
 		},
 		EFFECT_KILL: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO
+			// je met un commentaire parce que une seule ligne ça fait vide lol
+			// je pourrais mettre aussi une conseq full life dmg pour scorer les dégats comme pour un dmg normal.
+			// et si un jour on peut kill les leeks/tower faut check les winconditions & kill les bulbs du leek
+			conseq.addKill(entityTarget)
 		},
 		EFFECT_AFTEREFFECT: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO
+			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			conseq.add(entityTarget, Stats.HP, -value)
+			conseq.add(entityTarget, Stats.HPTIME, eot)
 		},
 		EFFECT_PROPAGATION: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			// TODO
+			// TODO ??
 		},
+		EFFECT_REMOVE_SHACKLES: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_TELEPORT: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_INVERT: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_PUSH: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_ATTRACT: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_SUMMON: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_RESURRECT: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		
+		// unused
+		EFFECT_RAW_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_RAW_RELATIVE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_RAW_BUFF_POWER: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_RAW_BUFF_SCIENCE: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		
+		// unused and ???
+		EFFECT_REPEL: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		
+		// passif
+		EFFECT_POISON_TO_SCIENCE: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_MOVED_TO_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_NOVA_DAMAGE_TO_MAGIC: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_DAMAGE_TO_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_ALLY_KILLED_TO_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
 	]
 	
 	computeScore(){

@@ -11,6 +11,15 @@ class Targets{
 			else 
 				targets = getItemTargets(action.item, action.to)
 		}
+		// ajout de moi même si je suis dans l'aoe
+		if(action.item.isAOE && action.item.onCaster){
+			for(var cell in action.to.getAreaCells(action.item.area)){
+				if(action.from == cell){
+					push(targets, Fight.self)
+					break;
+				}
+			}
+		}
 		return targets
 	}
 	

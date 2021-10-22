@@ -16,7 +16,7 @@ class AI {
 		var enemy = Fight.getEntity(getNearestEnemy())
 		for(var item : var dmgPerTp in Fight.self.offensiveItemsByTargets[enemy]){
 			var ratioDmg = MapDanger._map_entity_item_danger[Fight.self][item][enemy.cell]
-			var tmpdmg = MapDanger.getDamage(Fight.self, Fight.getEntity(getEntityOnCell(enemy.cell)), item, ratioDmg, null)
+			var tmpdmg = Damages.getDamage(Fight.self, Fight.getEntity(getEntityOnCell(enemy.cell)), item, ratioDmg, null)
 			var switchCost = item.isWeap && item != inHand ? 1 : 0
 			if(tmpdmg > 0){
 				while(item.cost+switchCost<=tpleft){
@@ -44,6 +44,7 @@ class AI {
 		// all reachableCells
 		//var arrayCombo = []
 		for(var cell:var mp in Fight.self.reachableCells){
+			if(mp>Fight.self.mp) break
 			if(!mapBestAction[cell]) mapBestAction[cell] = [];
 			// cas 1 : uniquement les items sur d'autres leeks:
 						
@@ -132,8 +133,10 @@ class AI {
 		var shouldGetCloseTo = Fight.getEntity(getNearestEnemy()).cell
 		var bestDanger = null
 		// depuis la case @from, avec les mp restant
+		var currentMP = combo.getCurrentMP()
 		var reachableCells = combo.getCurrentReachableCells()
 		for(var cell:var mp in reachableCells){
+			if(mp > currentMP) break
 			var danger = MapDanger.getCellDanger(cell, consequences)
 			if(!bestDanger || bestDanger.dmg > danger.dmg) {
 				bestDanger = danger
@@ -146,7 +149,7 @@ class AI {
 		}
 		return bestDanger
 	}
-			
+
 	/*
 	 * Recherche de case de fin de tour avancé, prenant en compte de multiples problématiques
 	 */
