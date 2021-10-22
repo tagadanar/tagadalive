@@ -14,6 +14,7 @@ class Item {
 	cost
 	area
 	isAOE
+	onCaster = false
 	effects = []
 	
 	targetKey
@@ -70,6 +71,7 @@ class Item {
 			if(!enemies) enemies = e.targetType.enemies
 			if(!onBulbs) onBulbs = e.targetType.onBulbs
 			if(!onLeeks) onLeeks = e.targetType.onLeeks
+			if(!this.onCaster) this.onCaster = e.targetType.onCaster
 		}
 		
 		if(false){ // TODO FAIRE UNE PASSE SUR LES ITEMS POUR CHECK SI TOUT EST COMME JE LE SOUHAITE §

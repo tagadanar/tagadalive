@@ -65,8 +65,9 @@ class TargetType {
 		
 		
 		//
-		EFFECT_ATTRACT: 				TargetType.ALL,
 		EFFECT_DEBUFF: 					TargetType.ALL,
+		
+		EFFECT_ATTRACT: 				TargetType.ALL,
 		EFFECT_INVERT: 					TargetType.ALL,
 		EFFECT_PUSH: 					TargetType.ALL,
 		

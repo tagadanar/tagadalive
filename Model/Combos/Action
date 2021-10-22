@@ -28,6 +28,7 @@ class Action {
 	 * Format chaîne de caractères utilisée pour des tests / debugs.
 	 */
 	string(){
-		return "<Action score: "+round(this.score)+" "+this.item.name+"|from:"+this.from.id+"|to:"+this.to.id+">"
+		var rounded = this.score != null ? round(this.score) : "None"
+		return "<Action score: "+rounded+" "+this.item.name+"|from:"+this.from.id+"|to:"+this.to.id+">"
 	}
 }

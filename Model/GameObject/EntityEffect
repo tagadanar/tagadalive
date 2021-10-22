@@ -17,7 +17,7 @@ class EntityEffect {
 		this.turns = effect[3]
 		// special case, infinite duration is ==-1, MUST handle this or any *duration later will inverse everything
 		if(this.turns==-1) this.turns = 7 // TODO this should probably be in scoring... //66-getTurn()
-		// TODO add a this.durations field, and check entities order to set duration to the right amount of time.
+		// TODO add a this.duration field, and check entities order to set duration to the right amount of time.
 		this.critical = effect[4]
 		this.item = Items.getItem(effect[5])
 		this.target = Fight.getEntity(effect[6])

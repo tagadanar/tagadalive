@@ -3,8 +3,8 @@ include('../auto')
 class Scoring {
 	static _cache_coef = [] // [entity:[key:value]]
 	
-	static KILL_VALUE = 500
-	static DEATH_VALUE = -500
+	static KILL_VALUE = 1000
+	static DEATH_VALUE = -1000
 	
 	static defensive_duration_mitigation = [
 		0 : 1,
@@ -57,7 +57,7 @@ class Scoring {
 			_cache_coef[entity][Stats.HP] = Scoring.computeCoef[Stats.HP](entity)
 			_cache_coef[entity][Stats.HPTIME] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
 																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.HPMAX] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
+			_cache_coef[entity][Stats.HPMAX] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.8)
 																	: (entity.isBulb ? -0.2 : -1)
 			_cache_coef[entity][Stats.DEBUFF] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
 																	: (entity.isBulb ? -0.2 : -1)
@@ -75,7 +75,7 @@ class Scoring {
 																	: (entity.isBulb ? -0.2 : -1)
 			_cache_coef[entity][Stats.RST] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
 																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.WSD] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
+			_cache_coef[entity][Stats.WSD] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.2)
 																	: (entity.isBulb ? -0.2 : -1)
 			_cache_coef[entity][Stats.AGI] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
 																	: (entity.isBulb ? -0.2 : -1)

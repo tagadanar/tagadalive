@@ -71,6 +71,12 @@ class Cell {
 	 */
 	initAreas(){
 		var c, result = [this]
+		// AREA_POINT
+		_AREAS[AREA_POINT] = clone(result)
+		
+		//AREA_FIRST_INLINE
+		_AREAS[AREA_FIRST_INLINE] = clone(result)
+		
 		// AREA_CIRCLE_1
 		c = getCellFromXY(x, y-1);
 		if(c!=null) push(result, Map.getCell(c));

@@ -112,7 +112,8 @@ function testCellInMapWith4Neighbors() {
 
 function testMapEntityCells() {
 	var result = count(Map.entityCells)
-	var expected = count(getAliveAllies()) + count(getAliveEnemies())
+	// -1 car self n'est pas dans la liste
+	var expected = count(getAliveAllies())-1 + count(getAliveEnemies())
 	assertEquals("MapTests::testMapEntityCells", expected, result)
 }
 

@@ -1,0 +1,24 @@
+include('auto')
+
+init()
+
+if(getTurn() == 1){
+	var me = Fight.self
+	var enemy = Fight.getEntity(getNearestEnemy())
+	// todo set entities to desired values, like : me.absShield = 100
+
+	
+	var allCombos = []
+	for(var item1 in Items.getAllItems()){
+		for(var item2 in Items.getAllItems()){
+			var combo = new Combo()
+			var action1 = Action(item1, Fight.self.cell, enemy.cell)
+			var action2 = Action(item2, Fight.self.cell, enemy.cell)
+			combo.add(action1)
+			combo.add(action2)
+			push(allCombos, combo)
+			debug(count(allCombos))
+			// j'arrive à 9593 sur 15876 en 1 tour :(
+		}
+	}	
+}
