@@ -2,13 +2,13 @@
  * Action réalisable d'une entité vers une autre
  */
 class Action {
-	public from
-	public to
-	public item
-	public consequences
-	public score
+	public Cell from
+	public Cell to
+	public Item item
+	public Consequences consequences
+	public real? score
 
-	constructor(item, from, to){
+	constructor(Item item, Cell from, Cell to){
 		this.item = item
 		this.from = from
 		this.to = to
@@ -16,7 +16,7 @@ class Action {
 		this.score = this.consequences.getScore()
 	}
 	
-	constructor(action, consequences){
+	constructor(Action action, Consequences consequences){
 		this.item = action.item
 		this.from = action.from
 		this.to = action.to
@@ -27,8 +27,8 @@ class Action {
 	/*
 	 * Format chaîne de caractères utilisée pour des tests / debugs.
 	 */
-	string(){
-		var rounded = this.score != null ? round(this.score) : "None"
+	string string(){
+		integer|string rounded = this.score != null ? round(this.score!) : "None"
 		return "<Action score: "+rounded+" "+this.item.name+"|from:"+this.from.id+"|to:"+this.to.id+">"
 	}
 }

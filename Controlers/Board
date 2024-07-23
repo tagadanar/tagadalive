@@ -1,0 +1,77 @@
+include('../../auto')
+
+/*
+ * Contient les informations de la map (obstacles, cells, placement des Entity)
+ */
+class Board {
+	static Map<Cell, boolean> obstacles = [:]
+	static Map<integer, Cell> cells = [:]
+	static Map<Cell, Entity> entityCells
+	
+	/*
+	 * Fonction d'initialisation, initialise les Cellules Cell, et pour chaque Cell, les obstacles et leurs voisins.
+	 */
+	static void init(){
+		for(integer i = 0; i < 613; i++) Board.cells[i] = new Cell(i)
+		for(integer i in getObstacles()) Board.obstacles[Board.cells[i]!]=true
+		for(Cell cell in Board.cells) cell.init()
+	}
+	
+	/*
+	 * Actualise la map contenant l'emplacement sous forme de Cell des Entity vivantes
+	 */
+	static void refresh(){
+		Board.entityCells = [:]
+		for(Entity entity in Fight.getAllAlive()){
+			// FIXME à vérif mais je pense qu'il faut que je m'ignore là, je me bloque jamais moi mm non ?
+			if(entity==Fight.self) continue
+			Board.entityCells[entity.cell] = entity
+		}
+		Fight.refreshEntities() // init des entities après avoir refresh les positions sur la map
+	}
+	
+	/*
+	 * Renvoie un objet Cell correspondant à l'id de la cellule
+	 * @param id id de la cellule
+	 * @return Cell
+	 */	
+	static Cell? getCell(integer? id) {
+		if(id==null) return null // sinon ça retourne la cell 0 !
+		return Board.cells[id!]
+	}
+	
+	/*
+	 * Colorie des cellules pour des tests / debugs.
+	 * @param cells tableau de Cell
+	 * @param color couleur choisie pour colorier les cellules
+	 */	
+	static void color(Array<integer>|Array<Cell>|integer|Cell cells, integer color) {
+		if(typeOf(cells) != TYPE_ARRAY){
+			if(cells instanceof Cell) mark((cells as Cell).id, color)
+			else mark(cells as integer, color)
+		}else{
+			for(Cell|integer cell in cells as Array<Cell|integer>){
+				if(cell instanceof Cell) mark((cell as Cell).id, color)
+				else mark(cell as integer, color)
+			}
+		}
+	}
+	
+	/*
+	 * colorie des cellules accessibles en fonction des mp pour des tests / debugs.
+	 * @param cells tableau de Cell
+	 * @param color couleur choisie pour colorier les cellules
+	 */
+	static void colorKey(Map<Cell|integer, integer> cells, integer color){
+		for(Cell|integer cell:integer mp in cells){
+			if(cell instanceof Cell){
+				mark((cell as Cell).id, color)
+				markText((cell as Cell).id, mp)	
+			} else {
+				mark(cell as integer, color)
+				markText(cell as integer, mp)
+			}
+			
+		}
+	}
+}

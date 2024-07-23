@@ -5,52 +5,52 @@ include('../../auto')
  */
 class MapDanger {
 	// cache du danger estimé sur la case, reset à chaque tour, pour la v1 du danger, sera amener à évoluer quand on améliorera la map
-	static _danger = [] // [cell:danger]
-	static _hash_danger = [] // [consequences.hash:[cell:danger]]
+	static Map<Cell, Danger> _danger = [:] // [cell:danger]
+	static Map<integer, Map<Cell, Danger>> _hash_danger = [:] // [consequences.hash:[cell:danger]]
 	
 	// cache contenant pour chaque item, pour chaque case, les cases qu'on peut toucher si rien ne bloque la LOS
 	// ne doit pas être reset en début de tour, l'info reste valide, et est lazyloader à la demande.
-	static _cache_item_targetableCells = [] // [item:[fromCell:[targetCells]]]
+	static Map<Item, Map<Cell, Array<Cell>>> _cache_item_targetableCells = [:] // [item:[fromCell:[targetCells]]]
 	
 	// cache contenant pour chaque ally, pour chaque item, pour chauqe case, les cases qu'on peut toucher, en prenant en compte la LOS
 	// doit être refresh à chaque tour, car on prend en compte la LOS
 	// TODO faire des tests de performances quand on rencontrera des problèmes d'opérations, c'est surement nettement + couteux...
-	static _cache_allies_item_targetableCells = [] // [ally:[item:[fromCell:[targetCells]]]]
+	static Map<Entity, Map<Item, Map<Cell, Array<Cell>>>> _cache_allies_item_targetableCells = [:] // [ally:[item:[fromCell:[targetCells]]]]
 	
 	// cache pour chaque enemy des maps des cases où il peut tirer
 	// refresh à chaque tour
-	static _map_entity_item_danger = [] // [e:[item:[cell:ratio]]]
+	static Map<Entity, Map<Item, Map<Cell, real>>> _map_entity_item_danger = [:] // [e:[item:[cell:ratio]]]
 	
 	/*
 	 * Actualise les informations en fonctions des enemies et alliés encore vivant 
 	 */
-	static refresh(){
+	static void refresh(){
 		// reset du cache
-		_danger = []
-		_hash_danger = []
-		_map_entity_item_danger = []
+		_danger = [:]
+		_hash_danger = [:]
+		_map_entity_item_danger = [:]
 		// pour chaque adv
-		for(var e in Fight.getEnemiesAlive()){
-			_map_entity_item_danger[e] = [];//reset de la map
+		for(Entity e in Fight.getEnemiesAlive()){
+			_map_entity_item_danger[e] = [:];//reset de la map
 			e.offensiveItems = Items.getOrderedOffensiveItems(e)
 			// pour chaque item offensif
-			for(var item : var dmgPerTp in e.offensiveItems){
+			for(Item item in e.offensiveItems){
 				// on trouve les cases qu'il peut toucher avec son item
-				_map_entity_item_danger[e][item] = MapDanger.getEnemiesDmgMap(e, item)
+				_map_entity_item_danger[e]![item] = MapDanger.getEnemiesDmgMap(e, item)
 			}
 		}
-		_cache_allies_item_targetableCells = []
+		_cache_allies_item_targetableCells = [:]
 		// pour chaque ally
-		for(var a in Fight.getAlliesAlive()){
-			_map_entity_item_danger[a] = [];//reset de la map
-			for(var e in Fight.getEnemiesAlive()){
+		for(Entity a in Fight.getAlliesAlive()){
+			_map_entity_item_danger[a] = [:];//reset de la map
+			for(Entity e in Fight.getEnemiesAlive()){
 				// on récup les items offensif pour chaque adv
 				a.offensiveItemsByTargets[e] = Items.getOrderedOffensiveItems(a, e)
 			}
 			// pour chaque set d'items, chaque item, on récup la map des cases touchables
-			for(var offensiveItems in a.offensiveItemsByTargets){
-				for(var item : var dmgPerTp in offensiveItems){
-					_map_entity_item_danger[a][item] = MapDanger.getAlliesDmgMap(a, item)
+			for(Array<Item> offensiveItems in a.offensiveItemsByTargets){
+				for(Item item in offensiveItems){
+					_map_entity_item_danger[a]![item] = MapDanger.getAlliesDmgMap(a, item)
 				}
 				break
 			}
@@ -62,7 +62,7 @@ class MapDanger {
 	 * @param <Cell> cell la case sur laquel on veut le danger
 	 * @return <Danger>
 	 */
-	static getCellDanger(cell){
+	static Danger getCellDanger(Cell cell){
 		return MapDanger.getCellDanger(cell, null)
 	}
 		
@@ -72,18 +72,19 @@ class MapDanger {
 	 * @param consequences Consequences qui contient les altérations de la série d'action précédente dans le combo
 	 * @return un objet <Danger>
 	 */
-	static getCellDanger(cell, consequences) {
-		if(consequences && consequences.isAlteringDanger){
-			if(!_hash_danger[consequences.hashcode]) _hash_danger[consequences.hashcode] = []
-			if(!_hash_danger[consequences.hashcode][cell]){
-				_hash_danger[consequences.hashcode][cell] = Damages.computeDanger(cell, consequences)
+	static Danger getCellDanger(Cell cell, Consequences? consequences) {
+		if(consequences && consequences!.isAlteringDanger){
+			if(!_hash_danger[consequences!.hashcode]) 
+				_hash_danger[consequences!.hashcode] = [:]
+			if(!_hash_danger[consequences!.hashcode]![cell]){
+				_hash_danger[consequences!.hashcode]![cell] = Damages.computeDanger(cell, consequences)
 			}
-			return _hash_danger[consequences.hashcode][cell]
+			return _hash_danger[consequences!.hashcode]![cell]!
 		}else{
 			if(!_danger[cell]) {
 				_danger[cell] = Damages.computeDanger(cell, null)
 			}
-			return _danger[cell]
+			return _danger[cell]!
 		}
 	}
 
@@ -94,14 +95,14 @@ class MapDanger {
 	 * @item Item item
 	 * @return map de Cells ciblables par l'Entity ally
 	 */
-	static getAlliesDmgMap(ally, item){
-		var map = []//, map_mp = []
-		for(var cell:var dist in ally.reachableCells){
+	static Map<Cell, real> getAlliesDmgMap(Entity ally, Item item){
+		Map<Cell, real> map = [:]//, map_mp = []
+		for(Cell cell:integer dist in ally.reachableCells){
 			if(dist > ally.mp) break
-			var targetableCells = MapDanger.getAlliesTargetableCells(item, cell);
+			var targetableCells = MapDanger.getAlliesTargetableCells(ally, item, cell);
 			for(var c in targetableCells){
 				if(map[c]==null){
-					map[c]=1;//coef
+					map[c]=1.0;//coef
 					//map_mp[cell]=dist;
 				}
 			}
@@ -117,16 +118,16 @@ class MapDanger {
 	 * @param cell une Cellule accesible par l'entité en question
 	 * @return cache sous forme de double tableau
 	 */
-	static getAlliesTargetableCells(item, cell){ // TODO add ignoreleeks to ignore leeks who play before
+	static Array<Cell> getAlliesTargetableCells(Entity ally, Item item, Cell cell){ // TODO add ignoreleeks to ignore leeks who play before
 		// init du cache si nécessaire
-		if(MapDanger._cache_allies_item_targetableCells[item]==null) 
-			MapDanger._cache_allies_item_targetableCells[item] = []
-		if(MapDanger._cache_allies_item_targetableCells[item][cell]==null){
-			MapDanger._cache_allies_item_targetableCells[item][cell] =
-				Targets.getTargetableCells(item, cell, [])
-		}
+		if(MapDanger._cache_allies_item_targetableCells[ally]==null) 
+			MapDanger._cache_allies_item_targetableCells[ally] = [:]
+		if(MapDanger._cache_allies_item_targetableCells[ally]![item]==null)
+			MapDanger._cache_allies_item_targetableCells[ally]![item] = [:]
+		if(MapDanger._cache_allies_item_targetableCells[ally]![item]![cell]==null) 
+			MapDanger._cache_allies_item_targetableCells[ally]![item]![cell] = Targets.getTargetableCells(item, cell, [])
 			
-		return MapDanger._cache_allies_item_targetableCells[item][cell];
+		return MapDanger._cache_allies_item_targetableCells[ally]![item]![cell]!;
 	}
 		
 	
@@ -139,14 +140,14 @@ class MapDanger {
 	 * @item Item item
 	 * @return map de Cells ciblables par l'Entity enemy
 	 */
-	static getEnemiesDmgMap(enemy, item){
-		var map = []//, map_mp = []
-		for(var cell:var dist in enemy.reachableCells){
+	static Map<Cell, real> getEnemiesDmgMap(Entity enemy, Item item){
+		Map<Cell, real> map = [:]//, map_mp = []
+		for(Cell cell:integer dist in enemy.reachableCells){
 			if(dist > enemy.mp) break
-			var targetableCells = MapDanger.getEnemiesTargetableCells(item, cell);
-			for(var c in targetableCells){
+			Array<Cell> targetableCells = MapDanger.getEnemiesTargetableCells(item, cell);
+			for(Cell c in targetableCells){
 				if(map[c]==null){
-					map[c]=1;//coef
+					map[c]=1.0;//coef
 					//map_mp[c]=dist;
 				}
 			}
@@ -154,16 +155,16 @@ class MapDanger {
 		
 		//aoe TODO AREA_PLUS_, AREA_X_, AREA_SQUARE_
 		if(item.area==AREA_CIRCLE_1 || item.area==AREA_CIRCLE_2 || item.area==AREA_CIRCLE_3){
-			for(var distance = 1; distance<=item.area-2; distance++){ // ici trick pour réduire les opé, par du principe que AREA_CIRCLE_1 = 3 et AREA_CIRCLE_3 = 5
-				var ratio = 1 - 0.2 * distance
+			for(integer distance = 1; distance<=item.area-2; distance++){ // ici trick pour réduire les opé, par du principe que AREA_CIRCLE_1 = 3 et AREA_CIRCLE_3 = 5
+				real ratio = 1 - 0.2 * distance
 				if(ratio ==0) break;
-				var circle = [];
-				for(var c:var value in map){
+				Array<Cell> circle = [];
+				for(Cell c:real value in map){
 					if(value>0)
-						for(var cell in c.neighborsObstacles)
+						for(Cell cell in c.neighborsObstacles)
 							if(map[cell]==null || map[cell]==0) push(circle, cell);
 				}
-				for(var cell in circle){
+				for(Cell cell in circle){
 					map[cell] = ratio;
 					//map_mp[cell] = eMp;
 				}
@@ -182,28 +183,28 @@ class MapDanger {
 	 */
 	// TODO memoisé lineOfSight ignoring allEntitiesId
 	// fonction avec cache qui considère que los est tjr pareil.
-	static getEnemiesTargetableCells(item, cell){
+	static Array<Cell> getEnemiesTargetableCells(Item item, Cell cell){
 		// init du cache si nécessaire
-		if(MapDanger._cache_item_targetableCells[item]==null) MapDanger._cache_item_targetableCells[item] = []
-		if(MapDanger._cache_item_targetableCells[item][cell]==null){
-			MapDanger._cache_item_targetableCells[item][cell] =
-				Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
-		}
-		return MapDanger._cache_item_targetableCells[item][cell];
+		if(MapDanger._cache_item_targetableCells[item]==null) 
+			MapDanger._cache_item_targetableCells[item] = [:]
+		if(MapDanger._cache_item_targetableCells[item]![cell]==null)
+			MapDanger._cache_item_targetableCells[item]![cell] = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
+		
+		return MapDanger._cache_item_targetableCells[item]![cell]!;
 	}
 		
-	static showDanger(from, mpleft, consequences) {
-		var reachableCells = MapPath.getCachedReachableCells(from, mpleft, Fight.self.cellsToIgnore)
-		var arrayDanger = []
-		for(var c : var d in reachableCells) {
-			var danger = MapDanger.getCellDanger(c, consequences)
-			var red = (danger.dmg*255)/Fight.self.life
-			if(red>255) mark(c, getColor(0, 0, 0))
-			else mark(c, getColor(red, 255-red, 0))
-			markText(c, round(danger.dmg))
-			arrayDanger[round(danger.dmg)] = danger
+	static void showDanger(Cell from, integer mpleft, Consequences consequences) {
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpleft, Fight.self.cellsToIgnore)
+		Array<Danger> arrayDanger = []
+		for(Cell c : integer d in reachableCells) {
+			Danger danger = MapDanger.getCellDanger(c, consequences)
+			integer red = ((danger.dmg*255)/Fight.self.life) as integer
+			if(red>255) mark(c.id, getColor(0, 0, 0))
+			else mark(c.id, getColor(red, 255-red, 0))
+			markText(c.id, round(danger.dmg))
+			push(arrayDanger, danger)
 		}
-		for(var danger in arrayDanger){
+		for(Danger danger in arrayDanger){
 			debug(danger)
 		}
 	}
