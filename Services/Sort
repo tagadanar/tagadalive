@@ -1,9 +1,9 @@
 class Sort {
-	static desc(a, b){
+	static integer|real desc(integer|real a, integer|real b){
 		return b-a
 	}
 	
-	static asc(a, b){
+	static integer|real asc(integer|real a, integer|real b){
 		return a-b
 	}
 }

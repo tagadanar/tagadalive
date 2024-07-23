@@ -4,35 +4,35 @@ include('../../auto')
  * Objet qui contient l'ensemble des entités vivante alliée et ennemie
  */
 class Fight {
-	private static _aliveEnemies
-	private static _aliveAllies
-	private static _aliveAll
-	private static _aliveAllLeeks
-	private static _aliveAllBulbs
-	private static _aliveEnemiesLeeks
-	private static _aliveEnemiesBulbs
-	private static _aliveAlliesLeeks
-	private static _aliveAlliesBulbs
-	static allEntitiesId
-	static self
-	static selfCell = Cell(1312)
+	private static Map<integer, Entity> _aliveEnemies
+	private static Map<integer, Entity> _aliveAllies
+	private static Map<integer, Entity> _aliveAll
+	private static Map<integer, Entity> _aliveAllLeeks
+	private static Map<integer, Entity> _aliveAllBulbs
+	private static Map<integer, Entity> _aliveEnemiesLeeks
+	private static Map<integer, Entity> _aliveEnemiesBulbs
+	private static Map<integer, Entity> _aliveAlliesLeeks
+	private static Map<integer, Entity> _aliveAlliesBulbs
+	static Array<integer> allEntitiesId
+	static Entity self
+	static Cell selfCell = Cell(1312)
 
 	/*
 	 * Actualise les tableaux contenant les entités vivante alliée et ennemie ainsi que l'ensemble des entités alliées + ennemies
 	 */
-	static refresh(){
-		_aliveEnemies = []
-		_aliveAllies = []
-		_aliveAll = []
-		_aliveAllLeeks = []
-		_aliveAllBulbs = []
-		_aliveEnemiesLeeks = []
-		_aliveEnemiesBulbs = []
-		_aliveAlliesLeeks = []
-		_aliveAlliesBulbs = []
+	static void refresh(){
+		_aliveEnemies = [:]
+		_aliveAllies = [:]
+		_aliveAll = [:]
+		_aliveAllLeeks = [:]
+		_aliveAllBulbs = [:]
+		_aliveEnemiesLeeks = [:]
+		_aliveEnemiesBulbs = [:]
+		_aliveAlliesLeeks = [:]
+		_aliveAlliesBulbs = [:]
 		allEntitiesId = []
-		for(var e in getAliveEnemies()) {
-			var entity = Entity(e)
+		for(integer e in getAliveEnemies()) {
+			Entity entity = Entity(e)
 			_aliveEnemies[e] = entity
 			_aliveAll[e] = entity
 			if(entity.isBulb){
@@ -43,8 +43,8 @@ class Fight {
 				_aliveAllLeeks[e] = entity
 			}
 		}
-		for(var a in getAliveAllies()) {
-			var entity = Entity(a)
+		for(integer a in getAliveAllies()) {
+			Entity entity = Entity(a)
 			_aliveAllies[a] = entity
 			_aliveAll[a] = entity
 			if(entity.isBulb){
@@ -55,14 +55,14 @@ class Fight {
 				_aliveAllLeeks[a] = entity
 			}
 		}
-		self = _aliveAll[getLeek()]
+		self = _aliveAll[getEntity()]!
 	}
 	
 	/*
 	 * initialise les entités, doit être call à la fin du refresh de la Map pour bien init les reachableCells avec les bonnes cases occupés dans la Map
 	 */
-	static refreshEntities(){
-		for(var entity in _aliveAll){
+	static void refreshEntities(){
+		for(Entity entity in _aliveAll){
 			entity.init()
 			push(allEntitiesId, entity.id)
 		}
@@ -73,15 +73,15 @@ class Fight {
 	 * @param entityId Id de l'Entity
 	 * @return une Entity 
 	 */
-	static getEntity(entityId) {
-		return _aliveAll[entityId]
+	static Entity getEntity(integer entityId) {
+		return _aliveAll[entityId]!
 	}
 	
 	/*
 	 * Renvoie un tableau contenant les ennemis vivants
 	 * @return un tableau d'Entity
 	 */
-	static getEnemiesAlive() {
+	static Map<integer, Entity> getEnemiesAlive() {
 		return _aliveEnemies
 	}
 	
@@ -89,7 +89,7 @@ class Fight {
 	 * Renvoie un tableau contenant les ennemis non bulbes vivants
 	 * @return un tableau d'Entity
 	 */
-	static getEnemiesLeeksAlive() {
+	static Map<integer, Entity> getEnemiesLeeksAlive() {
 		return _aliveEnemiesLeeks
 	}
 	
@@ -97,7 +97,7 @@ class Fight {
 	 * Renvoie un tableau contenant les ennemis bulbes vivants
 	 * @return un tableau d'Entity
 	 */
-	static getEnemiesBulbsAlive() {
+	static Map<integer, Entity> getEnemiesBulbsAlive() {
 		return _aliveEnemiesBulbs
 	}
 	
@@ -105,7 +105,7 @@ class Fight {
 	 * Renvoie un tableau contenant les alliés vivants (moi compris dedans)
 	 * @return un tableau d'Entity
 	 */
-	static getAlliesAlive() {
+	static Map<integer, Entity> getAlliesAlive() {
 		return _aliveAllies
 	}
 	
@@ -113,7 +113,7 @@ class Fight {
 	 * Renvoie un tableau contenant les alliés non bulbes vivants (moi compris dedans)
 	 * @return un tableau d'Entity
 	 */
-	static getAlliesLeeksAlive() {
+	static Map<integer, Entity> getAlliesLeeksAlive() {
 		return _aliveAlliesLeeks
 	}
 	
@@ -121,7 +121,7 @@ class Fight {
 	 * Renvoie un tableau contenant les alliés bulbes vivants (moi compris dedans si je suis un bulbe)
 	 * @return un tableau d'Entity
 	 */
-	static getAlliesBulbsAlive() {
+	static Map<integer, Entity> getAlliesBulbsAlive() {
 		return _aliveAlliesBulbs
 	}
 	
@@ -129,7 +129,7 @@ class Fight {
 	 * Renvoie un tableau contenant les ennemis et les alliés vivants (moi compris dedans)
 	 * @return un tableau d'Entity
 	 */
-	static getAllAlive() {
+	static Map<integer, Entity> getAllAlive() {
 		return _aliveAll
 	}
 	
@@ -137,7 +137,7 @@ class Fight {
 	 * Renvoie un tableau contenant les ennemis et les alliés non bulbes vivants (moi compris dedans)
 	 * @return un tableau d'Entity
 	 */
-	static getAllLeeksAlive() {
+	static Map<integer, Entity> getAllLeeksAlive() {
 		return _aliveAllLeeks
 	}
 	
@@ -145,7 +145,7 @@ class Fight {
 	 * Renvoie un tableau contenant les ennemis et les alliés bulbes vivants (moi compris dedans)
 	 * @return un tableau d'Entity
 	 */
-	static getAllBulbsAlive() {
+	static Map<integer, Entity> getAllBulbsAlive() {
 		return _aliveAllBulbs
 	}
 	
@@ -158,12 +158,12 @@ class Fight {
 	 * @param entity Entity 
 	 * @return liste des entités vivantes alliés et ennemies 
 	 */
-	static getListOfLeekWhoPlayBefore(entity) {
+	static Array<Entity> getEntitiesWhoPlayBefore(Entity entity) {
 		if(entity == self) return [self];
-		var list = [self]
-		var self = self.turnOrder
-		var limit = entity.turnOrder
-		for(var e in _aliveAll) {
+		Array<Entity>  list = [self]
+		integer self = self.turnOrder
+		integer limit = entity.turnOrder
+		for(Entity e in _aliveAll) {
 			if(self < limit){
 				if(self < e.turnOrder && e.turnOrder < limit) push(list, e)
 			} else {

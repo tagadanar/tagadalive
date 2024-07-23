@@ -3,7 +3,7 @@ include('auto');
 init()
 
 Benchmark.start('COMBO SEARCH')
-var combo = AI.getPotentialCombo()
+Combo combo = AI.getPotentialCombo()
 Benchmark.stop('COMBO SEARCH')
 if(combo) combo.play()
 else {
@@ -13,21 +13,21 @@ else {
 // cast avec le reste des TP
 function failSafe(){
 	var tpleft = getTP()
-	if(getAbsoluteShield(Fight.self)<=0) Items.getItem(CHIP_ARMOR).useItem(Fight.self)
-	if(getAbsoluteShield(Fight.self)<=0) Items.getItem(CHIP_SHIELD).useItem(Fight.self)
-	if(getAbsoluteShield(Fight.self)<=0) Items.getItem(CHIP_HELMET).useItem(Fight.self)
-	if(getRelativeShield(Fight.self)<=0) Items.getItem(CHIP_WALL).useItem(Fight.self)
+	if(getAbsoluteShield(Fight.self.id)<=0) Items.getItem(CHIP_ARMOR)!.useItem(Fight.self)
+	if(getAbsoluteShield(Fight.self.id)<=0) Items.getItem(CHIP_SHIELD)!.useItem(Fight.self)
+	if(getAbsoluteShield(Fight.self.id)<=0) Items.getItem(CHIP_HELMET)!.useItem(Fight.self)
+	if(getRelativeShield(Fight.self.id)<=0) Items.getItem(CHIP_WALL)!.useItem(Fight.self)
 	if(Fight.self.life<Fight.self.totalLife){
-		Items.getItem(CHIP_CURE).useItem(Fight.self)
+		Items.getItem(CHIP_CURE)!.useItem(Fight.self)
 	}
-	Items.getItem(CHIP_ARMORING).useItem(Fight.self)
-	Items.getItem(CHIP_VACCINE).useItem(Fight.self)
-	Items.getItem(CHIP_PROTEIN).useItem(Fight.self)
+	Items.getItem(CHIP_ARMORING)!.useItem(Fight.self)
+	Items.getItem(CHIP_VACCINE)!.useItem(Fight.self)
+	Items.getItem(CHIP_PROTEIN)!.useItem(Fight.self)
 	var tpused = tpleft-getTP()
 	if(tpused>0) debugE('/!\ turn '+getTurn()+" failSafe TP used: "+tpused)
 }
 failSafe()
 
 Benchmark.display()
-debug('UTILISATION TOTALE DU TOUR: ' + Benchmark.format(getOperations()) )
+
 

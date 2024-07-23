@@ -1,21 +1,21 @@
 include('../includesTests')
 
 function testEmptyObstacles() {
-	assertEquals("MapTests::testEmptyObstacles", false , isEmpty(Map.obstacles))
+	assertEquals("MapTests::testEmptyObstacles", false , mapIsEmpty(Board.obstacles))
 }
 
 function testEmptyCells() {
-	assertEquals("MapTests::testEmptyCells", false , isEmpty(Map.cells))
+	assertEquals("MapTests::testEmptyCells", false , mapIsEmpty(Board.cells))
 }
 
 function testNbCells() {
-	assertEquals("MapTests::testNbCells", 613 , count(Map.cells))
+	assertEquals("MapTests::testNbCells", 613 , mapSize(Board.cells))
 }
 
 function testMapObstacles() {
 	var result = 0;
 	for (var i in getObstacles()) {
-		if (Map.obstacles[Map.cells[i]] == false) {
+		if (Board.obstacles[Board.cells[i]] == false) {
 			result += 1;
 		}
 	}
@@ -27,7 +27,7 @@ function testCompareObstaclesAttributeWithCellsAttribute() {
 	var nbErrors = 0;
 	
 	for (var i in getObstacles()) {
-		if (Map.obstacles[Map.cells[i]] != Map.cells[i].isWall) {
+		if (Board.obstacles[Board.cells[i]] != Board.cells[i].isWall) {
 			nbErrors += 1;
 		}
 	}
@@ -39,7 +39,7 @@ function testCellInMapWith1Neighbors() {
 	var expected = [0, 17, 595, 612];
 	var result = []
 	for(var i = 0 ; i < 613 ; i++) {
-		if (count(Map.cells[i].neighborsObstacles) == 1) {
+		if (count(Board.cells[i].neighborsObstacles) == 1) {
 			//push(result, Map.getCell(Map.cells[i].id).id)
 			push(result, i);
 		}
@@ -57,7 +57,7 @@ function testCellInMapWith2Neighbors() {
 	
 	var result = []
 	for(var i = 0 ; i < 613 ; i++) {
-		if (count(Map.cells[i].neighborsObstacles) == 2) {
+		if (count(Board.cells[i].neighborsObstacles) == 2) {
 			//push(result, Map.getCell(Map.cells[i].id).id)
 			push(result, i);
 		}
@@ -101,7 +101,7 @@ function testCellInMapWith4Neighbors() {
 	
 	var result = []
 	for(var i = 0 ; i < 613 ; i++) {
-		if (count(Map.cells[i].neighborsObstacles) == 4) {
+		if (count(Board.cells[i].neighborsObstacles) == 4) {
 			//push(result, Map.getCell(Map.cells[i].id).id)
 			push(result, i);
 		}
@@ -111,16 +111,16 @@ function testCellInMapWith4Neighbors() {
 }
 
 function testMapEntityCells() {
-	var result = count(Map.entityCells)
+	integer result = mapSize(Board.entityCells)
 	// -1 car self n'est pas dans la liste
-	var expected = count(getAliveAllies())-1 + count(getAliveEnemies())
+	integer expected = count(getAliveAllies()+getAliveEnemies()) - 1
 	assertEquals("MapTests::testMapEntityCells", expected, result)
 }
 
 function testEntityInMapEntityCells() {
 	var result = []
 	for (var leekId in getEnemies()) {
-		if (Map.entityCells[Map.getCell(getCell(leekId))].id == leekId)
+		if (Board.entityCells[Board.getCell(getCell(leekId))].id == leekId)
 			push(result, leekId);		
 	}
 	

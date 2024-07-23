@@ -4,14 +4,14 @@ include('../../auto')
  * Ensemble de méthodes et d'algorithmes permettant d'instancier les items de type Item et de les classer par ordre d'importance
  */
 class Items {
-	private static _items = []
-	private static _stuff = []
+	private static Map<integer, Item> _items = [:]
+	private static Map<integer, Array<Item>> _stuff = [:]
 	
 	/*
 	 * Initialise toutes les équipements disponible dans le jeu
 	 */
-	static init() {
-		for(var i in getAllWeapons()+getAllChips()) {
+	static void init() {
+		for(integer i in getAllWeapons()+getAllChips()) {
 			_items[i] = new Item(i)
 		}
 	}
@@ -21,8 +21,9 @@ class Items {
 	 * @param itemId id de l'item 
 	 * @return Item 
 	 */
-	static getItem(itemId){
-		return _items[itemId]
+	static Item? getItem(integer? itemId){
+		if (itemId == null) return null
+		return _items[itemId!]
 	}
 	
 	/*
@@ -30,7 +31,7 @@ class Items {
 	 * @param itemId id de l'item 
 	 * @return Item 
 	 */
-	static getAllItems(){
+	static Map<integer, Item> getAllItems(){
 		return _items
 	}
 	
@@ -39,14 +40,23 @@ class Items {
 	 * @param entityId id de l'Entity
 	 * @return tableau d'Item
 	 */
-	static getItems(entityId) {
+	static Array<Item> getItems(integer entityId) {
 		if(!_stuff[entityId]){
 			_stuff[entityId] = []
-			for(var i in getWeapons(entityId)+getChips(entityId)){
-				push(_stuff[entityId], _items[i]);
+			Array<integer>? weapons = getWeapons(entityId)
+			if (weapons != null) {
+				for(integer itemId in weapons!){
+					push(_stuff[entityId]!, _items[itemId]);
+				}
+			}
+			Array<integer>? chips = getChips(entityId)
+			if (chips != null) {
+				for(integer itemId in chips!){
+					push(_stuff[entityId]!, _items[itemId]);
+				}
 			}
 		}
-		return _stuff[entityId]
+		return _stuff[entityId]!
 	}
 	
 	/*
@@ -54,7 +64,7 @@ class Items {
 	 * @param entity Entity ennemie
 	 * @return tableau d'Item classé par dangerosité
 	 */
-	static getOrderedOffensiveItems(entity) {
+	static Array<Item> getOrderedOffensiveItems(Entity entity) {
 		return Items.getOrderedOffensiveItems(entity, Fight.self)
 	}
 	
@@ -64,15 +74,19 @@ class Items {
 	 * @param target Entity ciblé
 	 * @return tableau d'Item classé par dangerosité
 	 */
-	static getOrderedOffensiveItems(entity, target) {
-		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entity.id)
-		var absShield = target.absShield, relShield = target.relShield;
-		for(var item in stuff){
-			// reminder le cd est décrément au début du round, donc 1 est utilisable next rnd, sauf pour moi même
-			var limitCD = entity == Fight.self ? 0 : 1
-			if(item.haveCD && getCooldown(item, entity)>limitCD) continue;
-			dmg=0;
-			for(var e in item.effects){
+	static Array<Item> getOrderedOffensiveItems(Entity entity, Entity target) {
+		real dmg
+		integer cost
+		Array<ItemEffect> effects
+		Map<Item, real> dmgPerItem = [:]
+		//Array<Item> stuff = Items.getItems(entity.id)
+		integer absShield = target.absShield, relShield = target.relShield;
+		// reminder le cd est décrément au début du round, donc 1 est utilisable next rnd, sauf pour moi même
+		integer limitCD = entity == Fight.self ? 0 : 1
+		for(Item item in entity.items){
+			if(item.haveCD && getCooldown(item.id, entity.id)>limitCD) continue;
+			dmg=0.0;
+			for(ItemEffect e in item.effects){
 				if(e.type == EFFECT_DAMAGE ){
 					dmg += (e.avg*(1+(entity.str/100))*(1+(entity.pwr/100))*(1-(relShield/100)))-absShield;
 				}
@@ -84,14 +98,13 @@ class Items {
 				}
 				// ici add les effets d'entrave en score pts->dmg
 			}
-			if(dmg>0) allItems[item] = dmg/item.cost;
+			if(dmg>0) dmgPerItem[item] = dmg/item.cost;
 		}
-		allItems = arraySort(allItems, function(a,b){	
-			if(a<b) return 1;
-			else if(a>b) return -1;
+		return arraySort(mapKeys(dmgPerItem), (Item a, Item b) => integer {	
+			if(dmgPerItem[a]<dmgPerItem[b]) return 1;
+			else if(dmgPerItem[a]>dmgPerItem[b]) return -1;
 			return 0;
-		});
-		return allItems;
+		}) as Array<Item>;
 	}
 	
 	/*
@@ -99,14 +112,17 @@ class Items {
 	 * @param entity Entity 
 	 * @return tableau d'Item classé par effet bénéfique défensif
 	 */
-	static getOrderedDefensiveItems(entity){
-		var dmg, cost, effects, allItems = [], stuff = Items.getItems(entity.id)
-		var absShield = Fight.self.absShield, relShield = Fight.self.relShield
-		for(var item in stuff){
+	static Array<Item> getOrderedDefensiveItems(Entity entity){
+		real dmg
+		integer cost
+		Array<ItemEffect> effects
+		Map<Item, real> dmgPerItem = [:]
+		integer absShield = entity.absShield, relShield = entity.relShield;
+		for(Item item in entity.items){
 			// reminder le cd est décrément au début du round, donc 1 est utilisable next rnd
-			if(item.haveCD && getCooldown(item, entity)>1) continue;
-			dmg=0;
-			for(var e in effects){
+			if(item.haveCD && getCooldown(item.id, entity.id)>1) continue;
+			dmg=0.0;
+			for(ItemEffect e in effects){
 				if(e.type == EFFECT_HEAL){
 					dmg+= e.avg*(1+(entity.wsd/100));
 				}
@@ -117,17 +133,12 @@ class Items {
 					dmg += e.avg*(1+(entity.rst/100)) *e.duration *4; // FIXME le *4 devrait être une global de ratio abs/rel
 				}
 			}
-			if(dmg>0) allItems[item] = dmg/item.cost;
+			if(dmg>0) dmgPerItem[item] = dmg/item.cost;
 		}
-		allItems = arraySort(allItems, function(a,b){	
-			if(a<b) return 1;
-			else if(a>b) return -1;
+		return arraySort(mapKeys(dmgPerItem), (Item a, Item b) => integer {	
+			if(dmgPerItem[a]<dmgPerItem[b]) return 1;
+			else if(dmgPerItem[a]>dmgPerItem[b]) return -1;
 			return 0;
-		});
-		return allItems;
-	}
-	
-	static getItem(id){
-		return _items[id]
+		}) as Array<Item>;
 	}
 }

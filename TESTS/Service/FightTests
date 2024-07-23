@@ -8,7 +8,7 @@ function testGetEntity() {
 }
 
 function testGetEnemiesAliveIsNotEmpty() {
-	var result = count(Fight.getEnemiesAlive())
+	var result = mapSize(Fight.getEnemiesAlive())
 	var expected = count(getAliveEnemies())
 	
 	assertEquals("FightTests::testGetEnemiesAliveIsNotEmpty", expected, result)
@@ -16,8 +16,8 @@ function testGetEnemiesAliveIsNotEmpty() {
 
 function testGetEnemiesAlive() {
 	var result = []
-	for (var leek in getAliveEnemies()) 
-		push(result, Fight.getEnemiesAlive()[leek].id)
+	for (Entity entity in Fight.getEnemiesAlive()) 
+		push(result, entity.id)
 	
 	var expected = getAliveEnemies()
 	
@@ -25,7 +25,7 @@ function testGetEnemiesAlive() {
 }
 
 function testGetAlliesAliveIsNotEmpty() {
-	var result = count(Fight.getAlliesAlive())
+	var result = mapSize(Fight.getAlliesAlive())
 	var expected = count(getAliveAllies())
 	
 	assertEquals("FightTests::testGetAlliesAliveIsNotEmpty", expected, result)
@@ -33,8 +33,8 @@ function testGetAlliesAliveIsNotEmpty() {
 
 function testGetAlliesAlive() {
 	var result = []
-	for (var leek in getAliveAllies()) 
-		push(result, Fight.getAlliesAlive()[leek].id)
+	for (Entity entity in Fight.getAlliesAlive()) 
+		push(result, entity.id)
 	
 	var expected = getAliveAllies()
 	
@@ -42,8 +42,8 @@ function testGetAlliesAlive() {
 }
 
 function testGetAllAliveIsNotEmpty() {
-	var result = count(Fight.getAllAlive())
-	var expected = count(getAliveAllies()) + count(getAliveEnemies())
+	integer result = mapSize(Fight.getAllAlive())
+	integer expected = count(getAliveAllies()+getAliveEnemies())
 	
 	assertEquals("FightTests::testGetAllAliveIsNotEmpty", expected, result)
 }
@@ -57,14 +57,14 @@ function testGetAllAlive() {
 
 function testGetListOfLeekWhoPlayBefore() {
 	var expected = [Fight.self]
-	var result = Fight.getListOfLeekWhoPlayBefore(Fight.self)
+	var result = Fight.getEntitiesWhoPlayBefore(Fight.self)
 	
-	assertEquals("FightTests::testGetListOfLeekWhoPlayBefore - Test 1", expected, result)
+	assertEquals("FightTests::testGetEntitiesWhoPlayBefore - Test 1", expected, result)
 	
 	// Pour info, ce test fonctionne uniquement si dans le scenario de test j'ai qu'un seul ennemi
 	var expected2 = Entity(getEntity()).id
-	var result2 = Fight.getListOfLeekWhoPlayBefore(Entity(getNearestEnemy()))[0].id
-	assertEquals("FightTests::testGetListOfLeekWhoPlayBefore - Test 2", expected2, result2)
+	var result2 = Fight.getEntitiesWhoPlayBefore(Entity(getNearestEnemy()))[0].id
+	assertEquals("FightTests::testGetEntitiesWhoPlayBefore - Test 2", expected2, result2)
 }
 
 function checkFight() {

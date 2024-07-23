@@ -5,74 +5,74 @@ include('../../auto')
  * Il y a un objet Entity instancié pour chacune des entités présente sur le champ de bataille.
  */
 class Entity {
-	id
-	name
-	cell
+	integer id
+	string name
+	Cell cell
 	// stats
-	totalLife
-	life
-	pwr
-	str
-	mgc
-	wsd
-	rst
-	agi
-	snc
-	tp
-	mp
-	relShield
-	absShield
-	dmgReturn
+	integer totalLife
+	integer life
+	integer pwr
+	integer str
+	integer mgc
+	integer wsd
+	integer rst
+	integer agi
+	integer snc
+	integer tp
+	integer mp
+	integer relShield
+	integer absShield
+	integer dmgReturn
 	// déplacement
-	reachableCells
+	Map<Cell, integer> reachableCells
 	// inventaire organisé en fonction des cibles
-	items
-	offensiveItems // will have a value on enemy leeks only
-	offensiveItemsByTargets = [] // will have a value on ally leeks only
+	Array<Item> items
+	Array<Item> offensiveItems // will have a value on enemy leeks only
+	Map<Entity, Array<Item>> offensiveItemsByTargets = [:] // will have a value on ally leeks only
 	// play order
-	turnOrder
-	entityWhoPlayBefore
-	cellsToIgnore = []
+	integer turnOrder
+	Array<Entity> entitiesWhoPlayBefore
+	Array<Cell> cellsToIgnore = []
 	// booleans
-	isFriend
-	isBulb
+	boolean isFriend
+	boolean isBulb
 	// gestions des effets
-	effects = []
-	items_effectOverTime = []
-	psnTurn = 0
-	psnTotal = 0
-	psnlife
-	altStr = 0
-	altMgc = 0
-	altAgi = 0
-	altTP = 0
-	altMP = 0
+	Array<EntityEffect> effects = []
+	Map<Item, Array<EffectOverTime>> items_effectOverTime = [:]
+	integer psnTurn = 0
+	integer psnTotal = 0
+	integer psnlife
+	integer altStr = 0
+	integer altMgc = 0
+	integer altAgi = 0
+	integer altTP = 0
+	integer altMP = 0
 	// todo add more alt ?
 	// todo add passive effect
-	launchedEffects
+	Array<EntityEffect> launchedEffects
 	
-	constructor(id){
+	constructor(integer id){
 		this.id = id
-		this.name = getName(id)
-		this.cell = Map.getCell(getCell(id))
-		this.totalLife = getTotalLife(id)
-		this.life = getLife(id)
-		this.pwr = getPower(id)
-		this.str = getStrength(id)
-		this.mgc = getMagic(id)
-		this.wsd = getWisdom(id)
-		this.rst = getResistance(id)
-		this.agi = getAgility(id)
-		this.snc = getScience(id)
-		this.tp = getTP(id)
-		this.mp = getMP(id)
-		this.relShield = getRelativeShield(id)
-		this.absShield = getAbsoluteShield(id)
-		this.dmgReturn = getDamageReturn(id)
+		this.name = getName(id)!
+		this.cell = Board.getCell(getCell(id))!
+		this.totalLife = getTotalLife(id)!
+		this.life = getLife(id)!
+		this.pwr = getPower(id)!
+		this.str = getStrength(id)!
+		this.mgc = getMagic(id)!
+		this.wsd = getWisdom(id)!
+		this.rst = getResistance(id)!
+		this.agi = getAgility(id)!
+		this.snc = getScience(id)!
+		this.tp = getTP(id)!
+		this.mp = getMP(id)!
+		this.relShield = getRelativeShield(id)!
+		this.absShield = getAbsoluteShield(id)!
+		this.dmgReturn = getDamageReturn(id)!
 		this.items = Items.getItems(id)
-		this.turnOrder = getEntityTurnOrder(id)
+		this.turnOrder = getEntityTurnOrder(id)!
 		this.isFriend = isAlly(id)
-		this.isBulb = isSummon(id)
+		this.isBulb = isSummon(id)!
 		/*
 		this.launchedEffects = []
 		for(var e in getLaunchedEffects(id)){
@@ -80,11 +80,11 @@ class Entity {
 		}
 		*/
 		
-		for(var e in getEffects(id)){
-			var effect = EntityEffect(e)
+		for(Array<boolean|integer> e in getEffects(id)!){
+			EntityEffect effect = EntityEffect(e)
 			push(effects, effect)
 			if(!this.items_effectOverTime[effect.item]) this.items_effectOverTime[effect.item] = []
-			push(this.items_effectOverTime[effect.item], EffectOverTime(effect))
+			push(this.items_effectOverTime[effect.item]!, EffectOverTime(effect))
 			// piste d'optimisation en ayant une meilleure structure pour les effets ici ?
 			// les eval en dessous pourrait être déléguer à un tab pour éviter les ifelseif?
 			// et ptete ajouter d'autres alt pour les autres stats ?
@@ -119,9 +119,9 @@ class Entity {
 	 * Initialise certaines informations de l'objet Entity
 	 * Certaines peuvent être dépendantes d'autres classes.
 	 */
-	init(){
-		this.entityWhoPlayBefore = Fight.getListOfLeekWhoPlayBefore(this)
-		for(var entity in this.entityWhoPlayBefore) {
+	void init(){
+		this.entitiesWhoPlayBefore = Fight.getEntitiesWhoPlayBefore(this)
+		for(Entity entity in this.entitiesWhoPlayBefore) {
 			push(this.cellsToIgnore, entity.cell)
 		}
 		this.reachableCells = MapPath.getCachedReachableCells(
@@ -135,73 +135,73 @@ class Entity {
 	 * Retourne l'objet Item correspondant à l'arme dans les mains de l'entité
 	 * @return une Item
 	 */
-	getWeaponInHand(){
-		return Items.getItem(getWeapon(this))
+	Item? getWeaponInHand(){
+		return Items.getItem(getWeapon(this.id))
 	}
 	
 	// n'est used que pour check les !stackable item, d'où le count(-1) et [0], maybe rename pour préciser ?
-	getCurrentItemEffect(item, consequences){
-		if(consequences && consequences._altEffects[this] && consequences._altEffects[this][item]){
-			return consequences._altEffects[this][item][count(consequences._altEffects[item])-1]
+	EffectOverTime? getCurrentItemEffect(Item item, Consequences? consequences){
+		if(consequences && consequences!._altEffects[this] && consequences!._altEffects[this]![item]){
+			return consequences!._altEffects[this]![item]![count(consequences!._altEffects[this]![item]!)-1]
 		}
-		return this.items_effectOverTime[item] ? this.items_effectOverTime[item][0] : null
+		return this.items_effectOverTime[item] ? this.items_effectOverTime[item]![0] : null
 	}
 	
-	getCurrentMaxHP(consequences){
-		return consequences ? this.totalLife+consequences.getAlteration(this, Stats.HPMAX) : this.totalLife 
+	integer getCurrentMaxHP(Consequences? consequences){
+		return consequences ? this.totalLife+consequences!.getAlteration(this, Stats.HPMAX) : this.totalLife 
 	}
-	getCurrentHP(consequences){
-		return consequences ? this.life+consequences.getAlteration(this, Stats.HP) : this.life 
+	integer getCurrentHP(Consequences? consequences){
+		return consequences ? this.life+consequences!.getAlteration(this, Stats.HP) : this.life 
 	}
-	getCurrentHPMissing(consequences){
+	integer getCurrentHPMissing(Consequences? consequences){
 		return this.getCurrentMaxHP(consequences) - this.getCurrentHP(consequences) 
 	}
-	getCurrentTP(consequences){
-		return consequences ? this.tp+consequences.getAlteration(this, Stats.TP) : this.tp 
+	integer getCurrentTP(Consequences? consequences){
+		return consequences ? this.tp+consequences!.getAlteration(this, Stats.TP) : this.tp 
 	}
-	getCurrentMP(consequences){
-		return consequences ? this.mp+consequences.getAlteration(this, Stats.MP) : this.mp 
+	integer getCurrentMP(Consequences? consequences){
+		return consequences ? this.mp+consequences!.getAlteration(this, Stats.MP) : this.mp 
 	}
-	getCurrentStr(consequences){
-		return consequences ? this.str+consequences.getAlteration(this, Stats.STR) : this.str 
+	integer getCurrentStr(Consequences? consequences){
+		return consequences ? this.str+consequences!.getAlteration(this, Stats.STR) : this.str 
 	}
-	getCurrentMgc(consequences){
-		return consequences ? this.mgc+consequences.getAlteration(this, Stats.MGC) : this.mgc 
+	integer getCurrentMgc(Consequences? consequences){
+		return consequences ? this.mgc+consequences!.getAlteration(this, Stats.MGC) : this.mgc 
 	}
-	getCurrentPwr(consequences){
-		return consequences ? this.pwr+consequences.getAlteration(this, Stats.PWR) : this.pwr 
+	integer getCurrentPwr(Consequences? consequences){
+		return consequences ? this.pwr+consequences!.getAlteration(this, Stats.PWR) : this.pwr 
 	}
-	getCurrentWsd(consequences){
-		return consequences ? this.wsd+consequences.getAlteration(this, Stats.WSD) : this.wsd 
+	integer getCurrentWsd(Consequences? consequences){
+		return consequences ? this.wsd+consequences!.getAlteration(this, Stats.WSD) : this.wsd 
 	}
-	getCurrentRst(consequences){
-		return consequences ? this.rst+consequences.getAlteration(this, Stats.RST) : this.rst 
+	integer getCurrentRst(Consequences? consequences){
+		return consequences ? this.rst+consequences!.getAlteration(this, Stats.RST) : this.rst 
 	}
-	getCurrentAgi(consequences){
-		return consequences ? this.agi+consequences.getAlteration(this, Stats.AGI) : this.agi 
+	integer getCurrentAgi(Consequences? consequences){
+		return consequences ? this.agi+consequences!.getAlteration(this, Stats.AGI) : this.agi 
 	}
-	getCurrentSnc(consequences){
-		return consequences ? this.snc+consequences.getAlteration(this, Stats.SNC) : this.snc 
+	integer getCurrentSnc(Consequences? consequences){
+		return consequences ? this.snc+consequences!.getAlteration(this, Stats.SNC) : this.snc 
 	}
-	getCurrentAbs(consequences){
-		return consequences ? this.absShield+consequences.getAlteration(this, Stats.ABSSHIELD) : this.absShield 
+	integer getCurrentAbs(Consequences? consequences){
+		return consequences ? this.absShield+consequences!.getAlteration(this, Stats.ABSSHIELD) : this.absShield 
 	}
-	getCurrentRel(consequences){
-		return consequences ? this.relShield+consequences.getAlteration(this, Stats.RELSHIELD) : this.relShield
+	integer getCurrentRel(Consequences? consequences){
+		return consequences ? this.relShield+consequences!.getAlteration(this, Stats.RELSHIELD) : this.relShield
 	}
-	getCurrentDmgReturn(consequences){
-		return consequences ? this.dmgReturn+consequences.getAlteration(this, Stats.DMGRETURN) : this.dmgReturn
+	integer getCurrentDmgReturn(Consequences? consequences){
+		return consequences ? this.dmgReturn+consequences!.getAlteration(this, Stats.DMGRETURN) : this.dmgReturn
 	}
 	
 	/*
 	 * Actualise les informations de l'entité
 	 * FIXME: UNUSED FUNCTION
 	 */
-	refresh() {
+	void refresh() {
 		// TODO make a real full refresh based on consequences? might be used for bulb?
 		// OR delete this shit ? full refresh by instantiating the entity again, and replacing it in Fight ?
-		this.mp = getMP(this.id)
-		this.cell = Map.getCell(getCell(this.id))
+		this.mp = getMP(this.id)!
+		this.cell = Board.getCell(getCell(this.id))!
 		this.reachableCells = MapPath.getCachedReachableCells(
 			this.cell,
 			this.mp,
@@ -212,7 +212,7 @@ class Entity {
 	/*
 	 * Format chaîne de caracteres utilisée pour des tests / debugs.
 	 */
-	string() {
+	string string() {
 		return "<Entity "+this.name+">"
 	}
 }

@@ -10,15 +10,15 @@ include('Model/GameObject/TargetType')
 include('Model/Const/Stats')
 
 include('Controlers/Fight')
-include('Controlers/Map')
+include('Controlers/Board')
 include('Controlers/Items')
 
 include('Controlers/Maps/MapPath')
 include('Controlers/Maps/MapDanger')
-include('Controlers/Maps/MapPosition')
+//include('Controlers/Maps/MapPosition')
 include('Controlers/Maps/MapAction')
 
-include('Model/Combos/Jump')
+//include('Model/Combos/Jump')
 include('Model/Combos/Danger')
 include('Model/Combos/Position')
 include('Model/Combos/Action')
@@ -41,7 +41,7 @@ function init() {
 	Benchmark.start('init')
 	if(getTurn()==1) {
 		Benchmark.start('Map.init')
-		Map.init()
+		Board.init()
 		Benchmark.stop('Map.init')
 		
 		Benchmark.start('Items.init')
@@ -57,7 +57,7 @@ function init() {
 	Benchmark.stop('Fight.refresh')
 	
 	Benchmark.start('Map.refresh')
-	Map.refresh()
+	Board.refresh()
 	Benchmark.stop('Map.refresh')
 	
 	Benchmark.start('Scoring.refresh')
@@ -68,9 +68,9 @@ function init() {
 	MapDanger.refresh()
 	Benchmark.stop('MapDanger.refresh')
 	
-	Benchmark.start('MapPosition.refresh')
-	MapPosition.refresh()
-	Benchmark.stop('MapPosition.refresh')
+	//Benchmark.start('MapPosition.refresh')
+	//MapPosition.refresh()
+	//Benchmark.stop('MapPosition.refresh')
 	
 	Benchmark.start('MapAction.refresh')
 	MapAction.refresh()

@@ -1,37 +1,39 @@
+include('../../auto')
+
 /*
  * Objet contenant les informations correspondante a une item
  * On en instancie un pour chacun des équipements du jeu
  */
 class Item {
-	id
-	name
-	isWeap
-	haveCD
-	minRange
-	maxRange
-	launchType
-	needLOS
-	cost
-	area
-	isAOE
-	onCaster = false
-	effects = []
+	integer id
+	string name
+	boolean isWeap
+	boolean haveCD
+	integer minRange
+	integer maxRange
+	integer launchType
+	boolean needLOS
+	integer cost
+	integer area
+	boolean isAOE
+	boolean onCaster = false
+	Array<ItemEffect> effects = []
 	
-	targetKey
-	targetEmptyCell = false
+	integer targetKey
+	boolean targetEmptyCell = false
 	
-	static ALL = 0
-	static ALLLEEKS = 1
-	static ALLBULBS = 2
-	static ALLIES = 3
-	static ALLIESLEEKS = 4
-	static ALLIESBULBS = 5
-	static ENEMIES = 6
-	static ENEMIESLEEKS = 7
-	static ENEMIESBULBS = 8
-	static NONE = 9
+	static integer ALL = 0
+	static integer ALLLEEKS = 1
+	static integer ALLBULBS = 2
+	static integer ALLIES = 3
+	static integer ALLIESLEEKS = 4
+	static integer ALLIESBULBS = 5
+	static integer ENEMIES = 6
+	static integer ENEMIESLEEKS = 7
+	static integer ENEMIESBULBS = 8
+	static integer NONE = 9
 			
-	constructor(id) {
+	constructor(integer id) {
 		this.id = id
 		this.name = getWeaponName(id)+getChipName(id)
 		this.isWeap = isWeapon(id)
@@ -39,24 +41,24 @@ class Item {
 			this.haveCD = false
 			this.minRange = getWeaponMinRange(id)
 			this.maxRange = getWeaponMaxRange(id)
-			this.launchType = getWeaponLaunchType(id)
+			this.launchType = getWeaponLaunchType(id)!
 			this.needLOS = weaponNeedLos(id)
 			this.cost = getWeaponCost(id)
-			this.area = getWeaponArea(id)
-			var i = 0
-			for(var e in getWeaponEffects(id)){
+			this.area = getWeaponArea(id)!
+			integer i = 0
+			for(Array<real | integer> e in getWeaponEffects(id)!){
 				push(this.effects, ItemEffect(e, this, i++))
 			}
 		} else {
 			this.haveCD = getChipCooldown(id)!=0
-			this.minRange = getChipMinRange(id)
-			this.maxRange = getChipMaxRange(id)
-			this.launchType = getChipLaunchType(id)
+			this.minRange = getChipMinRange(id)!
+			this.maxRange = getChipMaxRange(id)!
+			this.launchType = getChipLaunchType(id)!
 			this.needLOS = chipNeedLos(id)
-			this.cost = getChipCost(id)
-			this.area = getChipArea(id)
-			var i = 0
-			for(var e in getChipEffects(id)){
+			this.cost = getChipCost(id)!
+			this.area = getChipArea(id)!
+			integer i = 0
+			for(Array<real | integer> e in getChipEffects(id)!){
 				push(this.effects, ItemEffect(e, this, i++))
 			}
 		}
@@ -65,14 +67,14 @@ class Item {
 		else this.isAOE = true
 		// on cherche à trouver quels sont les cibles valides et intéressante de l'item
 		// on set targetKey pour que targetSet pointe vers la fonction qui renvera uniquement les entités intéressante à cibler
-		var allies = false, enemies = false, onBulbs = false, onLeeks = false;
-		for(var e in this.effects){
+		boolean allies = false, enemies = false, onBulbs = false, onLeeks = false;
+		/*for(ItemEffect e in this.effects){
 			if(!allies) allies = e.targetType.allies
 			if(!enemies) enemies = e.targetType.enemies
 			if(!onBulbs) onBulbs = e.targetType.onBulbs
 			if(!onLeeks) onLeeks = e.targetType.onLeeks
 			if(!this.onCaster) this.onCaster = e.targetType.onCaster
-		}
+		}*/
 		
 		if(false){ // TODO FAIRE UNE PASSE SUR LES ITEMS POUR CHECK SI TOUT EST COMME JE LE SOUHAITE §
 			// + coder les items chelous dans TargetType
@@ -123,7 +125,7 @@ class Item {
 		}
 	}
 	
-	targetSet(){
+	Map<integer, Entity> targetSet(){
 		if(this.targetKey==ALL) return Fight.getAllAlive()
 		if(this.targetKey==ALLLEEKS) return Fight.getAllLeeksAlive()
 		if(this.targetKey==ALLBULBS) return Fight.getAllBulbsAlive()
@@ -133,16 +135,16 @@ class Item {
 		if(this.targetKey==ENEMIES) return Fight.getEnemiesAlive()
 		if(this.targetKey==ENEMIESLEEKS) return Fight.getEnemiesLeeksAlive()
 		if(this.targetKey==ENEMIESBULBS) return Fight.getEnemiesBulbsAlive()
-		if(this.targetKey==NONE) return []
+		if(this.targetKey==NONE) return [:]
 	}
 	
 	/*
 	 * tente d'utiliser l'item
 	 * @param cell cellule de type Cell représentant l'endroit ou je veux utiliser l'Item avec id: (this.id)
 	 */
-	useItemOnCell(cell){
+	void useItemOnCell(Cell cell){
 		if(this.isWeap){
-			if(getWeapon(Fight.self)!=this.id) setWeapon(this)
+			if(getWeapon(Fight.self.id)!=this.id) setWeapon(this.id)
 			useWeaponOnCell(cell.id)
 		} else useChipOnCell(this.id, cell.id)
 	}
@@ -151,9 +153,9 @@ class Item {
 	 * tente d'utiliser l'item
 	 * @param cell cellule de type Cell représentant l'endroit ou je veux utiliser l'Item avec id: (this.id)
 	 */
-	useItem(entity){
+	void useItem(Entity entity){
 		if(this.isWeap){
-			if(getWeapon(Fight.self)!=this.id) setWeapon(this)
+			if(getWeapon(Fight.self.id)!=this.id) setWeapon(this.id)
 			useWeapon(entity.id)
 		} else useChip(this.id, entity.id)
 	}

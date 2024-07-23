@@ -1,23 +1,23 @@
 class TargetType {
-	enemies = false
-	allies = false
+	boolean enemies = false
+	boolean allies = false
 	
-	onEmpty = false
-	onBulbs = false // FIXME le nomage bulb/leek pu, summon/notsummon est très moche, maybe summon/primary ?
-	onLeeks = false
-	onCaster = false
+	boolean onEmpty = false
+	boolean onBulbs = false // FIXME le nomage bulb/leek pu, summon/notsummon est très moche, maybe summon/primary ?
+	boolean onLeeks = false
+	boolean onCaster = false
 	// TODO when onCaster, peut justifier des cibles autres que celle normalement autorisé par les types d'effet
 	// exemple broadsword / j_lazer
 	// TODO target empty cell for item that target nothing : summon, resu, teleport, broadsword to selfboost, etc... ?
 
 	// ALLIES et ENEMIES permettent de définir un effet positif ou négatif, et sont utilisés pour savoir
 	// si la value d'un entityEffect doit être négative ou positive
-	static ENEMIES = -1
-	static ALLIES = 1
-	static ALL = 2
-	static EMPTY = 3
+	static integer ENEMIES = -1
+	static integer ALLIES = 1
+	static integer ALL = 2
+	static integer EMPTY = 3
 	
-	static CONVERTER = [
+	static Map<integer, integer> CONVERTER = [
 		EFFECT_DAMAGE: 					TargetType.ENEMIES,
 		EFFECT_POISON: 					TargetType.ENEMIES,
 		EFFECT_NOVA_DAMAGE:				TargetType.ENEMIES,
@@ -78,12 +78,12 @@ class TargetType {
 		EFFECT_SUMMON: 					TargetType.EMPTY
 	]
 
-	constructor(effect){
+	constructor(ItemEffect effect){
 		// THIS is the fact that effect does hit caster if in aoe (like CHIP_LIGHTNING is false)
 		if(effect.targets & EFFECT_TARGET_CASTER) this.onCaster = true;
 		
 		
-		var tt = TargetType.CONVERTER[effect.type]
+		integer tt = TargetType.CONVERTER[effect.type]!
 		if(!tt) debugE('unhandled type in TargetType on effect: ' + effect)
 		if(tt == TargetType.ENEMIES) this.enemies = true
 		else if(tt == TargetType.ALLIES) this.allies = true
@@ -105,7 +105,7 @@ class TargetType {
 		if(effect.targets & EFFECT_TARGET_NON_SUMMONS) this.onLeeks = true
 	}
 	
-	string(){
+	string string(){
 		return "<TargetType ally:" + this.allies + " enemy:" + this.enemies + " leek:" + this.onLeeks + " bulb:" + this.onBulbs + " caster:" + this.onCaster + ">"
 	}
 }

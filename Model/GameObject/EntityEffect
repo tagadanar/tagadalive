@@ -1,31 +1,31 @@
 include('../../auto')
 
 class EntityEffect {
-	type
-	value
-	caster
-	turns
-	critical
-	item
-	target
-	modifiers
-	constructor(effect){
+	integer type
+	integer value
+	Entity caster
+	integer turns
+	boolean critical
+	Item item
+	Entity target
+	integer modifiers
+	constructor(Array<boolean|integer> effect){
 		// [type, value, caster_id, turns, critical, item_id, target_id, modifiers]
-		this.type = effect[0]
-		this.value = effect[1]
-		this.caster = Fight.getEntity(effect[2])
-		this.turns = effect[3]
+		this.type = effect[0] as integer
+		this.value = effect[1] as integer
+		this.caster = Fight.getEntity(effect[2] as integer)
+		this.turns = effect[3] as integer
 		// special case, infinite duration is ==-1, MUST handle this or any *duration later will inverse everything
 		if(this.turns==-1) this.turns = 7 // TODO this should probably be in scoring... //66-getTurn()
 		// TODO add a this.duration field, and check entities order to set duration to the right amount of time.
-		this.critical = effect[4]
-		this.item = Items.getItem(effect[5])
-		this.target = Fight.getEntity(effect[6])
+		this.critical = effect[4] as boolean
+		this.item = Items.getItem(effect[5] as integer)!
+		this.target = Fight.getEntity(effect[6] as integer)
 		// pas sur d'avoir besoin des modifiers ici, je save ocazou
-		this.modifiers = effect[7]
+		this.modifiers = effect[7] as integer
 	}
 	
-	string(){
+	string string(){
 		return "<EntityEffect type:"+ this.type +" |value:"+ this.value +">"
 	}
 }

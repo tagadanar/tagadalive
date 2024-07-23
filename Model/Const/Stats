@@ -1,45 +1,44 @@
 class Stats {
 	// The Singleton's instance is stored in a static field.
-	private static _instance = null
+	private static HiddenSingleton? _instance = null
 	private constructor(){}
 	
 	// This is the static method that controls the access to the singleton instance.
 	// On the first run, it creates a singleton object and places it into the static field.
 	// On subsequent runs, it returns the existing object stored in the static field.
-	public static getInstance(){
+	public static HiddenSingleton getInstance(){
 		if (_instance == null){
 			_instance = new HiddenSingleton();
 		}
-		return _instance;
+		return _instance!;
 	}
 	
-	public static getFields(){
+	public static Array<string> getFields(){
 		return Stats.getInstance().class.fields
 	}
 
-	static HP 			= Stats.getInstance().HP
-	static HPTIME		= Stats.getInstance().HPTIME
-	static HPMAX		= Stats.getInstance().HPMAX
-	static ABSSHIELD 	= Stats.getInstance().ABSSHIELD
-	static RELSHIELD 	= Stats.getInstance().RELSHIELD
-	static DMGRETURN 	= Stats.getInstance().DMGRETURN
-	static STR 			= Stats.getInstance().STR
-	static MGC 			= Stats.getInstance().MGC
-	static RST 			= Stats.getInstance().RST
-	static WSD 			= Stats.getInstance().WSD
-	static AGI 			= Stats.getInstance().AGI
-	static SNC			= Stats.getInstance().SNC
-	static TP 			= Stats.getInstance().TP
-	static MP	 		= Stats.getInstance().MP
-	static PWR			= Stats.getInstance().PWR
-	
-	static DEBUFF 		= Stats.getInstance().DEBUFF // should i delete this ?
-	static ANTIDOTE 	= Stats.getInstance().ANTIDOTE // should i delete this ?
-	static KILL			= Stats.getInstance().KILL
-	
+	static integer HP 			= Stats.getInstance().HP
+	static integer HPTIME		= Stats.getInstance().HPTIME
+	static integer HPMAX		= Stats.getInstance().HPMAX
+	static integer ABSSHIELD 	= Stats.getInstance().ABSSHIELD
+	static integer RELSHIELD 	= Stats.getInstance().RELSHIELD
+	static integer DMGRETURN 	= Stats.getInstance().DMGRETURN
+	static integer STR 			= Stats.getInstance().STR
+	static integer MGC 			= Stats.getInstance().MGC
+	static integer RST 			= Stats.getInstance().RST
+	static integer WSD 			= Stats.getInstance().WSD
+	static integer AGI 			= Stats.getInstance().AGI
+	static integer SNC			= Stats.getInstance().SNC
+	static integer TP 			= Stats.getInstance().TP
+	static integer MP	 		= Stats.getInstance().MP
+	static integer PWR			= Stats.getInstance().PWR
+	static integer DEBUFF 		= Stats.getInstance().DEBUFF // should i delete this ?
+	static integer ANTIDOTE 	= Stats.getInstance().ANTIDOTE // should i delete this ?
+	static integer KILL			= Stats.getInstance().KILL
 	
 	
-	static entityEffectType_to_stats = [
+	
+	static Map<integer, integer> entityEffectType_to_stats = [
 		EFFECT_POISON: 					Stats.getInstance().HPTIME,
 		EFFECT_VULNERABILITY: 			Stats.getInstance().RELSHIELD,
 		EFFECT_ABSOLUTE_VULNERABILITY: 	Stats.getInstance().ABSSHIELD,
@@ -76,23 +75,22 @@ class Stats {
 // n'est utilisé que pour sa propriété class.fields pour parcourir les stats, ne jamais instancier ailleurs
 // OUI J'aurais pu faire un tableau "key":value, MAIS .fields c'est quand mm beaucoup plus class non ?
 class HiddenSingleton{
-	HP 			= 0
-	HPTIME		= 1
-	HPMAX		= 2
-	ABSSHIELD 	= 3
-	RELSHIELD 	= 4
-	DMGRETURN 	= 5
-	STR 		= 6
-	MGC 		= 7
-	RST 		= 8
-	WSD 		= 9
-	AGI 		= 10
-	SNC			= 11
-	TP 			= 12
-	MP	 		= 13
-	PWR			= 14
-
-	DEBUFF 		= 15
-	ANTIDOTE 	= 16
-	KILL		= 17
+	integer HP 			= 0
+	integer HPTIME		= 1
+	integer HPMAX		= 2
+	integer ABSSHIELD 	= 3
+	integer RELSHIELD 	= 4
+	integer DMGRETURN 	= 5
+	integer STR 		= 6
+	integer MGC 		= 7
+	integer RST 		= 8
+	integer WSD 		= 9
+	integer AGI 		= 10
+	integer SNC			= 11
+	integer TP 			= 12
+	integer MP	 		= 13
+	integer PWR			= 14
+	integer DEBUFF 		= 15
+	integer ANTIDOTE 	= 16
+	integer KILL		= 17
 }
