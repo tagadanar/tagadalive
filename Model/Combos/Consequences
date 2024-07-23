@@ -1,18 +1,18 @@
 include('../../auto')
 
 class Consequences {
-	_alterations = []// [entity:[caracteristic:value]]
-	_altEffects = []// [entity:[item:[EffectOverTime]]]
-	_killed = []
-	score = null
-	isAlteringDanger = false
-	hashcode = 17
-	targets
-	currentCell
-	currentMP
-	private _boostMP_before = 0
+	Map<Entity, Map<integer, integer>> _alterations = [:]// [entity:[caracteristic:value]]
+	Map<Entity, Map<Item, Array<EffectOverTime>>> _altEffects = [:]// [entity:[item:[EffectOverTime]]]
+	Map<Entity, Entity> _killed = [:]
+	real? score = null
+	boolean isAlteringDanger = false
+	integer hashcode = 17
+	Array<Entity> targets
+	Cell currentCell
+	integer currentMP
+	private integer _boostMP_before = 0
 	
-	constructor(action){
+	constructor(Action action){
 		Benchmark.start("Consequences")
 		this.currentCell = Fight.self.cell
 		this.currentMP = Fight.self.mp
@@ -20,21 +20,21 @@ class Consequences {
 		Benchmark.stop("Consequences")
 	}
 	
-	constructor(action, consequences){
+	constructor(Action action, Consequences consequences){
 		Benchmark.start("Consequences.fromConseq")
 		this.currentCell = consequences.currentCell
 		this.currentMP = consequences.currentMP
-		this._alterations = clone(consequences._alterations, 2)
-		this._altEffects = clone(consequences._altEffects, 3)
-		this._killed = clone(consequences._killed)
+		this._alterations = clone(consequences._alterations, 2) as Map<Entity, Map<integer, integer>>
+		this._altEffects = clone(consequences._altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
+		this._killed = clone(consequences._killed) as Map<Entity, Entity>
 		this.hashcode = consequences.hashcode
 		construct(action)
 		Benchmark.stop("Consequences.fromConseq")
 	}
 	
-	construct(action){
+	construct(Action action){
 		// actualisation du placement virtuel :
-		var reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
 		// déplacement jusqu'à la case de l'action
 		if(action.from != Fight.selfCell){
 			if(reachableCells[action.from] != null) this.currentMP = this.currentMP - reachableCells[action.from] 
@@ -44,42 +44,42 @@ class Consequences {
 			this.currentCell = action.from
 		}
 		// on retient les boosts mp déjà appliquer à soit mm pour après
-		var boostMPbefore = this._alterations[Fight.self][Stats.MP]
+		integer? boostMPbefore = this._alterations[Fight.self]![Stats.MP]
 		
 		// actualisation des conséquences de l'action sur le jeu
 		this.targets = Targets.getTargets(action)
-		for(var target in this.targets){
+		for(Entity target in this.targets){
 			if(this._killed[target]) continue
-			var ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(action.to, target.cell)) : 1
+			real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(action.to.id, target.cell.id)) : 1.0
 			if(ratioDmg<=0){
 				debugE('Bug in Consequences constructor, SHOULD NOT HAPPEN !')
 				debugE(action)
 				continue
 			}
-			for(var effect in action.item.effects) {
+			for(ItemEffect effect in action.item.effects) {
 				this.updateConsequences(effect, Fight.self, target, ratioDmg)
 			}
 		}
 		
 		// actualisation des MP en cas de self boost de mp
-		var boostMP = this._alterations[Fight.self][Stats.MP]
+		integer? boostMP = this._alterations[Fight.self]![Stats.MP]
 		// si je viens de m'ajouter des MP
 		if(boostMP && boostMP > boostMPbefore){
 			this.currentMP += boostMP - boostMPbefore // j'ajoute les mp gagnés
 		}
 	}
 	
-	add(entity, key, effect){
-		if(!_alterations[entity]) _alterations[entity] = []
-		var isOverTime = effect instanceof EffectOverTime
-		var value = isOverTime ? effect.value : effect
+	void add(Entity entity, integer key, EffectOverTime|integer effect){
+		if(!_alterations[entity]) _alterations[entity] = [:]
+		boolean isOverTime = effect instanceof EffectOverTime
+		integer value = isOverTime ? (effect as EffectOverTime).value : effect as integer
 		if(isOverTime){
-			if(!_altEffects[entity]) _altEffects[entity] = []
-			if(!_altEffects[entity][effect.item]) _altEffects[entity][effect.item] = []
+			if(!_altEffects[entity]) _altEffects[entity] = [:]
+			if(!_altEffects[entity]![(effect as EffectOverTime).item]) _altEffects[entity]![(effect as EffectOverTime).item] = []
 		
-			push(_altEffects[entity][effect.item], effect)
+			push(_altEffects[entity]![(effect as EffectOverTime).item]!, (effect as EffectOverTime))
 		}
-		_alterations[entity][key] += value // pour null, devrait se comporter comme si ça contenait 0
+		_alterations[entity]![key] += value // pour null, devrait se comporter comme si ça contenait 0
 		// ça ne marche qu'avec += en leekscriptv1, pas tester en v1.1 comment ça marche...
 		// j'avais des bugs sur les -=, donc il faut faire += -value si le comportement est le mm ici.
 		
@@ -102,78 +102,79 @@ class Consequences {
 		
 		// update du score
 		if(!isOverTime) this.score+= value * Scoring.getCoef(entity, key)
-		else this.score+=value*Scoring.getCoef(entity, key)*Scoring.offensive_duration_mitigation[effect.duration]
+		else this.score+=value*Scoring.getCoef(entity, key)*Scoring.offensive_duration_mitigation[(effect as EffectOverTime).duration]!
 	}
 	
-	addKill(entity){
+	void addKill(Entity entity){
 		this.isAlteringDanger=true
 		this.hashcode = 31 * this.hashcode + entity.id
 		this._killed[entity]=entity
 		this.score+= Scoring.KILL_VALUE * Scoring.getCoef(entity, Stats.KILL)
 	}
 	
-	getAlterations(){
+	Map<Entity, Map<integer, integer>> getAlterations(){
 		return _alterations
 	}
 		
-	isKilled(entity){
+	boolean isKilled(Entity entity){
 		return _killed[entity] != null
 	}
 	
-	getAlteration(entity, key){
-		return _alterations[entity][key]
+	integer? getAlteration(Entity entity, integer key){
+		return _alterations[entity]![key]
 	}
 	
-	getScore(){
+	real? getScore(){
 		return this.score
 	}
 	
-	updateConsequences(effect, entitySource, entityTarget, ratioDmg) {
+	void updateConsequences(ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg) {
 		// fixme: ce if marche pas, j'ai tjr true mm pour EFFECT_DAMAGE :'(
-		//if(!Consequences.convertToValue[effect.type]) debugW('unhandledEffect on effect: '+ effect)
-		var target = effect.modifCaster ? entitySource : entityTarget
-		ratioDmg = effect.modifCaster ? 1 : ratioDmg
-		return Consequences.convertToValue[effect.type](effect, entitySource, target, ratioDmg, this)
+		if(Consequences.convertToValue[effect.type] == null) debugW('unhandledEffect on effect: '+ effect)
+		Entity target = effect.modifCaster ? entitySource : entityTarget
+		ratioDmg = effect.modifCaster ? 1.0 : ratioDmg;
+		
+		(Consequences.convertToValue[effect.type]!)(effect, entitySource, target, ratioDmg, this)
 	}
 
 	// TODO reste à faire l'agi/les crit, et avgmin/avgmax ?
 	// TODO EROSION sur la durée ?
-	static convertToValue = [
-		EFFECT_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			var targetsCount = effect.multiplyByTarget ? count(conseq.targets) : 1
-			var beforeShield = effect.avg *targetsCount *ratioDmg *(1+(entitySource.getCurrentStr(conseq)/100))
+	static Map<integer, Function<ItemEffect, Entity, Entity, real, Consequences => void>> convertToValue = [
+		EFFECT_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			integer targetsCount = effect.multiplyByTarget ? count(conseq.targets) : 1
+			real beforeShield = effect.avg *targetsCount *ratioDmg *(1+(entitySource.getCurrentStr(conseq)/100))
 				*(1+(entitySource.getCurrentPwr(conseq)/100)) // TODO power in consequences !!!!
-			var value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100))) 
+			real value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100))) 
 				- entityTarget.getCurrentAbs(conseq)
-			value = value < 0 ? 0 : value // on ne fait pas de dmg négatif
-			conseq.add(entityTarget, Stats.HP, -value)
+			value = value < 0 ? 0.0 : value // on ne fait pas de dmg négatif
+			conseq.add(entityTarget, Stats.HP, -value as integer)
 			
 			if(entityTarget.getCurrentHP(conseq) <= 0) 
 				conseq.addKill(entityTarget)
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
 
 			// érosion !
-			conseq.add(entityTarget, Stats.HPMAX, -value/20) // TODO le 20 ici devrait être dans une constante
+			conseq.add(entityTarget, Stats.HPMAX, (-value/20) as integer) // TODO le 20 ici devrait être dans une constante
 			
 			// vol de vie
-			var lifeSteal = value * (entitySource.getCurrentWsd(conseq)/1000)
-			var lifeMissing = entitySource.getCurrentHPMissing(conseq)
+			integer lifeSteal = round(value * (entitySource.getCurrentWsd(conseq)/1000))
+			integer lifeMissing = entitySource.getCurrentHPMissing(conseq)
 			lifeSteal = lifeSteal>lifeMissing ? lifeMissing : lifeSteal
 			if(lifeSteal>0) conseq.add(entitySource, Stats.HP, lifeSteal)
 
 			// dmg return
 			var dmgReturn = beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100)
 			if(dmgReturn>0){
-				conseq.add(entitySource, Stats.HP, -dmgReturn)
+				conseq.add(entitySource, Stats.HP, -dmgReturn as integer)
 				
 				// érosion !
-				conseq.add(entitySource, Stats.HPMAX, -dmgReturn/20) // TODO le 20 ici devrait être dans constante
+				conseq.add(entitySource, Stats.HPMAX, (-dmgReturn/20) as integer) // TODO le 20 ici devrait être dans constante
 				
 				if(dmgReturn>=entitySource.getCurrentHP(conseq)) 
 					conseq.addKill(entitySource) 
 			}
 		},
-		EFFECT_POISON: function(effect, entitySource, entityTarget, ratioDmg, conseq){
+		EFFECT_POISON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de tests sur stackable car tous les poisons sont stackable actuellement
 			// devrait être au niveau au dessus si d'autres items que covid ont notReplaceable, en attendant, ici on économise des opérations.
 			if(effect.notReplaceable){
@@ -184,19 +185,19 @@ class Consequences {
 			// en solo, et les dmg*duration, qui doivent être minoré plus ça dure
 			// TODO handle kill condition selon si la cible peut s'antidote/libé ?
 			
-			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-				*(1+(entitySource.getCurrentPwr(conseq)/100)) *effect.duration // TODO power in consequences !!!!
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+				*(1+(entitySource.getCurrentPwr(conseq)/100)) *effect.duration) // TODO power in consequences !!!!
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.HPTIME, eot)
 			
 			// érosion ! c'est moche de rediv par durée, FIXME quand j'aurais géré la durée dans les conseq
-			conseq.add(entityTarget, Stats.HPMAX, -value/effect.duration/10)
+			conseq.add(entityTarget, Stats.HPMAX, round(-value/effect.duration/10))
 			//TODO le 10 au dessus devrait être dans une constante
 		},
-		EFFECT_LIFE_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq){
-			var beforeShield = entitySource.life*(effect.avg/100)
-			var value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100))) 
-				- entityTarget.getCurrentAbs(conseq)
+		EFFECT_LIFE_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			integer beforeShield = round(entitySource.life*(effect.avg/100))
+			integer value = round((beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100))) 
+				- entityTarget.getCurrentAbs(conseq))
 			value = value < 0 ? 0 : value // on ne fait pas de dmg négatif
 			conseq.add(entityTarget, Stats.HP, -value)
 			
@@ -205,302 +206,302 @@ class Consequences {
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
 
 			// érosion !
-			conseq.add(entityTarget, Stats.HPMAX, -value/20) // TODO le 20 ici devrait être dans une constante
+			conseq.add(entityTarget, Stats.HPMAX, round(-value/20)) // TODO le 20 ici devrait être dans une constante
 			
 			if(entityTarget != entitySource){
 				// dmg return
-				var dmgReturn = beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100)
+				integer dmgReturn = round(beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100))
 				if(dmgReturn>0){
 					conseq.add(entitySource, Stats.HP, -dmgReturn)
 					// érosion !
-					conseq.add(entitySource, Stats.HPMAX, -dmgReturn/20) // TODO le 20 ici devrait être dans constante
+					conseq.add(entitySource, Stats.HPMAX, round(-dmgReturn/20)) // TODO le 20 ici devrait être dans constante
 					
 					if(dmgReturn>=entitySource.getCurrentHP(conseq))
 						conseq.addKill(entitySource) 
 				}
 			}
 		},
-		EFFECT_NOVA_DAMAGE: function(effect, entitySource, entityTarget, ratioDmg, conseq){
-			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+		EFFECT_NOVA_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
 			value = min(value, entityTarget.getCurrentHPMissing(conseq))
 			conseq.add(entityTarget, Stats.HPMAX, -value)
 		},
-		EFFECT_HEAL: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(effect.duration>1){ // HPTIME
 				if(!effect.stackable){
-					var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+					EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 					if(itemEffect){
-						var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+						EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 						conseq.add(entityTarget, Stats.HPTIME, eot)
 					}
 				}
-				var value = effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg
-				var eot = EffectOverTime(effect.item, value, effect.duration)
+				integer value = round(effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg)
+				EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 				conseq.add(entityTarget, Stats.HPTIME, eot)
 			} else { // HP
-				var value = effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg
+				integer value = round(effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg)
 				value = min(value, entityTarget.getCurrentHPMissing(conseq))
 				conseq.add(entityTarget, Stats.HP, value)
 			}
 		},
-		EFFECT_BOOST_MAX_LIFE: function(effect, entitySource, entityTarget, ratioDmg, conseq){
-			var value = effect.avg *(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg
+		EFFECT_BOOST_MAX_LIFE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			integer value = round(effect.avg *(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg)
 			conseq.add(entityTarget, Stats.HPMAX, value)
 			conseq.add(entityTarget, Stats.HP, value)
 		},
-		EFFECT_NOVA_VITALITY: function(effect, entitySource, entityTarget, ratioDmg, conseq){
-			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
+		EFFECT_NOVA_VITALITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
 			conseq.add(entityTarget, Stats.HPMAX, value)
 		},
-		EFFECT_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 				}
 			}
-			var value = effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 		},
-		EFFECT_RELATIVE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_RELATIVE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.RELSHIELD, eot)
 				}
 			}
-			var value = effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg // *effect.duration
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg) // *effect.duration
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.RELSHIELD, value)
 		},
-		EFFECT_ABSOLUTE_VULNERABILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_ABSOLUTE_VULNERABILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de check stackable car always stackable actuellement
-			var value = effect.avg *ratioDmg
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			integer value = round(effect.avg *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 		},
-		EFFECT_VULNERABILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_VULNERABILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de check stackable car always stackable actuellement
-			var value = effect.avg *ratioDmg
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			integer value = round(effect.avg *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.RELSHIELD, eot)
 		},
-		EFFECT_STEAL_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_STEAL_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de check stackable car always stackable actuellement
-			var value = effect.avg *ratioDmg // *effect.duration
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *ratioDmg) // *effect.duration
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 		},
-		EFFECT_DAMAGE_RETURN: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_DAMAGE_RETURN: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.DMGRETURN, eot)
 				}
 			}
-			var value = effect.avg *(1+(entitySource.getCurrentAgi(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentAgi(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.DMGRETURN, eot)
 		},
-		EFFECT_RAW_BUFF_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_RAW_BUFF_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.STR, eot)
 				}
 			}
-			var value = effect.avg *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.STR, eot)
 		},
-		EFFECT_RAW_BUFF_MAGIC: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_RAW_BUFF_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.MGC, eot)
 				}
 			}
-			var value = effect.avg *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.MGC, eot)
 		},
-		EFFECT_RAW_BUFF_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_RAW_BUFF_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.AGI, eot)
 				}
 			}
-			var value = effect.avg *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.AGI, eot)
 		},
-		EFFECT_RAW_BUFF_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_RAW_BUFF_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.WSD, eot)
 				}
 			}
-			var value = effect.avg *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.WSD, eot)
 		},
-		EFFECT_RAW_BUFF_RESISTANCE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_RAW_BUFF_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.RST, eot)
 				}
 			}
-			var value = effect.avg *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.RST, eot)
 		},
-		EFFECT_RAW_BUFF_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_RAW_BUFF_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.TP, eot)
 				}
 			}
-			var value = effect.avg *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.TP, eot)
 		},
-		EFFECT_RAW_BUFF_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_RAW_BUFF_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
 					// entityEffects[0].value : if not stackable, only 1 effect in array, so [0]
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.MP, eot)
 				}
 			}
-			var value = effect.avg *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.MP, eot)
 		},
-		EFFECT_BUFF_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_BUFF_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.STR, eot)
 				}
 			}
-			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.STR, eot)
 		},
-		EFFECT_BUFF_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_BUFF_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.AGI, eot)
 				}
 			}
-			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.AGI, eot)
 		},
-		EFFECT_BUFF_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_BUFF_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.WSD, eot)
 				}
 			}
-			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.WSD, eot)
 		},
-		EFFECT_BUFF_RESISTANCE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_BUFF_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.RST, eot)
 				}
 			}
-			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.RST, eot)
 		},
-		EFFECT_BUFF_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_BUFF_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.TP, eot)
 				}
 			}
-			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.TP, eot)
 		},
-		EFFECT_BUFF_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_BUFF_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(!effect.stackable){
-				var itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					var eot = EffectOverTime(effect.item, -itemEffect.value, itemEffect.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
 					conseq.add(entityTarget, Stats.MP, eot)
 				}
 			}
-			var value = effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
 			conseq.add(entityTarget, Stats.MP, eot)
 		},
-		EFFECT_SHACKLE_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_SHACKLE_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
-			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.STR, eot)
 		},
-		EFFECT_SHACKLE_MAGIC: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_SHACKLE_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
-			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.MGC, eot)
 		},
-		EFFECT_SHACKLE_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_SHACKLE_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
-			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.AGI, eot)
 		},
-		EFFECT_SHACKLE_WISDOM: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_SHACKLE_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
-			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.WSD, eot)
 		},
-		EFFECT_SHACKLE_TP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_SHACKLE_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
-			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.TP, eot)
 		},
-		EFFECT_SHACKLE_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_SHACKLE_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// pas de tests sur stackable car toutes les entraves sont stackable actuellement
-			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+			integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.MP, eot)
 		},
-		EFFECT_DEBUFF: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			for(var entityEffect in entityTarget.effects){
+		EFFECT_DEBUFF: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			for(EntityEffect entityEffect in entityTarget.effects){
 				// ici le CONVERTER sert à set la value en négatif si c'est un malus, genre un poison fait
 				// des dmg en HPTIME, il en redonne pas.
 				// parce que je boucle sur entityEffect et EffectOverTime
@@ -513,88 +514,90 @@ class Consequences {
 				// cette façon de faire ne marche pas pour récup le dernier effet
 				// je devrais faire -100% puis + le reste après 60% de reduc
 				
-				var value = entityEffect.value * (effect.avg/100) *TargetType.CONVERTER[entityEffect.type]
-				var eot = EffectOverTime(effect.item, -value, entityEffect.turns)
-				var stat = Stats.entityEffectType_to_stats[entityEffect.type]
+				integer value = round(entityEffect.value * (effect.avg/100) *TargetType.CONVERTER[entityEffect.type])
+				EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.turns)
+				integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
 				if(stat==null) debugE("LIBERATION effect to stat unhandled :"+entityEffect)
-				conseq.add(entityTarget, stat, eot)
+				conseq.add(entityTarget, stat!, eot)
 			}
 			// TODO check if effect is irreductible ?
 		},
-		EFFECT_ANTIDOTE: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			for(var entityEffect in entityTarget.effects){
+		EFFECT_ANTIDOTE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			for(EntityEffect entityEffect in entityTarget.effects){
 				if(entityEffect.type == EFFECT_POISON){
-					var eot = EffectOverTime(effect.item, entityEffect.value, entityEffect.turns)
+					EffectOverTime eot = EffectOverTime(effect.item, entityEffect.value, entityEffect.turns)
 					conseq.add(entityTarget, Stats.HPTIME, eot)
 				}
 			}
 		},
-		EFFECT_KILL: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_KILL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// je met un commentaire parce que une seule ligne ça fait vide lol
 			// je pourrais mettre aussi une conseq full life dmg pour scorer les dégats comme pour un dmg normal.
 			// et si un jour on peut kill les leeks/tower faut check les winconditions & kill les bulbs du leek
 			conseq.addKill(entityTarget)
 		},
-		EFFECT_AFTEREFFECT: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
-			var value = effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
-			var eot = EffectOverTime(effect.item, -value, effect.duration)
+		EFFECT_AFTEREFFECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.HP, -value)
 			conseq.add(entityTarget, Stats.HPTIME, eot)
 		},
-		EFFECT_PROPAGATION: function(effect, entitySource, entityTarget, ratioDmg, conseq) {
+		EFFECT_PROPAGATION: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// TODO ??
 		},
-		EFFECT_REMOVE_SHACKLES: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_TELEPORT: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_INVERT: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_PUSH: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_ATTRACT: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_SUMMON: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_RESURRECT: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_REMOVE_SHACKLES: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_TELEPORT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_INVERT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_PUSH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_ATTRACT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_SUMMON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 		
 		// unused
-		EFFECT_RAW_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_RAW_RELATIVE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_RAW_BUFF_POWER: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_RAW_BUFF_SCIENCE: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_RAW_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_RAW_RELATIVE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_RAW_BUFF_POWER: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_RAW_BUFF_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 		
 		// unused and ???
-		EFFECT_REPEL: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_REPEL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 		
 		// passif
-		EFFECT_POISON_TO_SCIENCE: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_MOVED_TO_MP: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_NOVA_DAMAGE_TO_MAGIC: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_DAMAGE_TO_STRENGTH: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
-		EFFECT_ALLY_KILLED_TO_AGILITY: function(effect, entitySource, entityTarget, ratioDmg, conseq){},
+		EFFECT_POISON_TO_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_MOVED_TO_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_NOVA_DAMAGE_TO_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_DAMAGE_TO_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_ALLY_KILLED_TO_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 	]
 	
+	/*
+	//Non utilisée et buggué 
 	computeScore(){
 		var totalScore = 0;
-		for(var entity:var key in this._alterations){
+		for(Entity  entity:Map<integer, integer> key in this._alterations){
 			var value = this.getAlteration(entity, key)
 			if(key == Stats.HP) 			totalScore+= entity.isFriend ? value : -value
 			if(key == Stats.ABSSHIELD) 	totalScore+= entity.isFriend ? value*3 : -(value*3)
 			if(key == Stats.STR) 		totalScore+= entity.isFriend ? value : -value
 			
 		}
-		for(var entity:var bool in this._killed){
+		for(Entity entity:var bool in this._killed){
 			var killScore = 10000
 			killScore*= entity.isBulb ? 0.5 : 1
 			totalScore+= entity.isFriend ? -killScore : killScore
 		}
 		return totalScore
-	}
+	}*/
 	
-	string(){
-		var str = "<Consequences"
-		for(var entity:var alteration in this._alterations){
+	string string(){
+		string str = "<Consequences"
+		for(Entity entity:Map<integer, integer> alteration in this._alterations){
 			str+= "\n" + entity.name + ":"
-			for(var strKey in Stats.getFields()){
-				var key = Stats.getInstance()[strKey]
+			for(string strKey in Stats.getFields()){
+				integer key = Stats.getInstance()[strKey] as integer
 				//var key = Stats.getInstance()[strKey]
-				if(alteration[key] != null) str+= "|"+strKey+": "+round(alteration[key])
+				if(alteration[key] != null) str+= "|"+strKey+": "+round(alteration[key]!)
 			}
 			/*
 			for(var key:var value in alteration){
@@ -604,7 +607,7 @@ class Consequences {
 			}
 			*/
 		}
-		for(var entity:var isDead in this._killed) str+= "\n|KILL: "+ entity
+		for(Entity entity:var isDead in this._killed) str+= "\n|KILL: "+ entity
 		str+="\nhashcode:"+this.hashcode+">"
 		return str
 	}
