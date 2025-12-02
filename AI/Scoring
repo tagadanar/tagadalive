@@ -1,100 +1,101 @@
 include('../auto')
 
 class Scoring {
-	static _cache_coef = [] // [entity:[key:value]]
+	static Map<Entity, Map<integer, real>> _cache_coef = [:] // [entity:[key:value]]
 	
-	static KILL_VALUE = 1000
-	static DEATH_VALUE = -1000
+	static integer KILL_VALUE = 1000
+	static integer DEATH_VALUE = -1000
 	
-	static defensive_duration_mitigation = [
-		0 : 1,
-		1 : 1,
+	static Map<integer, real> defensive_duration_mitigation = [
+		0 : 1.0,
+		1 : 1.0,
 		2 : 1.8,
 		3 : 2.4,
 		4 : 2.8,
 		5 : 3.2,
 		6 : 3.6,
-		7 : 4,
+		7 : 4.0,
 		8 : 4.4,
 	]
 	
-	static offensive_duration_mitigation = [
-		0 : 1,
-		1 : 1,
+	static Map<integer, real> offensive_duration_mitigation = [
+		0 : 1.0,
+		1 : 1.0,
 		2 : 1.8,
 		3 : 2.4,
 		4 : 2.8,
 		5 : 3.2,
 		6 : 3.6,
-		7 : 4,
+		7 : 4.0,
 		8 : 4.4,
 	]
 	
-	static computeCoef = [
-		Stats.HP: function(entity) {
-			if(Scoring._cache_coef[entity][Stats.HP] == null) {
-				var coef
+	static Map<integer, Function<Entity => real>> computeCoef = [
+		Stats.HP: (Entity entity) => real {
+			if(Scoring._cache_coef[entity]![Stats.HP] == null) {
+				real coef
 				if(entity.isFriend){
 					if(entity.isBulb) coef = 0.5
-					else coef = 1
+					else coef = 1.0
 				} else {
 					if(entity.isBulb) coef = -0.5
-					else coef = -1
+					else coef = -1.0
 				}
-				Scoring._cache_coef[entity][Stats.HP] = coef
+				Scoring._cache_coef[entity]![Stats.HP] = coef
 			}
-			return Scoring._cache_coef[entity][Stats.HP]
+			return Scoring._cache_coef[entity]![Stats.HP]!
 		}
 	]
 	
 	/*
 	 * initialise les coefs de tout le monde, dummy values pour le moment, TODO function in array?
 	 */
-	static refresh(){
-		_cache_coef = []
-		for(var entity in Fight.getAllAlive()){
-			_cache_coef[entity] = []
-			_cache_coef[entity][Stats.HP] = Scoring.computeCoef[Stats.HP](entity)
-			_cache_coef[entity][Stats.HPTIME] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
-																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.HPMAX] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.8)
-																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.DEBUFF] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
-																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.ANTIDOTE] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
-																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.ABSSHIELD] = entity.isFriend ? (entity.isBulb ? 0.6 : 3)
-																	: (entity.isBulb ? -0.6 : -3)
-			_cache_coef[entity][Stats.RELSHIELD] = entity.isFriend ? (entity.isBulb ? 1.2 : 6)
-																	: (entity.isBulb ? -1.2 : -6)
-			_cache_coef[entity][Stats.DMGRETURN] = entity.isFriend ? (entity.isBulb ? 0.6 : 3)
-																	: (entity.isBulb ? -0.6 : -3)
-			_cache_coef[entity][Stats.STR] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
-																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.MGC] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
-																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.RST] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
-																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.WSD] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.2)
-																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.AGI] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
-																	: (entity.isBulb ? -0.2 : -1)
-			_cache_coef[entity][Stats.TP] = entity.isFriend ? (entity.isBulb ? 2 : 10)
-																	: (entity.isBulb ? -2 : -10)
-			_cache_coef[entity][Stats.MP] = entity.isFriend ? (entity.isBulb ? 2 : 10)
-																	: (entity.isBulb ? -2 : -10)
-			_cache_coef[entity][Stats.PWR] = entity.isFriend ? (entity.isBulb ? 0.2 : 1)
-																	: (entity.isBulb ? -0.2 : -1)
+	static void refresh(){
+		_cache_coef = [:]
+		for(Entity entity in Fight.getAllAlive()){
+			_cache_coef[entity] = [:]
+			_cache_coef[entity]![Stats.HP] = entity.isFriend ? (entity.isBulb ? 0.5 : 1.0) 
+																: (entity.isBulb ? -0.5 : -1.0) 
+			_cache_coef[entity]![Stats.HPTIME] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
+																	: (entity.isBulb ? -0.2 : -1.0)
+			_cache_coef[entity]![Stats.HPMAX] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.8)
+																	: (entity.isBulb ? -0.2 : -1.0)
+			_cache_coef[entity]![Stats.DEBUFF] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
+																	: (entity.isBulb ? -0.2 : -1.0)
+			_cache_coef[entity]![Stats.ANTIDOTE] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
+																	: (entity.isBulb ? -0.2 : -1.0)
+			_cache_coef[entity]![Stats.ABSSHIELD] = entity.isFriend ? (entity.isBulb ? 0.6 : 3.0)
+																	: (entity.isBulb ? -0.6 : -3.0)
+			_cache_coef[entity]![Stats.RELSHIELD] = entity.isFriend ? (entity.isBulb ? 1.2 : 6.0)
+																	: (entity.isBulb ? -1.2 : -6.0)
+			_cache_coef[entity]![Stats.DMGRETURN] = entity.isFriend ? (entity.isBulb ? 0.6 : 3.0)
+																	: (entity.isBulb ? -0.6 : -3.0)
+			_cache_coef[entity]![Stats.STR] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
+																	: (entity.isBulb ? -0.2 : -1.0)
+			_cache_coef[entity]![Stats.MGC] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
+																	: (entity.isBulb ? -0.2 : -1.0)
+			_cache_coef[entity]![Stats.RST] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
+																	: (entity.isBulb ? -0.2 : -1.0)
+			_cache_coef[entity]![Stats.WSD] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.2)
+																	: (entity.isBulb ? -0.2 : -1.0)
+			_cache_coef[entity]![Stats.AGI] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
+																	: (entity.isBulb ? -0.2 : -1.0)
+			_cache_coef[entity]![Stats.TP] = entity.isFriend ? (entity.isBulb ? 2.0 : 10.0)
+																	: (entity.isBulb ? -2.0 : -10.0)
+			_cache_coef[entity]![Stats.MP] = entity.isFriend ? (entity.isBulb ? 2.0 : 10.0)
+																	: (entity.isBulb ? -2.0 : -10.0)
+			_cache_coef[entity]![Stats.PWR] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
+																	: (entity.isBulb ? -0.2 : -1.0)
 			// fonctionnement à part, peut être que ça restera pas ça...
-			_cache_coef[entity][Stats.KILL] = entity.isFriend ? (entity.isBulb ? -0.2 : -1)
-																	: (entity.isBulb ? 0.2 : 1)
+			_cache_coef[entity]![Stats.KILL] = entity.isFriend ? (entity.isBulb ? -0.2 : -1.0)
+																	: (entity.isBulb ? 0.2 : 1.0)
 		}
 	}
 	
 	/*
 	 * retourne le coef d'une entity pour la key donnée
 	 */
-	static getCoef(entity, key){
-		return _cache_coef[entity][key]
+	static real getCoef(Entity entity, integer key){
+		return _cache_coef[entity]![key]!
 	}
 }
