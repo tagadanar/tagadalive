@@ -1,5 +1,3 @@
-include('../../auto')
-
 class EntityEffect {
 	integer type
 	integer value
@@ -16,8 +14,8 @@ class EntityEffect {
 		this.caster = Fight.getEntity(effect[2] as integer)
 		this.turns = effect[3] as integer
 		// special case, infinite duration is ==-1, MUST handle this or any *duration later will inverse everything
-		if(this.turns==-1) this.turns = 7 // TODO this should probably be in scoring... //66-getTurn()
-		// TODO add a this.duration field, and check entities order to set duration to the right amount of time.
+		// TODO use Scoring.getEffectiveDuration(this.turns, this.caster, this.target) once init order is verified
+		if(this.turns==-1) this.turns = Scoring.MAX_DURATION - 1
 		this.critical = effect[4] as boolean
 		this.item = Items.getItem(effect[5] as integer)!
 		this.target = Fight.getEntity(effect[6] as integer)

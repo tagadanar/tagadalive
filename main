@@ -1,13 +1,28 @@
 include('auto');
 
 init()
+debug("init ok")
 
-Benchmark.start('COMBO SEARCH')
+// Use tagadalive AI
+debug("combo search...")
 Combo combo = AI.getPotentialCombo()
-Benchmark.stop('COMBO SEARCH')
-if(combo) combo.play()
-else {
-	debugE('/!\ turn '+getTurn()+' Combo null !')
+debug("combo: " + combo)
+
+if(combo) {
+    debug("playing " + count(combo.actions))
+    combo.play()
+} else {
+    // Fallback: simple attack
+    debug("fallback")
+    var enemy = getNearestEnemy()
+    var myWeps = getWeapons()
+    if (enemy != null && myWeps != null && count(myWeps) > 0) {
+        setWeapon(myWeps[0])
+        moveToward(enemy)
+        while(getTP() >= 3) {
+            if(useWeapon(enemy) != 1) break
+        }
+    }
 }
 
 // cast avec le reste des TP

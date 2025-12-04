@@ -1,5 +1,3 @@
-include('../../auto')
-
 /*
  * Objet contenant les informations correspondante a une item
  * On en instancie un pour chacun des équipements du jeu

@@ -1,5 +1,3 @@
-include('../../auto')
-
 /*
  * L'objet Entity contient la synthèse des informations d'une entité allié ou adversaire.
  * Il y a un objet Entity instancié pour chacune des entités présente sur le champ de bataille.

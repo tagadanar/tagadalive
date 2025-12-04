@@ -1,5 +1,3 @@
-include('../auto')
-
 class Damages{
 	/*
 	 * TODO gestion des consequences

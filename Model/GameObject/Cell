@@ -1,9 +1,9 @@
-include('../../auto')
-
 /*
  * Cellule de jeu contenant l'id, 'les coordonnées, les voisins et le type
  */ 
 class Cell {
+	static integer SELF_CAST_ID = 1312 // sentinel cell ID for self-cast actions (outside valid range 0-612)
+
 	integer id
 	boolean isWall
 	Array<Cell> neighbors
@@ -11,10 +11,10 @@ class Cell {
 	integer x
 	integer y
 	Map<integer, Array<Cell>> _AREAS = [:]
-	
+
 	constructor(integer id){
 		this.id = id
-		if (id == 1312) {
+		if (id == Cell.SELF_CAST_ID) {
 			this.isWall = false
 			this.x = 18
 			this.y = 18

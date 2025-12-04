@@ -1,5 +1,3 @@
-include('../auto')
-
 class AI {
 	
 	/*

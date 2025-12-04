@@ -1,5 +1,3 @@
-include('../auto')
-
 class Targets{
 	
 	static Array<Entity> getTargets(Action action){

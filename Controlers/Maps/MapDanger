@@ -1,5 +1,3 @@
-include('../../auto')
-
 /*
  *  Ensemble de méthodes et d'algorithmes permettant de calculer le Danger et les maps de dommages
  */

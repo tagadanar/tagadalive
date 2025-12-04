@@ -1,10 +1,11 @@
-include('../auto')
-
 class Scoring {
 	static Map<Entity, Map<integer, real>> _cache_coef = [:] // [entity:[key:value]]
-	
+	static Map<integer, integer> _cache_duration = [:] // [(rawDuration+1)*2 + turnOrderBit : effectiveDuration]
+
 	static integer KILL_VALUE = 1000
 	static integer DEATH_VALUE = -1000
+	static integer MAX_FIGHT_TURNS = 66
+	static integer MAX_DURATION = 8 // max index in duration_mitigation maps
 	
 	static Map<integer, real> defensive_duration_mitigation = [
 		0 : 1.0,
@@ -52,6 +53,20 @@ class Scoring {
 	 */
 	static void refresh(){
 		_cache_coef = [:]
+		_cache_duration = [:]
+
+		// Pre-compute effective durations for all raw values (-1 to MAX_DURATION)
+		// Key formula: (rawDuration + 1) * 2 + (sourceAfterTarget ? 1 : 0)
+		integer turnsLeft = MAX_FIGHT_TURNS - getTurn()
+		for(integer raw = -1; raw <= MAX_DURATION; raw++){
+			// For finite durations, cap to turnsLeft (can't benefit longer than fight lasts)
+			integer base = raw == -1 ? turnsLeft : min(raw, turnsLeft)
+			base = min(base, MAX_DURATION)
+			// source plays before target → target gets full duration
+			_cache_duration[(raw + 1) * 2] = max(base, 0)
+			// source plays after target → target gets 1 less turn
+			_cache_duration[(raw + 1) * 2 + 1] = max(base - 1, 0)
+		}
 		for(Entity entity in Fight.getAllAlive()){
 			_cache_coef[entity] = [:]
 			_cache_coef[entity]![Stats.HP] = entity.isFriend ? (entity.isBulb ? 0.5 : 1.0) 
@@ -97,5 +112,22 @@ class Scoring {
 	 */
 	static real getCoef(Entity entity, integer key){
 		return _cache_coef[entity]![key]!
+	}
+
+	/*
+	 * Retourne la durée effective d'un effet en tenant compte de:
+	 * - La durée infinie (-1) convertie en tours restants
+	 * - L'ordre de jeu (source avant/après target)
+	 * - Le cap à MAX_DURATION pour les maps de mitigation
+	 * @param rawDuration durée brute de l'effet (-1 = infini, ou 0-8)
+	 * @param source entité qui applique l'effet
+	 * @param target entité qui reçoit l'effet
+	 * @return durée effective (0 à MAX_DURATION)
+	 */
+	static integer getEffectiveDuration(integer rawDuration, Entity source, Entity target){
+		// Cap rawDuration to valid cache range (handles raw > MAX_DURATION)
+		integer cappedRaw = rawDuration == -1 ? -1 : min(rawDuration, MAX_DURATION)
+		integer key = (cappedRaw + 1) * 2 + (source.turnOrder > target.turnOrder ? 1 : 0)
+		return _cache_duration[key]!
 	}
 }

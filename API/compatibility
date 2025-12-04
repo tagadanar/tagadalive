@@ -1,5 +1,3 @@
-include('../auto')
-
 function getCellsToUseItemOnCell(Item item, Cell cell, Array<integer> ignoredCellsId) => Array<integer>? {
 	return item.isWeap ? getCellsToUseWeaponOnCell(item.id, cell.id, ignoredCellsId) : getCellsToUseChipOnCell(item.id, cell.id, ignoredCellsId)
 }

@@ -35,9 +35,11 @@ class Stats {
 	static integer DEBUFF 		= Stats.getInstance().DEBUFF // should i delete this ?
 	static integer ANTIDOTE 	= Stats.getInstance().ANTIDOTE // should i delete this ?
 	static integer KILL			= Stats.getInstance().KILL
-	
-	
-	
+
+	// Game mechanic constants
+	static integer DMG_EROSION_DIVISOR = 20 // damage / divisor = max HP lost
+	static integer PSN_EROSION_DIVISOR = 10 // poison damage / divisor = max HP lost
+
 	static Map<integer, integer> entityEffectType_to_stats = [
 		EFFECT_POISON: 					Stats.getInstance().HPTIME,
 		EFFECT_VULNERABILITY: 			Stats.getInstance().RELSHIELD,
