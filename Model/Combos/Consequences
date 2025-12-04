@@ -1,5 +1,3 @@
-include('../../auto')
-
 class Consequences {
 	Map<Entity, Map<integer, integer>> _alterations = [:]// [entity:[caracteristic:value]]
 	Map<Entity, Map<Item, Array<EffectOverTime>>> _altEffects = [:]// [entity:[item:[EffectOverTime]]]
@@ -154,7 +152,7 @@ class Consequences {
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
 
 			// érosion !
-			conseq.add(entityTarget, Stats.HPMAX, (-value/20) as integer) // TODO le 20 ici devrait être dans une constante
+			conseq.add(entityTarget, Stats.HPMAX, (-value/Stats.DMG_EROSION_DIVISOR) as integer)
 			
 			// vol de vie
 			integer lifeSteal = round(value * (entitySource.getCurrentWsd(conseq)/1000))
@@ -168,7 +166,7 @@ class Consequences {
 				conseq.add(entitySource, Stats.HP, -dmgReturn as integer)
 				
 				// érosion !
-				conseq.add(entitySource, Stats.HPMAX, (-dmgReturn/20) as integer) // TODO le 20 ici devrait être dans constante
+				conseq.add(entitySource, Stats.HPMAX, (-dmgReturn/Stats.DMG_EROSION_DIVISOR) as integer)
 				
 				if(dmgReturn>=entitySource.getCurrentHP(conseq)) 
 					conseq.addKill(entitySource) 
@@ -191,8 +189,7 @@ class Consequences {
 			conseq.add(entityTarget, Stats.HPTIME, eot)
 			
 			// érosion ! c'est moche de rediv par durée, FIXME quand j'aurais géré la durée dans les conseq
-			conseq.add(entityTarget, Stats.HPMAX, round(-value/effect.duration/10))
-			//TODO le 10 au dessus devrait être dans une constante
+			conseq.add(entityTarget, Stats.HPMAX, round(-value/effect.duration/Stats.PSN_EROSION_DIVISOR))
 		},
 		EFFECT_LIFE_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			integer beforeShield = round(entitySource.life*(effect.avg/100))
@@ -206,7 +203,7 @@ class Consequences {
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
 
 			// érosion !
-			conseq.add(entityTarget, Stats.HPMAX, round(-value/20)) // TODO le 20 ici devrait être dans une constante
+			conseq.add(entityTarget, Stats.HPMAX, round(-value/Stats.DMG_EROSION_DIVISOR))
 			
 			if(entityTarget != entitySource){
 				// dmg return
@@ -214,7 +211,7 @@ class Consequences {
 				if(dmgReturn>0){
 					conseq.add(entitySource, Stats.HP, -dmgReturn)
 					// érosion !
-					conseq.add(entitySource, Stats.HPMAX, round(-dmgReturn/20)) // TODO le 20 ici devrait être dans constante
+					conseq.add(entitySource, Stats.HPMAX, round(-dmgReturn/Stats.DMG_EROSION_DIVISOR))
 					
 					if(dmgReturn>=entitySource.getCurrentHP(conseq))
 						conseq.addKill(entitySource) 

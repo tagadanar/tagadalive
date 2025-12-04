@@ -42,13 +42,13 @@ class Benchmark{
 		debug(str)
 	}
 	
-	static format(num){
-		num = num | 0
+	static string format(real num){
+		num = num | 0  // fast truncate to integer
 		if(num >= 1000){
 			var mega = floor(num/1000000)
 			var kilo = round((num-(mega*1000000))/1000)
-			var formated = (mega>0?mega+" ":"") + kilo + "k"
-			return formated
-		}else return num
+			return (mega > 0 ? mega + " " : "") + kilo + "k"
+		}
+		return num + ""
 	}
 }

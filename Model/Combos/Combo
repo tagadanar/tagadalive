@@ -1,5 +1,3 @@
-include('../../auto')
-
 /*
  * Ensemble d'actions formant un combo 
  * L'objet combo contient les dommages approximatifs calculé dans MapDanger::getPotentialCombo

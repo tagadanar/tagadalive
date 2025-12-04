@@ -1,5 +1,3 @@
-include('../../auto')
-
 class MapAction {
 	static Map<Item, Map<Cell, Array<Action>>> _item_cell_actions // [item:[cell:[actions]]]
 	static Map<Cell, Map<Item, Array<Action>>> _cell_item_actions // [cell:[item:[actions]]]

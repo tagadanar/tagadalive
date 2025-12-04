@@ -1,5 +1,3 @@
-include('../../auto')
-
 /*
  * Objet qui contient l'ensemble des entités vivante alliée et ennemie
  */
@@ -15,7 +13,7 @@ class Fight {
 	private static Map<integer, Entity> _aliveAlliesBulbs
 	static Array<integer> allEntitiesId
 	static Entity self
-	static Cell selfCell = Cell(1312)
+	static Cell selfCell = Cell(Cell.SELF_CAST_ID)
 
 	/*
 	 * Actualise les tableaux contenant les entités vivante alliée et ennemie ainsi que l'ensemble des entités alliées + ennemies
@@ -161,13 +159,13 @@ class Fight {
 	static Array<Entity> getEntitiesWhoPlayBefore(Entity entity) {
 		if(entity == self) return [self];
 		Array<Entity>  list = [self]
-		integer self = self.turnOrder
+		integer selfOrder = self.turnOrder
 		integer limit = entity.turnOrder
 		for(Entity e in _aliveAll) {
-			if(self < limit){
-				if(self < e.turnOrder && e.turnOrder < limit) push(list, e)
+			if(selfOrder < limit){
+				if(selfOrder < e.turnOrder && e.turnOrder < limit) push(list, e)
 			} else {
-				if(self < e.turnOrder) push(list, e)
+				if(selfOrder < e.turnOrder) push(list, e)
 				if(e.turnOrder < limit) push(list, e)
 			}
 		}

@@ -1,5 +1,3 @@
-include ('../../auto')
-
 /*
  * L'objet Danger contient un combo représentant un ensemble d'actions et les dommages approximatifs de ces actions.
  * Le combo est une chaîne de caractères et est utilisé à des fins de tests / debugs.
