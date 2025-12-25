@@ -566,6 +566,22 @@ class Consequences {
 		EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 		EFFECT_DAMAGE_TO_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 		EFFECT_ALLY_KILLED_TO_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_KILL_TO_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		EFFECT_CRITICAL_TO_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+
+		// raw heal - instant heal without wisdom scaling
+		EFFECT_RAW_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			integer value = round(effect.avg * ratioDmg)
+			value = min(value, entityTarget.getCurrentHPMissing(conseq))
+			conseq.add(entityTarget, Stats.HP, value)
+		},
+
+		// add state - applies special states (stunned, etc.)
+		// TODO: proper state tracking - for now just log it
+		EFFECT_ADD_STATE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			// States have various effects (stunned = skip turn, burning = DoT, etc.)
+			// For now we don't track states in consequences - would need state->effect mapping
+		},
 	]
 	
 	/*

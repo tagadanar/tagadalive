@@ -75,7 +75,13 @@ class TargetType {
 				
 		EFFECT_RESURRECT: 				TargetType.EMPTY, // FIXME ???
 		EFFECT_TELEPORT: 				TargetType.EMPTY,
-		EFFECT_SUMMON: 					TargetType.EMPTY
+		EFFECT_SUMMON: 					TargetType.EMPTY,
+
+		// newer effects
+		EFFECT_RAW_HEAL:				TargetType.ALLIES,
+		EFFECT_ADD_STATE:				TargetType.ENEMIES, // most states are debuffs (stunned, etc.)
+		EFFECT_KILL_TO_TP:				TargetType.ALLIES, // passive: caster gains TP on kill
+		EFFECT_CRITICAL_TO_HEAL:		TargetType.ALLIES, // passive: crits heal caster
 	]
 
 	constructor(ItemEffect effect){
