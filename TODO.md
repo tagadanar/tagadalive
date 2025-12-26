@@ -4,6 +4,10 @@ Reference for issues and improvements in the LeekScript combat AI.
 
 ---
 
+## Manually added TODO
+
+in Position, some magicnumber that should be in Scoring, must think about that.
+
 ## AI Effect Implementations
 
 ### Recently Added Effects (need testing)
