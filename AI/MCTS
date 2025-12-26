@@ -68,35 +68,23 @@ class MCTSNode {
 	 */
 	void initUntriedActions(Array<Action> actionsFromCell) {
 		this.untriedActions = []
-		boolean shouldDebug = MCTS.expandDebugCount <= 5
 
 		for (Action baseAction in actionsFromCell) {
-			integer usage = this.getUsageCount(baseAction.item)
 			// Skip if max uses reached for this item
-			if (usage >= baseAction.item.maxUse) {
-				if (shouldDebug) debug("  SKIP maxUse: " + baseAction.item.name + " usage=" + usage + "/" + baseAction.item.maxUse)
-				continue
-			}
+			if (this.getUsageCount(baseAction.item) >= baseAction.item.maxUse) continue
 
 			// Skip if target is dead
 			Entity? target = Board.entityCells[baseAction.to]
-			if (target != null && this.state.isKilled(target!)) {
-				if (shouldDebug) debug("  SKIP dead target: " + baseAction.item.name)
-				continue
-			}
+			if (target != null && this.state.isKilled(target!)) continue
 
 			// Check TP cost
 			integer switchCost = baseAction.item.isWeap && baseAction.item != this.weaponInHand ? 1 : 0
-			if (baseAction.item.cost + switchCost > this.remainingTP) {
-				if (shouldDebug) debug("  SKIP TP: " + baseAction.item.name + " cost=" + (baseAction.item.cost + switchCost) + " have=" + this.remainingTP)
-				continue
-			}
+			if (baseAction.item.cost + switchCost > this.remainingTP) continue
 
 			push(this.untriedActions, baseAction)
 		}
 
 		this.isTerminal = count(this.untriedActions) == 0
-		if (shouldDebug) debug("  Child untried=" + count(this.untriedActions) + " terminal=" + this.isTerminal + " TP=" + this.remainingTP)
 	}
 
 	/*
@@ -197,7 +185,6 @@ class MCTS {
 	 */
 	static Combo search(Cell startCell, Map<Item, Action> actionsAtCell, integer tp, integer mp, Item? weapon) {
 		integer startOps = getOperations()
-		MCTS.expandDebugCount = 0  // Reset debug counter for this search
 
 		// Prune and prepare initial actions
 		Array<Action> prunedActions = MCTS.pruneActions(mapValues(actionsAtCell))
@@ -205,7 +192,7 @@ class MCTS {
 		// If no actions available, return movement-only combo
 		if (count(prunedActions) == 0) {
 			Combo moveOnlyCombo = Combo()
-			moveOnlyCombo.addFinalDanger(MCTS.findBestDangerFromCell(startCell, mp, Consequences()))
+			moveOnlyCombo.addFinalPosition(MCTS.findBestPositionFromCell(startCell, mp, Consequences()))
 			return moveOnlyCombo
 		}
 
@@ -271,9 +258,6 @@ class MCTS {
 		return node
 	}
 
-	// Debug counter for expand
-	static integer expandDebugCount = 0
-
 	/*
 	 * Expansion phase: add one child node
 	 */
@@ -285,12 +269,6 @@ class MCTS {
 
 		// Create child node
 		MCTSNode child = MCTSNode(node, action)
-
-		// Debug first few expansions
-		if (MCTS.expandDebugCount < 5) {
-			debug("EXPAND: " + action.item.name + " depth=" + child.getUsageCount(action.item) + " parentTP=" + node.remainingTP + " childTP=" + child.remainingTP)
-			MCTS.expandDebugCount++
-		}
 
 		// Initialize child's available actions
 		Array<Action> actionsFromCell = MCTS.pruneActions(mapValues(actionsAtCell))
@@ -389,14 +367,14 @@ class MCTS {
 			node = bestChild
 		}
 
-		// Add final danger positioning
+		// Add final position (includes danger + positioning score)
 		// For 0-action combos, use the evaluated startCell as the reference point
 		if (count(combo.actions) == 0) {
-			// Movement-only turn: find best danger from startCell
-			Danger danger = MCTS.findBestDangerFromCell(startCell, Fight.self.mp, Consequences())
-			combo.addFinalDanger(danger)
+			// Movement-only turn: find best position from startCell
+			Position pos = MCTS.findBestPositionFromCell(startCell, Fight.self.mp, Consequences())
+			combo.addFinalPosition(pos)
 		} else {
-			combo.addFinalDanger(AI.findBestDanger(combo))
+			combo.addFinalPosition(AI.findBestPosition(combo))
 		}
 		return combo
 	}
@@ -422,63 +400,10 @@ class MCTS {
 	}
 
 	/*
-	 * Find best danger from a specific cell with given MP
-	 * Used for movement-only turns where combo has 0 actions
+	 * Find best position from a specific cell with given MP
+	 * Used for movement-only turns where combo has 0 actions.
 	 */
-	static Danger findBestDangerFromCell(Cell fromCell, integer mp, Consequences state) {
-		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(
-			fromCell,
-			mp,
-			Fight.self.cellsToIgnore
-		)
-
-		Cell shouldGetCloseTo = Fight.getEntity(getNearestEnemy()).cell
-		Danger? bestDanger = null
-
-		for (Cell cell : integer cellMp in reachableCells) {
-			if (cellMp > mp) break
-			Danger danger = MapDanger.getCellDanger(cell, state)
-			if (!bestDanger || bestDanger!.dmg > danger.dmg) {
-				bestDanger = danger
-			} else if (bestDanger!.dmg == danger.dmg) {
-				// At equal danger, get closer to enemy
-				if (getCellDistance(bestDanger!.cell.id, shouldGetCloseTo.id) >
-				    getCellDistance(danger.cell.id, shouldGetCloseTo.id)) {
-					bestDanger = danger
-				}
-			}
-		}
-
-		return bestDanger!
-	}
-
-	/*
-	 * Evaluate final danger for a simulated state
-	 */
-	static Danger evaluateFinalDanger(Cell startCell, Consequences state) {
-		// Get reachable cells from current position in state
-		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(
-			state.currentCell,
-			state.currentMP,
-			Fight.self.cellsToIgnore
-		)
-
-		Cell shouldGetCloseTo = Fight.getEntity(getNearestEnemy()).cell
-		Danger? bestDanger = null
-
-		for (Cell cell : integer mp in reachableCells) {
-			if (mp > state.currentMP) break
-			Danger danger = MapDanger.getCellDanger(cell, state)
-			if (!bestDanger || bestDanger!.dmg > danger.dmg) {
-				bestDanger = danger
-			} else if (bestDanger!.dmg == danger.dmg) {
-				if (getCellDistance(bestDanger!.cell.id, shouldGetCloseTo.id) >
-				    getCellDistance(danger.cell.id, shouldGetCloseTo.id)) {
-					bestDanger = danger
-				}
-			}
-		}
-
-		return bestDanger!
+	static Position findBestPositionFromCell(Cell fromCell, integer mp, Consequences? state) {
+		return MapPosition.findBestPosition(fromCell, mp, state)
 	}
 }

@@ -1,10 +1,10 @@
 /*
- * Ensemble d'actions formant un combo 
+ * Ensemble d'actions formant un combo
  * L'objet combo contient les dommages approximatifs calculé dans MapDanger::getPotentialCombo
  */
 class Combo {
 	Array<Action> actions = []
-	Danger? finalDanger = null
+	Position? finalPosition = null  // End-of-turn position (best scored cell)
 	real? score = null
 	
 	/*
@@ -21,8 +21,8 @@ class Combo {
 		return true
 	}
 	
-	void addFinalDanger(Danger danger){
-		this.finalDanger = danger
+	void addFinalPosition(Position position){
+		this.finalPosition = position
 	}
 	
 	/*
@@ -33,7 +33,7 @@ class Combo {
 			for(Action action in this.actions){
 				this.score += action.score!
 			}
-			this.score += this.finalDanger!.score
+			this.score += this.finalPosition!.score
 		}
 		return this.score
 	}
@@ -43,7 +43,7 @@ class Combo {
 	 */
 	Cell getCurrentCell(){
 		Cell currentCell
-		if(this.finalDanger) currentCell = this.finalDanger!.cell
+		if(this.finalPosition) currentCell = this.finalPosition!.cell
 		else if(count(this.actions)>0) currentCell = actions[count(this.actions)-1].from
 		else currentCell = Fight.self.cell
 
@@ -53,14 +53,12 @@ class Combo {
 	}
 	
 	/*
-	 * retourne la cell où on serait si on jouait le combo en l'état
+	 * retourne les MP restants après le combo
 	 */
 	integer getCurrentMP(){
 		integer currentMP
-		if(this.finalDanger) currentMP = 0 // TODO avoir les mp restant dans un objet conséquences d'un placement!
-		else if(count(this.actions)>0) currentMP = actions[count(this.actions)-1].consequences.currentMP
+		if(count(this.actions)>0) currentMP = actions[count(this.actions)-1].consequences.currentMP
 		else currentMP = Fight.self.mp
-
 		return currentMP
 	}
 	
@@ -98,9 +96,10 @@ class Combo {
 			else action.item.useItemOnCell(action.to)
 		}
 		// étape 2: je vais me planquer
-		if(this.finalDanger){
-			MapDanger.showDanger(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
-			moveTowardCell(this.finalDanger!.cell.id)
+		if(this.finalPosition){
+			//MapDanger.showDanger(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
+			MapPosition.showPosition(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
+			moveTowardCell(this.finalPosition!.cell.id)
 		}
 		// étape 3: si il reste des TP, je prend en main la meilleure arme vis à vis de la situation
 		if(getWeapon(Fight.self.id)==null) setWeapon(Items.getItem(WEAPON_PISTOL)!.id)
@@ -116,7 +115,7 @@ class Combo {
 		for(Action action in this.actions){
 			str+= '\n'+action
 		}
-		str+= '\n'+this.finalDanger+']>'
+		str+= '\n'+this.finalPosition+']>'
 		return str
 	}
 }

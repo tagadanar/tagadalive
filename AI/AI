@@ -1,11 +1,9 @@
 class AI {
 	
 	/*
+	 * @unused Legacy greedy algorithm - replaced by getMCTSCombo()
 	 * Premier exemple d'algo naif où je cherche uniquement à maximiser les dégats sur nearest enemy
 	 * en exploitant uniquement les données de la MapDanger
-	 * TODO n'ajoute pas de déplacement de repli à la fin de la combo !
-	 * ne check pas le nombre de MP nécessaire entre les actions, qui peuvent être depuis plusieurs cases !
-	 * @return combo contenant le tableau d'actions et les dommages estimés
 	 */
 	static Combo getSimpleOffensiveCombo(){
 		Combo combo = Combo()
@@ -28,13 +26,9 @@ class AI {
 		return combo
 	}
 	
-	/* 
-	 * Exploration des actions simple, recherche de move en 2 déplacements :
-	 * - pour chaque cell accessible:
-		* 	dans un combo j'ajoute la meilleure action par score jusqu'à épuisement
-	 	*	puis je trouve une case de repli.
-		*	je recommence un combo en ajoutant les actions que je peux me lancer sur moi mm
-	 * je retourne le meilleure combo trouvé
+	/*
+	 * @unused Legacy greedy algorithm - replaced by getMCTSCombo()
+	 * Exploration des actions simple, recherche de move en 2 déplacements
 	 */
 	static Combo getPotentialCombo(){
 		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
@@ -68,7 +62,7 @@ class AI {
 				}
 			}
 			// recherche d'une case de fin de tour
-			combo.addFinalDanger(AI.findBestDanger(combo))
+			combo.addFinalPosition(AI.findBestPosition(combo))
 
 			if(!bestCombo || bestCombo!.getScore() < combo.getScore()){
 				bestCombo = combo
@@ -111,7 +105,7 @@ class AI {
 				}
 			}
 			// recherche d'une case de fin de tour
-			combo2.addFinalDanger(AI.findBestDanger(combo2))
+			combo2.addFinalPosition(AI.findBestPosition(combo2))
 
 			if(!bestCombo || bestCombo!.getScore() < combo2.getScore()){
 				bestCombo = combo2
@@ -123,38 +117,21 @@ class AI {
 	}
 	
 	/*
-	 * Premier exemple d'algo naif de recherche de case de fin de tour
-	 * je minimise les dégats, puis à danger équivalent je choisi la case la plus proche de l'adversaire
+	 * Find best end-of-turn position using full positioning score:
+	 * - Danger (damage we could receive)
+	 * - Life-based scaling (more cautious when low HP)
+	 * - Proximity to other enemies
+	 * - Gravity (ideal distances to allies/enemies)
+	 * - Tactical bonuses (lock, COVID, CAC range)
+	 * - Shield value
+	 * - MP efficiency
 	 */
-	static Danger findBestDanger(Combo combo){
-		Consequences consequences = combo.getCurrentConsequences()		
-		Cell shouldGetCloseTo = Fight.getEntity(getNearestEnemy()).cell
-		Danger? bestDanger = null
-		// depuis la case @from, avec les mp restant
+	static Position findBestPosition(Combo combo){
+		Consequences consequences = combo.getCurrentConsequences()
+		Cell currentCell = combo.getCurrentCell()
 		integer currentMP = combo.getCurrentMP()
-		Map<Cell, integer> reachableCells = combo.getCurrentReachableCells()
-		for(Cell cell:integer mp in reachableCells){
-			if(mp > currentMP) break
-			Danger danger = MapDanger.getCellDanger(cell, consequences)
-			if(!bestDanger || bestDanger!.dmg > danger.dmg) {
-				bestDanger = danger
-			} else if(bestDanger!.dmg == danger.dmg){
-				// en cas de danger équivalent, je m'approche le plus possible de l'adv
-				if(getCellDistance(bestDanger!.cell.id, shouldGetCloseTo.id) > getCellDistance(danger.cell.id, shouldGetCloseTo.id)){
-					bestDanger = danger
-				}
-			}
-		}
-		return bestDanger!
-	}
 
-	/*
-	 * Recherche de case de fin de tour avancé, prenant en compte de multiples problématiques
-	 */
-	static findBestPosition(Combo combo){
-		var reachableCells = combo.getCurrentReachableCells()
-
-		// TODO
+		return MapPosition.findBestPosition(currentCell, currentMP, consequences)
 	}
 
 	/*
@@ -215,11 +192,30 @@ class AI {
 			debugE("MCTS: No combo found - this should not happen!")
 			// Emergency: just return current position
 			Combo emergency = Combo()
-			emergency.addFinalDanger(MCTS.findBestDangerFromCell(Fight.self.cell, Fight.self.mp, Consequences()))
+			emergency.addFinalPosition(MCTS.findBestPositionFromCell(Fight.self.cell, Fight.self.mp, Consequences()))
 			return emergency
 		}
 
-		debug("MCTS: " + positionsExplored + " pos, " + MCTS.lastIterations + " iter, score=" + round(bestCombo!.getScore()!))
+		// Build path string: action1(score)→action2(score)→move(cell: breakdown)
+		string path = ""
+		for (Action a in bestCombo!.actions) {
+			if (path != "") path += "→"
+			path += a.item.name + "(" + round(a.score!) + ")"
+		}
+		if (bestCombo!.finalPosition) {
+			if (path != "") path += "→"
+			Position p = bestCombo!.finalPosition!
+			path += "move(" + p.cell.id + ": "
+			path += round(p.score) + "="
+			path += round(-p.dmg) + "d"
+			path += (p.proximityScore >= 0 ? "+" : "") + round(p.proximityScore) + "p"
+			path += (p.gravityScore >= 0 ? "+" : "") + round(p.gravityScore) + "g"
+			path += (p.tacticalScore >= 0 ? "+" : "") + round(p.tacticalScore) + "t"
+			path += ")"
+		}
+		if (path == "") path = "stay"
+
+		debug("MCTS: " + positionsExplored + " pos, " + MCTS.lastIterations + " iter, score=" + round(bestCombo!.getScore()!) + " | " + path)
 		return bestCombo!
 	}
 }
