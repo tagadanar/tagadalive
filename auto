@@ -15,7 +15,7 @@ include('Controlers/Items')
 
 include('Controlers/Maps/MapPath')
 include('Controlers/Maps/MapDanger')
-//include('Controlers/Maps/MapPosition')
+include('Controlers/Maps/MapPosition')
 include('Controlers/Maps/MapAction')
 
 //include('Model/Combos/Jump')
@@ -44,7 +44,7 @@ function init() {
 		Benchmark.start('Map.init')
 		Board.init()
 		Benchmark.stop('Map.init')
-		
+
 		Benchmark.start('Items.init')
 		Items.init()
 		Benchmark.stop('Items.init')
@@ -52,11 +52,11 @@ function init() {
 	Benchmark.start('MapPath.refresh')
 	MapPath.refresh()
 	Benchmark.stop('MapPath.refresh')
-	
+
 	Benchmark.start('Fight.refresh')
 	Fight.refresh()
 	Benchmark.stop('Fight.refresh')
-	
+
 	Benchmark.start('Map.refresh')
 	Board.refresh()  // Note: Board.refresh() internally calls Fight.refreshEntities()
 	Benchmark.stop('Map.refresh')
@@ -64,18 +64,18 @@ function init() {
 	Benchmark.start('Scoring.refresh')
 	Scoring.refresh()
 	Benchmark.stop('Scoring.refresh')
-	
+
 	Benchmark.start('MapDanger.refresh')
 	MapDanger.refresh()
 	Benchmark.stop('MapDanger.refresh')
-	
-	//Benchmark.start('MapPosition.refresh')
-	//MapPosition.refresh()
-	//Benchmark.stop('MapPosition.refresh')
-	
+
+	Benchmark.start('MapPosition.refresh')
+	MapPosition.refresh()
+	Benchmark.stop('MapPosition.refresh')
+
 	Benchmark.start('MapAction.refresh')
 	MapAction.refresh()
 	Benchmark.stop('MapAction.refresh')
-			
+
 	Benchmark.stop('init')
 }
