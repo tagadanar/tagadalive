@@ -1,16 +1,365 @@
-include('../../auto')
+/*
+ * Controller for position evaluation and end-of-turn positioning decisions.
+ * Handles gravity cells, threat detection, and comprehensive position scoring.
+ */
+class MapPosition {
+	// === Gravity configuration ===
+	static Map<Cell, integer> _gravity_distance = [:]  // [cell: ideal distance]
+	static Map<Cell, real> _gravity_coef = [:]         // [cell: weight]
+	static real _total_ally_coef = 0.0
 
-class MapPosition{
-	static _placement_cell_distance = []
-	static _placement_cell_coef = []
-	
-	static refresh(){
-		for(var ally in Fight.getAlliesLeeksAlive()){
-			if(ally.isBulb){
-				
-			}else if(ally != Fight.self){
-				
+	// === Threat detection ===
+	static boolean _enemies_have_str = false
+	static boolean _enemies_have_snc = false
+	static boolean _need_shields = false
+	static boolean _is_cac = false
+
+	// === COVID tracking ===
+	static boolean _has_covid = false
+	static Map<Entity, boolean> _entity_has_covid = [:]
+
+	// === Cached data ===
+	static Map<Cell, integer>? _fullmap_path_dist = null
+	static Entity? _nearest_enemy = null
+
+	/*
+	 * Refresh all position-related caches. Called once per turn.
+	 */
+	static void refresh() {
+		MapPosition._refreshFullMapPathDist()
+		MapPosition._refreshThreatDetection()
+		MapPosition._refreshGravityCells()
+		MapPosition._refreshCovid()
+		MapPosition._refreshNearestEnemy()
+	}
+
+	/*
+	 * Cache full map path distances from self's position.
+	 */
+	static void _refreshFullMapPathDist() {
+		_fullmap_path_dist = MapPath.getCachedReachableCells(Fight.self.cell, 20, [])
+	}
+
+	/*
+	 * Detect enemy threat levels
+	 */
+	static void _refreshThreatDetection() {
+		_enemies_have_str = false
+		_enemies_have_snc = false
+
+		for (Entity e in Fight.getEnemiesAlive()) {
+			if (e.str > 100) _enemies_have_str = true
+			if (e.snc > 200) _enemies_have_snc = true
+		}
+
+		_need_shields = (_enemies_have_str || _enemies_have_snc) &&
+						(Fight.self.absShield == 0 || Fight.self.relShield == 0)
+
+		_is_cac = false
+		for (Item item in Fight.self.items) {
+			if (item.isWeap && item.maxRange <= 2) {
+				_is_cac = true
+				break
 			}
+		}
+	}
+
+	/*
+	 * Compute gravity cells - attraction/repulsion targets with ideal distances
+	 */
+	static void _refreshGravityCells() {
+		_gravity_distance = [:]
+		_gravity_coef = [:]
+		_total_ally_coef = 0.0  // IMPORTANT: Must use 0.0, not 0 (LeekScript type issue)
+		real coef
+		boolean isSummon = Fight.self.isBulb
+
+		for (Entity ally in Fight.getAlliesLeeksAlive()) {
+			if (ally == Fight.self) continue;
+			if (isSummon) coef = Scoring.W_GRAVITY_ALLY_SUMMON
+			else if (ally.snc >= 600) coef = Scoring.W_GRAVITY_ALLY_SNC600
+			else if (ally.snc >= 400) coef = Scoring.W_GRAVITY_ALLY_SNC400
+			else if (ally.wsd >= 400) coef = Scoring.W_GRAVITY_ALLY_WIS400
+			else if (ally.rst >= 200) coef = Scoring.W_GRAVITY_ALLY_RST200
+			else if (ally.wsd >= 200) coef = Scoring.W_GRAVITY_ALLY_WIS200
+			else coef = Scoring.W_GRAVITY_ALLY_DEFAULT
+			_gravity_distance[ally.cell] = Scoring.IDEAL_DIST_ALLY
+			_gravity_coef[ally.cell] = coef
+			_total_ally_coef += coef
+		}
+
+		if (!isSummon) {
+			real lifeRatio = Fight.self.life / Fight.self.totalLife
+			for (Entity bulb in Fight.getAlliesBulbsAlive()) {
+				_gravity_distance[bulb.cell] = Scoring.IDEAL_DIST_ALLY
+				if (_need_shields) coef = Scoring.W_GRAVITY_METALLIC_NEED_ARMOR
+				else if (lifeRatio < 0.9) coef = Scoring.W_GRAVITY_HEALER_NEED_HEAL
+				else coef = Scoring.W_GRAVITY_ALLY_DEFAULT
+				_gravity_coef[bulb.cell] = coef
+				_total_ally_coef += coef
+			}
+		}
+
+		var enemies = Fight.getEnemiesLeeksAlive()
+		integer enemyCount = 0
+		for (var x in enemies) enemyCount++  // Manual count - count() on Map<int,Entity> returns wrong value
+		if (enemyCount == 0) enemyCount = 1
+
+		real enemyCoef
+		real lifeRatio2 = Fight.self.life / Fight.self.totalLife
+		if (!isSummon && lifeRatio2 > 0.8 && !_need_shields) {
+			enemyCoef = ceil(_total_ally_coef / enemyCount)
+		} else {
+			enemyCoef = floor(_total_ally_coef / enemyCount)
+		}
+		if (enemyCoef < 1) enemyCoef = 1
+
+		integer distToEnemy = _is_cac ? Scoring.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
+		for (Entity enemy in enemies) {
+			_gravity_distance[enemy.cell] = distToEnemy
+			_gravity_coef[enemy.cell] = enemyCoef
+		}
+
+		if (distToEnemy < 20 && !_need_shields) {
+			for (Entity eBulb in Fight.getEnemiesBulbsAlive()) {
+				_gravity_distance[eBulb.cell] = Scoring.IDEAL_DIST_CAC
+				_gravity_coef[eBulb.cell] = enemyCoef * 0.5
+			}
+		}
+
+		Cell? centerCell = Board.getCell(306)
+		if (centerCell != null) {
+			_gravity_distance[centerCell!] = Scoring.IDEAL_DIST_ALLY
+			_gravity_coef[centerCell!] = enemyCoef
+		}
+	}
+
+	/*
+	 * Detect COVID chip and tracking
+	 */
+	static void _refreshCovid() {
+		_has_covid = false
+		_entity_has_covid = [:]
+
+		Array<integer>? chips = getChips(Fight.self.id)
+		if (chips != null) {
+			for (integer chipId in chips!) {
+				if (chipId == CHIP_COVID) {
+					_has_covid = true
+					break
+				}
+			}
+		}
+
+		if (_has_covid) {
+			for (Entity e in Fight.getEnemiesAlive()) {
+				_entity_has_covid[e] = false
+				for (EntityEffect eff in e.effects) {
+					if (eff.item.id == CHIP_COVID) {
+						_entity_has_covid[e] = true
+						break
+					}
+				}
+			}
+		}
+	}
+
+	/*
+	 * Cache nearest enemy
+	 */
+	static void _refreshNearestEnemy() {
+		_nearest_enemy = null
+		integer nearestId = getNearestEnemy()
+		if (nearestId != -1) {
+			_nearest_enemy = Fight.getEntity(nearestId)
+		}
+	}
+
+	/*
+	 * Get cached full-map path distances.
+	 */
+	static Map<Cell, integer> getFullMapPathDist() {
+		return _fullmap_path_dist!
+	}
+
+	/*
+	 * Main position evaluation function.
+	 */
+	static Position evaluatePosition(Cell cell, integer mpUsed, Consequences? consequences) {
+		Benchmark.start("MP.evalPos")
+		Danger baseDanger = MapDanger.getCellDanger(cell, consequences)
+		Position pos = Position(baseDanger)
+		pos.mpUsed = mpUsed
+
+		real lifePercent = Fight.self.getCurrentHP(consequences) / Fight.self.totalLife
+		pos.applyLifeScaling(lifePercent)
+
+		pos.addProximityScore(MapPosition._computeProximityPenalty(cell, _nearest_enemy))
+
+		pos.addGravityScore(MapPosition._computeGravityScore(cell))
+
+		pos.addTacticalScore(MapPosition._computeTacticalScore(cell, consequences))
+
+		if (_enemies_have_str || _enemies_have_snc) {
+			real shieldValue = Fight.self.getCurrentAbs(consequences) * Scoring.W_SHIELD_ABS +
+							   Fight.self.getCurrentRel(consequences) * Scoring.W_SHIELD_REL
+			pos.addShieldScore(shieldValue)
+		}
+
+		integer mpSaved = Fight.self.mp - mpUsed
+		if (mpSaved > 0 && pos.dmg > 0) {
+			pos.addMPEfficiency(mpUsed, mpSaved * Scoring.W_MP_EFFICIENCY)
+		}
+
+		Benchmark.stop("MP.evalPos")
+		return pos
+	}
+
+	/*
+	 * Compute proximity penalty for nearby enemies
+	 */
+	static real _computeProximityPenalty(Cell cell, Entity? primaryTarget) {
+		real penalty = 0
+		Cell? primaryCell = primaryTarget != null ? primaryTarget!.cell : null
+
+		for (Cell c in cell.getAreaCells(AREA_CIRCLE_1)) {
+			if (c == cell) continue
+			Entity? enemy = Board.entityCells[c]
+			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
+				penalty -= Scoring.W_PROXIMITY_AREA1
+			}
+		}
+
+		for (Cell c in cell.getAreaCells(AREA_CIRCLE_2)) {
+			if (inArray(cell.getAreaCells(AREA_CIRCLE_1), c)) continue
+			Entity? enemy = Board.entityCells[c]
+			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
+				penalty -= Scoring.W_PROXIMITY_AREA2
+			}
+		}
+
+		for (Cell c in cell.getAreaCells(AREA_CIRCLE_3)) {
+			if (inArray(cell.getAreaCells(AREA_CIRCLE_2), c)) continue
+			Entity? enemy = Board.entityCells[c]
+			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
+				penalty -= Scoring.W_PROXIMITY_AREA3
+			}
+		}
+
+		return penalty
+	}
+
+	/*
+	 * Compute gravity score - penalize deviation from ideal distances
+	 */
+	static real _computeGravityScore(Cell cell) {
+		real score = 0
+		boolean hasGravity = false
+		for (var x in _gravity_distance) { hasGravity = true; break; }
+		if (!hasGravity) return score;
+
+		for (Cell targetCell : integer idealDist in _gravity_distance) {
+			real coef = _gravity_coef[targetCell]!
+			integer actualDist = getCellDistance(cell.id, targetCell.id)
+			integer deviation = abs(idealDist - actualDist)
+
+			if (_is_cac && _nearest_enemy != null && targetCell == _nearest_enemy!.cell) {
+				integer enemyMP = _nearest_enemy!.mp - _nearest_enemy!.altMP
+				if (actualDist <= enemyMP + Fight.self.mp) {
+					score += Scoring.W_CAC_IN_RANGE
+				}
+			}
+
+			score -= deviation * coef
+		}
+
+		return score
+	}
+
+	/*
+	 * Compute tactical bonuses (lock, COVID, etc.)
+	 */
+	static real _computeTacticalScore(Cell cell, Consequences? consequences) {
+		real bonus = 0
+
+		// Lock bonus
+		if (_nearest_enemy != null) {
+			Array<Cell> enemyAdjacent = _nearest_enemy!.cell.getAreaCells(AREA_CIRCLE_1)
+			integer walkableCount = 0
+			Cell? onlyWalkable = null
+			for (Cell c in enemyAdjacent) {
+				if (c == _nearest_enemy!.cell) continue
+				if (!c.isWall && Board.entityCells[c] == null) {
+					walkableCount++
+					onlyWalkable = c
+				}
+			}
+			if (walkableCount == 1 && onlyWalkable == cell) {
+				bonus += Scoring.W_LOCK_BONUS
+			}
+		}
+
+		// COVID bonus
+		if (_has_covid) {
+			for (Cell c in cell.getAreaCells(AREA_CIRCLE_2)) {
+				Entity? enemy = Board.entityCells[c]
+				if (enemy != null && !enemy!.isFriend) {
+					boolean hasCovid = _entity_has_covid[enemy!] == true
+					if (!hasCovid) {
+						if (enemy!.isBulb) {
+							bonus += Scoring.W_COVID_SUMMON
+						} else {
+							bonus += Scoring.W_COVID_LEEK
+						}
+					}
+				}
+			}
+		}
+
+		return bonus
+	}
+
+	/*
+	 * Find the best position from reachable cells.
+	 */
+	static Position findBestPosition(Cell from, integer mpLeft, Consequences? consequences) {
+		Benchmark.start("MP.findBest")
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpLeft, Fight.self.cellsToIgnore)
+
+		Position? bestPosition = null
+		for (Cell cell : integer mp in reachableCells) {
+			if (mp > mpLeft) break
+			Position pos = MapPosition.evaluatePosition(cell, mp, consequences)
+			if (bestPosition == null || pos.score > bestPosition!.score) {
+				bestPosition = pos
+			}
+		}
+
+		if (bestPosition == null) {
+			bestPosition = MapPosition.evaluatePosition(from, 0, consequences)
+		}
+
+		Benchmark.stop("MP.findBest")
+		return bestPosition!
+	}
+
+	/*
+	 * Display position scores on the map (for debugging)
+	 * Color: based on danger only (red = high danger, green = low danger)
+	 * Text: positioningScore | danger
+	 */
+	static void showPosition(Cell from, integer mpleft, Consequences? consequences) {
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpleft, Fight.self.cellsToIgnore)
+		for (Cell c : integer d in reachableCells) {
+			Position pos = MapPosition.evaluatePosition(c, d, consequences)
+			// Color: based on danger only (like showDanger)
+			integer red = ((pos.dmg * 255) / Fight.self.life) as integer
+			if (red > 255) mark(c.id, getColor(0, 0, 0))
+			else mark(c.id, getColor(red, 255 - red, 0))
+			// Text: positioning score (non-danger components) | danger
+			integer posScore = round(pos.proximityScore + pos.gravityScore + pos.tacticalScore + pos.shieldScore + pos.mpEfficiency)
+			integer dangerVal = round(pos.dmg)
+			markText(c.id, posScore + " | " + dangerVal)
 		}
 	}
 }

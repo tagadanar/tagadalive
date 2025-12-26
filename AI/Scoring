@@ -6,6 +6,53 @@ class Scoring {
 	static integer DEATH_VALUE = -1000
 	static integer MAX_FIGHT_TURNS = 66
 	static integer MAX_DURATION = 8 // max index in duration_mitigation maps
+
+	// === Position Scoring Weights (ML-tunable) ===
+
+	// Danger weights - how much we penalize expected damage
+	static real W_DANGER_BASE = 1.0           // base danger penalty per HP of damage
+	static real W_DANGER_LOW_HP = 2.0         // multiplier when life < 60%
+	static real W_DANGER_CRITICAL = 3.0       // multiplier when danger > life/2
+
+	// Proximity weights - penalty for nearby enemies (excluding primary target)
+	static real W_PROXIMITY_AREA1 = 150.0     // adjacent cell (distance 1)
+	static real W_PROXIMITY_AREA2 = 20.0      // distance 2
+	static real W_PROXIMITY_AREA3 = 10.0      // distance 3
+
+	// Gravity weights - attraction to allies based on their role
+	static real W_GRAVITY_ALLY_SUMMON = 80.0  // we're a summon, stay close to master
+	static real W_GRAVITY_ALLY_SNC600 = 40.0  // high science ally (buffer/healer)
+	static real W_GRAVITY_ALLY_SNC400 = 25.0  // science ally
+	static real W_GRAVITY_ALLY_WIS400 = 25.0  // wisdom ally
+	static real W_GRAVITY_ALLY_RST200 = 10.0  // tanky ally
+	static real W_GRAVITY_ALLY_WIS200 = 8.0   // wisdom ally (lower)
+	static real W_GRAVITY_ALLY_DEFAULT = 1.0  // default ally attraction
+
+	// Bulb-specific gravity
+	static real W_GRAVITY_METALLIC_NEED_ARMOR = 80.0  // metallic bulb when we need shields
+	static real W_GRAVITY_METALLIC_DEFAULT = 6.0      // metallic bulb normally
+	static real W_GRAVITY_HEALER_NEED_HEAL = 40.0     // healer bulb when hurt
+	static real W_GRAVITY_HEALER_DEFAULT = 5.0        // healer bulb normally
+
+	// Tactical weights
+	static real W_LOCK_BONUS = 500.0          // bonus for locking enemy (only adjacent cell)
+	static real W_CAC_IN_RANGE = 1000.0       // bonus if enemy can reach us for melee (we're CAC)
+	static real W_COVID_LEEK = 10000.0      // big bonus for being near uninfected enemy leek
+	static real W_COVID_SUMMON = 1000.0     // bonus for being near uninfected enemy summon
+
+	// Shield weights - value of keeping shields active
+	static real W_SHIELD_ABS = 3.0            // value per point of absolute shield
+	static real W_SHIELD_REL = 6.0            // value per point of relative shield
+
+	// MP efficiency
+	static real W_MP_EFFICIENCY = 1.0         // bonus per MP saved
+
+	// Distance weights for ranged vs melee
+	static integer IDEAL_DIST_RANGED = -1     // calculated at first turn: self.mp + longest item range
+	static integer IDEAL_DIST_CAC = 1         // ideal distance for melee (adjacent)
+	static integer IDEAL_DIST_ALLY = 3        // default ideal distance to allies
+	static integer IDEAL_DIST_METALLIC = 1    // stay close to metallic bulb
+	static integer IDEAL_DIST_HEALER = 4      // healing range
 	
 	static Map<integer, real> defensive_duration_mitigation = [
 		0 : 1.0,
@@ -54,6 +101,17 @@ class Scoring {
 	static void refresh(){
 		_cache_coef = [:]
 		_cache_duration = [:]
+
+		// Calculate IDEAL_DIST_RANGED once at first turn
+		if (IDEAL_DIST_RANGED == -1) {
+			integer longestRange = 0
+			for (Item item in Fight.self.items) {
+				if (item.maxRange > longestRange) {
+					longestRange = item.maxRange
+				}
+			}
+			IDEAL_DIST_RANGED = Fight.self.mp + longestRange
+		}
 
 		// Pre-compute effective durations for all raw values (-1 to MAX_DURATION)
 		// Key formula: (rawDuration + 1) * 2 + (sourceAfterTarget ? 1 : 0)

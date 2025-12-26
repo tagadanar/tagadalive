@@ -1,8 +1,120 @@
-class Position{
-	danger
-	consequences
-	
-	constructor(){
-	
+/*
+ * Position extends Danger with additional tactical scoring components.
+ * Used for end-of-turn positioning decisions.
+ * Score breakdown allows debugging and ML tuning of weights.
+ */
+class Position extends Danger {
+	// Score components (for debugging/tuning)
+	real proximityScore = 0.0     // penalty for nearby enemies
+	real gravityScore = 0.0       // attraction/repulsion to gravity targets
+	real tacticalScore = 0.0      // lock, CAC range, COVID, etc.
+	real shieldScore = 0.0        // value of keeping shields
+	real mpEfficiency = 0.0       // bonus for MP saved
+
+	// Movement info
+	integer mpUsed = 0            // MP spent to reach this position
+	integer pathDistance = 0      // path distance to primary target
+
+	/*
+	 * Basic constructor - creates Position from Danger calculation
+	 * Additional scores are added via addScore methods
+	 */
+	constructor(Cell cell, real dmg, string str, Consequences? consequences) {
+		super(cell, dmg, str, consequences)
+	}
+
+	/*
+	 * Copy constructor from Danger - promotes a Danger to Position
+	 */
+	constructor(Danger danger) {
+		super(danger.cell, danger.dmg, danger.combo, null)
+		this.score = danger.score
+	}
+
+	/*
+	 * Add proximity penalty for nearby enemies
+	 */
+	void addProximityScore(real penalty) {
+		this.proximityScore = penalty
+		this.score += penalty
+	}
+
+	/*
+	 * Add gravity score for distance to important targets
+	 */
+	void addGravityScore(real gravScore) {
+		this.gravityScore = gravScore
+		this.score += gravScore
+	}
+
+	/*
+	 * Add tactical bonuses (lock, CAC, COVID, etc.)
+	 */
+	void addTacticalScore(real tactical) {
+		this.tacticalScore = tactical
+		this.score += tactical
+	}
+
+	/*
+	 * Add shield value score
+	 */
+	void addShieldScore(real shields) {
+		this.shieldScore = shields
+		this.score += shields
+	}
+
+	/*
+	 * Add MP efficiency bonus
+	 */
+	void addMPEfficiency(integer mp, real bonus) {
+		this.mpUsed = mp
+		this.mpEfficiency = bonus
+		this.score += bonus
+	}
+
+	/*
+	 * Apply life-based danger scaling (more cautious when low HP)
+	 * Should be called after base danger score is set
+	 */
+	void applyLifeScaling(real lifePercent) {
+		if (this.dmg <= 0) return;
+
+		var originalDangerScore = -this.dmg
+		var scaledDangerScore = originalDangerScore
+
+		// Low HP scaling (below 60%)
+		if (lifePercent < 0.6) {
+			scaledDangerScore *= Scoring.W_DANGER_LOW_HP
+		}
+
+		// Critical danger scaling (danger > half of remaining life)
+		var currentLife = Fight.self.life * lifePercent
+		if (this.dmg > currentLife / 2) {
+			scaledDangerScore *= Scoring.W_DANGER_CRITICAL
+		}
+
+		// Apply the difference (since base score already has -dmg)
+		var adjustment = scaledDangerScore - originalDangerScore
+		this.score += adjustment
+	}
+
+	/*
+	 * Get total score breakdown as string for debugging
+	 */
+	string getScoreBreakdown() {
+		return "danger=" + round((-this.dmg)) +
+			   " prox=" + round(this.proximityScore) +
+			   " grav=" + round(this.gravityScore) +
+			   " tact=" + round(this.tacticalScore) +
+			   " shield=" + round(this.shieldScore) +
+			   " mp=" + round(this.mpEfficiency) +
+			   " => " + round(this.score)
+	}
+
+	/*
+	 * Format string for tests/debug
+	 */
+	string string() {
+		return '<Position ' + this.cell + ':dmg=' + round(this.dmg) + ':score=' + round(this.score) + '>'
 	}
 }
