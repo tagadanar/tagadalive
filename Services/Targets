@@ -1,12 +1,12 @@
 class Targets{
-	
+
 	static Array<Entity> getTargets(Action action){
 		Array<Entity> targets
 		if(action.to == Fight.selfCell) targets = [Fight.self]
 		else{
-			if(action.item.area == AREA_LASER_LINE) 
+			if(action.item.area == AREA_LASER_LINE)
 				targets = Targets.getLazerTargetsFromCell(action.item, action.from, action.to)
-			else 
+			else
 				targets = getItemTargets(action.item, action.to)
 		}
 		// ajout de moi même si je suis dans l'aoe

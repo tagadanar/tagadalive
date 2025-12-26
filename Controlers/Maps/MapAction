@@ -56,7 +56,7 @@ class MapAction {
 	}
 	
 	static void addAction(Item item, Cell from, Cell targetCell){
-		if(targetCell != Fight.selfCell && 
+		if(targetCell != Fight.selfCell &&
 		   (Fight.self.reachableCells[from]==null || Fight.self.reachableCells[from] > Fight.self.mp)) return;
 		Benchmark.start("addAction")
 		Action action = new Action(item, from, targetCell)

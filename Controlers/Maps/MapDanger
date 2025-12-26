@@ -202,9 +202,6 @@ class MapDanger {
 			markText(c.id, round(danger.dmg))
 			push(arrayDanger, danger)
 		}
-		for(Danger danger in arrayDanger){
-			debug(danger)
-		}
 	}
 
 }
