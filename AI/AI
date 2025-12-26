@@ -153,7 +153,73 @@ class AI {
 	 */
 	static findBestPosition(Combo combo){
 		var reachableCells = combo.getCurrentReachableCells()
-		
+
 		// TODO
+	}
+
+	/*
+	 * MCTS-based combo search
+	 * Explores action sequences using Monte Carlo Tree Search instead of greedy selection
+	 * Keeps position enumeration (hybrid approach) but uses MCTS within each position
+	 * ALWAYS returns a combo - never falls back to greedy
+	 */
+	static Combo getMCTSCombo() {
+		Benchmark.start("AI.getMCTSCombo")
+
+		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
+		Combo? bestCombo = null
+		integer positionsExplored = 0
+
+		// For each reachable position
+		for (Cell cell : integer mp in Fight.self.reachableCells) {
+			if (mp > Fight.self.mp) break
+
+			// Check operation budget - stop exploring new positions if low
+			if (MCTS.shouldStop() && bestCombo != null) {
+				debug("MCTS: Budget low, " + positionsExplored + " pos explored")
+				break
+			}
+
+			positionsExplored++
+
+			// Get actions for this cell (may be empty)
+			Map<Item, Action> cellActions = mapBestAction[cell] ? clone(mapBestAction[cell]!, 1) as Map<Item, Action> : [:]
+
+			// Merge self-cast actions
+			if (mapBestAction[Fight.selfCell]) {
+				for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
+					if (!cellActions[item] || action.score! > cellActions[item]!.score!) {
+						cellActions[item] = action
+					}
+				}
+			}
+
+			// Run MCTS from this position (always returns a combo now)
+			Combo combo = MCTS.search(
+				cell,
+				cellActions,
+				Fight.self.tp,
+				Fight.self.mp - mp,
+				Fight.self.getWeaponInHand()
+			)
+
+			if (!bestCombo || bestCombo!.getScore()! < combo.getScore()!) {
+				bestCombo = combo
+			}
+		}
+
+		Benchmark.stop("AI.getMCTSCombo")
+
+		// Should never be null now, but safety check
+		if (bestCombo == null) {
+			debugE("MCTS: No combo found - this should not happen!")
+			// Emergency: just return current position
+			Combo emergency = Combo()
+			emergency.addFinalDanger(MCTS.findBestDangerFromCell(Fight.self.cell, Fight.self.mp, Consequences()))
+			return emergency
+		}
+
+		debug("MCTS: " + positionsExplored + " pos, " + MCTS.lastIterations + " iter, score=" + round(bestCombo!.getScore()!))
+		return bestCombo!
 	}
 }

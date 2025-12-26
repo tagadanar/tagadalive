@@ -3,9 +3,9 @@ include('API/compatibility')
 include('Model/GameObject/Cell')
 include('Model/GameObject/Entity')
 include('Model/GameObject/EntityEffect')
-include('Model/GameObject/Item')
-include('Model/GameObject/ItemEffect')
 include('Model/GameObject/TargetType')
+include('Model/GameObject/ItemEffect')
+include('Model/GameObject/Item')
 
 include('Model/Const/Stats')
 
@@ -33,6 +33,7 @@ include('Services/Benchmark')
 
 
 include('AI/Scoring')
+include('AI/MCTS')
 include('AI/AI')
 
 
@@ -57,9 +58,9 @@ function init() {
 	Benchmark.stop('Fight.refresh')
 	
 	Benchmark.start('Map.refresh')
-	Board.refresh()
+	Board.refresh()  // Note: Board.refresh() internally calls Fight.refreshEntities()
 	Benchmark.stop('Map.refresh')
-	
+
 	Benchmark.start('Scoring.refresh')
 	Scoring.refresh()
 	Benchmark.stop('Scoring.refresh')
