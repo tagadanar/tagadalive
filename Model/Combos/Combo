@@ -101,8 +101,16 @@ class Combo {
 			MapPosition.showPosition(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
 			moveTowardCell(this.finalPosition!.cell.id)
 		}
-		// étape 3: si il reste des TP, je prend en main la meilleure arme vis à vis de la situation
-		if(getWeapon(Fight.self.id)==null) setWeapon(Items.getItem(WEAPON_PISTOL)!.id)
+		// étape 3: si il reste des TP, je prend en main une arme aléatoire
+		if(getWeapon(Fight.self.id)==null) {
+			Array<Item> weapons = []
+			for (Item item in Fight.self.items) {
+				if (item.isWeap) push(weapons, item)
+			}
+			if (count(weapons) > 0) {
+				setWeapon(weapons[randInt(0, count(weapons) - 1)].id)
+			}
+		}
 		// étape 4: si il reste des TP, je dis des trucs
 		// todo pipotron
 	}

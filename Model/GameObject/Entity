@@ -34,6 +34,7 @@ class Entity {
 	// booleans
 	boolean isFriend
 	boolean isBulb
+	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
 	// gestions des effets
 	Array<EntityEffect> effects = []
 	Map<Item, Array<EffectOverTime>> items_effectOverTime = [:]
@@ -71,6 +72,7 @@ class Entity {
 		this.turnOrder = getEntityTurnOrder(id)!
 		this.isFriend = isAlly(id)
 		this.isBulb = isSummon(id)!
+		this.entityType = getType(id)!
 		/*
 		this.launchedEffects = []
 		for(var e in getLaunchedEffects(id)){
