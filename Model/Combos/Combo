@@ -91,11 +91,8 @@ class Combo {
 	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
 	 */
 	void play(){
-		// debug(this)
 		// étape 1: je fais mes actions
 		for(Action action in this.actions){
-			debug(action)
-			debug(action.consequences)
 			if(action.from != Fight.selfCell) moveTowardCell(action.from.id)
 			if(action.to == Fight.selfCell) action.item.useItemOnCell(Board.getCell(getCell())!)
 			else action.item.useItemOnCell(action.to)
@@ -103,11 +100,10 @@ class Combo {
 		// étape 2: je vais me planquer
 		if(this.finalDanger){
 			MapDanger.showDanger(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
-			//debug(this.finalDanger)
 			moveTowardCell(this.finalDanger!.cell.id)
 		}
 		// étape 3: si il reste des TP, je prend en main la meilleure arme vis à vis de la situation
-		if(getWeapon(Fight.self.id)==null) setWeapon(Items.getItem(WEAPON_DESTROYER)!.id)
+		if(getWeapon(Fight.self.id)==null) setWeapon(Items.getItem(WEAPON_PISTOL)!.id)
 		// étape 4: si il reste des TP, je dis des trucs
 		// todo pipotron
 	}

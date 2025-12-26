@@ -15,7 +15,7 @@ class ItemEffect {
 	integer duration
 	integer targets
 	integer modifiers
-	//TargetType targetType
+	TargetType targetType
 	boolean stackable = false
 	boolean multiplyByTarget = false
 	boolean modifCaster = false
@@ -35,7 +35,7 @@ class ItemEffect {
 		this.targets = effect[4] as integer
 		this.modifiers = effect[5] as integer
 		// désigne le type de cible intéressante pour cet effet
-		//this.targetType = TargetType(this)
+		this.targetType = TargetType(this)
 		if(this.modifiers & EFFECT_MODIFIER_STACKABLE) this.stackable = true 
 		if(this.modifiers & EFFECT_MODIFIER_MULTIPLIED_BY_TARGETS) this.multiplyByTarget = true
 		if(this.modifiers & EFFECT_MODIFIER_ON_CASTER) this.modifCaster = true

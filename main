@@ -1,21 +1,14 @@
 include('auto');
 
 init()
-debug("init ok")
 
-// Use tagadalive AI
-debug("combo search...")
-Combo combo = AI.getPotentialCombo()
-debug("combo: " + combo)
+// Run MCTS
+Combo combo = AI.getMCTSCombo()
 
-if(combo) {
-    debug("playing " + count(combo.actions))
-    combo.play()
-} else {
-    debugE("combo search failed")
-}
+// Summary output
+debug("T" + getTurn() + ": " + count(combo.actions) + " actions, score=" + round(combo.getScore()!))
 
+// Play the combo
+combo.play()
 
 Benchmark.display()
-
-

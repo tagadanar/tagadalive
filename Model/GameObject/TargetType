@@ -109,6 +109,11 @@ class TargetType {
 		if(!(effect.targets & EFFECT_TARGET_ENEMIES)) this.enemies = false
 		if(effect.targets & EFFECT_TARGET_SUMMONS) this.onBulbs = true
 		if(effect.targets & EFFECT_TARGET_NON_SUMMONS) this.onLeeks = true
+		// If neither SUMMONS nor NON_SUMMONS specified, target both
+		if(!this.onBulbs && !this.onLeeks) {
+			this.onBulbs = true
+			this.onLeeks = true
+		}
 	}
 	
 	string string(){
