@@ -1,0 +1,19 @@
+// Simple AI for testing
+// Equip pistol, move toward enemy, shoot 3 times
+
+var enemy = getNearestEnemy()
+if (enemy != null) {
+    // Equip pistol if not in hand
+    if (getWeapon() != WEAPON_PISTOL) {
+        setWeapon(WEAPON_PISTOL)
+    }
+
+    // Move toward enemy
+    moveToward(enemy)
+
+    // Try to shoot 3 times
+    for (var i = 0; i < 3; i++) {
+        var result = useWeapon(enemy)
+        if (result != USE_SUCCESS) break
+    }
+}
