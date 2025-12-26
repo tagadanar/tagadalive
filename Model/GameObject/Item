@@ -15,6 +15,7 @@ class Item {
 	integer area
 	boolean isAOE
 	boolean onCaster = false
+	integer maxUse  // Max uses per round (from API)
 	Array<ItemEffect> effects = []
 	
 	integer targetKey
@@ -43,6 +44,7 @@ class Item {
 			this.needLOS = weaponNeedLos(id)
 			this.cost = getWeaponCost(id)
 			this.area = getWeaponArea(id)!
+			this.maxUse = getWeaponMaxUses(id)
 			integer i = 0
 			for(Array<real | integer> e in getWeaponEffects(id)!){
 				push(this.effects, ItemEffect(e, this, i++))
@@ -55,6 +57,7 @@ class Item {
 			this.needLOS = chipNeedLos(id)
 			this.cost = getChipCost(id)!
 			this.area = getChipArea(id)!
+			this.maxUse = getChipMaxUses(id)
 			integer i = 0
 			for(Array<real | integer> e in getChipEffects(id)!){
 				push(this.effects, ItemEffect(e, this, i++))
@@ -66,13 +69,13 @@ class Item {
 		// on cherche à trouver quels sont les cibles valides et intéressante de l'item
 		// on set targetKey pour que targetSet pointe vers la fonction qui renvera uniquement les entités intéressante à cibler
 		boolean allies = false, enemies = false, onBulbs = false, onLeeks = false;
-		/*for(ItemEffect e in this.effects){
+		for(ItemEffect e in this.effects){
 			if(!allies) allies = e.targetType.allies
 			if(!enemies) enemies = e.targetType.enemies
 			if(!onBulbs) onBulbs = e.targetType.onBulbs
 			if(!onLeeks) onLeeks = e.targetType.onLeeks
 			if(!this.onCaster) this.onCaster = e.targetType.onCaster
-		}*/
+		}
 		
 		if(false){ // TODO FAIRE UNE PASSE SUR LES ITEMS POUR CHECK SI TOUT EST COMME JE LE SOUHAITE §
 			// + coder les items chelous dans TargetType
@@ -124,16 +127,16 @@ class Item {
 	}
 	
 	Map<integer, Entity> targetSet(){
-		if(this.targetKey==ALL) return Fight.getAllAlive()
-		if(this.targetKey==ALLLEEKS) return Fight.getAllLeeksAlive()
-		if(this.targetKey==ALLBULBS) return Fight.getAllBulbsAlive()
-		if(this.targetKey==ALLIES) return Fight.getAlliesAlive()
-		if(this.targetKey==ALLIESLEEKS) return Fight.getAlliesLeeksAlive()
-		if(this.targetKey==ALLIESBULBS) return Fight.getAlliesBulbsAlive()
-		if(this.targetKey==ENEMIES) return Fight.getEnemiesAlive()
-		if(this.targetKey==ENEMIESLEEKS) return Fight.getEnemiesLeeksAlive()
-		if(this.targetKey==ENEMIESBULBS) return Fight.getEnemiesBulbsAlive()
-		if(this.targetKey==NONE) return [:]
+		if(this.targetKey==Item.ALL) return Fight.getAllAlive()
+		if(this.targetKey==Item.ALLLEEKS) return Fight.getAllLeeksAlive()
+		if(this.targetKey==Item.ALLBULBS) return Fight.getAllBulbsAlive()
+		if(this.targetKey==Item.ALLIES) return Fight.getAlliesAlive()
+		if(this.targetKey==Item.ALLIESLEEKS) return Fight.getAlliesLeeksAlive()
+		if(this.targetKey==Item.ALLIESBULBS) return Fight.getAlliesBulbsAlive()
+		if(this.targetKey==Item.ENEMIES) return Fight.getEnemiesAlive()
+		if(this.targetKey==Item.ENEMIESLEEKS) return Fight.getEnemiesLeeksAlive()
+		if(this.targetKey==Item.ENEMIESBULBS) return Fight.getEnemiesBulbsAlive()
+		if(this.targetKey==Item.NONE) return [:]
 	}
 	
 	/*
