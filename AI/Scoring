@@ -128,7 +128,7 @@ class Scoring {
 		for(Entity entity in Fight.getAllAlive()){
 			_cache_coef[entity] = [:]
 			_cache_coef[entity]![Stats.HP] = entity.isFriend ? (entity.isBulb ? 0.5 : 1.0) 
-																: (entity.isBulb ? -0.5 : -1.0) 
+																: (entity.isBulb ? -0.5 : -1.5) 
 			_cache_coef[entity]![Stats.HPTIME] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
 																	: (entity.isBulb ? -0.2 : -1.0)
 			_cache_coef[entity]![Stats.HPMAX] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.8)

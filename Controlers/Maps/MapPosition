@@ -19,25 +19,30 @@ class MapPosition {
 	static Map<Entity, boolean> _entity_has_covid = [:]
 
 	// === Cached data ===
-	static Map<Cell, integer>? _fullmap_path_dist = null
+	static Map<Cell, integer>? _nearest_enemy_path_dist = null  // path distances FROM nearest enemy
 	static Entity? _nearest_enemy = null
 
 	/*
 	 * Refresh all position-related caches. Called once per turn.
 	 */
 	static void refresh() {
-		MapPosition._refreshFullMapPathDist()
+		MapPosition._refreshNearestEnemy()
+		MapPosition._refreshNearestEnemyPathDist()
 		MapPosition._refreshThreatDetection()
 		MapPosition._refreshGravityCells()
 		MapPosition._refreshCovid()
-		MapPosition._refreshNearestEnemy()
 	}
 
 	/*
-	 * Cache full map path distances from self's position.
+	 * Cache path distances from nearest enemy to all cells.
+	 * Used for accurate gravity calculation (accounts for walls).
 	 */
-	static void _refreshFullMapPathDist() {
-		_fullmap_path_dist = MapPath.getCachedReachableCells(Fight.self.cell, 20, [])
+	static void _refreshNearestEnemyPathDist() {
+		if (_nearest_enemy != null) {
+			_nearest_enemy_path_dist = MapPath.getCachedReachableCells(_nearest_enemy!.cell, 100, [])
+		} else {
+			_nearest_enemy_path_dist = null
+		}
 	}
 
 	/*
@@ -165,21 +170,29 @@ class MapPosition {
 	}
 
 	/*
-	 * Cache nearest enemy
+	 * Cache nearest enemy (leek, mob, or turret - not bulb or chest)
 	 */
 	static void _refreshNearestEnemy() {
 		_nearest_enemy = null
-		integer nearestId = getNearestEnemy()
-		if (nearestId != -1) {
-			_nearest_enemy = Fight.getEntity(nearestId)
+		integer nearestDist = 999
+
+		for (Entity e in Fight.getEnemiesAlive()) {
+			// Only consider leeks, mobs, and turrets
+			if (e.entityType == ENTITY_BULB || e.entityType == ENTITY_CHEST) continue
+
+			integer dist = getCellDistance(Fight.self.cell.id, e.cell.id)
+			if (dist < nearestDist) {
+				nearestDist = dist
+				_nearest_enemy = e
+			}
 		}
 	}
 
 	/*
-	 * Get cached full-map path distances.
+	 * Get cached path distances from nearest enemy.
 	 */
-	static Map<Cell, integer> getFullMapPathDist() {
-		return _fullmap_path_dist!
+	static Map<Cell, integer>? getNearestEnemyPathDist() {
+		return _nearest_enemy_path_dist
 	}
 
 	/*
@@ -251,6 +264,7 @@ class MapPosition {
 
 	/*
 	 * Compute gravity score - penalize deviation from ideal distances
+	 * Uses path distance for nearest enemy (accounts for walls), cell distance for others
 	 */
 	static real _computeGravityScore(Cell cell) {
 		real score = 0
@@ -260,7 +274,15 @@ class MapPosition {
 
 		for (Cell targetCell : integer idealDist in _gravity_distance) {
 			real coef = _gravity_coef[targetCell]!
-			integer actualDist = getCellDistance(cell.id, targetCell.id)
+			integer actualDist
+
+			// Use path distance for nearest enemy (accurate), cell distance for others
+			if (_nearest_enemy != null && targetCell == _nearest_enemy!.cell && _nearest_enemy_path_dist != null) {
+				actualDist = _nearest_enemy_path_dist![cell] != null ? _nearest_enemy_path_dist![cell]! : 99
+			} else {
+				actualDist = getCellDistance(cell.id, targetCell.id)
+			}
+
 			integer deviation = abs(idealDist - actualDist)
 
 			if (_is_cac && _nearest_enemy != null && targetCell == _nearest_enemy!.cell) {

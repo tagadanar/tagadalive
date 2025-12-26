@@ -163,8 +163,8 @@ class MCTSNode {
 class MCTS {
 	// Configuration
 	static real EXPLORATION_CONSTANT = 1.414  // sqrt(2), standard UCB1
-	static integer MAX_ACTIONS_TO_TRY = 5     // Prune action space
-	static integer MAX_ITERATIONS = 50        // Maximum iterations per search
+	static integer MAX_ACTIONS_TO_TRY = 10     // Prune action space
+	static integer MAX_ITERATIONS = 200        // Maximum iterations per search
 	static integer SAFETY_BUFFER = 200000     // Keep 200k ops for combo execution
 
 	// Statistics for debugging
