@@ -40,6 +40,7 @@ class Benchmark{
 			str+= "\n" + name + ": " + nbCall + " call. Moy= " + Benchmark.format(_cumul_func[name]/nbCall) + " Total= " + Benchmark.format(_cumul_func[name])
 		}
 		debug(str)
+		debug("EndTurn Operations: "+Benchmark.format(getOperations()))
 	}
 	
 	static string format(real num){
