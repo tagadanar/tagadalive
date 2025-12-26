@@ -5,15 +5,25 @@ class Consequences {
 	real? score = null
 	boolean isAlteringDanger = false
 	integer hashcode = 17
-	Array<Entity> targets
+	Array<Entity> targets = []
 	Cell currentCell
 	integer currentMP
 	private integer _boostMP_before = 0
-	
+
+	/*
+	 * Empty constructor for MCTS root node (no previous actions)
+	 */
+	constructor() {
+		this.currentCell = Fight.self.cell
+		this.currentMP = Fight.self.mp
+		this.score = 0.0
+	}
+
 	constructor(Action action){
 		Benchmark.start("Consequences")
 		this.currentCell = Fight.self.cell
 		this.currentMP = Fight.self.mp
+		this.score = 0.0  // Must initialize before construct() modifies it
 		construct(action)
 		Benchmark.stop("Consequences")
 	}
@@ -26,6 +36,7 @@ class Consequences {
 		this._altEffects = clone(consequences._altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
 		this._killed = clone(consequences._killed) as Map<Entity, Entity>
 		this.hashcode = consequences.hashcode
+		this.score = consequences.score != null ? consequences.score : 0.0  // Inherit parent score
 		construct(action)
 		Benchmark.stop("Consequences.fromConseq")
 	}
@@ -35,15 +46,15 @@ class Consequences {
 		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
 		// déplacement jusqu'à la case de l'action
 		if(action.from != Fight.selfCell){
-			if(reachableCells[action.from] != null) this.currentMP = this.currentMP - reachableCells[action.from] 
+			if(reachableCells[action.from] != null) this.currentMP = this.currentMP - reachableCells[action.from]
 			else debugW('Impossible action: unreachable cell !!\n'+action+'\n'+this)
 			if(this.currentMP < 0) debugW('Impossible action: negative MP !!\n'+action+'\n'+this)
 			// actualisation de la case actuelle
 			this.currentCell = action.from
 		}
 		// on retient les boosts mp déjà appliquer à soit mm pour après
-		integer? boostMPbefore = this._alterations[Fight.self]![Stats.MP]
-		
+		integer? boostMPbefore = this._alterations[Fight.self] != null ? this._alterations[Fight.self]![Stats.MP] : null
+
 		// actualisation des conséquences de l'action sur le jeu
 		this.targets = Targets.getTargets(action)
 		for(Entity target in this.targets){
@@ -60,9 +71,9 @@ class Consequences {
 		}
 		
 		// actualisation des MP en cas de self boost de mp
-		integer? boostMP = this._alterations[Fight.self]![Stats.MP]
+		integer? boostMP = this.getAlteration(Fight.self, Stats.MP)  // Use safe accessor
 		// si je viens de m'ajouter des MP
-		if(boostMP && boostMP > boostMPbefore){
+		if(boostMP != null && boostMP > boostMPbefore){
 			this.currentMP += boostMP - boostMPbefore // j'ajoute les mp gagnés
 		}
 	}
@@ -74,13 +85,13 @@ class Consequences {
 		if(isOverTime){
 			if(!_altEffects[entity]) _altEffects[entity] = [:]
 			if(!_altEffects[entity]![(effect as EffectOverTime).item]) _altEffects[entity]![(effect as EffectOverTime).item] = []
-		
+
 			push(_altEffects[entity]![(effect as EffectOverTime).item]!, (effect as EffectOverTime))
 		}
 		_alterations[entity]![key] += value // pour null, devrait se comporter comme si ça contenait 0
 		// ça ne marche qu'avec += en leekscriptv1, pas tester en v1.1 comment ça marche...
 		// j'avais des bugs sur les -=, donc il faut faire += -value si le comportement est le mm ici.
-		
+
 		if(entity==Fight.self && (
 			   key==Stats.HP
 			|| key==Stats.ABSSHIELD
@@ -97,10 +108,12 @@ class Consequences {
 				this.hashcode = 31 * this.hashcode + entity.id
 				this.hashcode = 31 * this.hashcode + (value|0)
 		}
-		
+
 		// update du score
-		if(!isOverTime) this.score+= value * Scoring.getCoef(entity, key)
-		else this.score+=value*Scoring.getCoef(entity, key)*Scoring.offensive_duration_mitigation[(effect as EffectOverTime).duration]!
+		real? coef = Scoring.getCoef(entity, key)
+		real scoreDelta = value * coef
+		if(!isOverTime) this.score += scoreDelta
+		else this.score += scoreDelta * Scoring.offensive_duration_mitigation[(effect as EffectOverTime).duration]!
 	}
 	
 	void addKill(Entity entity){
@@ -119,6 +132,7 @@ class Consequences {
 	}
 	
 	integer? getAlteration(Entity entity, integer key){
+		if(_alterations[entity] == null) return null
 		return _alterations[entity]![key]
 	}
 	
@@ -131,7 +145,7 @@ class Consequences {
 		if(Consequences.convertToValue[effect.type] == null) debugW('unhandledEffect on effect: '+ effect)
 		Entity target = effect.modifCaster ? entitySource : entityTarget
 		ratioDmg = effect.modifCaster ? 1.0 : ratioDmg;
-		
+
 		(Consequences.convertToValue[effect.type]!)(effect, entitySource, target, ratioDmg, this)
 	}
 
@@ -142,7 +156,7 @@ class Consequences {
 			integer targetsCount = effect.multiplyByTarget ? count(conseq.targets) : 1
 			real beforeShield = effect.avg *targetsCount *ratioDmg *(1+(entitySource.getCurrentStr(conseq)/100))
 				*(1+(entitySource.getCurrentPwr(conseq)/100)) // TODO power in consequences !!!!
-			real value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100))) 
+			real value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100)))
 				- entityTarget.getCurrentAbs(conseq)
 			value = value < 0 ? 0.0 : value // on ne fait pas de dmg négatif
 			conseq.add(entityTarget, Stats.HP, -value as integer)
