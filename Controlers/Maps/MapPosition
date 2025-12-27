@@ -233,7 +233,12 @@ class MapPosition {
 		real penalty = 0
 		Cell? primaryCell = primaryTarget != null ? primaryTarget!.cell : null
 
-		for (Cell c in cell.getAreaCells(AREA_CIRCLE_1)) {
+		// Cache areas once to avoid repeated calls
+		Array<Cell> circle1 = cell.getAreaCells(AREA_CIRCLE_1)
+		Array<Cell> circle2 = cell.getAreaCells(AREA_CIRCLE_2)
+		Array<Cell> circle3 = cell.getAreaCells(AREA_CIRCLE_3)
+
+		for (Cell c in circle1) {
 			if (c == cell) continue
 			Entity? enemy = Board.entityCells[c]
 			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
@@ -241,16 +246,16 @@ class MapPosition {
 			}
 		}
 
-		for (Cell c in cell.getAreaCells(AREA_CIRCLE_2)) {
-			if (inArray(cell.getAreaCells(AREA_CIRCLE_1), c)) continue
+		for (Cell c in circle2) {
+			if (inArray(circle1, c)) continue
 			Entity? enemy = Board.entityCells[c]
 			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
 				penalty -= Scoring.W_PROXIMITY_AREA2
 			}
 		}
 
-		for (Cell c in cell.getAreaCells(AREA_CIRCLE_3)) {
-			if (inArray(cell.getAreaCells(AREA_CIRCLE_2), c)) continue
+		for (Cell c in circle3) {
+			if (inArray(circle2, c)) continue
 			Entity? enemy = Board.entityCells[c]
 			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
 				penalty -= Scoring.W_PROXIMITY_AREA3
