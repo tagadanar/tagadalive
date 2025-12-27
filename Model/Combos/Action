@@ -15,7 +15,7 @@ class Action {
 		this.consequences = Consequences(this)
 		this.score = this.consequences.getScore()
 	}
-	
+
 	constructor(Action action, Consequences consequences){
 		this.item = action.item
 		this.from = action.from

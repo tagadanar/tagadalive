@@ -76,8 +76,11 @@ class Consequences {
 		if(boostMP != null && boostMP > boostMPbefore){
 			this.currentMP += boostMP - boostMPbefore // j'ajoute les mp gagnés
 		}
+
+		// Cooldown opportunity cost: penalize using CD items for marginal gains
+		this.score -= action.item.cdDuration
 	}
-	
+
 	void add(Entity entity, integer key, EffectOverTime|integer effect){
 		if(!_alterations[entity]) _alterations[entity] = [:]
 		boolean isOverTime = effect instanceof EffectOverTime
@@ -554,7 +557,7 @@ class Consequences {
 			conseq.add(entityTarget, Stats.HPTIME, eot)
 		},
 		EFFECT_PROPAGATION: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-			// TODO ??
+			// handled in Position as this is a placement issue.
 		},
 		EFFECT_REMOVE_SHACKLES: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 		EFFECT_TELEPORT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
