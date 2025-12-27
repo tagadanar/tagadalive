@@ -205,6 +205,7 @@ class MCTS {
 		// MCTS loop - run until we hit operation limit
 		// Always do at least 1 iteration to have something to return
 		while (iterations < MCTS.MAX_ITERATIONS) {
+			Benchmark.start('MCTS.iter')
 			iterations++
 
 			// Selection: traverse tree using UCB
@@ -221,6 +222,8 @@ class MCTS {
 
 			// Backpropagation: update statistics
 			MCTS.backpropagate(node, value)
+
+			Benchmark.stop('MCTS.iter')
 
 			// Check budget after at least 1 iteration
 			if (MCTS.shouldStop()) {
@@ -279,19 +282,15 @@ class MCTS {
 	}
 
 	/*
-	 * Rollout phase: simplified greedy simulation
-	 * Uses immediate scores without full consequence simulation for speed
+	 * Rollout phase: greedy simulation with chained consequences
+	 * Properly chains actions to capture buff synergies (e.g., STR buff → higher damage)
 	 */
 	static real rollout(MCTSNode node, Map<Item, Action> actionsAtCell) {
-		// Start with the score accumulated so far in the tree
-		real totalScore = node.state.score == null ? 0.0 : node.state.score!
-
-		// Simple heuristic: estimate remaining value based on available actions
-		// Instead of full simulation, just sum top action scores as estimate
 		integer simTP = node.remainingTP
 		Item? simWeapon = node.weaponInHand
+		Consequences currentState = node.state  // Chain from this, no clone needed
 
-		// Track usage counts for each item
+		// Track usage counts from tree path
 		Map<Item, integer> usageCounts = [:]
 		MCTSNode? n = node
 		while (n != null) {
@@ -302,32 +301,57 @@ class MCTS {
 			n = n!.parent
 		}
 
-		// Quick rollout: just pick best 2 actions as estimate
+		// Get prioritized actions (self-cast first via pruneActions)
+		Array<Action> actions = MCTS.pruneActions(mapValues(actionsAtCell))
+
+		// Rollout with chained consequences - picks best valid action each step
 		integer rolloutSteps = 0
+		integer maxSteps = 3
 
-		for (Item item : Action baseAction in actionsAtCell) {
-			if (rolloutSteps >= 2) break  // Only 2 steps max
+		while (rolloutSteps < maxSteps && simTP > 0) {
+			Action? bestAction = null
 
-			// Skip if max uses reached
-			integer currentUses = usageCounts[item] ? usageCounts[item]! : 0
-			if (currentUses >= item.maxUse) continue
+			for (Action baseAction in actions) {
+				// Skip if max uses reached
+				integer currentUses = usageCounts[baseAction.item] ? usageCounts[baseAction.item]! : 0
+				if (currentUses >= baseAction.item.maxUse) continue
 
-			// Check TP
-			integer switchCost = item.isWeap && item != simWeapon ? 1 : 0
-			if (item.cost + switchCost > simTP) continue
+				// Skip if target dead (for non-self-cast)
+				if (baseAction.to != Fight.selfCell) {
+					Entity? target = Board.entityCells[baseAction.to]
+					if (target != null && currentState.isKilled(target!)) continue
+				}
 
-			// Use base action score (no consequence chaining for speed)
-			if (baseAction.score! > 0) {
-				totalScore += baseAction.score!
-				simTP -= item.cost + switchCost
-				if (item.isWeap) simWeapon = item
-				usageCounts[item] = currentUses + 1
-				rolloutSteps++
+				// Check TP
+				integer switchCost = baseAction.item.isWeap && baseAction.item != simWeapon ? 1 : 0
+				if (baseAction.item.cost + switchCost > simTP) continue
+
+				// Found valid action (list is prioritized: self-cast first, then by score)
+				bestAction = baseAction
+				break
 			}
+
+			if (bestAction == null) break
+
+			// Create chained action to get proper score with consequences
+			Action chainedAction = Action(bestAction!, currentState)
+
+			// Only continue if score improved (positive delta)
+			real prevScore = currentState.score == null ? 0.0 : currentState.score!
+			if (chainedAction.score! <= prevScore) break
+
+			// Apply action: update state and resources
+			currentState = chainedAction.consequences
+			integer switchCost = bestAction!.item.isWeap && bestAction!.item != simWeapon ? 1 : 0
+			simTP -= bestAction!.item.cost + switchCost
+			if (bestAction!.item.isWeap) simWeapon = bestAction!.item
+			usageCounts[bestAction!.item] = (usageCounts[bestAction!.item] ? usageCounts[bestAction!.item]! : 0) + 1
+			rolloutSteps++
 		}
 
-		// Simplified danger estimate: use current node's danger
-		Danger finalDanger = MapDanger.getCellDanger(node.state.currentCell, node.state)
+		// Final score = accumulated consequence score + danger at final position
+		real totalScore = currentState.score == null ? 0.0 : currentState.score!
+		Danger finalDanger = MapDanger.getCellDanger(currentState.currentCell, currentState)
 		totalScore += finalDanger.score
 
 		return totalScore
@@ -360,8 +384,7 @@ class MCTS {
 			// Add action to combo using Combo.add() which handles chaining
 			if (bestChild!.action != null) {
 				// combo.add() will re-chain with combo's current consequences
-				boolean added = combo.add(bestChild!.action!)
-				if (!added) break  // Action no longer valid (score <= 0)
+				if (!combo.add(bestChild!.action!)) break
 			}
 
 			node = bestChild
@@ -381,17 +404,29 @@ class MCTS {
 
 	/*
 	 * Prune action space to top-K actions by immediate score
+	 * Self-cast actions are never pruned (heals, buffs, etc.)
 	 */
 	static Array<Action> pruneActions(Array<Action> actions) {
-		if (count(actions) <= MCTS.MAX_ACTIONS_TO_TRY) return actions
+		// Separate self-cast from other actions
+		Array<Action> selfCast = []
+		Array<Action> other = []
+		for (Action act in actions) {
+			if (act.from == Fight.selfCell) push(selfCast, act)
+			else push(other, act)
+		}
 
-		// Sort by score descending
-		Array<Action> sorted = arraySort(actions, (Action a, Action b) => integer|real {
-			return Sort.desc(a.score!, b.score!)
+		// If other actions fit within limit, return all
+		if (count(other) <= MCTS.MAX_ACTIONS_TO_TRY) {
+			return actions
+		}
+
+		// Sort other actions by score descending
+		Array<Action> sorted = arraySort(other, (Action x, Action y) => integer|real {
+			return Sort.desc(x.score!, y.score!)
 		}) as Array<Action>
 
-		// Take top K
-		Array<Action> pruned = []
+		// Take top K from other, keep all self-cast
+		Array<Action> pruned = selfCast
 		for (integer i = 0; i < MCTS.MAX_ACTIONS_TO_TRY && i < count(sorted); i++) {
 			push(pruned, sorted[i])
 		}

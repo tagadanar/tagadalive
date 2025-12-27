@@ -112,6 +112,8 @@ class Scoring {
 			}
 			IDEAL_DIST_RANGED = Fight.self.mp + longestRange
 		}
+		// Reduce every 10 turn to avoid stalemate
+		if(getTurn()%10 == 0) IDEAL_DIST_RANGED--;
 
 		// Pre-compute effective durations for all raw values (-1 to MAX_DURATION)
 		// Key formula: (rawDuration + 1) * 2 + (sourceAfterTarget ? 1 : 0)
