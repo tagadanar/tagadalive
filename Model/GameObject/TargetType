@@ -16,6 +16,7 @@ class TargetType {
 	static integer ALLIES = 1
 	static integer ALL = 2
 	static integer EMPTY = 3
+	static integer PASSIVE = 4  // Caster-only effects triggered by events (damage dealt, kills, etc.)
 	
 	static Map<integer, integer> CONVERTER = [
 		EFFECT_DAMAGE: 					TargetType.ENEMIES,
@@ -80,8 +81,24 @@ class TargetType {
 		// newer effects
 		EFFECT_RAW_HEAL:				TargetType.ALLIES,
 		EFFECT_ADD_STATE:				TargetType.ENEMIES, // most states are debuffs (stunned, etc.)
-		EFFECT_KILL_TO_TP:				TargetType.ALLIES, // passive: caster gains TP on kill
-		EFFECT_CRITICAL_TO_HEAL:		TargetType.ALLIES, // passive: crits heal caster
+
+		// Target-based effects that were missing
+		EFFECT_REPEL:					TargetType.ALL,
+		EFFECT_TOTAL_DEBUFF:			TargetType.ALL,
+		EFFECT_STEAL_LIFE:				TargetType.ENEMIES,
+
+		// Passive effects: caster-only, triggered by events/actions
+		// These don't determine item targeting - they apply bonuses to caster
+		EFFECT_POISON_TO_SCIENCE:			TargetType.PASSIVE,
+		EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD:	TargetType.PASSIVE,
+		EFFECT_DAMAGE_TO_STRENGTH:			TargetType.PASSIVE,
+		EFFECT_NOVA_DAMAGE_TO_MAGIC:		TargetType.PASSIVE,
+		EFFECT_MOVED_TO_MP:					TargetType.PASSIVE,
+		EFFECT_ALLY_KILLED_TO_AGILITY:		TargetType.PASSIVE,
+		EFFECT_KILL_TO_TP:					TargetType.PASSIVE,
+		EFFECT_CRITICAL_TO_HEAL:			TargetType.PASSIVE,
+		EFFECT_RAW_RELATIVE_SHIELD:			TargetType.PASSIVE,  // caster buff on weapon attack
+		EFFECT_RAW_BUFF_POWER:				TargetType.PASSIVE,  // caster buff on weapon attack
 	]
 
 	constructor(ItemEffect effect){
@@ -98,6 +115,9 @@ class TargetType {
 			this.allies = true
 		}else if(tt == TargetType.EMPTY){
 			this.onEmpty = true
+		}else if(tt == TargetType.PASSIVE){
+			// Passive effects only affect caster, don't contribute to item targeting
+			this.onCaster = true
 		}else{
 			// else everything should be on false for .NONE
 			debugE("Strange behavior in TargetType, should never get there")
