@@ -407,17 +407,24 @@ class MCTS {
 	 * Self-cast actions are never pruned (heals, buffs, etc.)
 	 */
 	static Array<Action> pruneActions(Array<Action> actions) {
+		// Filter out non-positive score actions (useless CD items, etc.)
+		Array<Action> viable = []
+		for (Action act in actions) {
+			if (act.score! > 0) push(viable, act)
+		}
+		if (count(viable) == 0) return []
+
 		// Separate self-cast from other actions
 		Array<Action> selfCast = []
 		Array<Action> other = []
-		for (Action act in actions) {
+		for (Action act in viable) {
 			if (act.from == Fight.selfCell) push(selfCast, act)
 			else push(other, act)
 		}
 
-		// If other actions fit within limit, return all
+		// If other actions fit within limit, return all viable
 		if (count(other) <= MCTS.MAX_ACTIONS_TO_TRY) {
-			return actions
+			return viable
 		}
 
 		// Sort other actions by score descending

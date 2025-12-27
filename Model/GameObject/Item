@@ -7,6 +7,7 @@ class Item {
 	string name
 	boolean isWeap
 	boolean haveCD
+	integer cdDuration = 0
 	integer minRange
 	integer maxRange
 	integer launchType
@@ -50,7 +51,8 @@ class Item {
 				push(this.effects, ItemEffect(e, this, i++))
 			}
 		} else {
-			this.haveCD = getChipCooldown(id)!=0
+			this.cdDuration = getChipCooldown(id)
+			this.haveCD = this.cdDuration != 0
 			this.minRange = getChipMinRange(id)!
 			this.maxRange = getChipMaxRange(id)!
 			this.launchType = getChipLaunchType(id)!
