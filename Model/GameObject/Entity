@@ -47,9 +47,10 @@ class Entity {
 	integer altTP = 0
 	integer altMP = 0
 	// todo add more alt ?
-	// todo add passive effect
 	Array<EntityEffect> launchedEffects
-	
+	// passive effects from weapons (auras) - effect.type -> conversion rate
+	Map<integer, real> passives = [:]
+
 	constructor(integer id){
 		this.id = id
 		this.name = getName(id)!
@@ -69,6 +70,15 @@ class Entity {
 		this.absShield = getAbsoluteShield(id)!
 		this.dmgReturn = getDamageReturn(id)!
 		this.items = Items.getItems(id)
+		// Scan weapons for passive effects (auras)
+		for(Item item in this.items) {
+			if(!item.isWeap) continue
+			for(ItemEffect effect in item.effects) {
+				if(TargetType.CONVERTER[effect.type] == TargetType.PASSIVE) {
+					this.passives[effect.type] = effect.min / 100
+				}
+			}
+		}
 		this.turnOrder = getEntityTurnOrder(id)!
 		this.isFriend = isAlly(id)
 		this.isBulb = isSummon(id)!
