@@ -10,11 +10,6 @@ class Consequences {
 	integer currentMP
 	private integer _boostMP_before = 0
 
-	// Passive effect tracking (accumulated during action for passive bonuses)
-	private real _actionDamage = 0.0
-	private real _actionNova = 0.0
-	private real _actionPoison = 0.0
-	private integer _actionKills = 0
 
 	/*
 	 * Empty constructor for MCTS root node (no previous actions)
@@ -61,12 +56,6 @@ class Consequences {
 		// on retient les boosts mp déjà appliquer à soit mm pour après
 		integer? boostMPbefore = this._alterations[Fight.self] != null ? this._alterations[Fight.self]![Stats.MP] : null
 
-		// Reset passive tracking for this action
-		this._actionDamage = 0.0
-		this._actionNova = 0.0
-		this._actionPoison = 0.0
-		this._actionKills = 0
-
 		// actualisation des conséquences de l'action sur le jeu
 		this.targets = Targets.getTargets(action)
 		for(Entity target in this.targets){
@@ -82,9 +71,6 @@ class Consequences {
 			}
 		}
 
-		// Apply passive effect bonuses to caster based on action results
-		this.applyPassives(action.item)
-
 		// actualisation des MP en cas de self boost de mp
 		integer? boostMP = this.getAlteration(Fight.self, Stats.MP)  // Use safe accessor
 		// si je viens de m'ajouter des MP
@@ -94,57 +80,6 @@ class Consequences {
 
 		// Cooldown opportunity cost: penalize using CD items for marginal gains
 		this.score -= action.item.cdDuration
-	}
-
-	/*
-	 * Apply passive effect bonuses to caster based on action results.
-	 * Called after processing all targets/effects in an action.
-	 * Passive formula: bonus = tracked_value * (effect.min / 100)
-	 * where effect.min is the conversion percentage from the passive effect.
-	 */
-	private void applyPassives(Item item) {
-		for(ItemEffect effect in item.effects) {
-			// DAMAGE_TO_STRENGTH: gain strength proportional to damage dealt
-			if(effect.type == EFFECT_DAMAGE_TO_STRENGTH && this._actionDamage > 0) {
-				integer strGain = round(this._actionDamage * effect.min / 100)
-				if(strGain > 0) this.add(Fight.self, Stats.STR, strGain)
-			}
-			// DAMAGE_TO_ABSOLUTE_SHIELD: gain shield proportional to damage dealt
-			else if(effect.type == EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD && this._actionDamage > 0) {
-				integer shieldGain = round(this._actionDamage * effect.min / 100)
-				if(shieldGain > 0) this.add(Fight.self, Stats.ABSSHIELD, shieldGain)
-			}
-			// NOVA_DAMAGE_TO_MAGIC: gain magic proportional to nova damage
-			else if(effect.type == EFFECT_NOVA_DAMAGE_TO_MAGIC && this._actionNova > 0) {
-				integer magicGain = round(this._actionNova * effect.min / 100)
-				if(magicGain > 0) this.add(Fight.self, Stats.MGC, magicGain)
-			}
-			// POISON_TO_SCIENCE: gain science when applying poison
-			else if(effect.type == EFFECT_POISON_TO_SCIENCE && this._actionPoison > 0) {
-				integer sciGain = round(this._actionPoison * effect.min / 100)
-				if(sciGain > 0) this.add(Fight.self, Stats.SNC, sciGain)
-			}
-			// KILL_TO_TP: gain TP per kill
-			else if(effect.type == EFFECT_KILL_TO_TP && this._actionKills > 0) {
-				integer tpGain = round(effect.min * this._actionKills)
-				if(tpGain > 0) this.add(Fight.self, Stats.TP, tpGain)
-			}
-			// RAW_RELATIVE_SHIELD: flat relative shield bonus on attack (caster passive on weapons)
-			else if(effect.type == EFFECT_RAW_RELATIVE_SHIELD && this._actionDamage > 0) {
-				// This is a flat buff when attacking, not proportional to damage
-				integer shieldGain = round(effect.min)
-				if(shieldGain > 0) this.add(Fight.self, Stats.RELSHIELD, shieldGain)
-			}
-			// RAW_BUFF_POWER: flat power bonus on attack (caster passive on weapons)
-			else if(effect.type == EFFECT_RAW_BUFF_POWER && this._actionDamage > 0) {
-				integer pwrGain = round(effect.min)
-				if(pwrGain > 0) this.add(Fight.self, Stats.PWR, pwrGain)
-			}
-			// Note: CRITICAL_TO_HEAL, MOVED_TO_MP, ALLY_KILLED_TO_AGILITY not implemented here
-			// - CRITICAL_TO_HEAL needs crit simulation (Phase 5)
-			// - MOVED_TO_MP triggers on movement, not item use (Phase 3)
-			// - ALLY_KILLED_TO_AGILITY triggers on ally death event (Phase 6)
-		}
 	}
 
 	void add(Entity entity, integer key, EffectOverTime|integer effect){
@@ -189,8 +124,13 @@ class Consequences {
 		this.isAlteringDanger=true
 		this.hashcode = 31 * this.hashcode + entity.id
 		this._killed[entity]=entity
-		this._actionKills++  // Track for passive effects
 		this.score+= Scoring.KILL_VALUE * Scoring.getCoef(entity, Stats.KILL)
+		// Inline passive for kill
+		Map<integer, real> passives = Fight.self.passives
+		if(passives[EFFECT_KILL_TO_TP]) {
+			integer tpGain = round(passives[EFFECT_KILL_TO_TP]! * 100)
+			if(tpGain > 0) this.add(Fight.self, Stats.TP, tpGain)
+		}
 	}
 	
 	Map<Entity, Map<integer, integer>> getAlterations(){
@@ -230,16 +170,30 @@ class Consequences {
 				- entityTarget.getCurrentAbs(conseq)
 			value = value < 0 ? 0.0 : value // on ne fait pas de dmg négatif
 			conseq.add(entityTarget, Stats.HP, -value as integer)
-			conseq._actionDamage += value  // Track for passive effects
-			
-			if(entityTarget.getCurrentHP(conseq) <= 0) 
+
+			// Inline passives for damage dealt
+			Map<integer, real> passives = Fight.self.passives
+			if(passives[EFFECT_DAMAGE_TO_STRENGTH]) {
+				integer strGain = round(value * passives[EFFECT_DAMAGE_TO_STRENGTH]!)
+				if(strGain > 0) conseq.add(Fight.self, Stats.STR, strGain)
+			}
+			if(passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]) {
+				integer shieldGain = round(value * passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]!)
+				if(shieldGain > 0) conseq.add(Fight.self, Stats.ABSSHIELD, shieldGain)
+			}
+
+			if(entityTarget.getCurrentHP(conseq) <= 0)
 				conseq.addKill(entityTarget)
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
 
 			// érosion !
 			real erosion = value / Stats.DMG_EROSION_DIVISOR
 			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
-			conseq._actionNova += erosion
+			// Inline passive for nova/erosion
+			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+			}
 
 			// vol de vie
 			integer lifeSteal = round(value * (entitySource.getCurrentWsd(conseq)/1000))
@@ -274,28 +228,43 @@ class Consequences {
 				*(1+(entitySource.getCurrentPwr(conseq)/100)) *effect.duration) // TODO power in consequences !!!!
 			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.HPTIME, eot)
-			conseq._actionPoison += effect.avg  // Track base poison for passive effects
+
+			// Inline passive for poison
+			Map<integer, real> passives = Fight.self.passives
+			if(passives[EFFECT_POISON_TO_SCIENCE]) {
+				integer sciGain = round(effect.avg * passives[EFFECT_POISON_TO_SCIENCE]!)
+				if(sciGain > 0) conseq.add(Fight.self, Stats.SNC, sciGain)
+			}
 
 			// érosion ! only 1 turn (often antidoted/liberated)
 			real erosion = value / effect.duration / Stats.PSN_EROSION_DIVISOR
 			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
-			conseq._actionNova += erosion
+			// Inline passive for nova/erosion
+			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+			}
 		},
 		EFFECT_LIFE_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			integer beforeShield = round(entitySource.life*(effect.avg/100))
-			integer value = round((beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100))) 
+			integer value = round((beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100)))
 				- entityTarget.getCurrentAbs(conseq))
 			value = value < 0 ? 0 : value // on ne fait pas de dmg négatif
 			conseq.add(entityTarget, Stats.HP, -value)
-			
-			if(entityTarget.getCurrentHP(conseq) <= 0) 
+
+			if(entityTarget.getCurrentHP(conseq) <= 0)
 				conseq.addKill(entityTarget)
 			// TODO if killed leek, add all bulb in kill, if tower add win score ?
 
 			// érosion !
 			real erosion = value / Stats.DMG_EROSION_DIVISOR
 			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
-			conseq._actionNova += erosion
+			// Inline passive for nova/erosion
+			Map<integer, real> passives = Fight.self.passives
+			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+			}
 
 			if(entityTarget != entitySource){
 				// dmg return
@@ -314,7 +283,12 @@ class Consequences {
 			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
 			value = min(value, entityTarget.getCurrentHPMissing(conseq))
 			conseq.add(entityTarget, Stats.HPMAX, -value)
-			conseq._actionNova += value  // Track for passive effects
+			// Inline passive for nova
+			Map<integer, real> passives = Fight.self.passives
+			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+				integer magicGain = round(value * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+			}
 		},
 		EFFECT_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			if(effect.duration>1){ // HPTIME
@@ -635,7 +609,12 @@ class Consequences {
 			// érosion ! only 1 turn (often antidoted/liberated)
 			real erosion = value / Stats.DMG_EROSION_DIVISOR
 			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
-			conseq._actionNova += erosion
+			// Inline passive for nova/erosion
+			Map<integer, real> passives = Fight.self.passives
+			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+			}
 		},
 		EFFECT_PROPAGATION: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			// handled in Position as this is a placement issue.
