@@ -51,6 +51,7 @@ class Scoring {
 	static integer IDEAL_DIST_RANGED = -1     // calculated at first turn: self.mp + longest item range
 	static integer IDEAL_DIST_CAC = 1         // ideal distance for melee (adjacent)
 	static integer IDEAL_DIST_ALLY = 3        // default ideal distance to allies
+	static integer IDEAL_DIST_CENTER = 4      // ideal distance to map center (cell 306)
 	static integer IDEAL_DIST_METALLIC = 1    // stay close to metallic bulb
 	static integer IDEAL_DIST_HEALER = 4      // healing range
 	
@@ -155,10 +156,10 @@ class Scoring {
 																	: (entity.isBulb ? -0.2 : -1.0)
 			_cache_coef[entity]![Stats.AGI] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
 																	: (entity.isBulb ? -0.2 : -1.0)
-			_cache_coef[entity]![Stats.TP] = entity.isFriend ? (entity.isBulb ? 2.0 : 10.0)
-																	: (entity.isBulb ? -2.0 : -10.0)
-			_cache_coef[entity]![Stats.MP] = entity.isFriend ? (entity.isBulb ? 2.0 : 10.0)
-																	: (entity.isBulb ? -2.0 : -10.0)
+			_cache_coef[entity]![Stats.TP] = entity.isFriend ? (entity.isBulb ? 4.0 : 40.0)
+																	: (entity.isBulb ? -4.0 : -40.0)
+			_cache_coef[entity]![Stats.MP] = entity.isFriend ? (entity.isBulb ? 4.0 : 40.0)
+																	: (entity.isBulb ? -4.0 : -40.0)
 			_cache_coef[entity]![Stats.PWR] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
 																	: (entity.isBulb ? -0.2 : -1.0)
 			// fonctionnement à part, peut être que ça restera pas ça...
