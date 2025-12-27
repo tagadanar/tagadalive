@@ -627,10 +627,19 @@ class Consequences {
 		EFFECT_SUMMON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 		EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 		
-		// unused
-		EFFECT_RAW_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
-		EFFECT_RAW_RELATIVE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
-		EFFECT_RAW_BUFF_POWER: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
+		// Flat per-attack buffs (entityTarget is caster due to modifCaster)
+		EFFECT_RAW_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration)
+			conseq.add(entityTarget, Stats.ABSSHIELD, eot)
+		},
+		EFFECT_RAW_RELATIVE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration)
+			conseq.add(entityTarget, Stats.RELSHIELD, eot)
+		},
+		EFFECT_RAW_BUFF_POWER: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+			EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration)
+			conseq.add(entityTarget, Stats.PWR, eot)
+		},
 		EFFECT_RAW_BUFF_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {},
 		
 		// Movement effects (not scored - would need position simulation)

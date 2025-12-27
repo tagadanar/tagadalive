@@ -97,8 +97,8 @@ class TargetType {
 		EFFECT_ALLY_KILLED_TO_AGILITY:		TargetType.PASSIVE,
 		EFFECT_KILL_TO_TP:					TargetType.PASSIVE,
 		EFFECT_CRITICAL_TO_HEAL:			TargetType.PASSIVE,
-		EFFECT_RAW_RELATIVE_SHIELD:			TargetType.PASSIVE,  // caster buff on weapon attack
-		EFFECT_RAW_BUFF_POWER:				TargetType.PASSIVE,  // caster buff on weapon attack
+		EFFECT_RAW_RELATIVE_SHIELD:			TargetType.ALLIES,  // caster buff on item use (has duration)
+		EFFECT_RAW_BUFF_POWER:				TargetType.ALLIES,  // caster buff on item use (has duration)
 	]
 
 	constructor(ItemEffect effect){
