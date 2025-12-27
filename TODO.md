@@ -62,6 +62,72 @@ The following effects have empty implementations in `Model/Combos/Consequences`.
 
 ---
 
+## Passive Effects Implementation Roadmap
+
+### Phase 1-2: COMPLETED
+- Added all missing effect types to `TargetType.CONVERTER`
+- Implemented passive effect tracking in `Consequences`
+
+### Phase 3: MOVED_TO_MP (movement passive)
+
+**Problem**: `EFFECT_MOVED_TO_MP` triggers on movement, not item activation. Currently movement isn't processed through Consequences.
+
+**To implement**:
+1. Track MP gain from MOVED_TO_MP when processing move actions
+2. Add movement consequence tracking (cells moved × effect.avg = MP gained)
+3. Factor into action scoring when items with this effect are equipped
+
+**Impact**: Affects positioning value - moving more becomes more valuable when this passive is equipped.
+
+### Phase 4: Enemy Passives in Danger Map
+
+**Problem**: When calculating danger from enemy attacks, we don't account for their passive bonuses.
+
+**Examples**:
+- Enemy with DAMAGE_TO_STRENGTH gets stronger after each hit → compounds subsequent attack danger
+- Enemy with KILL_TO_TP gains TP on kill → enables more actions if they kill us
+- Enemy with DAMAGE_TO_ABSOLUTE_SHIELD gains survivability while attacking
+
+**To implement**:
+1. Track enemy equipped items and their passive effects
+2. In `MapDanger`, when calculating threat from enemy:
+   - Simulate passive gains from their attacks
+   - Factor strength/magic gains into subsequent attack predictions
+   - Consider TP gains for multi-action scenarios
+3. Requires multi-turn sequence prediction
+
+**Complexity**: High - requires predicting enemy action sequences and compounding effects.
+
+### Phase 5: CRITICAL_TO_HEAL and Crit Simulation
+
+**Problem**: Currently using average damage without crit simulation. `EFFECT_CRITICAL_TO_HEAL` grants healing on critical hits.
+
+**To implement**:
+1. Calculate crit chance based on agility: `crit_rate = agility / (agility + 1000)` (approximate)
+2. For items with CRITICAL_TO_HEAL:
+   - Expected heal per attack = crit_chance × base_damage × crit_multiplier × heal_ratio
+3. Factor into action scoring
+
+**Complexity**: Medium - needs crit chance formula and integration with damage calculation.
+
+### Phase 6: ALLY_KILLED_TO_AGILITY (event-based passive)
+
+**Problem**: Triggers on ally death event, not on our action directly. Could be:
+- Enemy kills our ally → we gain agility
+- We kill enemy ally → enemy gains agility (if they have this effect)
+
+**To implement**:
+1. Track entities with this passive
+2. When simulating kills in Consequences:
+   - Check if dead entity's allies have this passive
+   - Apply agility bonus to surviving allies
+3. In Danger Map:
+   - If enemy has this passive and we might kill their ally, factor in their agility gain
+
+**Complexity**: Medium - requires tracking passives across all entities, not just self.
+
+---
+
 ## Static Analysis Issues
 
 ### Critical Issues
