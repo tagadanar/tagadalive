@@ -44,11 +44,14 @@ class Combo {
 	Cell getCurrentCell(){
 		Cell currentCell
 		if(this.finalPosition) currentCell = this.finalPosition!.cell
-		else if(count(this.actions)>0) currentCell = actions[count(this.actions)-1].from
+		else if(count(this.actions)>0) {
+			currentCell = actions[count(this.actions)-1].from
+			// For self-cast actions, get actual position from consequences
+			if(currentCell == Fight.selfCell) {
+				currentCell = actions[count(this.actions)-1].consequences.currentCell
+			}
+		}
 		else currentCell = Fight.self.cell
-
-		// TODO avoir la case de l'action d'avant jusqu'à avoir une vrai case ou Fight.self.cell si que selfcast
-		if(currentCell == Fight.selfCell) currentCell = Fight.self.cell
 		return currentCell
 	}
 	
