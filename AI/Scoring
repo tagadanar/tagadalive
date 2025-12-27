@@ -11,8 +11,8 @@ class Scoring {
 
 	// Danger weights - how much we penalize expected damage
 	static real W_DANGER_BASE = 1.0           // base danger penalty per HP of damage
-	static real W_DANGER_LOW_HP = 2.0         // multiplier when life < 60%
-	static real W_DANGER_CRITICAL = 3.0       // multiplier when danger > life/2
+	static real W_DANGER_LOW_HP = 1.5         // multiplier when life < 60%
+	static real W_DANGER_CRITICAL = 2.0       // multiplier when danger > life/2
 
 	// Proximity weights - penalty for nearby enemies (excluding primary target)
 	static real W_PROXIMITY_AREA1 = 150.0     // adjacent cell (distance 1)
