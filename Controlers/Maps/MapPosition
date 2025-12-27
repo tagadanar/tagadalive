@@ -61,11 +61,9 @@ class MapPosition {
 						(Fight.self.absShield == 0 || Fight.self.relShield == 0)
 
 		_is_cac = false
-		for (Item item in Fight.self.items) {
-			if (item.isWeap && item.maxRange <= 2) {
-				_is_cac = true
-				break
-			}
+		Item? currentWeapon = Fight.self.getWeaponInHand()
+		if (currentWeapon != null && currentWeapon!.maxRange <= 2) {
+			_is_cac = true
 		}
 	}
 
@@ -134,7 +132,7 @@ class MapPosition {
 
 		Cell? centerCell = Board.getCell(306)
 		if (centerCell != null) {
-			_gravity_distance[centerCell!] = Scoring.IDEAL_DIST_ALLY
+			_gravity_distance[centerCell!] = Scoring.IDEAL_DIST_CENTER
 			_gravity_coef[centerCell!] = enemyCoef
 		}
 	}
