@@ -37,6 +37,10 @@ class MapDanger {
 				_map_entity_item_danger[e]![item] = MapDanger.getEnemiesDmgMap(e, item)
 			}
 		}
+		// DEAD CODE - Ally damage maps are not used by active MCTS path
+		// Only consumer was @unused getSimpleOffensiveCombo()
+		// Keeping commented for potential future use
+		/*
 		_cache_allies_item_targetableCells = [:]
 		// pour chaque ally
 		for(Entity a in Fight.getAlliesAlive()){
@@ -50,9 +54,10 @@ class MapDanger {
 				for(Item item in offensiveItems){
 					_map_entity_item_danger[a]![item] = MapDanger.getAlliesDmgMap(a, item)
 				}
-				break
+				break  // Optimization: only processes first enemy's items to reduce complexity
 			}
 		}
+		*/
 	}
 	
 	/*
