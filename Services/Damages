@@ -16,10 +16,12 @@ class Damages{
 				real ratioDmg = MapDanger._map_entity_item_danger[e]![item]![cell]!
 				real tmpdmg = Damages.getDamage(e, Fight.self, item, ratioDmg, consequences)
 				if(tmpdmg>0){
-					while(item.cost<=tpleft){
+					integer uses = 0
+					while(item.cost<=tpleft && uses < item.maxUse){
 						str+=" "+item.name
 						dmg+=tmpdmg
 						tpleft-=item.cost
+						uses++
 						if(item.haveCD) break
 					}
 				}
