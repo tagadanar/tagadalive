@@ -128,7 +128,7 @@ class Consequences {
 		// Inline passive for kill
 		Map<integer, real> passives = Fight.self.passives
 		if(passives[EFFECT_KILL_TO_TP]) {
-			integer tpGain = round(passives[EFFECT_KILL_TO_TP]! * 100)
+			integer tpGain = round(passives[EFFECT_KILL_TO_TP]!)
 			if(tpGain > 0) this.add(Fight.self, Stats.TP, tpGain)
 		}
 	}
@@ -171,15 +171,15 @@ class Consequences {
 			value = value < 0 ? 0.0 : value // on ne fait pas de dmg négatif
 			conseq.add(entityTarget, Stats.HP, -value as integer)
 
-			// Inline passives for damage dealt
-			Map<integer, real> passives = Fight.self.passives
+			// Inline passives for damage taken (target's passives)
+			Map<integer, real> passives = entityTarget.passives
 			if(passives[EFFECT_DAMAGE_TO_STRENGTH]) {
 				integer strGain = round(value * passives[EFFECT_DAMAGE_TO_STRENGTH]!)
-				if(strGain > 0) conseq.add(Fight.self, Stats.STR, strGain)
+				if(strGain > 0) conseq.add(entityTarget, Stats.STR, strGain)
 			}
 			if(passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]) {
 				integer shieldGain = round(value * passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]!)
-				if(shieldGain > 0) conseq.add(Fight.self, Stats.ABSSHIELD, shieldGain)
+				if(shieldGain > 0) conseq.add(entityTarget, Stats.ABSSHIELD, shieldGain)
 			}
 
 			if(entityTarget.getCurrentHP(conseq) <= 0)
@@ -192,7 +192,7 @@ class Consequences {
 			// Inline passive for nova/erosion
 			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
-				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+				if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
 			}
 
 			// vol de vie
@@ -229,11 +229,11 @@ class Consequences {
 			EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
 			conseq.add(entityTarget, Stats.HPTIME, eot)
 
-			// Inline passive for poison
-			Map<integer, real> passives = Fight.self.passives
+			// Inline passive for poison taken (target's passives)
+			Map<integer, real> passives = entityTarget.passives
 			if(passives[EFFECT_POISON_TO_SCIENCE]) {
 				integer sciGain = round(effect.avg * passives[EFFECT_POISON_TO_SCIENCE]!)
-				if(sciGain > 0) conseq.add(Fight.self, Stats.SNC, sciGain)
+				if(sciGain > 0) conseq.add(entityTarget, Stats.SNC, sciGain)
 			}
 
 			// érosion ! only 1 turn (often antidoted/liberated)
@@ -242,7 +242,7 @@ class Consequences {
 			// Inline passive for nova/erosion
 			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
-				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+				if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
 			}
 		},
 		EFFECT_LIFE_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
@@ -259,11 +259,11 @@ class Consequences {
 			// érosion !
 			real erosion = value / Stats.DMG_EROSION_DIVISOR
 			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
-			// Inline passive for nova/erosion
-			Map<integer, real> passives = Fight.self.passives
+			// Inline passive for nova/erosion (target's passives)
+			Map<integer, real> passives = entityTarget.passives
 			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
-				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+				if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
 			}
 
 			if(entityTarget != entitySource){
@@ -283,11 +283,11 @@ class Consequences {
 			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
 			value = min(value, entityTarget.getCurrentHPMissing(conseq))
 			conseq.add(entityTarget, Stats.HPMAX, -value)
-			// Inline passive for nova
-			Map<integer, real> passives = Fight.self.passives
+			// Inline passive for nova (target's passives)
+			Map<integer, real> passives = entityTarget.passives
 			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 				integer magicGain = round(value * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
-				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+				if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
 			}
 		},
 		EFFECT_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
@@ -609,11 +609,11 @@ class Consequences {
 			// érosion ! only 1 turn (often antidoted/liberated)
 			real erosion = value / Stats.DMG_EROSION_DIVISOR
 			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
-			// Inline passive for nova/erosion
-			Map<integer, real> passives = Fight.self.passives
+			// Inline passive for nova/erosion (target's passives)
+			Map<integer, real> passives = entityTarget.passives
 			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
-				if(magicGain > 0) conseq.add(Fight.self, Stats.MGC, magicGain)
+				if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
 			}
 		},
 		EFFECT_PROPAGATION: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
