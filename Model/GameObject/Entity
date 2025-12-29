@@ -70,14 +70,21 @@ class Entity {
 		this.absShield = getAbsoluteShield(id)!
 		this.dmgReturn = getDamageReturn(id)!
 		this.items = Items.getItems(id)
-		// Scan weapons for passive effects (auras)
-		for(Item item in this.items) {
-			if(!item.isWeap) continue
-			for(ItemEffect effect in item.effects) {
-				if(TargetType.CONVERTER[effect.type] == TargetType.PASSIVE) {
-					this.passives[effect.type] = effect.min / 100
-				}
+		// Load passive effects from entity
+		for(Array e in getPassiveEffects(this.id)!) {
+			integer type = e[0]
+			real value = e[1]
+			// Percentage-based passives (convert damage/poison/erosion/cells to stat)
+			if(type == EFFECT_DAMAGE_TO_STRENGTH
+				|| type == EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD
+				|| type == EFFECT_NOVA_DAMAGE_TO_MAGIC
+				|| type == EFFECT_POISON_TO_SCIENCE
+				|| type == EFFECT_CRITICAL_TO_HEAL
+				|| type == EFFECT_MOVED_TO_MP) {
+				value = value / 100
 			}
+			// Absolute passives (KILL_TO_TP, ALLY_KILLED_TO_AGILITY) stored as-is
+			this.passives[type] = value
 		}
 		this.turnOrder = getEntityTurnOrder(id)!
 		this.isFriend = isAlly(id)
