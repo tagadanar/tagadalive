@@ -22,10 +22,18 @@ class MapPosition {
 	static Map<Cell, integer>? _nearest_enemy_path_dist = null  // path distances FROM nearest enemy
 	static Entity? _nearest_enemy = null
 
+	// === Position cache (like MapDanger pattern) ===
+	static Map<Cell, Position> _position = [:]  // [cell: position]
+	static Map<integer, Map<Cell, Position>> _hash_position = [:]  // [hashcode: [cell: position]]
+
 	/*
 	 * Refresh all position-related caches. Called once per turn.
 	 */
 	static void refresh() {
+		// Reset position cache
+		_position = [:]
+		_hash_position = [:]
+
 		MapPosition._refreshNearestEnemy()
 		MapPosition._refreshNearestEnemyPathDist()
 		MapPosition._refreshThreatDetection()
@@ -195,20 +203,34 @@ class MapPosition {
 
 	/*
 	 * Main position evaluation function.
+	 * Uses cache (like MapDanger.getCellDanger) to avoid recomputation.
 	 */
-	static Position evaluatePosition(Cell cell, integer mpUsed, Consequences? consequences) {
+	static Position evaluatePosition(Cell cell, Consequences? consequences) {
 		Benchmark.start("MP.evalPos")
+
+		// Check cache first (like MapDanger pattern)
+		if (consequences != null && consequences!.isAlteringDanger) {
+			if (_hash_position[consequences!.hashcode] != null &&
+				_hash_position[consequences!.hashcode]![cell] != null) {
+				Benchmark.stop("MP.evalPos")
+				return _hash_position[consequences!.hashcode]![cell]!
+			}
+		} else {
+			if (_position[cell] != null) {
+				Benchmark.stop("MP.evalPos")
+				return _position[cell]!
+			}
+		}
+
+		// Cache miss - compute fresh
 		Danger baseDanger = MapDanger.getCellDanger(cell, consequences)
 		Position pos = Position(baseDanger)
-		pos.mpUsed = mpUsed
 
 		real lifePercent = Fight.self.getCurrentHP(consequences) / Fight.self.totalLife
 		pos.applyLifeScaling(lifePercent)
 
 		pos.addProximityScore(MapPosition._computeProximityPenalty(cell, _nearest_enemy))
-
 		pos.addGravityScore(MapPosition._computeGravityScore(cell))
-
 		pos.addTacticalScore(MapPosition._computeTacticalScore(cell, consequences))
 
 		if (_enemies_have_str || _enemies_have_snc) {
@@ -217,9 +239,14 @@ class MapPosition {
 			pos.addShieldScore(shieldValue)
 		}
 
-		integer mpSaved = Fight.self.mp - mpUsed
-		if (mpSaved > 0 && pos.dmg > 0) {
-			pos.addMPEfficiency(mpUsed, mpSaved * Scoring.W_MP_EFFICIENCY)
+		// Store in cache
+		if (consequences != null && consequences!.isAlteringDanger) {
+			if (_hash_position[consequences!.hashcode] == null) {
+				_hash_position[consequences!.hashcode] = [:]
+			}
+			_hash_position[consequences!.hashcode]![cell] = pos
+		} else {
+			_position[cell] = pos
 		}
 
 		Benchmark.stop("MP.evalPos")
@@ -349,14 +376,14 @@ class MapPosition {
 		Position? bestPosition = null
 		for (Cell cell : integer mp in reachableCells) {
 			if (mp > mpLeft) break
-			Position pos = MapPosition.evaluatePosition(cell, mp, consequences)
+			Position pos = MapPosition.evaluatePosition(cell, consequences)
 			if (bestPosition == null || pos.score > bestPosition!.score) {
 				bestPosition = pos
 			}
 		}
 
 		if (bestPosition == null) {
-			bestPosition = MapPosition.evaluatePosition(from, 0, consequences)
+			bestPosition = MapPosition.evaluatePosition(from, consequences)
 		}
 
 		Benchmark.stop("MP.findBest")
@@ -367,19 +394,22 @@ class MapPosition {
 	 * Display position scores on the map (for debugging)
 	 * Color: based on danger only (red = high danger, green = low danger)
 	 * Text: positioningScore | danger
+	 * Uses cached positions from evaluatePosition - cheap after findBestPosition runs
 	 */
 	static void showPosition(Cell from, integer mpleft, Consequences? consequences) {
+		Benchmark.start("MP.showPos")
 		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpleft, Fight.self.cellsToIgnore)
 		for (Cell c : integer d in reachableCells) {
-			Position pos = MapPosition.evaluatePosition(c, d, consequences)
+			Position pos = MapPosition.evaluatePosition(c, consequences)
 			// Color: based on danger only (like showDanger)
 			integer red = ((pos.dmg * 255) / Fight.self.life) as integer
 			if (red > 255) mark(c.id, getColor(0, 0, 0))
 			else mark(c.id, getColor(red, 255 - red, 0))
 			// Text: positioning score (non-danger components) | danger
-			integer posScore = round(pos.proximityScore + pos.gravityScore + pos.tacticalScore + pos.shieldScore + pos.mpEfficiency)
+			integer posScore = round(pos.proximityScore + pos.gravityScore + pos.tacticalScore + pos.shieldScore)
 			integer dangerVal = round(pos.dmg)
 			markText(c.id, posScore + " | " + dangerVal)
 		}
+		Benchmark.stop("MP.showPos")
 	}
 }
