@@ -171,7 +171,7 @@ class Consequences {
 			real value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100)))
 				- entityTarget.getCurrentAbs(conseq)
 			value = value < 0 ? 0.0 : value // on ne fait pas de dmg négatif
-			conseq.add(entityTarget, Stats.HP, -value as integer)
+			conseq.add(entityTarget, Stats.HP, -round(value))
 
 			// Inline passives for damage taken (target's passives)
 			Map<integer, real> passives = entityTarget.passives
@@ -190,7 +190,7 @@ class Consequences {
 
 			// érosion !
 			real erosion = value / Stats.DMG_EROSION_DIVISOR
-			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
+			conseq.add(entityTarget, Stats.HPMAX, -round(erosion))
 			// Inline passive for nova/erosion
 			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
@@ -206,10 +206,10 @@ class Consequences {
 			// dmg return
 			var dmgReturn = beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100)
 			if(dmgReturn>0){
-				conseq.add(entitySource, Stats.HP, -dmgReturn as integer)
+				conseq.add(entitySource, Stats.HP, -round(dmgReturn))
 				
 				// érosion !
-				conseq.add(entitySource, Stats.HPMAX, (-dmgReturn/Stats.DMG_EROSION_DIVISOR) as integer)
+				conseq.add(entitySource, Stats.HPMAX, round(-dmgReturn/Stats.DMG_EROSION_DIVISOR))
 				
 				if(dmgReturn>=entitySource.getCurrentHP(conseq)) 
 					conseq.addKill(entitySource) 
@@ -240,7 +240,7 @@ class Consequences {
 
 			// érosion ! only 1 turn (often antidoted/liberated)
 			real erosion = value / effect.duration / Stats.PSN_EROSION_DIVISOR
-			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
+			conseq.add(entityTarget, Stats.HPMAX, -round(erosion))
 			// Inline passive for nova/erosion
 			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 				integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
@@ -260,7 +260,7 @@ class Consequences {
 
 			// érosion !
 			real erosion = value / Stats.DMG_EROSION_DIVISOR
-			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
+			conseq.add(entityTarget, Stats.HPMAX, -round(erosion))
 			// Inline passive for nova/erosion (target's passives)
 			Map<integer, real> passives = entityTarget.passives
 			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
@@ -610,7 +610,7 @@ class Consequences {
 
 			// érosion ! only 1 turn (often antidoted/liberated)
 			real erosion = value / Stats.DMG_EROSION_DIVISOR
-			conseq.add(entityTarget, Stats.HPMAX, -erosion as integer)
+			conseq.add(entityTarget, Stats.HPMAX, -round(erosion))
 			// Inline passive for nova/erosion (target's passives)
 			Map<integer, real> passives = entityTarget.passives
 			if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
