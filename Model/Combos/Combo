@@ -92,17 +92,31 @@ class Combo {
 	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
 	 */
 	void play(){
+		var startCell = getCell()
+
 		// étape 1: je fais mes actions
 		for(Action action in this.actions){
-			if(action.from != Fight.selfCell) moveTowardCell(action.from.id)
-			if(action.to == Fight.selfCell) action.item.useItemOnCell(Board.getCell(getCell())!)
-			else action.item.useItemOnCell(action.to)
+			if(action.from != Fight.selfCell){
+				moveTowardCell(action.from.id)
+				Benchmark.logMove(startCell, getCell())
+				startCell = getCell()
+			}
+			if(action.to == Fight.selfCell){
+				action.item.useItemOnCell(Board.getCell(getCell())!)
+				Benchmark.logBuff(action.item.name)
+			} else {
+				action.item.useItemOnCell(action.to)
+				Benchmark.log(action.item.name + ">c" + action.to.id)
+			}
 		}
 		// étape 2: je vais me planquer
 		if(this.finalPosition){
 			//MapDanger.showDanger(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
 			MapPosition.showPosition(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
 			moveTowardCell(this.finalPosition!.cell.id)
+			if(getCell() != startCell){
+				Benchmark.logMove(startCell, getCell())
+			}
 		}
 		// étape 3: si il reste des TP, je prend en main une arme aléatoire
 		if(getWeapon(Fight.self.id)==null) {
