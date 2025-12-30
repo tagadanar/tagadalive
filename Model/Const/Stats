@@ -71,6 +71,8 @@ class Stats {
 		EFFECT_ABSOLUTE_SHIELD: 		Stats.getInstance().ABSSHIELD,
 		EFFECT_RELATIVE_SHIELD: 		Stats.getInstance().RELSHIELD,
 		EFFECT_DAMAGE_RETURN: 			Stats.getInstance().DMGRETURN,
+		EFFECT_RAW_BUFF_POWER:			Stats.getInstance().PWR,
+		EFFECT_RAW_RELATIVE_SHIELD:		Stats.getInstance().RELSHIELD,
 	]
 }
 

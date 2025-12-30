@@ -568,6 +568,8 @@ class Consequences {
 		},
 		EFFECT_DEBUFF: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			for(EntityEffect entityEffect in entityTarget.effects){
+				// Skip irreducible effects - Liberation can't reduce them
+				if(entityEffect.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) continue
 				// ici le CONVERTER sert à set la value en négatif si c'est un malus, genre un poison fait
 				// des dmg en HPTIME, il en redonne pas.
 				// parce que je boucle sur entityEffect et EffectOverTime
@@ -586,7 +588,6 @@ class Consequences {
 				if(stat==null) debugE("LIBERATION effect to stat unhandled :"+entityEffect)
 				conseq.add(entityTarget, stat!, eot)
 			}
-			// TODO check if effect is irreductible ?
 		},
 		EFFECT_ANTIDOTE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 			for(EntityEffect entityEffect in entityTarget.effects){
