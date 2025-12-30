@@ -236,7 +236,15 @@ class MCTS {
 		MCTS.totalOpsUsed += getOperations() - startOps
 
 		// Extract best path found - always returns a valid combo now
-		return MCTS.extractBestCombo(root, startCell)
+		Combo combo = MCTS.extractBestCombo(root, startCell)
+
+		// Track combo for debugging
+		real actScore = 0
+		for (Action a in combo.actions) actScore += a.score!
+		real posScore = combo.finalPosition ? combo.finalPosition!.score : 0
+		Benchmark.addCombo(combo.getScore()!, count(combo.actions), MCTS.buildComboDesc(combo), posScore, actScore)
+
+		return combo
 	}
 
 	/*
@@ -447,5 +455,23 @@ class MCTS {
 	 */
 	static Position findBestPositionFromCell(Cell fromCell, integer mp, Consequences? state) {
 		return MapPosition.findBestPosition(fromCell, mp, state)
+	}
+
+	/*
+	 * Build a short description of a combo for debugging.
+	 * Format: "Item1→Item2→cell123" or "stay" if no actions
+	 */
+	static string buildComboDesc(Combo combo) {
+		string desc = ""
+		for (Action a in combo.actions) {
+			if (desc != "") desc += "→"
+			desc += a.item.name
+		}
+		if (combo.finalPosition) {
+			if (desc != "") desc += "→"
+			desc += "c" + combo.finalPosition!.cell.id
+		}
+		if (desc == "") desc = "stay"
+		return desc
 	}
 }

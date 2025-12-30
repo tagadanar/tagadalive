@@ -196,26 +196,13 @@ class AI {
 			return emergency
 		}
 
-		// Build path string: action1(score)→action2(score)→move(cell: breakdown)
-		string path = ""
-		for (Action a in bestCombo!.actions) {
-			if (path != "") path += "→"
-			path += a.item.name + "(" + round(a.score!) + ")"
-		}
-		if (bestCombo!.finalPosition) {
-			if (path != "") path += "→"
-			Position p = bestCombo!.finalPosition!
-			path += "move(" + p.cell.id + ": "
-			path += round(p.score) + "="
-			path += round(-p.dmg) + "d"
-			path += (p.proximityScore >= 0 ? "+" : "") + round(p.proximityScore) + "p"
-			path += (p.gravityScore >= 0 ? "+" : "") + round(p.gravityScore) + "g"
-			path += (p.tacticalScore >= 0 ? "+" : "") + round(p.tacticalScore) + "t"
-			path += ")"
-		}
-		if (path == "") path = "stay"
+		// Track MCTS stats for debugging
+		Benchmark.setMCTS(MCTS.lastIterations, MCTS.lastNodesCreated, positionsExplored, bestCombo!.getScore()!)
 
-		debug("MCTS: " + positionsExplored + " pos, " + MCTS.lastIterations + " iter, score=" + round(bestCombo!.getScore()!) + " | " + path)
+		// Track chosen combo
+		string comboDesc = MCTS.buildComboDesc(bestCombo!)
+		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), comboDesc)
+
 		return bestCombo!
 	}
 }
