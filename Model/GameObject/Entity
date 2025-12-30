@@ -34,6 +34,8 @@ class Entity {
 	// booleans
 	boolean isFriend
 	boolean isBulb
+	boolean isStatic = false     // ADD_STATE value 11 - no STATE_STATIC constant in leekwars api
+	boolean isInvincible = false // ADD_STATE value STATE_INVINCIBLE (3)
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
 	// gestions des effets
 	Array<EntityEffect> effects = []
@@ -99,6 +101,12 @@ class Entity {
 		
 		for(Array<boolean|integer> e in getEffects(id)!){
 			EntityEffect effect = EntityEffect(e)
+			// ADD_STATE: set flags, don't add to effects (can't be liberated)
+			if(effect.type == EFFECT_ADD_STATE){
+				if(effect.value == STATE_INVINCIBLE) this.isInvincible = true
+				else if(effect.value == 11) this.isStatic = true // no STATE_STATIC constant in leekwars api
+				continue
+			}
 			push(effects, effect)
 			if(!this.items_effectOverTime[effect.item]) this.items_effectOverTime[effect.item] = []
 			push(this.items_effectOverTime[effect.item]!, EffectOverTime(effect))
