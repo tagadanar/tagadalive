@@ -2278,6 +2278,69 @@
 
     function opsClass(p) { return p > 90 ? 'danger' : p > 70 ? 'warn' : 'ok'; }
 
+    /**
+     * Format combo description for display.
+     * Input: "Flash(81)→Spark(120)→mv(256:180=0d+0p-57g+0t+0s)"
+     * Output: HTML with styled actions and position breakdown
+     */
+    function formatComboDesc(desc) {
+        if (!desc || desc === 'stay') return '<span style="color:' + C.textDim + '">stay</span>';
+
+        // Split by arrow
+        const parts = desc.split('→');
+        let html = '';
+
+        for (let i = 0; i < parts.length; i++) {
+            const p = parts[i];
+
+            // Check if this is a move/position part: mv(cell:score=breakdown)
+            const mvMatch = p.match(/^mv\((\d+):(-?\d+)=(.+)\)$/);
+            if (mvMatch) {
+                const [, cell, score, breakdown] = mvMatch;
+                // Parse breakdown: 0d+0p-57g+0t+0s
+                const components = [];
+                const compRegex = /([+-]?\d+)([dpgts])/g;
+                let m;
+                while ((m = compRegex.exec(breakdown)) !== null) {
+                    const val = parseInt(m[1]);
+                    const type = m[2];
+                    const labels = { d: 'danger', p: 'prox', g: 'grav', t: 'tact', s: 'shield' };
+                    const colors = {
+                        d: val < 0 ? C.red : (val > 0 ? C.green : C.textDim),
+                        p: val < 0 ? C.red : (val > 0 ? C.green : C.textDim),
+                        g: val < 0 ? C.red : (val > 0 ? C.green : C.textDim),
+                        t: val > 0 ? C.green : C.textDim,
+                        s: val > 0 ? C.blue : C.textDim
+                    };
+                    if (val !== 0) {
+                        components.push(`<span style="color:${colors[type]}" title="${labels[type]}">${val}${type}</span>`);
+                    }
+                }
+                html += `<span class="lwa-action-mv">→c${cell}</span>`;
+                html += `<span class="lwa-pos-breakdown" style="color:${C.textDim};font-size:10px"> (${score}=${components.length > 0 ? components.join(' ') : '0'})</span>`;
+            }
+            // Check if this is an action: ItemName(score)
+            else {
+                const actMatch = p.match(/^(.+?)\((-?\d+)\)$/);
+                if (actMatch) {
+                    const [, name, score] = actMatch;
+                    const scoreNum = parseInt(score);
+                    const scoreColor = scoreNum > 0 ? C.green : (scoreNum < 0 ? C.red : C.textDim);
+                    if (i > 0) html += '<span style="color:' + C.textDim + '">→</span>';
+                    html += `<span class="lwa-action-name">${name}</span>`;
+                    html += `<span class="lwa-action-score" style="color:${scoreColor}">(${score})</span>`;
+                }
+                // Fallback for old format or unknown
+                else {
+                    if (i > 0) html += '<span style="color:' + C.textDim + '">→</span>';
+                    html += `<span>${p}</span>`;
+                }
+            }
+        }
+
+        return html;
+    }
+
     // ========================================
     // Aggregated Stats Computation
     // ========================================
@@ -2896,7 +2959,7 @@
             <div class="lwa-chosen">
                 <div class="lwa-chosen-head">
                     <div class="lwa-chosen-icon">★</div>
-                    <div class="lwa-chosen-desc">${chosenDesc}</div>
+                    <div class="lwa-chosen-desc">${formatComboDesc(chosenDesc)}</div>
                 </div>
                 <div class="lwa-chosen-stats">
                     Score: <span>${d.chosen.score}</span> &nbsp;|&nbsp; Actions: <span>${d.chosen.actions}</span>
@@ -2970,7 +3033,7 @@
             <div class="lwa-chosen" style="margin-bottom:14px">
                 <div class="lwa-chosen-head">
                     <div class="lwa-chosen-icon">★</div>
-                    <div class="lwa-chosen-desc">${chosenDesc}</div>
+                    <div class="lwa-chosen-desc">${formatComboDesc(chosenDesc)}</div>
                 </div>
                 <div class="lwa-chosen-stats">
                     Score: <span>${d.chosen.score}</span> &nbsp;|&nbsp; Actions: <span>${d.chosen.actions}</span>
@@ -2984,7 +3047,7 @@
                     <div class="lwa-combo">
                         <div class="lwa-combo-head">
                             <div class="lwa-combo-rank">${i + 1}</div>
-                            <div class="lwa-combo-desc">${c.d}</div>
+                            <div class="lwa-combo-desc">${formatComboDesc(c.d)}</div>
                         </div>
                         <div class="lwa-combo-stats">
                             Total: <span>${c.s}</span> &nbsp;|&nbsp; Actions: <span>${c.as}</span> &nbsp;|&nbsp; Position: <span>${c.ps}</span>
@@ -3193,7 +3256,7 @@
                         ${d.chosen.desc ? `
                             <div class="lwa-log-combo-box">
                                 <div class="lwa-log-combo-label">Combo Description:</div>
-                                <div class="lwa-log-combo-text">${d.chosen.desc}</div>
+                                <div class="lwa-log-combo-text">${formatComboDesc(d.chosen.desc)}</div>
                             </div>
                         ` : ''}
                     </div>
