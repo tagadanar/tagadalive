@@ -5,10 +5,11 @@ init()
 // Run MCTS
 Combo combo = AI.getMCTSCombo()
 
-// Summary output
-debug("T" + getTurn() + ": " + count(combo.actions) + " actions, score=" + round(combo.getScore()!))
-
 // Play the combo
 combo.play()
 
+// Output debug data
+// display()     -> JSON format for Tampermonkey (recommended)
+// displayText() -> Human-readable format
+// displayAll()  -> Both formats
 Benchmark.display()

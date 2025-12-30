@@ -1,55 +1,247 @@
 class Benchmark{
-	static _DEBUG = true
-	
-	static _debug_operation
-	static Map<string, integer> _count_func = [:];
-	static Map<string, integer> _cumul_func = [:];
-	static Map<string, integer> _laststart_func = [:];
-	
-	// mesure d'opération simple
-	static void startOp(){
-		_debug_operation = getOperations();
-	}
-	static void stopOp(string title){
-		if(_DEBUG) debug(title + ": " + (getOperations()-_debug_operation-5-length(title)));	
-	}
-	static void stopOpk(string title){
-		if(_DEBUG) debug(title + ": " + round((getOperations()-_debug_operation)/1000) + "k");
-	}
-	
-	// mesure de consommation d'opération moyenne d'une fonction
+	static Map<string, integer> _count_func = [:]
+	static Map<string, integer> _cumul_func = [:]
+	static Map<string, integer> _laststart_func = [:]
+	static Array<string> _callStack = []
+	static Map<string, string> _parent_func = [:]
+
+	static string MARKER = "##MARKER##"
+	static _turn = 0
+	static _startOps = 0
+	static _name = ""
+	static _mctsIter = 0
+	static _mctsNodes = 0
+	static _mctsPos = 0
+	static _mctsBest = 0
+	static _chosenDesc = ""
+	static _chosenScore = 0
+	static _chosenActions = 0
+	static _selfLife = 0
+	static _selfMaxLife = 0
+	static _selfTP = 0
+	static _selfMP = 0
+	static _selfCell = 0
+	static _enemies = 0
+	static _allies = 0
+
+	static _maxCombos = 5
+	static Array<string> _comboDesc = []
+	static Array<integer> _comboScore = []
+	static Array<integer> _comboActions = []
+	static Array<integer> _comboPosScore = []
+	static Array<integer> _comboActScore = []
+
+	static Array<string> _logs = []
+	static _maxLogs = 20
+
+	// === Profiling ===
+
 	static void reset(){
-		_count_func = [:];
-		_cumul_func = [:];
-		_laststart_func = [:];
+		_count_func = [:]
+		_cumul_func = [:]
+		_laststart_func = [:]
+		_parent_func = [:]
+		_callStack = []
 	}
+
 	static void start(string name){
-		//Crée l'entrée pour ne pas avoir de surcout pour la création de la clé à la fin
-		_laststart_func[name] = 0;
-		if(_count_func[name]==null) _count_func[name]=0;
-		if(_cumul_func[name]==null) _cumul_func[name]=0;
-		_laststart_func[name] = getOperations();
+		if(count(_callStack) > 0) _parent_func[name] = _callStack[count(_callStack) - 1]
+		push(_callStack, name)
+		if(_count_func[name] == null) _count_func[name] = 0
+		if(_cumul_func[name] == null) _cumul_func[name] = 0
+		_laststart_func[name] = getOperations()
 	}
+
 	static void stop(string name){
-		_cumul_func[name] += getOperations() - _laststart_func[name] - 5;
-		_count_func[name]++;
+		_cumul_func[name] += getOperations() - _laststart_func[name] - 5
+		_count_func[name]++
+		if(count(_callStack) > 0) pop(_callStack)
 	}
-	static void display(){
-		string str = "BENCHMARK Turn " + getTurn()
-		for(string name:integer nbCall in _count_func){
-			str+= "\n" + name + ": " + nbCall + " call. Moy= " + Benchmark.format(_cumul_func[name]/nbCall) + " Total= " + Benchmark.format(_cumul_func[name])
-		}
-		debug(str)
-		debug("EndTurn Operations: "+Benchmark.format(getOperations()))
-	}
-	
+
 	static string format(real num){
-		num = num | 0  // fast truncate to integer
-		if(num >= 1000){
-			var mega = floor(num/1000000)
-			var kilo = round((num-(mega*1000000))/1000)
-			return (mega > 0 ? mega + " " : "") + kilo + "k"
-		}
+		num = num | 0
+		if(num >= 1000000) return round(num / 1000000) + "M"
+		if(num >= 1000) return round(num / 1000) + "k"
 		return num + ""
+	}
+
+	// === Turn lifecycle ===
+
+	static void initTurn(){
+		_turn = getTurn()
+		_startOps = getOperations()
+		_name = getName()
+		_mctsIter = 0
+		_mctsNodes = 0
+		_mctsPos = 0
+		_mctsBest = 0
+		_chosenDesc = ""
+		_chosenScore = 0
+		_chosenActions = 0
+		_comboDesc = []
+		_comboScore = []
+		_comboActions = []
+		_comboPosScore = []
+		_comboActScore = []
+		_logs = []
+		_selfLife = getLife()
+		_selfMaxLife = getTotalLife(getEntity())
+		_selfTP = getTP()
+		_selfMP = getMP()
+		_selfCell = getCell()
+		_enemies = count(getAliveEnemies())
+		_allies = count(getAliveAllies())
+		reset()
+	}
+
+	static void updateContext(){
+		_selfLife = getLife()
+		_selfMaxLife = getTotalLife(getEntity())
+		_selfTP = getTP()
+		_selfMP = getMP()
+		_selfCell = getCell()
+		_enemies = count(getAliveEnemies())
+		_allies = count(getAliveAllies())
+	}
+
+	// === Tracking ===
+
+	static void setMCTS(integer iter, integer nodes, integer pos, real best){
+		_mctsIter = iter
+		_mctsNodes = nodes
+		_mctsPos = pos
+		_mctsBest = round(best)
+	}
+
+	static void setChosen(real score, integer actions, string desc){
+		_chosenScore = round(score)
+		_chosenActions = actions
+		_chosenDesc = desc
+	}
+
+	static void addCombo(real score, integer actions, string desc, real posScore, real actScore){
+		var s = round(score)
+		if(count(_comboScore) < _maxCombos){
+			push(_comboDesc, desc)
+			push(_comboScore, s)
+			push(_comboActions, actions)
+			push(_comboPosScore, round(posScore))
+			push(_comboActScore, round(actScore))
+		} else if(s > _comboScore[_maxCombos - 1]){
+			_comboDesc[_maxCombos - 1] = desc
+			_comboScore[_maxCombos - 1] = s
+			_comboActions[_maxCombos - 1] = actions
+			_comboPosScore[_maxCombos - 1] = round(posScore)
+			_comboActScore[_maxCombos - 1] = round(actScore)
+		}
+	}
+
+	// === Logging (stored, output at end) ===
+
+	static void log(string msg){ if(count(_logs) < _maxLogs) push(_logs, msg) }
+	static void logInfo(string msg){ if(count(_logs) < _maxLogs) push(_logs, msg) }
+	static void logWarn(string msg){ if(count(_logs) < _maxLogs) push(_logs, "⚠" + msg) }
+	static void logError(string msg){ if(count(_logs) < _maxLogs) push(_logs, "❌" + msg) }
+	static void logDebug(string msg){ if(count(_logs) < _maxLogs) push(_logs, "…" + msg) }
+	static void logMove(integer from, integer to){ if(count(_logs) < _maxLogs) push(_logs, "→" + from + ">" + to) }
+	static void logBuff(string item){ if(count(_logs) < _maxLogs) push(_logs, "+" + item) }
+	static void logAttack(string item, integer target, integer dmg){
+		if(count(_logs) < _maxLogs) push(_logs, "⚔" + item + ">" + target + "=" + dmg)
+	}
+	static void logHeal(string item, integer amount){
+		if(count(_logs) < _maxLogs) push(_logs, "❤" + item + "+" + amount)
+	}
+	static void logKill(integer target){
+		if(count(_logs) < _maxLogs) push(_logs, "💀" + target)
+	}
+
+	// === Display: ONE debug() call ===
+
+	// Category definitions for grouped display
+	static Array<Array<string>> CATEGORIES = [
+		["INIT", "init", "Map.init", "Items.init"],
+		["REFRESH", "MapPath.refresh", "Fight.refresh", "Map.refresh", "Scoring.refresh", "MapDanger.refresh", "MapPosition.refresh", "MapAction.refresh"],
+		["MCTS", "AI.getMCTSCombo", "MCTS.iter"],
+		["POSITION", "MP.evalPos", "MP.findBest"],
+		["ACTION", "addAction"],
+		["CONSEQUENCES", "Consequences", "Consequences.fromConseq"]
+	]
+
+	static string getCategoryForFunc(string name) {
+		for (var cat in CATEGORIES) {
+			for (var i = 1; i < count(cat); i++) {
+				if (cat[i] == name) return cat[0]
+			}
+		}
+		return "OTHER"
+	}
+
+	static void display(){
+		var displayStart = getOperations()
+		var totalOps = getOperations() - _startOps
+		var maxOps = getMaxOperations()
+
+		// Count total tracked functions
+		var funcCount = 0
+		for (string name : integer nbCall in _count_func) {
+			if (nbCall > 0) funcCount++
+		}
+
+		var s = MARKER + "T" + _turn
+		s += "|n:" + _name
+		s += "|o:" + totalOps + "/" + maxOps
+		s += "|hp:" + _selfLife + "/" + _selfMaxLife
+		s += "|tp:" + _selfTP + "|mp:" + _selfMP
+		s += "|c:" + _selfCell + "|e:" + _enemies + "|a:" + _allies
+		s += "|m:" + _mctsIter + "," + _mctsNodes + "," + _mctsPos + "," + _mctsBest
+		s += "|fc:" + funcCount  // Function count for verification
+
+		if(_chosenDesc != "") s += "|ch:" + _chosenScore + "," + _chosenActions + "," + _chosenDesc
+
+		for(var i = 0; i < count(_comboScore); i++){
+			s += "|cb:" + _comboScore[i] + "," + _comboActScore[i] + "," + _comboPosScore[i] + "," + _comboDesc[i]
+		}
+
+		// Group functions by category
+		Map<string, Array<Array>> catFuncs = [:]
+		for (string name : integer nbCall in _count_func) {
+			if (nbCall == 0) continue
+			var cat = getCategoryForFunc(name)
+			if (!catFuncs[cat]) catFuncs[cat] = []
+			var pct = round(_cumul_func[name]! * 100 / totalOps)
+			var parent = _parent_func[name] ? _parent_func[name]! : ""
+			push(catFuncs[cat]!, [name, nbCall, _cumul_func[name]!, pct, parent])
+		}
+
+		// Output by category in defined order, then OTHER
+		for (var cat in CATEGORIES) {
+			var catName = cat[0] as string
+			if (catFuncs[catName] && count(catFuncs[catName]!) > 0) {
+				// Sort by total ops descending within category
+				var funcs = arraySort(catFuncs[catName]!, (a, b) -> a[2] < b[2] ? 1 : -1) as Array<Array>
+				s += "|cat:" + catName
+				for (var m in funcs) {
+					s += "|f:" + m[0] + "," + m[1] + "," + m[2] + "," + m[3] + "," + m[4]
+				}
+			}
+		}
+
+		// OTHER category last
+		if (catFuncs["OTHER"] && count(catFuncs["OTHER"]!) > 0) {
+			var funcs = arraySort(catFuncs["OTHER"]!, (a, b) -> a[2] < b[2] ? 1 : -1) as Array<Array>
+			s += "|cat:OTHER"
+			for (var m in funcs) {
+				s += "|f:" + m[0] + "," + m[1] + "," + m[2] + "," + m[3] + "," + m[4]
+			}
+		}
+
+		for(var i = 0; i < count(_logs); i++) s += "|l:" + _logs[i]
+
+		// Display ops and final total
+		var displayOps = getOperations() - displayStart
+		s += "|dops:" + displayOps
+		s += "|end:" + (getOperations() - _startOps)
+
+		debug(s)
 	}
 }
