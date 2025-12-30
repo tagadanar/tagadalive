@@ -60,9 +60,11 @@ class Consequences {
 		this.targets = Targets.getTargets(action)
 		for(Entity target in this.targets){
 			if(this._killed[target]) continue
-			real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(action.to.id, target.cell.id)) : 1.0
+			// For self in AOE, use simulated position (this.currentCell) not real position (target.cell)
+			integer targetCellId = (target == Fight.self) ? this.currentCell.id : target.cell.id
+			real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(action.to.id, targetCellId)) : 1.0
 			if(ratioDmg<=0){
-				debugE('Bug in Consequences constructor, SHOULD NOT HAPPEN !')
+				debugE('Bug in Consequences: ratioDmg<=0 for target ' + target + ' at cell ' + targetCellId)
 				debugE(action)
 				continue
 			}
