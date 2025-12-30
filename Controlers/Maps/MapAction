@@ -16,6 +16,7 @@ class MapAction {
 			if(item.area == AREA_POINT){
 				// pour chaque cible valide de l'item
 				for(Entity entity in item.targetSet()){
+					if(entity.isInvincible && !entity.isFriend) continue // skip invincible enemies
 					if(entity==Fight.self){
 						// si c'est moi la cible, je peux le lancer sur moi même que si la minrange le permet
 						if(item.minRange == 0){
@@ -29,6 +30,7 @@ class MapAction {
 				}
 			}else if(item.area == AREA_LASER_LINE){
 				for(Entity entity in item.targetSet()){
+					if(entity.isInvincible && !entity.isFriend) continue // skip invincible enemies
 					if(entity==Fight.self) continue; // on peut jamais se tirer dessus au lazer
 					Array<Cell> cellsFrom = Targets.getLazerCellsToUseItemOnCell(item, entity.cell)
 					for(Cell cell in cellsFrom){
@@ -38,6 +40,7 @@ class MapAction {
 				// maybe here I should handle AREA_FIRST_INLINE ? 
 			}else{ // every aoe
 				for(Entity entity in item.targetSet()){
+					if(entity.isInvincible && !entity.isFriend) continue // skip invincible enemies
 					if(entity==Fight.self) continue
 					// TODO réfléchir à l'implem de ce genre de move sur case vide..
 					// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
