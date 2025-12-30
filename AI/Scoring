@@ -44,9 +44,6 @@ class Scoring {
 	static real W_SHIELD_ABS = 3.0            // value per point of absolute shield
 	static real W_SHIELD_REL = 6.0            // value per point of relative shield
 
-	// MP efficiency
-	static real W_MP_EFFICIENCY = 1.0         // bonus per MP saved
-
 	// Distance weights for ranged vs melee
 	static integer IDEAL_DIST_RANGED = -1     // calculated at first turn: self.mp + longest item range
 	static integer IDEAL_DIST_CAC = 1         // ideal distance for melee (adjacent)

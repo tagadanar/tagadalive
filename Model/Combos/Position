@@ -9,10 +9,8 @@ class Position extends Danger {
 	real gravityScore = 0.0       // attraction/repulsion to gravity targets
 	real tacticalScore = 0.0      // lock, CAC range, COVID, etc.
 	real shieldScore = 0.0        // value of keeping shields
-	real mpEfficiency = 0.0       // bonus for MP saved
 
 	// Movement info
-	integer mpUsed = 0            // MP spent to reach this position
 	integer pathDistance = 0      // path distance to primary target
 
 	/*
@@ -64,15 +62,6 @@ class Position extends Danger {
 	}
 
 	/*
-	 * Add MP efficiency bonus
-	 */
-	void addMPEfficiency(integer mp, real bonus) {
-		this.mpUsed = mp
-		this.mpEfficiency = bonus
-		this.score += bonus
-	}
-
-	/*
 	 * Apply life-based danger scaling (more cautious when low HP)
 	 * Should be called after base danger score is set
 	 */
@@ -107,7 +96,6 @@ class Position extends Danger {
 			   " grav=" + round(this.gravityScore) +
 			   " tact=" + round(this.tacticalScore) +
 			   " shield=" + round(this.shieldScore) +
-			   " mp=" + round(this.mpEfficiency) +
 			   " => " + round(this.score)
 	}
 
