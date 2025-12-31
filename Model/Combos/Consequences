@@ -133,6 +133,21 @@ class Consequences {
 			integer tpGain = round(passives[EFFECT_KILL_TO_TP]!)
 			if(tpGain > 0) this.add(Fight.self, Stats.TP, tpGain)
 		}
+		// Chest power gain (all fight types): 10 + 50% pwr + type bonus (wood +10, iron +50, diamond +100)
+		if(entity.entityType == ENTITY_CHEST) {
+			integer chestBonus = 0
+			if(entity.name == "wood_chest") chestBonus = 10
+			else if(entity.name == "iron_chest") chestBonus = 50
+			else if(entity.name == "diamond_chest") chestBonus = 100
+			integer pwrGain = 10 + chestBonus + round(entity.pwr * 0.5)
+			this.add(Fight.self, Stats.PWR, pwrGain)
+		}
+		// BR power gain (leek = 10 + 50% pwr, bulb = 2 + 50% pwr)
+		else if(Fight.isBattleRoyale) {
+			integer basePwr = entity.isBulb ? 2 : 10
+			integer pwrGain = basePwr + round(entity.pwr * 0.5)
+			this.add(Fight.self, Stats.PWR, pwrGain)
+		}
 	}
 	
 	Map<Entity, Map<integer, integer>> getAlterations(){
@@ -248,8 +263,8 @@ class Consequences {
 			}
 		},
 		EFFECT_LIFE_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-			integer beforeShield = round(entitySource.life*(effect.avg/100))
-			integer value = round((beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100)))
+			real beforeShield = entitySource.life * (effect.avg/100) * (1 + entitySource.getCurrentPwr(conseq)/100)
+			integer value = round((beforeShield * (1-(entityTarget.getCurrentRel(conseq)/100)))
 				- entityTarget.getCurrentAbs(conseq))
 			value = value < 0 ? 0 : value // on ne fait pas de dmg négatif
 			conseq.add(entityTarget, Stats.HP, -value)
@@ -282,7 +297,7 @@ class Consequences {
 			}
 		},
 		EFFECT_NOVA_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-			integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+			integer value = round(effect.avg * (1 + entitySource.getCurrentSnc(conseq)/100) * (1 + entitySource.getCurrentPwr(conseq)/100) * ratioDmg)
 			value = min(value, entityTarget.getCurrentHPMissing(conseq))
 			conseq.add(entityTarget, Stats.HPMAX, -value)
 			// Inline passive for nova (target's passives)

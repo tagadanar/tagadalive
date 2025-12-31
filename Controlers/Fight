@@ -14,11 +14,13 @@ class Fight {
 	static Array<integer> allEntitiesId
 	static Entity self
 	static Cell selfCell = Cell(Cell.SELF_CAST_ID)
+	static boolean isBattleRoyale
 
 	/*
 	 * Actualise les tableaux contenant les entités vivante alliée et ennemie ainsi que l'ensemble des entités alliées + ennemies
 	 */
 	static void refresh(){
+		isBattleRoyale = getFightType() == FIGHT_TYPE_BATTLE_ROYALE
 		_aliveEnemies = [:]
 		_aliveAllies = [:]
 		_aliveAll = [:]
