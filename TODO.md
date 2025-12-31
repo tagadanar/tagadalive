@@ -88,6 +88,52 @@ When calculating danger from enemy attacks, account for their passive bonuses:
 
 ---
 
+## Future Modifiers (from old weight system)
+
+### Turn Number Modifiers
+Late-game coefficient adjustments from old AI - to be implemented in `Scoring.getDynamicCoef()`:
+
+| Turn | Effect | Rationale |
+|------|--------|-----------|
+| `> 55` | HPMAX *= 0.2 | Erosion less valuable late game (fewer turns to benefit) |
+| `> 50` | RATIO_DANGER /= 2 | Less risk-averse late game |
+| `> 58` | RATIO_DANGER /= 2 again | Very aggressive in final turns |
+| `< 55` | WSD_BOOST -= 25 | Wisdom buff less valuable early? (needs review) |
+
+**Implementation**: Add `getTurnModifier(stat)` function in Scoring class.
+
+### Cooldown-Based Modifiers (Remaining)
+Some cooldown-based modifiers from old AI. WSD/RST are now implemented via `getChipReadyModifier()`.
+
+#### For Ally ICED_BULB - Strength Boost (Stats.STR)
+Boost strength when iced bulb has damage chips ready:
+
+| Chip | Condition | Effect | Rationale |
+|------|-----------|--------|-----------|
+| `CHIP_ICEBERG` | cooldown == 0 | STR += 10 | Big ice attack ready |
+| `CHIP_STALACTITE` | cooldown == 0 | STR += 10 | Ice attack ready |
+
+#### For Ally ICED_BULB - TP Boost (Stats.TP)
+| Chips | Condition | Effect | Rationale |
+|-------|-----------|--------|-----------|
+| `ICEBERG` + `STALACTITE` | both cooldown == 0 | TP += 6 | Full combo ready |
+| `CHIP_ICEBERG` | cooldown == 0 && level < 200 | TP += 3 | Low level, big attack ready |
+
+#### For Ally FIRE_BULB - TP Boost (Stats.TP)
+| Chip | Condition | Effect | Rationale |
+|------|-----------|--------|-----------|
+| `CHIP_METEORITE` | cooldown == 0 && level < 240 | TP += 4 | Big fire attack ready |
+
+#### For Enemy LEEK - Poison Value (Stats.HPTIME)
+Boost poison when enemy can't cleanse:
+
+| Chip | Condition | Effect | Rationale |
+|------|-----------|--------|-----------|
+| `CHIP_ANTIDOTE` | cooldown > 1 OR not equipped | PSN += 35 | Can't cure poison |
+| `CHIP_LIBERATION` | cooldown > 1 OR not equipped | PSN += 15 | Can't remove debuffs |
+
+---
+
 ## Notes
 
 - **LeekScript v4** (typed variant)
