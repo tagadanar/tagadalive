@@ -7,6 +7,53 @@ class Scoring {
 	static integer MAX_FIGHT_TURNS = 66
 	static integer MAX_DURATION = 8 // max index in duration_mitigation maps
 
+	// === Entity Type Coefficients ===
+	// Format: [LEEK, BULB, TURRET, CHEST, MOB] - positive for allies, negated for enemies
+	// For now: TURRET, CHEST, MOB use same values as LEEK
+	static Map<integer, Array<real>> baseCoefs = [
+		Stats.HP:        [1.0,  0.5,  1.0,  1.0,  1.0],
+		Stats.HPTIME:    [1.0,  0.2,  1.0,  1.0,  1.0],
+		Stats.HPMAX:     [2.0,  0.1,  2.0,  2.0,  2.0],
+		Stats.DEBUFF:    [1.0,  0.2,  1.0,  1.0,  1.0],
+		Stats.ANTIDOTE:  [1.0,  0.2,  1.0,  1.0,  1.0],
+		Stats.ABSSHIELD: [3.0,  0.6,  3.0,  3.0,  3.0],
+		Stats.RELSHIELD: [6.0,  1.2,  6.0,  6.0,  6.0],
+		Stats.DMGRETURN: [3.0,  0.6,  3.0,  3.0,  3.0],
+		Stats.STR:       [1.0,  0.2,  1.0,  1.0,  1.0],
+		Stats.MGC:       [1.0,  0.2,  1.0,  1.0,  1.0],
+		Stats.RST:       [0.5,  0.1,  0.5,  0.5,  0.5],
+		Stats.WSD:       [0.5,  0.1,  0.5,  0.5,  0.5],
+		Stats.AGI:       [0.5,  0.1,  0.5,  0.5,  0.5],
+		Stats.TP:        [40.0, 4.0,  40.0, 40.0, 40.0],
+		Stats.MP:        [40.0, 4.0,  40.0, 40.0, 40.0],
+		Stats.PWR:       [1.0,  0.2,  1.0,  1.0,  1.0],
+		Stats.KILL:      [1.0,  0.2,  1.0,  1.0,  1.0],
+	]
+
+	/*
+	 * Returns coefficient for a stat based on entity type and allegiance
+	 * @param entity The entity to get coefficient for
+	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
+	 * @return Positive for allies, negative for enemies
+	 */
+	static real getStatCoef(Entity entity, integer stat) {
+		// Map entity type to array index: LEEK=0, BULB=1, TURRET=2, CHEST=3, MOB=4
+		integer idx
+		if (entity.entityType == ENTITY_LEEK) idx = 0
+		else if (entity.entityType == ENTITY_BULB) idx = 1
+		else if (entity.entityType == ENTITY_TURRET) idx = 2
+		else if (entity.entityType == ENTITY_CHEST) idx = 3
+		else idx = 4 // ENTITY_MOB or unknown
+
+		real base = baseCoefs[stat]![idx]
+
+		// KILL is inverted: killing enemy = good, losing ally = bad
+		if (stat == Stats.KILL) {
+			return entity.isFriend ? -base : base
+		}
+		return entity.isFriend ? base : -base
+	}
+
 	// === Position Scoring Weights (ML-tunable) ===
 
 	// Danger weights - how much we penalize expected damage
@@ -76,25 +123,9 @@ class Scoring {
 		8 : 4.4,
 	]
 	
-	static Map<integer, Function<Entity => real>> computeCoef = [
-		Stats.HP: (Entity entity) => real {
-			if(Scoring._cache_coef[entity]![Stats.HP] == null) {
-				real coef
-				if(entity.isFriend){
-					if(entity.isBulb) coef = 0.5
-					else coef = 1.0
-				} else {
-					if(entity.isBulb) coef = -0.5
-					else coef = -1.0
-				}
-				Scoring._cache_coef[entity]![Stats.HP] = coef
-			}
-			return Scoring._cache_coef[entity]![Stats.HP]!
-		}
-	]
-	
 	/*
-	 * initialise les coefs de tout le monde, dummy values pour le moment, TODO function in array?
+	 * Initialise les coefs de toutes les entités en vie.
+	 * Appelé à chaque tour.
 	 */
 	static void refresh(){
 		_cache_coef = [:]
@@ -127,41 +158,23 @@ class Scoring {
 		}
 		for(Entity entity in Fight.getAllAlive()){
 			_cache_coef[entity] = [:]
-			_cache_coef[entity]![Stats.HP] = entity.isFriend ? (entity.isBulb ? 0.5 : 1.0) 
-																: (entity.isBulb ? -0.5 : -1.5) 
-			_cache_coef[entity]![Stats.HPTIME] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
-																	: (entity.isBulb ? -0.2 : -1.5)
-			_cache_coef[entity]![Stats.HPMAX] = entity.isFriend ? (entity.isBulb ? 0.1 : 2.0)
-																	: (entity.isBulb ? -0.1 : -2.0)
-			_cache_coef[entity]![Stats.DEBUFF] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
-																	: (entity.isBulb ? -0.2 : -1.0)
-			_cache_coef[entity]![Stats.ANTIDOTE] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
-																	: (entity.isBulb ? -0.2 : -1.0)
-			_cache_coef[entity]![Stats.ABSSHIELD] = entity.isFriend ? (entity.isBulb ? 0.6 : 3.0)
-																	: (entity.isBulb ? -0.6 : -3.0)
-			_cache_coef[entity]![Stats.RELSHIELD] = entity.isFriend ? (entity.isBulb ? 1.2 : 6.0)
-																	: (entity.isBulb ? -1.2 : -6.0)
-			_cache_coef[entity]![Stats.DMGRETURN] = entity.isFriend ? (entity.isBulb ? 0.6 : 3.0)
-																	: (entity.isBulb ? -0.6 : -3.0)
-			_cache_coef[entity]![Stats.STR] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
-																	: (entity.isBulb ? -0.2 : -1.0)
-			_cache_coef[entity]![Stats.MGC] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
-																	: (entity.isBulb ? -0.2 : -1.0)
-			_cache_coef[entity]![Stats.RST] = entity.isFriend ? (entity.isBulb ? 0.1 : 0.5)
-																	: (entity.isBulb ? -0.1 : -0.5)
-			_cache_coef[entity]![Stats.WSD] = entity.isFriend ? (entity.isBulb ? 0.1 : 0.5)
-																	: (entity.isBulb ? -0.1 : -0.5)
-			_cache_coef[entity]![Stats.AGI] = entity.isFriend ? (entity.isBulb ? 0.1 : 0.5)
-																	: (entity.isBulb ? -0.1 : -0.5)
-			_cache_coef[entity]![Stats.TP] = entity.isFriend ? (entity.isBulb ? 4.0 : 40.0)
-																	: (entity.isBulb ? -4.0 : -40.0)
-			_cache_coef[entity]![Stats.MP] = entity.isFriend ? (entity.isBulb ? 4.0 : 40.0)
-																	: (entity.isBulb ? -4.0 : -40.0)
-			_cache_coef[entity]![Stats.PWR] = entity.isFriend ? (entity.isBulb ? 0.2 : 1.0)
-																	: (entity.isBulb ? -0.2 : -1.0)
-			// fonctionnement à part, peut être que ça restera pas ça...
-			_cache_coef[entity]![Stats.KILL] = entity.isFriend ? (entity.isBulb ? -0.2 : -1.0)
-																	: (entity.isBulb ? 0.2 : 1.0)
+			_cache_coef[entity]![Stats.HP] = getStatCoef(entity, Stats.HP)
+			_cache_coef[entity]![Stats.HPTIME] = getStatCoef(entity, Stats.HPTIME)
+			_cache_coef[entity]![Stats.HPMAX] = getStatCoef(entity, Stats.HPMAX)
+			_cache_coef[entity]![Stats.DEBUFF] = getStatCoef(entity, Stats.DEBUFF)
+			_cache_coef[entity]![Stats.ANTIDOTE] = getStatCoef(entity, Stats.ANTIDOTE)
+			_cache_coef[entity]![Stats.ABSSHIELD] = getStatCoef(entity, Stats.ABSSHIELD)
+			_cache_coef[entity]![Stats.RELSHIELD] = getStatCoef(entity, Stats.RELSHIELD)
+			_cache_coef[entity]![Stats.DMGRETURN] = getStatCoef(entity, Stats.DMGRETURN)
+			_cache_coef[entity]![Stats.STR] = getStatCoef(entity, Stats.STR)
+			_cache_coef[entity]![Stats.MGC] = getStatCoef(entity, Stats.MGC)
+			_cache_coef[entity]![Stats.RST] = getStatCoef(entity, Stats.RST)
+			_cache_coef[entity]![Stats.WSD] = getStatCoef(entity, Stats.WSD)
+			_cache_coef[entity]![Stats.AGI] = getStatCoef(entity, Stats.AGI)
+			_cache_coef[entity]![Stats.TP] = getStatCoef(entity, Stats.TP)
+			_cache_coef[entity]![Stats.MP] = getStatCoef(entity, Stats.MP)
+			_cache_coef[entity]![Stats.PWR] = getStatCoef(entity, Stats.PWR)
+			_cache_coef[entity]![Stats.KILL] = getStatCoef(entity, Stats.KILL)
 		}
 	}
 	
