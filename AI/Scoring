@@ -214,9 +214,8 @@ class Scoring {
 
 	/*
 	 * Computes lifeRatio modifier: more valuable to heal/damage low HP targets
-	 * Formula: min(2/lifeRatio - 1, 10.0)
 	 *
-	 * Scoring evolution (inverse curve, capped at 10):
+	 * ALLY formula: min(2/lifeRatio - 1, 10.0) - aggressive curve for healing urgency
 	 * | lifeRatio | modifier | meaning                          |
 	 * |-----------|----------|----------------------------------|
 	 * | 1.00      | 1.0      | full HP → no bonus               |
@@ -227,11 +226,28 @@ class Scoring {
 	 * | 0.25      | 7.0      | critical → 7x value              |
 	 * | 0.20      | 9.0      | near death → 9x value            |
 	 * | ≤0.18     | 10.0     | dying → capped at 10x            |
+	 *
+	 * ENEMY formula: 10 - 8 * lifeRatio - linear from 2 (full) to 10 (dead)
+	 * | lifeRatio | modifier | meaning                          |
+	 * |-----------|----------|----------------------------------|
+	 * | 1.00      | 2.0      | full HP → base priority          |
+	 * | 0.75      | 4.0      | wounded → increasing priority    |
+	 * | 0.50      | 6.0      | half HP → 6x value               |
+	 * | 0.25      | 8.0      | low HP → 8x value                |
+	 * | 0.10      | 9.2      | critical → near max              |
+	 * | 0.00      | 10.0     | dead → capped at 10x             |
 	 */
 	static real getLifeRatioModifier(Entity entity) {
 		real lifeRatio = entity.life / entity.totalLife
 		if (lifeRatio <= 0.0) return 10.0 // safety: dead or invalid
-		return min(2.0 / lifeRatio - 1.0, 10.0)
+
+		if (entity.isFriend) {
+			// Ally: aggressive curve - prioritize healing low HP allies
+			return min(2.0 / lifeRatio - 1.0, 10.0)
+		} else {
+			// Enemy: linear curve from 2 (full HP) to 10 (dead)
+			return 10.0 - 8.0 * lifeRatio
+		}
 	}
 
 	// Precomputed: 0.5 / log(301) ≈ 0.0876
