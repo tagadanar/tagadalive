@@ -85,7 +85,6 @@ When calculating danger from enemy attacks, account for their passive bonuses:
 
 - [ ] Standardize comments language (mixed French/English)
 - [ ] **Targets.ls:153-292** - Refactor duplicate launch type handlers
-- [ ] **Scoring.ls:31-46** - Remove unused `computeCoef` map
 
 ---
 
