@@ -509,7 +509,7 @@ class Scoring {
 	 * @return Coefficient with dynamic modifiers applied
 	 */
 	static real getDynamicCoef(Entity entity, integer stat, Consequences? consequences) {
-		real base = getStatCoef(entity, stat)
+		real base = getCoef(entity, stat)  // use cached base coefficient
 
 		// Apply lifeRatio modifier to HP-related stats (both allies and enemies)
 		if (stat == Stats.HP || stat == Stats.HPTIME) {
@@ -912,7 +912,7 @@ class Scoring {
 			}
 			IDEAL_DIST_RANGED = Fight.self.mp + longestRange
 		}
-		// Reduce every 10 turn to avoid stalemate
+		// Reduce every 5 turns to avoid stalemate
 		if(getTurn()%5 == 0) IDEAL_DIST_RANGED--;
 
 		// Pre-compute effective durations for all raw values (-1 to MAX_DURATION)
