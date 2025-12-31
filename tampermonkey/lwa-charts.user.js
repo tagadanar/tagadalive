@@ -225,7 +225,7 @@
                 </div>
                 <div class="lwa-anomalies-list">
                     ${anomalies.length > 0 ? anomalies.slice(0, 10).map(a => `
-                        <div class="lwa-anomaly-item ${a.type}" ${a.idx >= 0 ? `onclick="window.lwaJumpToIdx(${a.idx})" style="cursor:pointer"` : 'style="cursor:default"'}>
+                        <div class="lwa-anomaly-item ${a.type}" ${a.idx >= 0 ? `data-action="jump-to-idx" data-idx="${a.idx}" style="cursor:pointer"` : 'style="cursor:default"'}>
                             <div class="lwa-anomaly-icon">${a.icon}</div>
                             <div class="lwa-anomaly-info">
                                 <div class="lwa-anomaly-title">${a.title}</div>
@@ -420,6 +420,22 @@
                 }
             });
         }
+
+        // Bind anomaly click handlers
+        document.querySelectorAll('.lwa-anomaly-item[data-action="jump-to-idx"]').forEach(el => {
+            el.onclick = () => {
+                const idx = parseInt(el.dataset.idx);
+                if (idx >= 0 && idx < LWA.state.turnData.length) {
+                    LWA.state.currentIdx = idx;
+                    LWA.state.activeTab = 'overview';
+                    LWA.render();
+                    const panel = document.getElementById('lwa-analyzer');
+                    if (panel) {
+                        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }
+            };
+        });
     }
 
     LWA.renderAggregatedStats = function() {
