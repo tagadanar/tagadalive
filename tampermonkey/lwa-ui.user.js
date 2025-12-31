@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         LWA UI
 // @namespace    https://leekwars.com/
-// @version      1.0.0
+// @version      1.4.0
 // @description  LeekWars Fight Analyzer - UI module (rendering)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*
+// @match        https://leekwars.com/fight/*
 // @icon         https://leekwars.com/image/favicon.png
 // @grant        unsafeWindow
 // @inject-into  content
@@ -54,14 +55,70 @@
         const existing = document.querySelector('.lwa-panel');
         if (existing) existing.remove();
 
+        // Clean up toggle button if switching modes
+        const existingToggle = document.querySelector('.lwa-side-toggle');
+        if (existingToggle) existingToggle.remove();
+
+        // Remove margin class when switching modes
+        const appCenter = document.querySelector('.app-center');
+        if (appCenter) {
+            appCenter.classList.remove('lwa-panel-open');
+        }
+
+        // Get cache stats for display (clone to avoid permission issues)
+        const cacheStats = JSON.parse(JSON.stringify(LWA.cache.getStats()));
+        const isFightPage = LWA.isFightPage();
+        const fightId = LWA.getFightId();
+        const hasCachedData = fightId && LWA.cache.has(fightId);
+
+        // On fight page without cached data, don't show anything
+        if (isFightPage && !hasCachedData) {
+            console.log('[LWA] Fight page without cache - nothing to show');
+            return;
+        }
+
+        // Get fight page settings
+        const panelPosition = LWA.settings.get(LWA.SETTING_FIGHT_PANEL_POSITION, 'side');
+        const panelCollapsed = LWA.settings.get(LWA.SETTING_FIGHT_PANEL_COLLAPSED, false);
+        const isSideMode = isFightPage && panelPosition === 'side';
+
+        console.log('[LWA] injectPanel - isFightPage:', isFightPage, 'panelPosition:', panelPosition, 'panelCollapsed:', panelCollapsed, 'isSideMode:', isSideMode);
+
         // Create wrapper
         const wrapper = document.createElement('div');
-        wrapper.className = 'lwa-panel';
+        wrapper.className = 'lwa-panel' + (isSideMode ? ' lwa-panel-side' : '') + (isSideMode && panelCollapsed ? ' lwa-panel-collapsed' : '');
         wrapper.id = 'lwa-analyzer';
+
+        // Build header actions based on page type
+        let headerActions = '';
+        if (isFightPage) {
+            // Fight page: button to toggle panel position
+            headerActions += `
+                <button class="lwa-header-btn" data-action="toggle-panel-position" title="${panelPosition === 'side' ? 'Mettre en bas' : 'Mettre sur le côté'}">
+                    ${panelPosition === 'side' ? '⬇️' : '➡️'}
+                </button>
+            `;
+        } else {
+            // Report page: button to go to fight page
+            headerActions += `
+                <a href="/fight/${fightId}" class="lwa-header-btn" title="Voir le combat">
+                    ▶️
+                </a>
+            `;
+        }
+        headerActions += `
+            <button class="lwa-cache-btn" data-action="open-cache-modal" title="Gérer le cache (${cacheStats.count} fights, ${cacheStats.totalSizeKB} KB)">
+                💾 <span class="lwa-cache-count">${cacheStats.count}</span>
+            </button>
+        `;
+
         wrapper.innerHTML = `
             <div class="panel">
                 <div class="header">
                     <h2>🥬 LeekWars Fight Analyzer <span class="version">v${LWA.VERSION}</span></h2>
+                    <div class="lwa-header-actions">
+                        ${headerActions}
+                    </div>
                 </div>
                 <div id="lwa-entity-container"></div>
                 <div class="content" id="lwa-content">
@@ -82,22 +139,177 @@
             }
         }, 5000);
 
-        // Insert after "Déplacements" (Movements) panel and before "Actions" panel
-        // Look for the actions panel and insert before it
-        const actionsPanel = container.querySelector('.actions')?.closest('.panel');
-        if (actionsPanel) {
-            actionsPanel.parentNode.insertBefore(wrapper, actionsPanel);
-            console.log('[LWA] Panel injected before Actions panel');
+        // Bind cache button handler (use unsafeWindow to avoid permission issues)
+        const cacheBtn = wrapper.querySelector('[data-action="open-cache-modal"]');
+        if (cacheBtn) {
+            cacheBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                unsafeWindow.LWA.openCacheModal();
+            });
+        }
+
+        // Bind toggle position button (fight page only)
+        const togglePositionBtn = wrapper.querySelector('[data-action="toggle-panel-position"]');
+        if (togglePositionBtn) {
+            togglePositionBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const _LWA = unsafeWindow.LWA;
+                const currentPos = _LWA.settings.get(_LWA.SETTING_FIGHT_PANEL_POSITION, 'side');
+                const newPos = currentPos === 'side' ? 'bottom' : 'side';
+                _LWA.settings.set(_LWA.SETTING_FIGHT_PANEL_POSITION, newPos);
+
+                // Remove old panel and toggle button first
+                const oldPanel = document.querySelector('.lwa-panel');
+                const oldToggle = document.querySelector('.lwa-side-toggle');
+                if (oldPanel) oldPanel.remove();
+                if (oldToggle) oldToggle.remove();
+
+                // Remove width class from app-center
+                const appCenter = document.querySelector('.app-center');
+                if (appCenter) appCenter.classList.remove('lwa-panel-open');
+
+                // Re-create panel with new position, then render existing data
+                _LWA.createPanel();
+
+                // Wait for NEW panel to be inserted in DOM before rendering
+                const waitForPanel = setInterval(function() {
+                    const panel = document.querySelector('.lwa-panel');
+                    const content = panel && panel.querySelector('#lwa-content');
+                    if (panel && content && document.body.contains(panel)) {
+                        clearInterval(waitForPanel);
+                        console.log('[LWA] Panel ready, rendering data');
+                        _LWA.render();
+                    }
+                }, 100);
+                // Timeout safety
+                setTimeout(function() { clearInterval(waitForPanel); }, 5000);
+            });
+        }
+
+
+        // Insert based on mode
+        if (isSideMode) {
+            // Side mode: use fixed positioning for the panel, add margin to main content
+            // Find the main content area to add margin
+            const appCenter = document.querySelector('.app-center');
+            console.log('[LWA] Side mode - appCenter found:', !!appCenter, 'panelCollapsed:', panelCollapsed);
+
+            // Apply class to push content when panel is visible (using CSS !important to override Vue inline styles)
+            if (!panelCollapsed && appCenter) {
+                appCenter.classList.add('lwa-panel-open');
+                console.log('[LWA] Added lwa-panel-open class to appCenter. Classes:', appCenter.className);
+
+                // Trigger Vue's internal resize event through unsafeWindow
+                // LeekWars fight player listens to $root.$emit('resize'), not window resize
+                const triggerResize = () => {
+                    try {
+                        const app = unsafeWindow.document.querySelector('#app');
+                        if (app && app.__vue__ && app.__vue__.$root && app.__vue__.$root.$emit) {
+                            console.log('[LWA] Emitting Vue resize event');
+                            app.__vue__.$root.$emit('resize');
+                        } else {
+                            console.log('[LWA] Vue not found, trying window resize');
+                            unsafeWindow.dispatchEvent(new Event('resize'));
+                        }
+                    } catch (e) {
+                        console.log('[LWA] Resize error:', e);
+                        unsafeWindow.dispatchEvent(new Event('resize'));
+                    }
+                };
+                // Wait for CSS to apply, then trigger resize
+                setTimeout(triggerResize, 100);
+                setTimeout(triggerResize, 400);
+            }
+
+            // Append panel to body with fixed positioning
+            document.body.appendChild(wrapper);
+            console.log('[LWA] Panel injected in side mode (fixed position), wrapper classes:', wrapper.className);
+
+            // Create toggle button (fixed position so it stays visible when collapsed)
+            const toggleBtn = document.createElement('div');
+            toggleBtn.className = 'lwa-side-toggle' + (panelCollapsed ? ' lwa-toggle-collapsed' : '');
+            toggleBtn.title = panelCollapsed ? 'Ouvrir le panel' : 'Fermer le panel';
+            toggleBtn.innerHTML = `<i class="v-icon notranslate mdi ${panelCollapsed ? 'mdi-chevron-left' : 'mdi-chevron-right'} theme--dark"></i>`;
+            document.body.appendChild(toggleBtn);
+
+            toggleBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const panel = document.querySelector('.lwa-panel');
+                const isCollapsed = panel.classList.contains('lwa-panel-collapsed');
+                const appCenter = document.querySelector('.app-center');
+
+                console.log('[LWA] Toggle clicked - isCollapsed:', isCollapsed, 'appCenter found:', !!appCenter);
+
+                panel.classList.toggle('lwa-panel-collapsed');
+                toggleBtn.classList.toggle('lwa-toggle-collapsed');
+
+                // Toggle class on main content to push it (CSS handles the margin with !important)
+                if (appCenter) {
+                    if (isCollapsed) {
+                        // Was collapsed, now expanding - add class
+                        appCenter.classList.add('lwa-panel-open');
+                        console.log('[LWA] Panel expanded - added lwa-panel-open class');
+                    } else {
+                        // Was expanded, now collapsing - remove class
+                        appCenter.classList.remove('lwa-panel-open');
+                        console.log('[LWA] Panel collapsed - removed lwa-panel-open class');
+                    }
+                    console.log('[LWA] appCenter classes now:', appCenter.className);
+
+                    // Trigger Vue's internal resize event through unsafeWindow
+                    // LeekWars fight player listens to $root.$emit('resize'), not window resize
+                    const triggerResize = () => {
+                        try {
+                            const app = unsafeWindow.document.querySelector('#app');
+                            if (app && app.__vue__ && app.__vue__.$root && app.__vue__.$root.$emit) {
+                                console.log('[LWA] Toggle: emitting Vue resize event');
+                                app.__vue__.$root.$emit('resize');
+                            } else {
+                                console.log('[LWA] Toggle: Vue not found, trying window resize');
+                                unsafeWindow.dispatchEvent(new Event('resize'));
+                            }
+                        } catch (e) {
+                            console.log('[LWA] Toggle resize error:', e);
+                            unsafeWindow.dispatchEvent(new Event('resize'));
+                        }
+                    };
+                    // Wait for CSS transition to start, then trigger resize
+                    setTimeout(triggerResize, 100);
+                    setTimeout(triggerResize, 400);
+                }
+
+                // Update icon
+                const icon = toggleBtn.querySelector('i');
+                if (icon) {
+                    icon.className = `v-icon notranslate mdi ${isCollapsed ? 'mdi-chevron-right' : 'mdi-chevron-left'} theme--dark`;
+                }
+                toggleBtn.title = isCollapsed ? 'Fermer le panel' : 'Ouvrir le panel';
+                // Save state
+                unsafeWindow.LWA.settings.set(unsafeWindow.LWA.SETTING_FIGHT_PANEL_COLLAPSED, !isCollapsed);
+            });
+
+            console.log('[LWA] Toggle button created');
         } else {
-            // Fallback: try to find movements panel and insert after
-            const movementsPanel = container.querySelector('.movements, .map-preview')?.closest('.panel');
-            if (movementsPanel && movementsPanel.nextSibling) {
-                movementsPanel.parentNode.insertBefore(wrapper, movementsPanel.nextSibling);
-                console.log('[LWA] Panel injected after Movements panel');
+            // Bottom mode (default for report, optional for fight)
+            // Insert after "Déplacements" (Movements) panel and before "Actions" panel
+            const actionsPanel = container.querySelector('.actions')?.closest('.panel');
+            if (actionsPanel) {
+                actionsPanel.parentNode.insertBefore(wrapper, actionsPanel);
+                console.log('[LWA] Panel injected before Actions panel');
             } else {
-                // Last fallback: append at end
-                container.appendChild(wrapper);
-                console.log('[LWA] Panel appended at end (fallback)');
+                // Fallback: try to find movements panel and insert after
+                const movementsPanel = container.querySelector('.movements, .map-preview')?.closest('.panel');
+                if (movementsPanel && movementsPanel.nextSibling) {
+                    movementsPanel.parentNode.insertBefore(wrapper, movementsPanel.nextSibling);
+                    console.log('[LWA] Panel injected after Movements panel');
+                } else {
+                    // Last fallback: append at end
+                    container.appendChild(wrapper);
+                    console.log('[LWA] Panel appended at end (fallback)');
+                }
             }
         }
     }
@@ -403,9 +615,12 @@
             <!-- Navigation -->
             <div class="lwa-nav">
                 <button class="lwa-nav-btn" id="nav-prev" ${LWA.state.currentIdx === 0 ? 'disabled' : ''}>◀ Prev</button>
-                <span class="lwa-turn-label">Turn ${d.t} (${LWA.state.currentIdx + 1}/${LWA.state.turnData.length})</span>
+                <span class="lwa-turn-label">
+                    Turn ${d.t} (${LWA.state.currentIdx + 1}/${LWA.state.turnData.length})
+                    ${LWA.state.isFromCache ? '<span class="lwa-cache-badge" title="Données chargées depuis le cache">📦</span>' : ''}
+                </span>
                 <button class="lwa-nav-btn" id="nav-next" ${LWA.state.currentIdx === LWA.state.turnData.length - 1 ? 'disabled' : ''}>Next ▶</button>
-                <button class="lwa-goto-btn" id="nav-goto-report" title="Go to this turn in Actions panel">↓ Actions</button>
+                ${LWA.isReportPage() ? '<button class="lwa-goto-btn" id="nav-goto-report" title="Go to this turn in Actions panel">↓ Actions</button>' : ''}
             </div>
 
             <!-- Current Turn Stats -->
@@ -486,6 +701,15 @@
     }
 
     function bindDataActionHandlers() {
+        // Open cache management modal (use unsafeWindow to avoid permission issues)
+        document.querySelectorAll('[data-action="open-cache-modal"]').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                unsafeWindow.LWA.openCacheModal();
+            });
+        });
+
         // Toggle all logs
         document.querySelectorAll('[data-action="toggle-all-logs"]').forEach(btn => {
             btn.onclick = () => {
@@ -1023,6 +1247,173 @@
     }
 
     // ========================================
+    // Cache Management Modal
+    // ========================================
+    LWA.openCacheModal = function() {
+        // Use unsafeWindow.LWA to avoid permission issues in event handlers
+        const _LWA = unsafeWindow.LWA;
+
+        // Remove existing modal if any
+        const existing = document.querySelector('.lwa-cache-modal');
+        if (existing) existing.remove();
+
+        // Clone data to avoid permission issues with cross-context objects
+        const stats = JSON.parse(JSON.stringify(_LWA.cache.getStats()));
+        const maxAge = _LWA.cache.getMaxAge();
+
+        // Format age for display
+        function formatAge(ms) {
+            const hours = Math.floor(ms / (1000 * 60 * 60));
+            const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+            if (hours > 24) {
+                const days = Math.floor(hours / 24);
+                return `${days}j ${hours % 24}h`;
+            }
+            return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+        }
+
+        // Format date for display
+        function formatDate(ts) {
+            const d = new Date(ts);
+            return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'lwa-cache-modal';
+        modal.innerHTML = `
+            <div class="lwa-cache-modal-content">
+                <div class="lwa-cache-modal-header">
+                    <span>💾 Gestion du Cache</span>
+                    <button class="lwa-modal-close">✕</button>
+                </div>
+                <div class="lwa-cache-modal-body">
+                    <!-- Stats -->
+                    <div class="lwa-cache-stats">
+                        <div class="lwa-cache-stat">
+                            <div class="lwa-cache-stat-val">${stats.count}</div>
+                            <div class="lwa-cache-stat-lbl">Combats</div>
+                        </div>
+                        <div class="lwa-cache-stat">
+                            <div class="lwa-cache-stat-val">${stats.totalSizeKB} KB</div>
+                            <div class="lwa-cache-stat-lbl">Taille totale</div>
+                        </div>
+                        <div class="lwa-cache-stat">
+                            <div class="lwa-cache-stat-val">${maxAge}h</div>
+                            <div class="lwa-cache-stat-lbl">Durée max</div>
+                        </div>
+                    </div>
+
+                    <!-- Settings -->
+                    <div class="lwa-cache-section">
+                        <div class="lwa-cache-section-title">⚙️ Configuration</div>
+                        <div class="lwa-cache-setting">
+                            <label>Durée de conservation (heures):</label>
+                            <input type="number" id="lwa-cache-max-age" value="${maxAge}" min="1" max="720" />
+                            <button id="lwa-save-max-age" class="lwa-btn-small">Sauvegarder</button>
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="lwa-cache-section">
+                        <div class="lwa-cache-section-title">🧹 Actions</div>
+                        <div class="lwa-cache-actions">
+                            <button id="lwa-cache-cleanup" class="lwa-btn-action">
+                                🕐 Nettoyer les anciens (>${maxAge}h)
+                            </button>
+                            <button id="lwa-cache-clear" class="lwa-btn-action danger">
+                                🗑️ Tout supprimer
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Cached fights list -->
+                    <div class="lwa-cache-section">
+                        <div class="lwa-cache-section-title">📋 Combats en cache (${stats.count})</div>
+                        <div class="lwa-cache-list">
+                            ${stats.items.length === 0 ? '<div class="lwa-cache-empty">Aucun combat en cache</div>' : ''}
+                            ${stats.items.map(item => `
+                                <div class="lwa-cache-item" data-fight-id="${item.fightId}">
+                                    <div class="lwa-cache-item-info">
+                                        <a href="/fight/${item.fightId}" class="lwa-cache-item-id">Fight #${item.fightId}</a>
+                                        <span class="lwa-cache-item-date">${formatDate(item.timestamp)}</span>
+                                        <span class="lwa-cache-item-age">(il y a ${formatAge(item.age)})</span>
+                                    </div>
+                                    <div class="lwa-cache-item-actions">
+                                        <span class="lwa-cache-item-size">${(item.size / 1024).toFixed(1)} KB</span>
+                                        <button class="lwa-cache-item-delete" data-action="delete-cache-item" data-fight-id="${item.fightId}" title="Supprimer">🗑️</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // Event handlers (use addEventListener to avoid permission issues)
+        modal.querySelector('.lwa-modal-close').addEventListener('click', () => modal.remove());
+        modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+
+        // Save max age
+        modal.querySelector('#lwa-save-max-age').addEventListener('click', () => {
+            const input = modal.querySelector('#lwa-cache-max-age');
+            const hours = parseInt(input.value);
+            if (hours >= 1 && hours <= 720) {
+                _LWA.cache.setMaxAge(hours);
+                // Refresh modal
+                modal.remove();
+                _LWA.openCacheModal();
+            }
+        });
+
+        // Cleanup old
+        modal.querySelector('#lwa-cache-cleanup').addEventListener('click', () => {
+            const removed = _LWA.cache.cleanup();
+            alert(`${removed} combat(s) supprimé(s)`);
+            modal.remove();
+            _LWA.openCacheModal();
+            // Update cache button count
+            const cacheBtnCount = document.querySelector('.lwa-cache-count');
+            if (cacheBtnCount) {
+                const newStats = _LWA.cache.getStats();
+                cacheBtnCount.textContent = newStats.count;
+            }
+        });
+
+        // Clear all
+        modal.querySelector('#lwa-cache-clear').addEventListener('click', () => {
+            if (confirm('Supprimer tous les combats en cache ?')) {
+                const removed = _LWA.cache.clear();
+                alert(`${removed} combat(s) supprimé(s)`);
+                modal.remove();
+                _LWA.openCacheModal();
+                // Update cache button count
+                const cacheBtnCount = document.querySelector('.lwa-cache-count');
+                if (cacheBtnCount) cacheBtnCount.textContent = '0';
+            }
+        });
+
+        // Delete individual item
+        modal.querySelectorAll('[data-action="delete-cache-item"]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const fightId = btn.dataset.fightId;
+                _LWA.cache.remove(fightId);
+                // Remove item from list
+                const item = btn.closest('.lwa-cache-item');
+                if (item) item.remove();
+                // Update stats
+                const newStats = _LWA.cache.getStats();
+                const statVal = modal.querySelector('.lwa-cache-stat-val');
+                if (statVal) statVal.textContent = newStats.count;
+                // Update cache button count
+                const cacheBtnCount = document.querySelector('.lwa-cache-count');
+                if (cacheBtnCount) cacheBtnCount.textContent = newStats.count;
+            });
+        });
+    };
 
         LWA.modules.ui = true;
         console.log('[LWA] UI module loaded');

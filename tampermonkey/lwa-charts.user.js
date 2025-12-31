@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         LWA Charts
 // @namespace    https://leekwars.com/
-// @version      1.0.0
+// @version      1.1.0
 // @description  LeekWars Fight Analyzer - Charts module (Chart.js + Analysis)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*
+// @match        https://leekwars.com/fight/*
 // @icon         https://leekwars.com/image/favicon.png
 // @grant        unsafeWindow
 // @inject-into  content

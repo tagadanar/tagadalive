@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         LWA Styles
 // @namespace    https://leekwars.com/
-// @version      1.0.0
+// @version      1.4.0
 // @description  LeekWars Fight Analyzer - Styles module (CSS only)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*
+// @match        https://leekwars.com/fight/*
 // @icon         https://leekwars.com/image/favicon.png
 // @grant        GM_addStyle
 // @grant        unsafeWindow
@@ -1675,6 +1676,517 @@
 
         .lwa-tl-turn:hover .lwa-tl-events {
             border-color: #5fad1b;
+        }
+
+        /* ===== HEADER ACTIONS ===== */
+        .lwa-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 12px;
+        }
+
+        .lwa-header-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            text-decoration: none;
+        }
+
+        .lwa-header-btn:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.3);
+        }
+
+        .lwa-cache-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #eee;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.15s;
+        }
+
+        .lwa-cache-btn:hover {
+            background: rgba(255,255,255,0.2);
+            border-color: rgba(255,255,255,0.3);
+        }
+
+        .lwa-cache-count {
+            background: #5fad1b;
+            color: #fff;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .lwa-cache-badge {
+            margin-left: 6px;
+            font-size: 12px;
+            cursor: help;
+        }
+
+        /* ===== FIGHT PAGE SIDE MODE ===== */
+
+        /* Main content width transition */
+        .app-center {
+            transition: width 0.3s ease, max-width 0.3s ease !important;
+        }
+
+        /* Force width constraint when LWA panel is open */
+        .app-center.lwa-panel-open {
+            width: calc(100vw - 400px - 60px) !important; /* 400px panel + ~60px left sidebar */
+            max-width: calc(100vw - 400px - 60px) !important;
+        }
+
+        /* Also constrain the fight player and page content directly */
+        .app-center.lwa-panel-open .page,
+        .app-center.lwa-panel-open .page-content,
+        .app-center.lwa-panel-open .fight,
+        .app-center.lwa-panel-open .fight-page,
+        .app-center.lwa-panel-open .combat {
+            max-width: 100% !important;
+            width: auto !important;
+        }
+
+        @media (max-width: 1400px) {
+            .app-center.lwa-panel-open {
+                width: calc(100vw - 350px - 60px) !important;
+                max-width: calc(100vw - 350px - 60px) !important;
+            }
+        }
+
+        @media (max-width: 1100px) {
+            .app-center.lwa-panel-open {
+                width: calc(100vw - 300px - 60px) !important;
+                max-width: calc(100vw - 300px - 60px) !important;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .app-center.lwa-panel-open {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+        }
+
+        /* Side panel - fixed position on right side */
+        .lwa-panel-side {
+            position: fixed !important;
+            right: 0;
+            top: 60px;
+            width: 400px;
+            height: calc(100vh - 60px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            z-index: 900;
+            margin: 0 !important;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .lwa-panel-side .panel {
+            border-radius: 4px 0 0 4px;
+            margin: 0;
+            min-height: 100%;
+        }
+
+        .lwa-panel-side .panel .header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .lwa-panel-side.lwa-panel-collapsed {
+            transform: translateX(100%);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Side toggle button - fixed position so it stays visible */
+        .lwa-side-toggle {
+            position: fixed;
+            right: 400px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 28px;
+            height: 80px;
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);
+            border-radius: 6px 0 0 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1001;
+            transition: right 0.3s ease, background 0.15s;
+            box-shadow: -3px 0 10px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-right: none;
+        }
+
+        .lwa-side-toggle:hover {
+            background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
+        }
+
+        .lwa-side-toggle i {
+            color: #5fad1b;
+            font-size: 28px;
+        }
+
+        .lwa-side-toggle.lwa-toggle-collapsed {
+            right: 0;
+        }
+
+        /* Adjust side panel header for compact display */
+        .lwa-panel-side .panel .header h2 {
+            font-size: 14px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .lwa-panel-side .panel .header .version {
+            display: none;
+        }
+
+        .lwa-panel-side .panel .content {
+            padding: 10px;
+        }
+
+        /* Responsive adjustments for side mode */
+        @media (max-width: 1400px) {
+            .lwa-panel-side {
+                width: 350px;
+            }
+            .lwa-side-toggle {
+                right: 350px;
+            }
+            .lwa-side-toggle.lwa-toggle-collapsed {
+                right: 0;
+            }
+        }
+
+        @media (max-width: 1100px) {
+            .lwa-panel-side {
+                width: 300px;
+            }
+            .lwa-side-toggle {
+                right: 300px;
+            }
+            .lwa-side-toggle.lwa-toggle-collapsed {
+                right: 0;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .lwa-panel-side {
+                position: relative !important;
+                width: 100%;
+                height: auto;
+                max-height: none;
+                top: auto;
+            }
+            .lwa-panel-side .panel {
+                border-radius: 4px;
+            }
+            .lwa-panel-side.lwa-panel-collapsed {
+                transform: translateY(-100%);
+                height: 0;
+            }
+            .lwa-side-toggle {
+                position: relative;
+                right: auto;
+                top: auto;
+                transform: none;
+                width: 100%;
+                height: 32px;
+                border-radius: 4px;
+                margin-bottom: 8px;
+            }
+            .lwa-side-toggle.lwa-toggle-collapsed {
+                right: auto;
+            }
+        }
+
+        .lwa-report-link {
+            color: #5fad1b;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .lwa-report-link:hover {
+            text-decoration: underline;
+        }
+
+        /* ===== CACHE MODAL ===== */
+        .lwa-cache-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+
+        .lwa-cache-modal-content {
+            background: var(--background, #fff);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 550px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .lwa-cache-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 18px;
+            background: #2a2a2a;
+            color: #ffffff;
+            font-weight: 600;
+            font-size: 15px;
+        }
+
+        .lwa-cache-modal-header button {
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 3px;
+        }
+
+        .lwa-cache-modal-header button:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .lwa-cache-modal-body {
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        /* Cache Stats */
+        .lwa-cache-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .lwa-cache-stat {
+            background: var(--background-header, #f5f5f5);
+            border-radius: 6px;
+            padding: 14px;
+            text-align: center;
+            border: 1px solid var(--border, #ddd);
+        }
+
+        .lwa-cache-stat-val {
+            font-size: 22px;
+            font-weight: 700;
+            color: #5fad1b;
+        }
+
+        .lwa-cache-stat-lbl {
+            font-size: 11px;
+            color: var(--text-color-secondary, #666);
+            margin-top: 4px;
+        }
+
+        /* Cache Sections */
+        .lwa-cache-section {
+            background: var(--pure-white, #fff);
+            border: 1px solid var(--border, #ddd);
+            border-radius: 6px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .lwa-cache-section-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-color, #333);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border, #ddd);
+        }
+
+        /* Cache Settings */
+        .lwa-cache-setting {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .lwa-cache-setting label {
+            font-size: 12px;
+            color: var(--text-color, #333);
+        }
+
+        .lwa-cache-setting input {
+            width: 80px;
+            padding: 6px 10px;
+            border: 1px solid var(--border, #ddd);
+            border-radius: 4px;
+            font-size: 13px;
+            background: var(--background, #fff);
+            color: var(--text-color, #333);
+        }
+
+        .lwa-btn-small {
+            background: #5fad1b;
+            border: none;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+
+        .lwa-btn-small:hover {
+            background: #6ec91f;
+        }
+
+        /* Cache Actions */
+        .lwa-cache-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .lwa-btn-action {
+            flex: 1;
+            min-width: 140px;
+            background: var(--background-header, #f5f5f5);
+            border: 1px solid var(--border, #ddd);
+            color: var(--text-color, #333);
+            padding: 10px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.15s;
+        }
+
+        .lwa-btn-action:hover {
+            background: #5fad1b;
+            color: #fff;
+            border-color: #5fad1b;
+        }
+
+        .lwa-btn-action.danger:hover {
+            background: #e22424;
+            border-color: #e22424;
+        }
+
+        /* Cache List */
+        .lwa-cache-list {
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .lwa-cache-empty {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-color-secondary, #666);
+            font-size: 13px;
+        }
+
+        .lwa-cache-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            margin: 4px 0;
+            background: var(--background-header, #f5f5f5);
+            border-radius: 4px;
+            border-left: 3px solid #5fad1b;
+            transition: all 0.15s;
+        }
+
+        .lwa-cache-item:hover {
+            border-left-color: #32b2da;
+        }
+
+        .lwa-cache-item-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .lwa-cache-item-id {
+            font-weight: 600;
+            font-size: 12px;
+            color: #5fad1b;
+            text-decoration: none;
+        }
+
+        .lwa-cache-item-id:hover {
+            text-decoration: underline;
+        }
+
+        .lwa-cache-item-date {
+            font-size: 11px;
+            color: var(--text-color-secondary, #666);
+        }
+
+        .lwa-cache-item-age {
+            font-size: 10px;
+            color: #888;
+        }
+
+        .lwa-cache-item-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .lwa-cache-item-size {
+            font-size: 10px;
+            color: #888;
+            font-family: monospace;
+        }
+
+        .lwa-cache-item-delete {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px;
+            border-radius: 3px;
+            opacity: 0.6;
+            transition: all 0.15s;
+        }
+
+        .lwa-cache-item-delete:hover {
+            opacity: 1;
+            background: rgba(226,36,36,0.1);
         }
     `;
 
