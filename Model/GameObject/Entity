@@ -7,6 +7,7 @@ class Entity {
 	string name
 	Cell cell
 	// stats
+	integer level
 	integer totalLife
 	integer life
 	integer pwr
@@ -57,6 +58,7 @@ class Entity {
 		this.id = id
 		this.name = getName(id)!
 		this.cell = Board.getCell(getCell(id))!
+		this.level = getLevel(id)!
 		this.totalLife = getTotalLife(id)!
 		this.life = getLife(id)!
 		this.pwr = getPower(id)!

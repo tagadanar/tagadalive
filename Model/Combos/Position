@@ -68,6 +68,15 @@ class Position extends Danger {
 	void applyLifeScaling(real lifePercent) {
 		if (this.dmg <= 0) return;
 
+		var currentLife = Fight.self.life * lifePercent
+
+		// Ignore small damage (scratches < 10% of current life)
+		// Cancel the score penalty but keep dmg visible for debugging
+		if (this.dmg < currentLife * Scoring.IGNORE_DANGER_RATIO) {
+			this.score += this.dmg  // cancel the -dmg penalty
+			return
+		}
+
 		var originalDangerScore = -this.dmg
 		var scaledDangerScore = originalDangerScore
 
@@ -77,7 +86,6 @@ class Position extends Danger {
 		}
 
 		// Critical danger scaling (danger > half of remaining life)
-		var currentLife = Fight.self.life * lifePercent
 		if (this.dmg > currentLife / 2) {
 			scaledDangerScore *= Scoring.W_DANGER_CRITICAL
 		}
