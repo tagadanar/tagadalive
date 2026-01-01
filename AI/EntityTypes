@@ -1,0 +1,48 @@
+/*
+ * EntityTypes - Bulb type detection and classification
+ *
+ * Provides extended entity type constants for bulbs (not provided by LeekScript)
+ * and utility functions to detect entity types from names.
+ *
+ * Used by: EntityCoefs, Scoring, ScoringModifiers
+ */
+class EntityTypes {
+
+	// === Bulb Type Constants ===
+	// Values chosen to not conflict with ENTITY_LEEK (0), ENTITY_BULB (1),
+	// ENTITY_TURRET (2), ENTITY_CHEST (3), ENTITY_MOB (4)
+	static integer BULB_HEALER = 101
+	static integer BULB_WIZARD = 102
+	static integer BULB_FIRE = 103
+	static integer BULB_ICED = 104
+	static integer BULB_LIGHTNING = 105
+	static integer BULB_METALLIC = 106
+	static integer BULB_ROCKY = 107
+	static integer BULB_PUNY = 108
+
+	/*
+	 * Detects bulb type from entity name
+	 * @param name The entity name (e.g. "fire_bulb", "healer_bulb")
+	 * @return Bulb type constant, or ENTITY_BULB if unknown
+	 */
+	static integer getBulbType(string name) {
+		if (name == "metallic_bulb") return BULB_METALLIC
+		if (name == "healer_bulb") return BULB_HEALER
+		if (name == "lightning_bulb") return BULB_LIGHTNING
+		if (name == "wizard_bulb") return BULB_WIZARD
+		if (name == "fire_bulb") return BULB_FIRE
+		if (name == "iced_bulb") return BULB_ICED
+		if (name == "rocky_bulb") return BULB_ROCKY
+		if (name == "puny_bulb") return BULB_PUNY
+		return ENTITY_BULB
+	}
+
+	/*
+	 * Gets the effective entity type using cached extendedType
+	 * @param entity The entity
+	 * @return Entity type (ENTITY_LEEK, BULB_FIRE, etc.)
+	 */
+	static integer getEntityType(Entity entity) {
+		return entity.extendedType
+	}
+}

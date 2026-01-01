@@ -46,7 +46,7 @@ class Damages{
 				dmg+= tmp>0?tmp:0
 			}
 			else if(e.type == EFFECT_POISON){
-				real duration = Scoring.defensive_duration_mitigation[e.duration]!
+				real duration = ScoringConfig.defensive_duration_mitigation[e.duration]!
 				// TODO if(_CAN_ANTIDOTE) duration = 1;
 				// TODO add consequences for pwr !
 				dmg += e.avgmax *(1+(eSource.getCurrentMgc(conseq))/100) *(1+(eSource.pwr/100)) *ratioDmg*duration
