@@ -185,6 +185,19 @@
         const scoreMin = Math.min(...scoreData);
         const scoreMax = Math.max(...scoreData);
 
+        // Compute TP/MP/RAM stats - calculate USED values (maxTP - remainingTP = usedTP)
+        const tpUsedData = LWA.state.turnData.map(t => (t.ctx.maxTp || 0) - (t.ctx.tp || 0));
+        const tpMaxData = LWA.state.turnData.map(t => t.ctx.maxTp || 0);
+        const mpUsedData = LWA.state.turnData.map(t => (t.ctx.maxMp || 0) - (t.ctx.mp || 0));
+        const mpMaxData = LWA.state.turnData.map(t => t.ctx.maxMp || 0);
+        const ramUsedData = LWA.state.turnData.map(t => t.ctx.usedRam || 0);
+        const ramMaxData = LWA.state.turnData.map(t => t.ctx.maxRam || 0);
+
+        // Check if we have data for new charts
+        const hasTPData = tpMaxData.some(v => v > 0);
+        const hasMPData = mpMaxData.some(v => v > 0);
+        const hasRAMData = ramMaxData.some(v => v > 0);
+
         return `
             <!-- Charts Section -->
             <div class="lwa-section">
@@ -208,6 +221,37 @@
                         <canvas id="score-chart"></canvas>
                     </div>
                 </div>
+                ${hasTPData || hasMPData || hasRAMData ? `
+                <div class="lwa-charts-row" style="margin-top:12px">
+                    ${hasTPData ? `
+                    <div class="lwa-mini-chart">
+                        <div class="lwa-mini-chart-title tp" style="color:${C.blue}">
+                            TP Used
+                            <span class="lwa-chart-range">${Math.min(...tpUsedData)} - ${Math.max(...tpUsedData)} / ${Math.max(...tpMaxData)}</span>
+                        </div>
+                        <canvas id="tp-chart"></canvas>
+                    </div>
+                    ` : ''}
+                    ${hasMPData ? `
+                    <div class="lwa-mini-chart">
+                        <div class="lwa-mini-chart-title mp" style="color:${C.cyan}">
+                            MP Used
+                            <span class="lwa-chart-range">${Math.min(...mpUsedData)} - ${Math.max(...mpUsedData)} / ${Math.max(...mpMaxData)}</span>
+                        </div>
+                        <canvas id="mp-chart"></canvas>
+                    </div>
+                    ` : ''}
+                    ${hasRAMData ? `
+                    <div class="lwa-mini-chart">
+                        <div class="lwa-mini-chart-title ram" style="color:${C.purple}">
+                            RAM Used
+                            <span class="lwa-chart-range">${Math.min(...ramUsedData)} - ${Math.max(...ramUsedData)} / ${Math.max(...ramMaxData)}</span>
+                        </div>
+                        <canvas id="ram-chart"></canvas>
+                    </div>
+                    ` : ''}
+                </div>
+                ` : ''}
             </div>
 
             <!-- Anomalies Section -->
@@ -416,6 +460,240 @@
                         if (elements.length > 0) {
                             LWA.state.currentIdx = elements[0].index;
                             render();
+                        }
+                    }
+                }
+            });
+        }
+
+        // TP Chart - shows percentage of TP used
+        const tpCtx = document.getElementById('tp-chart');
+        if (tpCtx && LWA.state.turnData.length >= 1) {
+            if (LWA.charts.tpChart) LWA.charts.tpChart.destroy();
+
+            const tpUsedData = LWA.state.turnData.map(t => (t.ctx?.maxTp || 0) - (t.ctx?.tp || 0));
+            const tpMaxData = LWA.state.turnData.map(t => t.ctx?.maxTp || 0);
+            const tpPctData = LWA.state.turnData.map(t => {
+                const maxTp = t.ctx?.maxTp || 1;
+                const usedTp = maxTp - (t.ctx?.tp || 0);
+                return Math.round(usedTp * 100 / maxTp);
+            });
+
+            LWA.charts.tpChart = new Chart(tpCtx, {
+                type: 'line',
+                data: {
+                    labels: LWA.state.turnData.map(t => 'T' + t.t),
+                    datasets: [{
+                        label: 'TP Used %',
+                        data: tpPctData,
+                        borderColor: '#32b2da',
+                        backgroundColor: 'rgba(50, 178, 218, 0.25)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: LWA.state.turnData.map((_, i) => i === LWA.state.currentIdx ? 8 : 4),
+                        pointBackgroundColor: LWA.state.turnData.map((_, i) => i === LWA.state.currentIdx ? chartOrange : '#32b2da'),
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                title: (items) => items[0] ? `Tour ${LWA.state.turnData[items[0].dataIndex]?.t}` : '',
+                                label: (item) => {
+                                    const idx = item.dataIndex;
+                                    const used = tpUsedData[idx];
+                                    const max = tpMaxData[idx];
+                                    const pct = tpPctData[idx];
+                                    return [`TP Used: ${used} / ${max}`, `(${pct}%)`];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: { display: false },
+                            ticks: { font: { size: 9 }, color: chartGray, maxRotation: 0 }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: 'rgba(0,0,0,0.08)' },
+                            ticks: { font: { size: 10 }, color: chartGray, callback: (v) => v + '%' }
+                        }
+                    },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            LWA.state.currentIdx = elements[0].index;
+                            LWA.render();
+                        }
+                    }
+                }
+            });
+        }
+
+        // MP Chart - shows percentage of MP used
+        const mpCtx = document.getElementById('mp-chart');
+        if (mpCtx && LWA.state.turnData.length >= 1) {
+            if (LWA.charts.mpChart) LWA.charts.mpChart.destroy();
+
+            const mpUsedData = LWA.state.turnData.map(t => (t.ctx?.maxMp || 0) - (t.ctx?.mp || 0));
+            const mpMaxData = LWA.state.turnData.map(t => t.ctx?.maxMp || 0);
+            const mpPctData = LWA.state.turnData.map(t => {
+                const maxMp = t.ctx?.maxMp || 1;
+                const usedMp = maxMp - (t.ctx?.mp || 0);
+                return Math.round(usedMp * 100 / maxMp);
+            });
+
+            LWA.charts.mpChart = new Chart(mpCtx, {
+                type: 'line',
+                data: {
+                    labels: LWA.state.turnData.map(t => 'T' + t.t),
+                    datasets: [{
+                        label: 'MP Used %',
+                        data: mpPctData,
+                        borderColor: '#2bc491',
+                        backgroundColor: 'rgba(43, 196, 145, 0.25)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: LWA.state.turnData.map((_, i) => i === LWA.state.currentIdx ? 8 : 4),
+                        pointBackgroundColor: LWA.state.turnData.map((_, i) => i === LWA.state.currentIdx ? chartOrange : '#2bc491'),
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                title: (items) => items[0] ? `Tour ${LWA.state.turnData[items[0].dataIndex]?.t}` : '',
+                                label: (item) => {
+                                    const idx = item.dataIndex;
+                                    const used = mpUsedData[idx];
+                                    const max = mpMaxData[idx];
+                                    const pct = mpPctData[idx];
+                                    return [`MP Used: ${used} / ${max}`, `(${pct}%)`];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: { display: false },
+                            ticks: { font: { size: 9 }, color: chartGray, maxRotation: 0 }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: 'rgba(0,0,0,0.08)' },
+                            ticks: { font: { size: 10 }, color: chartGray, callback: (v) => v + '%' }
+                        }
+                    },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            LWA.state.currentIdx = elements[0].index;
+                            LWA.render();
+                        }
+                    }
+                }
+            });
+        }
+
+        // RAM Chart - shows percentage of RAM used
+        const ramCtx = document.getElementById('ram-chart');
+        if (ramCtx && LWA.state.turnData.length >= 1) {
+            if (LWA.charts.ramChart) LWA.charts.ramChart.destroy();
+
+            const ramUsedData = LWA.state.turnData.map(t => t.ctx?.usedRam || 0);
+            const ramMaxData = LWA.state.turnData.map(t => t.ctx?.maxRam || 0);
+            const ramPctData = LWA.state.turnData.map(t => {
+                const maxRam = t.ctx?.maxRam || 1;
+                const usedRam = t.ctx?.usedRam || 0;
+                return Math.round(usedRam * 100 / maxRam);
+            });
+
+            LWA.charts.ramChart = new Chart(ramCtx, {
+                type: 'line',
+                data: {
+                    labels: LWA.state.turnData.map(t => 'T' + t.t),
+                    datasets: [{
+                        label: 'RAM Used %',
+                        data: ramPctData,
+                        borderColor: '#a017d6',
+                        backgroundColor: 'rgba(160, 23, 214, 0.25)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: LWA.state.turnData.map((_, i) => i === LWA.state.currentIdx ? 8 : 4),
+                        pointBackgroundColor: LWA.state.turnData.map((_, i) => i === LWA.state.currentIdx ? chartOrange : '#a017d6'),
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                title: (items) => items[0] ? `Tour ${LWA.state.turnData[items[0].dataIndex]?.t}` : '',
+                                label: (item) => {
+                                    const idx = item.dataIndex;
+                                    const used = ramUsedData[idx];
+                                    const max = ramMaxData[idx];
+                                    const pct = ramPctData[idx];
+                                    return [`RAM Used: ${used} / ${max}`, `(${pct}%)`];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: { display: false },
+                            ticks: { font: { size: 9 }, color: chartGray, maxRotation: 0 }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: 'rgba(0,0,0,0.08)' },
+                            ticks: { font: { size: 10 }, color: chartGray, callback: (v) => v + '%' }
+                        }
+                    },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            LWA.state.currentIdx = elements[0].index;
+                            LWA.render();
                         }
                     }
                 }

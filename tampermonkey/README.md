@@ -8,7 +8,8 @@ A modular Tampermonkey userscript that provides AI debug visualization, profiler
 - **Performance profiler**: See operation counts and percentages for each function, grouped by category
 - **MCTS visualization**: Track iterations, nodes explored, positions evaluated, and best scores
 - **Combo analysis**: View top-scored combos with action scores and position breakdown
-- **Resource tracking**: Monitor HP, TP, MP, cell position, and entity counts
+- **Resource tracking**: Monitor HP, TP, MP, RAM, cell position, and entity counts
+- **Resource charts**: Visualize HP%, TP Used%, MP Used%, and RAM Used% over time
 - **Action logs**: See movement, attacks, heals, buffs, and kills with structured formatting
 - **Native UI integration**: Seamlessly integrates with LeekWars' dark/light theme
 - **Fight page support**: View stats on `/fight/*` pages with a collapsible side panel
@@ -103,7 +104,7 @@ On fight pages, the analyzer displays as a **collapsible side panel**:
 The script parses structured debug output from the `Services/Benchmark` class in your LeekScript AI. The Benchmark class outputs a single `debug()` call at the end of each turn with a special marker format:
 
 ```
-##MARKER##T5|n:TagadaLive|o:45000/500000|hp:450/500|tp:8|mp:3|c:256|e:2|a:1|m:100,500,50,1234|ch:850,3,Flash(81)->Spark(120)->mv(256:180=0d+0p-57g+0t+0s)
+##MARKER##T5|n:TagadaLive|o:45000/500000|hp:450/500|tp:2/10|mp:1/4|ram:1500/3000|c:256|e:2|a:1|m:100,500,50,1234|ch:850,3,Flash(81)->Spark(120)->mv(256:180=0d+0p-57g+0t+0s)
 ```
 
 ### Combo Description Format
@@ -132,8 +133,9 @@ Where:
 | `n:` | Entity name | `n:TagadaLive` |
 | `o:` | Operations used/max | `o:45000/500000` |
 | `hp:` | Current/max health | `hp:450/500` |
-| `tp:` | Action points | `tp:8` |
-| `mp:` | Movement points | `mp:3` |
+| `tp:` | Remaining/max action points | `tp:2/10` |
+| `mp:` | Remaining/max movement points | `mp:1/4` |
+| `ram:` | Used/max RAM | `ram:1500/3000` |
 | `c:` | Cell position | `c:256` |
 | `e:` | Enemy count | `e:2` |
 | `a:` | Ally count | `a:1` |
@@ -263,9 +265,9 @@ Benchmark.addCombo(totalScore, actionCount, description, positionScore, actionSc
 ### lwa-charts.user.js
 - `detectAnomalies()` - Anomaly detection
 - `renderAnalysis()` - Analysis tab
-- `initAnalysisCharts()` - Chart.js initialization
+- `renderAnalysisCharts()` - Chart.js initialization
 - `computeActionStats()` - Action statistics
-- HP/Score chart visualizations
+- **Charts**: HP%, Score, TP Used%, MP Used%, RAM Used%
 
 ### lwa-main.user.js
 - `fetchLogs()` - Log fetching from DOM/Vue/Cache

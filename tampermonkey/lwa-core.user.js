@@ -309,7 +309,10 @@
     LWA.charts = {
         opsChart: null,
         hpChart: null,
-        scoreChart: null
+        scoreChart: null,
+        tpChart: null,
+        mpChart: null,
+        ramChart: null
     };
 
     // ========================================
