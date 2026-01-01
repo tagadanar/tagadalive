@@ -201,35 +201,17 @@ class Scoring {
 		}
 
 		// TP modifier for allies: more valuable for high STR/MGC entities
-		// Scale: 0.5x at 0, 1.5x at 500+ (based on max of STR/MGC)
 		if (entity.isFriend && stat == Stats.TP) {
-			integer maxOffensiveStat = max(entity.str, entity.mgc)
-			if (maxOffensiveStat <= 0) {
-				base *= 0.5
-			} else if (maxOffensiveStat >= 500) {
-				base *= 1.5
-			} else {
-				base *= 0.5 + (maxOffensiveStat / 500.0)
-			}
+			base *= ScoringModifiers.getTPModifier(entity)
 			// Prefer boosting allies over self
 			if (entity != Fight.self) {
 				base *= 1.1
 			}
 		}
 
-		// AGI modifier for allies: scales with current agility
-		// Scale: 0.5x at 0, 1.5x at 700, 0.5x at 1400+
+		// AGI modifier for allies: bell curve with peak at 700
 		if (entity.isFriend && stat == Stats.AGI) {
-			integer currentAgi = entity.agi
-			if (currentAgi <= 0) {
-				base *= 0.5
-			} else if (currentAgi <= 700) {
-				base *= 0.5 + (currentAgi / 700.0)
-			} else if (currentAgi <= 1400) {
-				base *= 1.5 - ((currentAgi - 700) / 700.0)
-			} else {
-				base *= 0.5
-			}
+			base *= ScoringModifiers.getAGIModifier(entity)
 			// Prefer boosting allies over self
 			if (entity != Fight.self) {
 				base *= 1.1
@@ -247,47 +229,17 @@ class Scoring {
 		}
 
 		// MP modifier for allies: more valuable for high STR/MGC, and when low MP
-		// Offensive scale: 0.5x at 0, 1.5x at 500+ (based on max of STR/MGC)
-		// MP scale: 1.2x at 0 MP, 0.8x at 20+ MP
 		if (entity.isFriend && stat == Stats.MP) {
-			integer maxOffensiveStat = max(entity.str, entity.mgc)
-			if (maxOffensiveStat <= 0) {
-				base *= 0.5
-			} else if (maxOffensiveStat >= 500) {
-				base *= 1.5
-			} else {
-				base *= 0.5 + (maxOffensiveStat / 500.0)
-			}
-			// Low MP bonus
-			integer currentMP = entity.mp
-			if (currentMP <= 0) {
-				base *= 1.2
-			} else if (currentMP >= 20) {
-				base *= 0.8
-			} else {
-				base *= 1.2 - (currentMP / 50.0)  // 1.2 at 0, 0.8 at 20
-			}
+			base *= ScoringModifiers.getMPModifier(entity)
 			// Prefer boosting allies over self
 			if (entity != Fight.self) {
 				base *= 1.1
 			}
 		}
 
-		// DMGRETURN modifier for allies: valuable when enemy has STR, first application bonus
+		// DMGRETURN modifier for allies: valuable when enemy has STR, scaling with current level
 		if (entity.isFriend && stat == Stats.DMGRETURN) {
-			if (!BattleState.enemyHasStr) {
-				base *= 0.5  // No physical threat, dmgReturn less valuable
-			} else {
-				// Smooth scaling from 2x (at 0) to 1x (at 20+)
-				integer currentDmgReturn = entity.dmgReturn
-				if (currentDmgReturn <= 0) {
-					base *= 2.0
-				} else if (currentDmgReturn >= 20) {
-					base *= 1.0
-				} else {
-					base *= 2.0 - (currentDmgReturn / 20.0)
-				}
-			}
+			base *= ScoringModifiers.getDMGReturnModifier(entity)
 		}
 
 		return base
