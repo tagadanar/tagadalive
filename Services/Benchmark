@@ -19,7 +19,11 @@ class Benchmark{
 	static _selfLife = 0
 	static _selfMaxLife = 0
 	static _selfTP = 0
+	static _selfMaxTP = 0
 	static _selfMP = 0
+	static _selfMaxMP = 0
+	static _selfUsedRAM = 0
+	static _selfMaxRAM = 0
 	static _selfCell = 0
 	static _enemies = 0
 	static _allies = 0
@@ -87,7 +91,11 @@ class Benchmark{
 		_selfLife = getLife()
 		_selfMaxLife = getTotalLife(getEntity())
 		_selfTP = getTP()
+		_selfMaxTP = getTotalTP(getEntity())
 		_selfMP = getMP()
+		_selfMaxMP = getTotalMP(getEntity())
+		_selfUsedRAM = getUsedRAM()
+		_selfMaxRAM = getMaxRAM()
 		_selfCell = getCell()
 		_enemies = count(getAliveEnemies())
 		_allies = count(getAliveAllies())
@@ -98,7 +106,11 @@ class Benchmark{
 		_selfLife = getLife()
 		_selfMaxLife = getTotalLife(getEntity())
 		_selfTP = getTP()
+		_selfMaxTP = getTotalTP(getEntity())
 		_selfMP = getMP()
+		_selfMaxMP = getTotalMP(getEntity())
+		_selfUsedRAM = getUsedRAM()
+		_selfMaxRAM = getMaxRAM()
 		_selfCell = getCell()
 		_enemies = count(getAliveEnemies())
 		_allies = count(getAliveAllies())
@@ -191,7 +203,9 @@ class Benchmark{
 		s += "|n:" + _name
 		s += "|o:" + totalOps + "/" + maxOps
 		s += "|hp:" + _selfLife + "/" + _selfMaxLife
-		s += "|tp:" + _selfTP + "|mp:" + _selfMP
+		// Use current values (after actions) for TP/MP/RAM to show what's remaining
+		s += "|tp:" + getTP() + "/" + getTotalTP(getEntity()) + "|mp:" + getMP() + "/" + getTotalMP(getEntity())
+		s += "|ram:" + getUsedRAM() + "/" + getMaxRAM()
 		s += "|c:" + _selfCell + "|e:" + _enemies + "|a:" + _allies
 		s += "|m:" + _mctsIter + "," + _mctsNodes + "," + _mctsPos + "," + _mctsBest
 		s += "|fc:" + funcCount  // Function count for verification
