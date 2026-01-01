@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LWA UI
 // @namespace    https://leekwars.com/
-// @version      1.4.0
+// @version      1.5.0
 // @description  LeekWars Fight Analyzer - UI module (rendering)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*
@@ -59,11 +59,14 @@
         const existingToggle = document.querySelector('.lwa-side-toggle');
         if (existingToggle) existingToggle.remove();
 
-        // Remove margin class when switching modes
+        // Remove margin class and CSS variable when switching modes
         const appCenter = document.querySelector('.app-center');
         if (appCenter) {
             appCenter.classList.remove('lwa-panel-open');
+            appCenter.classList.remove('lwa-resizing');
         }
+        document.body.classList.remove('lwa-resizing-active');
+        // Don't remove the CSS variable here - we want to preserve the saved width
 
         // Get cache stats for display (clone to avoid permission issues)
         const cacheStats = JSON.parse(JSON.stringify(LWA.cache.getStats()));
@@ -80,9 +83,15 @@
         // Get fight page settings
         const panelPosition = LWA.settings.get(LWA.SETTING_FIGHT_PANEL_POSITION, 'side');
         const panelCollapsed = LWA.settings.get(LWA.SETTING_FIGHT_PANEL_COLLAPSED, false);
+        const panelWidth = LWA.settings.get(LWA.SETTING_FIGHT_PANEL_WIDTH, 400);
         const isSideMode = isFightPage && panelPosition === 'side';
 
-        console.log('[LWA] injectPanel - isFightPage:', isFightPage, 'panelPosition:', panelPosition, 'panelCollapsed:', panelCollapsed, 'isSideMode:', isSideMode);
+        console.log('[LWA] injectPanel - isFightPage:', isFightPage, 'panelPosition:', panelPosition, 'panelCollapsed:', panelCollapsed, 'panelWidth:', panelWidth, 'isSideMode:', isSideMode);
+
+        // Set CSS variable for panel width
+        if (isSideMode) {
+            document.documentElement.style.setProperty('--lwa-panel-width', panelWidth + 'px');
+        }
 
         // Create wrapper
         const wrapper = document.createElement('div');
@@ -228,70 +237,194 @@
             console.log('[LWA] Panel injected in side mode (fixed position), wrapper classes:', wrapper.className);
 
             // Create toggle button (fixed position so it stays visible when collapsed)
+            // Also acts as resize handle when dragged horizontally
             const toggleBtn = document.createElement('div');
             toggleBtn.className = 'lwa-side-toggle' + (panelCollapsed ? ' lwa-toggle-collapsed' : '');
-            toggleBtn.title = panelCollapsed ? 'Ouvrir le panel' : 'Fermer le panel';
+            toggleBtn.title = panelCollapsed ? 'Ouvrir le panel' : 'Clic: fermer | Glisser: redimensionner | Double-clic: réinitialiser';
             toggleBtn.innerHTML = `<i class="v-icon notranslate mdi ${panelCollapsed ? 'mdi-chevron-left' : 'mdi-chevron-right'} theme--dark"></i>`;
             document.body.appendChild(toggleBtn);
 
-            toggleBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
+            // State for distinguishing click vs drag vs double-click
+            let isDragging = false;
+            let isResizing = false;
+            let startX = 0;
+            let startWidth = 0;
+            let clickTimer = null;
+            let preventClick = false;
+            const DRAG_THRESHOLD = 5; // pixels before considering it a drag
+            const DBLCLICK_DELAY = 250; // ms to wait before treating as single click
+
+            // Helper to trigger Vue resize
+            const triggerVueResize = () => {
+                try {
+                    const app = unsafeWindow.document.querySelector('#app');
+                    if (app && app.__vue__ && app.__vue__.$root && app.__vue__.$root.$emit) {
+                        app.__vue__.$root.$emit('resize');
+                    } else {
+                        unsafeWindow.dispatchEvent(new Event('resize'));
+                    }
+                } catch (err) {
+                    unsafeWindow.dispatchEvent(new Event('resize'));
+                }
+            };
+
+            // Helper to perform toggle action
+            const performToggle = () => {
                 const panel = document.querySelector('.lwa-panel');
                 const isCollapsed = panel.classList.contains('lwa-panel-collapsed');
-                const appCenter = document.querySelector('.app-center');
+                const appCenterEl = document.querySelector('.app-center');
 
-                console.log('[LWA] Toggle clicked - isCollapsed:', isCollapsed, 'appCenter found:', !!appCenter);
+                console.log('[LWA] Toggle clicked - isCollapsed:', isCollapsed);
 
                 panel.classList.toggle('lwa-panel-collapsed');
                 toggleBtn.classList.toggle('lwa-toggle-collapsed');
 
-                // Toggle class on main content to push it (CSS handles the margin with !important)
-                if (appCenter) {
+                if (appCenterEl) {
                     if (isCollapsed) {
-                        // Was collapsed, now expanding - add class
-                        appCenter.classList.add('lwa-panel-open');
-                        console.log('[LWA] Panel expanded - added lwa-panel-open class');
+                        appCenterEl.classList.add('lwa-panel-open');
                     } else {
-                        // Was expanded, now collapsing - remove class
-                        appCenter.classList.remove('lwa-panel-open');
-                        console.log('[LWA] Panel collapsed - removed lwa-panel-open class');
+                        appCenterEl.classList.remove('lwa-panel-open');
                     }
-                    console.log('[LWA] appCenter classes now:', appCenter.className);
-
-                    // Trigger Vue's internal resize event through unsafeWindow
-                    // LeekWars fight player listens to $root.$emit('resize'), not window resize
-                    const triggerResize = () => {
-                        try {
-                            const app = unsafeWindow.document.querySelector('#app');
-                            if (app && app.__vue__ && app.__vue__.$root && app.__vue__.$root.$emit) {
-                                console.log('[LWA] Toggle: emitting Vue resize event');
-                                app.__vue__.$root.$emit('resize');
-                            } else {
-                                console.log('[LWA] Toggle: Vue not found, trying window resize');
-                                unsafeWindow.dispatchEvent(new Event('resize'));
-                            }
-                        } catch (e) {
-                            console.log('[LWA] Toggle resize error:', e);
-                            unsafeWindow.dispatchEvent(new Event('resize'));
-                        }
-                    };
-                    // Wait for CSS transition to start, then trigger resize
-                    setTimeout(triggerResize, 100);
-                    setTimeout(triggerResize, 400);
+                    setTimeout(triggerVueResize, 100);
+                    setTimeout(triggerVueResize, 400);
                 }
 
-                // Update icon
+                // Update icon and title
                 const icon = toggleBtn.querySelector('i');
                 if (icon) {
                     icon.className = `v-icon notranslate mdi ${isCollapsed ? 'mdi-chevron-right' : 'mdi-chevron-left'} theme--dark`;
                 }
-                toggleBtn.title = isCollapsed ? 'Fermer le panel' : 'Ouvrir le panel';
-                // Save state
+                toggleBtn.title = isCollapsed ? 'Clic: fermer | Glisser: redimensionner | Double-clic: réinitialiser' : 'Ouvrir le panel';
                 unsafeWindow.LWA.settings.set(unsafeWindow.LWA.SETTING_FIGHT_PANEL_COLLAPSED, !isCollapsed);
+            };
+
+            // Double-click to reset to default width (only when panel is open)
+            toggleBtn.addEventListener('dblclick', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                // Cancel any pending single-click action
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                }
+                preventClick = true;
+
+                // If panel is collapsed, just expand it
+                if (wrapper.classList.contains('lwa-panel-collapsed')) {
+                    console.log('[LWA] Double-click on collapsed panel - expanding');
+                    performToggle();
+                    return;
+                }
+
+                // Reset to default width
+                const defaultWidth = 400;
+                document.documentElement.style.setProperty('--lwa-panel-width', defaultWidth + 'px');
+                unsafeWindow.LWA.settings.set('fightPanelWidth', defaultWidth);
+                console.log('[LWA] Reset to default width:', defaultWidth);
+                setTimeout(triggerVueResize, 100);
             });
 
-            console.log('[LWA] Toggle button created');
+            // Mouse down - start potential drag (or prepare for click)
+            toggleBtn.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+
+                // If panel is collapsed, just mark that we started a click (for mouseup)
+                if (wrapper.classList.contains('lwa-panel-collapsed')) {
+                    isDragging = true; // Will be used to detect click in mouseup
+                    isResizing = false;
+                    startX = e.clientX;
+                    return;
+                }
+
+                isDragging = true;
+                isResizing = false;
+                startX = e.clientX;
+                startWidth = wrapper.offsetWidth;
+
+                console.log('[LWA] Mousedown on toggle - startX:', startX, 'startWidth:', startWidth);
+            });
+
+            // Mouse move - detect if it's a drag (resize) or will be a click
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+
+                // Don't try to resize if panel is collapsed
+                if (wrapper.classList.contains('lwa-panel-collapsed')) return;
+
+                const diff = Math.abs(e.clientX - startX);
+
+                // If moved beyond threshold, start resizing
+                if (!isResizing && diff > DRAG_THRESHOLD) {
+                    isResizing = true;
+                    console.log('[LWA] Drag threshold exceeded, starting resize');
+
+                    // Add visual feedback
+                    wrapper.classList.add('lwa-resizing');
+                    toggleBtn.classList.add('lwa-resizing');
+                    document.body.classList.add('lwa-resizing-active');
+                    const appCenterEl = document.querySelector('.app-center');
+                    if (appCenterEl) appCenterEl.classList.add('lwa-resizing');
+                }
+
+                if (isResizing) {
+                    e.preventDefault();
+
+                    // Calculate new width (dragging left = larger, dragging right = smaller)
+                    const widthDiff = startX - e.clientX;
+                    let newWidth = startWidth + widthDiff;
+
+                    // Clamp to min/max
+                    const minWidth = 280;
+                    const maxWidth = Math.min(window.innerWidth * 0.7, 800);
+                    newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+                    // Update CSS variable
+                    document.documentElement.style.setProperty('--lwa-panel-width', newWidth + 'px');
+                }
+            });
+
+            // Mouse up - end drag/resize or perform click
+            document.addEventListener('mouseup', function(e) {
+                if (!isDragging) return;
+
+                const wasResizing = isResizing;
+                isDragging = false;
+                isResizing = false;
+
+                // Remove visual feedback
+                wrapper.classList.remove('lwa-resizing');
+                toggleBtn.classList.remove('lwa-resizing');
+                document.body.classList.remove('lwa-resizing-active');
+                const appCenterEl = document.querySelector('.app-center');
+                if (appCenterEl) appCenterEl.classList.remove('lwa-resizing');
+
+                if (wasResizing) {
+                    // Was resizing - save the new width
+                    const finalWidth = wrapper.offsetWidth;
+                    unsafeWindow.LWA.settings.set('fightPanelWidth', finalWidth);
+                    console.log('[LWA] Resize ended - finalWidth:', finalWidth);
+                    setTimeout(triggerVueResize, 100);
+                } else {
+                    // Was a click - delay to allow dblclick to cancel
+                    if (preventClick) {
+                        preventClick = false;
+                        return;
+                    }
+
+                    // Use timer to allow dblclick to cancel
+                    clickTimer = setTimeout(() => {
+                        clickTimer = null;
+                        if (!preventClick) {
+                            console.log('[LWA] Single click detected - toggling panel');
+                            performToggle();
+                        }
+                        preventClick = false;
+                    }, DBLCLICK_DELAY);
+                }
+            });
+
+            console.log('[LWA] Toggle button with resize created');
         } else {
             // Bottom mode (default for report, optional for fight)
             // Insert after "Déplacements" (Movements) panel and before "Actions" panel
