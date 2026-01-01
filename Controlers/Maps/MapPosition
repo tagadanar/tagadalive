@@ -9,7 +9,7 @@ class MapPosition {
 	static real _total_ally_coef = 0.0
 
 	// === Threat detection ===
-	static boolean _enemies_have_str = false
+	// Note: enemyHasStr is now in BattleState.enemyHasStr
 	static boolean _enemies_have_snc = false
 	static boolean _need_shields = false
 	static boolean _is_cac = false
@@ -55,17 +55,16 @@ class MapPosition {
 
 	/*
 	 * Detect enemy threat levels
+	 * Note: enemyHasStr is computed in BattleState.refresh()
 	 */
 	static void _refreshThreatDetection() {
-		_enemies_have_str = false
 		_enemies_have_snc = false
 
 		for (Entity e in Fight.getEnemiesAlive()) {
-			if (e.str > 100) _enemies_have_str = true
 			if (e.snc > 200) _enemies_have_snc = true
 		}
 
-		_need_shields = (_enemies_have_str || _enemies_have_snc) &&
+		_need_shields = (BattleState.enemyHasStr || _enemies_have_snc) &&
 						(Fight.self.absShield == 0 || Fight.self.relShield == 0)
 
 		_is_cac = false
@@ -87,14 +86,14 @@ class MapPosition {
 
 		for (Entity ally in Fight.getAlliesLeeksAlive()) {
 			if (ally == Fight.self) continue;
-			if (isSummon) coef = Scoring.W_GRAVITY_ALLY_SUMMON
-			else if (ally.snc >= 600) coef = Scoring.W_GRAVITY_ALLY_SNC600
-			else if (ally.snc >= 400) coef = Scoring.W_GRAVITY_ALLY_SNC400
-			else if (ally.wsd >= 400) coef = Scoring.W_GRAVITY_ALLY_WIS400
-			else if (ally.rst >= 200) coef = Scoring.W_GRAVITY_ALLY_RST200
-			else if (ally.wsd >= 200) coef = Scoring.W_GRAVITY_ALLY_WIS200
-			else coef = Scoring.W_GRAVITY_ALLY_DEFAULT
-			_gravity_distance[ally.cell] = Scoring.IDEAL_DIST_ALLY
+			if (isSummon) coef = ScoringConfig.W_GRAVITY_ALLY_SUMMON
+			else if (ally.snc >= 600) coef = ScoringConfig.W_GRAVITY_ALLY_SNC600
+			else if (ally.snc >= 400) coef = ScoringConfig.W_GRAVITY_ALLY_SNC400
+			else if (ally.wsd >= 400) coef = ScoringConfig.W_GRAVITY_ALLY_WIS400
+			else if (ally.rst >= 200) coef = ScoringConfig.W_GRAVITY_ALLY_RST200
+			else if (ally.wsd >= 200) coef = ScoringConfig.W_GRAVITY_ALLY_WIS200
+			else coef = ScoringConfig.W_GRAVITY_ALLY_DEFAULT
+			_gravity_distance[ally.cell] = ScoringConfig.IDEAL_DIST_ALLY
 			_gravity_coef[ally.cell] = coef
 			_total_ally_coef += coef
 		}
@@ -102,10 +101,10 @@ class MapPosition {
 		if (!isSummon) {
 			real lifeRatio = Fight.self.life / Fight.self.totalLife
 			for (Entity bulb in Fight.getAlliesBulbsAlive()) {
-				_gravity_distance[bulb.cell] = Scoring.IDEAL_DIST_ALLY
-				if (_need_shields) coef = Scoring.W_GRAVITY_METALLIC_NEED_ARMOR
-				else if (lifeRatio < 0.9) coef = Scoring.W_GRAVITY_HEALER_NEED_HEAL
-				else coef = Scoring.W_GRAVITY_ALLY_DEFAULT
+				_gravity_distance[bulb.cell] = ScoringConfig.IDEAL_DIST_ALLY
+				if (_need_shields) coef = ScoringConfig.W_GRAVITY_METALLIC_NEED_ARMOR
+				else if (lifeRatio < 0.9) coef = ScoringConfig.W_GRAVITY_HEALER_NEED_HEAL
+				else coef = ScoringConfig.W_GRAVITY_ALLY_DEFAULT
 				_gravity_coef[bulb.cell] = coef
 				_total_ally_coef += coef
 			}
@@ -125,7 +124,7 @@ class MapPosition {
 		}
 		if (enemyCoef < 1) enemyCoef = 1
 
-		integer distToEnemy = _is_cac ? Scoring.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
+		integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
 		for (Entity enemy in enemies) {
 			_gravity_distance[enemy.cell] = distToEnemy
 			_gravity_coef[enemy.cell] = enemyCoef
@@ -133,14 +132,14 @@ class MapPosition {
 
 		if (distToEnemy < 20 && !_need_shields) {
 			for (Entity eBulb in Fight.getEnemiesBulbsAlive()) {
-				_gravity_distance[eBulb.cell] = Scoring.IDEAL_DIST_CAC
+				_gravity_distance[eBulb.cell] = ScoringConfig.IDEAL_DIST_CAC
 				_gravity_coef[eBulb.cell] = enemyCoef * 0.5
 			}
 		}
 
 		Cell? centerCell = Board.getCell(306)
 		if (centerCell != null) {
-			_gravity_distance[centerCell!] = Scoring.IDEAL_DIST_CENTER
+			_gravity_distance[centerCell!] = ScoringConfig.IDEAL_DIST_CENTER
 			_gravity_coef[centerCell!] = enemyCoef
 		}
 	}
@@ -233,9 +232,9 @@ class MapPosition {
 		pos.addGravityScore(MapPosition._computeGravityScore(cell))
 		pos.addTacticalScore(MapPosition._computeTacticalScore(cell, consequences))
 
-		if (_enemies_have_str || _enemies_have_snc) {
-			real shieldValue = Fight.self.getCurrentAbs(consequences) * Scoring.W_SHIELD_ABS +
-							   Fight.self.getCurrentRel(consequences) * Scoring.W_SHIELD_REL
+		if (BattleState.enemyHasStr || _enemies_have_snc) {
+			real shieldValue = Fight.self.getCurrentAbs(consequences) * ScoringConfig.W_SHIELD_ABS +
+							   Fight.self.getCurrentRel(consequences) * ScoringConfig.W_SHIELD_REL
 			pos.addShieldScore(shieldValue)
 		}
 
@@ -264,7 +263,7 @@ class MapPosition {
 			if (c == cell) continue
 			Entity? enemy = Board.entityCells[c]
 			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
-				penalty -= Scoring.W_PROXIMITY_AREA1
+				penalty -= ScoringConfig.W_PROXIMITY_AREA1
 			}
 		}
 
@@ -272,7 +271,7 @@ class MapPosition {
 			if (inArray(cell.getAreaCells(AREA_CIRCLE_1), c)) continue
 			Entity? enemy = Board.entityCells[c]
 			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
-				penalty -= Scoring.W_PROXIMITY_AREA2
+				penalty -= ScoringConfig.W_PROXIMITY_AREA2
 			}
 		}
 
@@ -280,7 +279,7 @@ class MapPosition {
 			if (inArray(cell.getAreaCells(AREA_CIRCLE_2), c)) continue
 			Entity? enemy = Board.entityCells[c]
 			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
-				penalty -= Scoring.W_PROXIMITY_AREA3
+				penalty -= ScoringConfig.W_PROXIMITY_AREA3
 			}
 		}
 
@@ -313,7 +312,7 @@ class MapPosition {
 			if (_is_cac && _nearest_enemy != null && targetCell == _nearest_enemy!.cell) {
 				integer enemyMP = _nearest_enemy!.mp - _nearest_enemy!.altMP
 				if (actualDist <= enemyMP + Fight.self.mp) {
-					score += Scoring.W_CAC_IN_RANGE
+					score += ScoringConfig.W_CAC_IN_RANGE
 				}
 			}
 
@@ -354,9 +353,9 @@ class MapPosition {
 					boolean hasCovid = _entity_has_covid[enemy!] == true
 					if (!hasCovid) {
 						if (enemy!.isBulb) {
-							bonus += Scoring.W_COVID_SUMMON
+							bonus += ScoringConfig.W_COVID_SUMMON
 						} else {
-							bonus += Scoring.W_COVID_LEEK
+							bonus += ScoringConfig.W_COVID_LEEK
 						}
 					}
 				}
