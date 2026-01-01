@@ -119,14 +119,14 @@ class Consequences {
 		real coef = Scoring.getDynamicCoef(entity, key, this)
 		real scoreDelta = value * coef
 		if(!isOverTime) this.score += scoreDelta
-		else this.score += scoreDelta * Scoring.offensive_duration_mitigation[(effect as EffectOverTime).duration]!
+		else this.score += scoreDelta * ScoringConfig.offensive_duration_mitigation[(effect as EffectOverTime).duration]!
 	}
 	
 	void addKill(Entity entity){
 		this.isAlteringDanger=true
 		this.hashcode = 31 * this.hashcode + entity.id
 		this._killed[entity]=entity
-		this.score+= Scoring.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
+		this.score+= ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
 		// Inline passive for kill
 		Map<integer, real> passives = Fight.self.passives
 		if(passives[EFFECT_KILL_TO_TP]) {

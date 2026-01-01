@@ -38,6 +38,7 @@ class Entity {
 	boolean isStatic = false     // ADD_STATE value 11 - no STATE_STATIC constant in leekwars api
 	boolean isInvincible = false // ADD_STATE value STATE_INVINCIBLE (3)
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
+	integer extendedType  // Cached: for bulbs, specific type (101-108); otherwise same as entityType
 	// gestions des effets
 	Array<EntityEffect> effects = []
 	Map<Item, Array<EffectOverTime>> items_effectOverTime = [:]
@@ -94,6 +95,21 @@ class Entity {
 		this.isFriend = isAlly(id)
 		this.isBulb = isSummon(id)!
 		this.entityType = getType(id)!
+		// Cache extended type (bulb-specific type detection done once here)
+		if (this.isBulb) {
+			string n = this.name
+			if (n == "metallic_bulb") this.extendedType = 106
+			else if (n == "healer_bulb") this.extendedType = 101
+			else if (n == "lightning_bulb") this.extendedType = 105
+			else if (n == "wizard_bulb") this.extendedType = 102
+			else if (n == "fire_bulb") this.extendedType = 103
+			else if (n == "iced_bulb") this.extendedType = 104
+			else if (n == "rocky_bulb") this.extendedType = 107
+			else if (n == "puny_bulb") this.extendedType = 108
+			else this.extendedType = ENTITY_BULB
+		} else {
+			this.extendedType = this.entityType
+		}
 		/*
 		this.launchedEffects = []
 		for(var e in getLaunchedEffects(id)){

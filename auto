@@ -32,6 +32,11 @@ include('Services/Sort')
 include('Services/Benchmark')
 
 
+include('AI/ScoringConfig')
+include('AI/EntityTypes')
+include('AI/EntityCoefs')
+include('AI/BattleState')
+include('AI/ScoringModifiers')
 include('AI/Scoring')
 include('AI/MCTS')
 include('AI/AI')
@@ -70,6 +75,9 @@ function init() {
 	Benchmark.start('MapDanger.refresh')
 	MapDanger.refresh()
 	Benchmark.stop('MapDanger.refresh')
+
+	// Compute ally danger after MapDanger (depends on danger maps)
+	BattleState.computeAllAllyDanger()
 
 	Benchmark.start('MapPosition.refresh')
 	MapPosition.refresh()
