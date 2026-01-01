@@ -1,524 +1,126 @@
+/*
+ * Scoring - Main façade for action scoring system
+ *
+ * Provides cached coefficients and duration calculations for action evaluation.
+ * Contains getDynamicCoef() which uses ScoringModifiers for coefficient adjustments.
+ *
+ * Architecture:
+ * - ScoringConfig: ML-tunable constants and weights
+ * - EntityTypes: Entity type detection (bulbs, leeks, etc.)
+ * - EntityCoefs: Base coefficient tables per entity type
+ * - BattleState: Per-turn team state (composition, flags, ratios)
+ * - ScoringModifiers: Pure modifier functions
+ * - Scoring: This class - façade, caches, and getDynamicCoef
+ *
+ * Used by: Consequences, MapAction, AI, MCTS
+ */
 class Scoring {
-	static Map<Entity, Map<integer, real>> _cache_coef = [:] // [entity:[key:value]]
-	static Map<integer, integer> _cache_duration = [:] // [(rawDuration+1)*2 + turnOrderBit : effectiveDuration]
-	static Map<Entity, real> _allyDanger = [:] // [ally: expectedDamageBeforeTheirTurn]
 
-	// Bulb type constants (not provided by LeekScript, defined manually)
-	// Values chosen to not conflict with ENTITY_LEEK (0), ENTITY_BULB (1), ENTITY_TURRET (2), ENTITY_CHEST (3), ENTITY_MOB (4)
-	static integer BULB_HEALER = 101
-	static integer BULB_WIZARD = 102
-	static integer BULB_FIRE = 103
-	static integer BULB_ICED = 104
-	static integer BULB_LIGHTNING = 105
-	static integer BULB_METALLIC = 106
-	static integer BULB_ROCKY = 107
-	static integer BULB_PUNY = 108
+	// === Caches (recomputed each turn) ===
+	static Map<Entity, Map<integer, real>> _cache_coef = [:] // [entity:[stat:coef]]
+	static Map<integer, integer> _cache_duration = [:]       // [key:effectiveDuration]
+
+	// === Dynamic Position Weights (computed in refresh) ===
+	static real W_LOCK_BONUS = 1000.0         // bonus for locking enemy
+	static integer IDEAL_DIST_RANGED = -1     // calculated at first turn: self.mp + longest item range
 
 	/*
-	 * Detects bulb type from entity name
-	 * @param name The entity name (e.g. "fire_bulb", "healer_bulb")
-	 * @return Bulb type constant, or ENTITY_BULB if unknown
+	 * Initialize all scoring data for the current turn.
+	 * Delegates team state to BattleState, then computes local caches.
+	 * Called once per turn before action evaluation.
 	 */
-	static integer getBulbType(string name) {
-		if (name == "metallic_bulb") return BULB_METALLIC
-		if (name == "healer_bulb") return BULB_HEALER
-		if (name == "lightning_bulb") return BULB_LIGHTNING
-		if (name == "wizard_bulb") return BULB_WIZARD
-		if (name == "fire_bulb") return BULB_FIRE
-		if (name == "iced_bulb") return BULB_ICED
-		if (name == "rocky_bulb") return BULB_ROCKY
-		if (name == "puny_bulb") return BULB_PUNY
-		return ENTITY_BULB
+	static void refresh() {
+		// === Delegate team state computation to BattleState ===
+		BattleState.refresh()
+
+		// === Reset local caches ===
+		_cache_coef = [:]
+		_cache_duration = [:]
+
+		// === Compute dynamic position weights ===
+		// W_LOCK_BONUS: reduced when vulnerable (prioritize survival over locking)
+		boolean notShielded = Fight.self.absShield <= 0 && Fight.self.relShield <= 0
+		boolean notFullLife = Fight.self.life < Fight.self.totalLife
+		if ((notShielded && BattleState.enemyHasStr) || notFullLife) {
+			W_LOCK_BONUS = 500.0
+		} else {
+			W_LOCK_BONUS = 1000.0
+		}
+
+		// IDEAL_DIST_RANGED: calculated once at first turn, reduced every 5 turns
+		if (IDEAL_DIST_RANGED == -1) {
+			integer longestRange = 0
+			for (Item item in Fight.self.items) {
+				if (item.maxRange > longestRange) {
+					longestRange = item.maxRange
+				}
+			}
+			IDEAL_DIST_RANGED = Fight.self.mp + longestRange
+		}
+		if (getTurn() % 5 == 0) IDEAL_DIST_RANGED--
+
+		// === Pre-compute effective durations ===
+		// Key formula: (rawDuration + 1) * 2 + (sourceAfterTarget ? 1 : 0)
+		integer turnsLeft = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
+		for (integer raw = -1; raw <= ScoringConfig.MAX_DURATION; raw++) {
+			integer base = raw == -1 ? turnsLeft : min(raw, turnsLeft)
+			base = min(base, ScoringConfig.MAX_DURATION)
+			// source plays before target → target gets full duration
+			_cache_duration[(raw + 1) * 2] = max(base, 0)
+			// source plays after target → target gets 1 less turn
+			_cache_duration[(raw + 1) * 2 + 1] = max(base - 1, 0)
+		}
+
+		// === Pre-compute base coefficients for all entities ===
+		for (Entity entity in Fight.getAllAlive()) {
+			_cache_coef[entity] = [:]
+			_cache_coef[entity]![Stats.HP] = EntityCoefs.getStatCoef(entity, Stats.HP)
+			_cache_coef[entity]![Stats.HPTIME] = EntityCoefs.getStatCoef(entity, Stats.HPTIME)
+			_cache_coef[entity]![Stats.HPMAX] = EntityCoefs.getStatCoef(entity, Stats.HPMAX)
+			_cache_coef[entity]![Stats.DEBUFF] = EntityCoefs.getStatCoef(entity, Stats.DEBUFF)
+			_cache_coef[entity]![Stats.ANTIDOTE] = EntityCoefs.getStatCoef(entity, Stats.ANTIDOTE)
+			_cache_coef[entity]![Stats.ABSSHIELD] = EntityCoefs.getStatCoef(entity, Stats.ABSSHIELD)
+			_cache_coef[entity]![Stats.RELSHIELD] = EntityCoefs.getStatCoef(entity, Stats.RELSHIELD)
+			_cache_coef[entity]![Stats.DMGRETURN] = EntityCoefs.getStatCoef(entity, Stats.DMGRETURN)
+			_cache_coef[entity]![Stats.STR] = EntityCoefs.getStatCoef(entity, Stats.STR)
+			_cache_coef[entity]![Stats.MGC] = EntityCoefs.getStatCoef(entity, Stats.MGC)
+			_cache_coef[entity]![Stats.RST] = EntityCoefs.getStatCoef(entity, Stats.RST)
+			_cache_coef[entity]![Stats.WSD] = EntityCoefs.getStatCoef(entity, Stats.WSD)
+			_cache_coef[entity]![Stats.AGI] = EntityCoefs.getStatCoef(entity, Stats.AGI)
+			_cache_coef[entity]![Stats.TP] = EntityCoefs.getStatCoef(entity, Stats.TP)
+			_cache_coef[entity]![Stats.MP] = EntityCoefs.getStatCoef(entity, Stats.MP)
+			_cache_coef[entity]![Stats.PWR] = EntityCoefs.getStatCoef(entity, Stats.PWR)
+			_cache_coef[entity]![Stats.KILL] = EntityCoefs.getStatCoef(entity, Stats.KILL)
+		}
 	}
 
 	/*
-	 * Gets the effective entity type, using getBulbType for bulbs
+	 * Returns cached base coefficient for an entity and stat
 	 * @param entity The entity
-	 * @return Entity type (ENTITY_LEEK, BULB_FIRE, etc.)
+	 * @param key The stat type (Stats.HP, Stats.STR, etc.)
+	 * @return Base coefficient (positive for allies, negative for enemies)
 	 */
-	static integer getEntityType(Entity entity) {
-		if (entity.isBulb) return getBulbType(entity.name)
-		return entity.entityType
-	}
-
-	// Team composition (computed in refresh)
-	static integer _countFire = 0      // ally fire bulbs
-	static integer _countMetal = 0     // ally metallic bulbs
-	static integer _countHealer = 0    // ally healer bulbs
-	static integer _countStrBulbs = 0  // ally offensive bulbs (fire + iced + lightning)
-	static boolean _enemyHasStr = false // any enemy has STR >= 100
-	static boolean _allyHasStr = false  // any ally has STR >= 100 (for vuln value)
-
-	// Global state ratios (computed in refresh)
-	static real _ratioHP = 1.0    // sum(ally life) / sum(enemy life)
-	static real _ratioCount = 1.0 // ally count / enemy count
-
-	// Chip lists for WSD and RST modifiers
-	static Array<integer> WSD_CHIPS = [CHIP_ELEVATION, CHIP_CURE, CHIP_VACCINE, CHIP_ARMORING, CHIP_REMISSION]
-	static Array<integer> RST_CHIPS = [CHIP_HELMET, CHIP_SHIELD, CHIP_ARMOR, CHIP_WALL, CHIP_FORTRESS]
-
-	// Ready chip counts per ally (0.5 for cooldown=1, 1.0 for cooldown=0)
-	static Map<integer, real> _wsdReadyChips = [:] // entityId -> readyCount
-	static Map<integer, real> _rstReadyChips = [:] // entityId -> readyCount
-
-	// Ally maxHP range (for HPMAX modifier)
-	static integer _minAllyMaxHP = 0
-	static integer _maxAllyMaxHP = 0
-
-	static real CANDIE_MODIFIER = 10.0 // massive boost when ally might die
-	static real CANDIE_THRESHOLD = 0.8 // ally.hp < danger * threshold → canDie
-	static real IGNORE_DANGER_RATIO = 0.1 // ignore damage < 10% of current life
-
-	static integer KILL_VALUE = 2000
-	static integer DEATH_VALUE = -2000
-	static integer MAX_FIGHT_TURNS = 66
-	static integer MAX_DURATION = 8 // max index in duration_mitigation maps
-
-	// === Entity Type Coefficients ===
-	// Map: entityType -> (stat -> baseCoef)
-	// Positive values for allies, negated for enemies in getStatCoef()
-	// Bulb types have individual entries for fine-grained control
-	static Map<integer, Map<integer, real>> baseCoefs = [
-		ENTITY_LEEK: [
-			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 2.0,
-			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
-			Stats.ABSSHIELD: 3.0, Stats.RELSHIELD: 6.0, Stats.DMGRETURN: 3.0,
-			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 0.5,
-			Stats.WSD: 0.5, Stats.AGI: 0.5,
-			Stats.TP: 40.0, Stats.MP: 40.0, Stats.PWR: 1.0, Stats.KILL: 1.0
-		],
-		ENTITY_BULB: [ // Generic bulb fallback
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.1,
-			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.2, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 4.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
-		],
-		BULB_HEALER: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.3, Stats.HPMAX: 0.15,
-			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.3,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.0, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 4.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
-		],
-		BULB_WIZARD: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.2,
-			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.0, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 6.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
-		],
-		BULB_FIRE: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.15,
-			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.4, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 5.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
-		],
-		BULB_ICED: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.15,
-			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.4, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 5.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
-		],
-		BULB_LIGHTNING: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.18,
-			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.5, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 5.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
-		],
-		BULB_METALLIC: [
-			Stats.HP: 0.3, Stats.HPTIME: 0.1, Stats.HPMAX: 0.05,
-			Stats.DEBUFF: 0.1, Stats.ANTIDOTE: 0.1,
-			Stats.ABSSHIELD: 0.1, Stats.RELSHIELD: 0.1, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.0, Stats.MGC: 0.1, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 2.0, Stats.MP: 4.0, Stats.PWR: 0.1, Stats.KILL: 0.1
-		],
-		BULB_ROCKY: [
-			Stats.HP: 0.4, Stats.HPTIME: 0.2, Stats.HPMAX: 0.1,
-			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.2, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 2.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
-		],
-		BULB_PUNY: [
-			Stats.HP: 0.2, Stats.HPTIME: 0.1, Stats.HPMAX: 0.05,
-			Stats.DEBUFF: 0.1, Stats.ANTIDOTE: 0.1,
-			Stats.ABSSHIELD: 0.3, Stats.RELSHIELD: 0.6, Stats.DMGRETURN: 0.3,
-			Stats.STR: 0.05, Stats.MGC: 0.1, Stats.RST: 0.05,
-			Stats.WSD: 0.05, Stats.AGI: 0.05,
-			Stats.TP: 1.0, Stats.MP: 2.0, Stats.PWR: 0.1, Stats.KILL: 0.05
-		],
-		ENTITY_TURRET: [
-			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 2.0,
-			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
-			Stats.ABSSHIELD: 3.0, Stats.RELSHIELD: 6.0, Stats.DMGRETURN: 3.0,
-			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 0.5,
-			Stats.WSD: 0.5, Stats.AGI: 0.5,
-			Stats.TP: 40.0, Stats.MP: 40.0, Stats.PWR: 1.0, Stats.KILL: 1.0
-		],
-		ENTITY_CHEST: [
-			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 2.0,
-			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
-			Stats.ABSSHIELD: 3.0, Stats.RELSHIELD: 6.0, Stats.DMGRETURN: 3.0,
-			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 0.5,
-			Stats.WSD: 0.5, Stats.AGI: 0.5,
-			Stats.TP: 40.0, Stats.MP: 40.0, Stats.PWR: 1.0, Stats.KILL: 1.0
-		],
-		ENTITY_MOB: [
-			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 2.0,
-			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
-			Stats.ABSSHIELD: 3.0, Stats.RELSHIELD: 6.0, Stats.DMGRETURN: 3.0,
-			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 0.5,
-			Stats.WSD: 0.5, Stats.AGI: 0.5,
-			Stats.TP: 40.0, Stats.MP: 40.0, Stats.PWR: 1.0, Stats.KILL: 1.0
-		],
-	]
-
-	/*
-	 * Returns coefficient for a stat based on entity type and allegiance
-	 * @param entity The entity to get coefficient for
-	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
-	 * @return Positive for allies, negative for enemies
-	 */
-	static real getStatCoef(Entity entity, integer stat) {
-		// Direct lookup by entity type, fallback to ENTITY_BULB for unknown bulb types
-		Map<integer, real>? coefs = baseCoefs[getEntityType(entity)]
-		if (coefs == null) {
-			// Unknown type - use BULB as fallback for summons, LEEK otherwise
-			if (entity.isBulb) {
-				debugW("Unimplemented bulb type: " + entity.entityType + " (" + entity.name + ")")
-				coefs = baseCoefs[ENTITY_BULB]
-			} else {
-				coefs = baseCoefs[ENTITY_LEEK]
-			}
-		}
-		real base = coefs![stat]!
-
-		// KILL is inverted: killing enemy = good, losing ally = bad
-		if (stat == Stats.KILL) {
-			return entity.isFriend ? -base : base
-		}
-		return entity.isFriend ? base : -base
+	static real getCoef(Entity entity, integer key) {
+		return _cache_coef[entity]![key]!
 	}
 
 	/*
-	 * Computes lifeRatio modifier: more valuable to heal/damage low HP targets
-	 *
-	 * ALLY formula: min(2/lifeRatio - 1, 10.0) - aggressive curve for healing urgency
-	 * | lifeRatio | modifier | meaning                          |
-	 * |-----------|----------|----------------------------------|
-	 * | 1.00      | 1.0      | full HP → no bonus               |
-	 * | 0.80      | 1.5      | slightly hurt → small boost      |
-	 * | 0.67      | 2.0      | 2/3 HP → double value            |
-	 * | 0.50      | 3.0      | half HP → triple value           |
-	 * | 0.40      | 4.0      | hurt → 4x value                  |
-	 * | 0.25      | 7.0      | critical → 7x value              |
-	 * | 0.20      | 9.0      | near death → 9x value            |
-	 * | ≤0.18     | 10.0     | dying → capped at 10x            |
-	 *
-	 * ENEMY formula: 10 - 8 * lifeRatio - linear from 2 (full) to 10 (dead)
-	 * | lifeRatio | modifier | meaning                          |
-	 * |-----------|----------|----------------------------------|
-	 * | 1.00      | 2.0      | full HP → base priority          |
-	 * | 0.75      | 4.0      | wounded → increasing priority    |
-	 * | 0.50      | 6.0      | half HP → 6x value               |
-	 * | 0.25      | 8.0      | low HP → 8x value                |
-	 * | 0.10      | 9.2      | critical → near max              |
-	 * | 0.00      | 10.0     | dead → capped at 10x             |
+	 * Checks if an ally might die before their next turn
+	 * Uses cached danger and current HP (accounting for consequences)
+	 * @param entity The ally to check
+	 * @param consequences Optional consequences for current HP calculation
+	 * @return true if entity might die before they can act
 	 */
-	static real getLifeRatioModifier(Entity entity) {
-		real lifeRatio = entity.life / entity.totalLife
-		if (lifeRatio <= 0.0) return 10.0 // safety: dead or invalid
-
-		if (entity.isFriend) {
-			// Ally: aggressive curve - prioritize healing low HP allies
-			return min(2.0 / lifeRatio - 1.0, 10.0)
-		} else {
-			// Enemy: linear curve from 2 (full HP) to 10 (dead)
-			return 10.0 - 8.0 * lifeRatio
-		}
-	}
-
-	// Precomputed: 0.5 / log(301) ≈ 0.0876
-	static real LEVEL_RATIO_SCALE = 0.0876
-
-	/*
-	 * Computes levelRatio modifier: more valuable to buff high-level allies
-	 * Formula: 1.0 + 0.5 * log(targetLevel / selfLevel) / log(301)
-	 *
-	 * Scoring evolution (logarithmic, symmetric):
-	 * | level ratio | modifier | meaning                          |
-	 * |-------------|----------|----------------------------------|
-	 * | 1/301       | 0.50     | buffing lvl 1 as lvl 301 → half  |
-	 * | 1/10        | 0.80     | buffing much lower level         |
-	 * | 1/2         | 0.94     | buffing slightly lower level     |
-	 * | 1           | 1.00     | same level → no change           |
-	 * | 2           | 1.06     | buffing slightly higher level    |
-	 * | 10          | 1.20     | buffing much higher level        |
-	 * | 301         | 1.50     | buffing lvl 301 as lvl 1 → 1.5x  |
-	 */
-	static real getLevelRatioModifier(Entity entity) {
-		integer selfLevel = Fight.self.level
-		if (selfLevel <= 0) return 1.0 // safety
-		real ratio = entity.level / selfLevel
-		if (ratio <= 0.0) return 0.5 // safety: clamp to minimum
-		return max(0.5, min(1.5, 1.0 + LEVEL_RATIO_SCALE * log(ratio)))
+	static boolean canDie(Entity entity, Consequences? consequences) {
+		real? danger = BattleState.allyDanger[entity]
+		if (danger == null) return false
+		integer currentHP = entity.getCurrentHP(consequences)
+		return currentHP < danger! * ScoringConfig.CANDIE_THRESHOLD
 	}
 
 	/*
-	 * Computes STR/MGC scaling modifier based on current stat level
-	 * Peak value at 1000, diminishing returns above
-	 *
-	 * Scoring evolution:
-	 * | Current stat | modifier | meaning                        |
-	 * |--------------|----------|--------------------------------|
-	 * | 0            | 0.5      | no stat, low value to boost    |
-	 * | 500          | 1.0      | mid stat                       |
-	 * | 1000         | 1.5      | peak value (scales best)       |
-	 * | 1500         | 1.0      | diminishing returns            |
-	 * | 2000+        | 0.5      | very high, minimal benefit     |
-	 */
-	static real getStatScalingModifier(integer currentStat) {
-		if (currentStat <= 0) return 0.5
-		if (currentStat <= 1000) {
-			// Linear 0.5 → 1.5 over 0 → 1000
-			return 0.5 + (currentStat / 1000.0)
-		}
-		if (currentStat <= 2000) {
-			// Linear 1.5 → 0.5 over 1000 → 2000
-			return 1.5 - ((currentStat - 1000) / 1000.0)
-		}
-		return 0.5
-	}
-
-	/*
-	 * Computes maxHP comparison modifier for HPMAX stat
-	 * Low maxHP allies benefit more from HPMAX boosts
-	 *
-	 * Scoring evolution:
-	 * | Entity maxHP position | modifier | meaning                    |
-	 * |-----------------------|----------|----------------------------|
-	 * | lowest among allies   | 1.5      | needs HP boost most        |
-	 * | average               | 1.0      | neutral                    |
-	 * | highest among allies  | 0.5      | doesn't need it as much    |
-	 *
-	 * @param entity The ally entity
-	 * @return Multiplier for HPMAX coefficient (0.5 to 1.5)
-	 */
-	static real getMaxHPComparisonModifier(Entity entity) {
-		if (_maxAllyMaxHP <= _minAllyMaxHP) return 1.0  // all same or invalid
-
-		// Where does this entity fall in the range? (0 = lowest, 1 = highest)
-		real position = (entity.totalLife - _minAllyMaxHP) * 1.0 / (_maxAllyMaxHP - _minAllyMaxHP)
-
-		// Invert: low maxHP → high modifier (1.5), high maxHP → low modifier (0.5)
-		return 1.5 - position
-	}
-
-	/*
-	 * Gets the chip readiness modifier for WSD or RST
-	 * Chips at cooldown 0 count as 1.0, cooldown 1 counts as 0.5
-	 *
-	 * Scoring evolution:
-	 * | Ready count | modifier | meaning                        |
-	 * |-------------|----------|--------------------------------|
-	 * | 0           | 0.5      | no chips ready, low value      |
-	 * | 0.5         | 0.75     | one chip at cooldown 1         |
-	 * | 1           | 1.0      | one chip ready                 |
-	 * | 2           | 1.25     | two chips ready                |
-	 * | 3+          | 1.5      | many chips ready               |
-	 *
-	 * @param entity The ally entity
-	 * @param stat Stats.WSD or Stats.RST
-	 * @return Multiplier for stat coefficient
-	 */
-	static real getChipReadyModifier(Entity entity, integer stat) {
-		real readyCount = 0.0
-		if (stat == Stats.WSD) {
-			readyCount = _wsdReadyChips[entity.id]  // null coerces to 0
-		} else if (stat == Stats.RST) {
-			readyCount = _rstReadyChips[entity.id]  // null coerces to 0
-		}
-
-		if (readyCount <= 0) return 0.5
-		if (readyCount <= 1) {
-			// Linear 0.5 → 1.0 over 0 → 1
-			return 0.5 + 0.5 * readyCount
-		}
-		if (readyCount <= 3) {
-			// Linear 1.0 → 1.5 over 1 → 3
-			return 1.0 + 0.25 * (readyCount - 1)
-		}
-		return 1.5
-	}
-
-	/*
-	 * Computes winning modifier based on global HP and count ratios
-	 * Adjusts how much we care about ally HP/HPTIME based on match state
-	 *
-	 * Note: Individual danger (low HP, no shields, canDie) is handled by
-	 * other modifiers - this is ONLY about global winning/losing state.
-	 *
-	 * Formula: modifier = 1.5 - 0.5 * combined, clamped to [0.5, 1.5]
-	 * where combined = (ratioHP + ratioCount) / 2
-	 *
-	 * Scoring evolution:
-	 * | ratioHP | ratioCount | combined | modifier | meaning              |
-	 * |---------|------------|----------|----------|----------------------|
-	 * | 2.0     | 2.0        | 2.0      | 0.5      | winning → relax      |
-	 * | 1.5     | 1.5        | 1.5      | 0.75     | ahead                |
-	 * | 1.0     | 1.0        | 1.0      | 1.0      | even → neutral       |
-	 * | 0.5     | 0.5        | 0.5      | 1.25     | behind               |
-	 * | 0.33    | 0.33       | 0.33     | 1.5      | losing → prioritize  |
-	 *
-	 * @return Multiplier for ally HP/HPTIME coefficients
-	 */
-	static real getWinningModifier() {
-		real combined = (_ratioHP + _ratioCount) / 2.0
-		real modifier = 1.5 - 0.5 * combined
-		return max(0.5, min(1.5, modifier))
-	}
-
-	/*
-	 * Computes shield status modifier based on current shield levels
-	 * More valuable to shield unshielded allies / remove shields from unshielded enemies
-	 *
-	 * Scoring evolution (for ALLIES):
-	 * | Entity      | Current Shield | enemyHasStr | Modifier | Rationale                  |
-	 * |-------------|----------------|-------------|----------|----------------------------|
-	 * | LEEK        | 0              | yes         |     3.0x | urgent need for shields    |
-	 * | LEEK        | ≤80            | yes         |     2.0x | low shields, STR incoming  |
-	 * | LEEK        | any            | no          |     1.0x | no physical threat         |
-	 * | FIRE_BULB   | 0              | any         |     2.0x | fire bulb needs protection |
-	 * | other       | any            | any         |     1.0x | default                    |
-	 *
-	 * Scoring evolution (for ENEMIES - inverted logic):
-	 * | Current Shield | Modifier | Rationale                              |
-	 * |----------------|----------|----------------------------------------|
-	 * | 0              |     0.5x | already unshielded, less urgent        |
-	 * | ≤100           |     1.5x | low shields, worth removing            |
-	 * | >100           |     1.0x | normal priority                        |
-	 *
-	 * @param entity The entity
-	 * @param stat ABSSHIELD or RELSHIELD
-	 * @return Multiplier based on current shield status
-	 */
-	static real getShieldStatusModifier(Entity entity, integer stat) {
-		if (stat != Stats.ABSSHIELD && stat != Stats.RELSHIELD) return 1.0
-
-		// Get current shield value
-		integer currentShield = (stat == Stats.ABSSHIELD) ? entity.absShield : entity.relShield
-
-		if (entity.isFriend) {
-			// Ally: boost when unshielded and enemy has STR
-			integer eType = getEntityType(entity)
-
-			// Fire bulb with no shields: extra boost
-			if (eType == BULB_FIRE && currentShield <= 0) {
-				return 2.0
-			}
-
-			// Leek with low/no shields when enemy has STR
-			if (eType == ENTITY_LEEK && _enemyHasStr) {
-				if (currentShield <= 0) return 3.0
-				if (currentShield <= 80) return 2.0
-			}
-		} else {
-			// Enemy: vuln value - based on whether WE have STR to exploit it
-			if (!_allyHasStr) {
-				return 0.5  // No STR, vuln is less valuable
-			}
-
-			// Smooth scaling from 2x (at 0) to 1x (at threshold)
-			// ABSSHIELD: 0-100 range, RELSHIELD: 0-20 range
-			if (stat == Stats.ABSSHIELD) {
-				if (currentShield <= 0) return 2.0
-				if (currentShield >= 100) return 1.0
-				return 2.0 - (currentShield / 100.0)
-			} else {
-				// RELSHIELD: 0-20 range
-				if (currentShield <= 0) return 2.0
-				if (currentShield >= 20) return 1.0
-				return 2.0 - (currentShield / 20.0)
-			}
-		}
-
-		return 1.0
-	}
-
-	/*
-	 * Computes team composition modifier for shield stats
-	 * Based on bulb type priority and enemy threat
-	 *
-	 * Scoring evolution (for ALLIES receiving shields):
-	 * | Entity Type  | Condition          | Modifier | Rationale                          |
-	 * |--------------|--------------------|---------:|------------------------------------|
-	 * | FIRE_BULB    | always             |     1.5x | benefits most from shields         |
-	 * | HEALER_BULB  | ≤2 healers         |     1.3x | protect the healer                 |
-	 * | HEALER_BULB  | >2 healers         |     0.7x | we have backups                    |
-	 * | METALLIC_BULB| always             |     0.3x | they provide shields, not receive  |
-	 * | other bulbs  | default            |     1.0x | normal priority                    |
-	 * | any ally     | enemy has STR≥100  |    +1.5x | physical damage incoming           |
-	 *
-	 * Scoring evolution (for ENEMIES losing shields):
-	 * | Condition           | Modifier | Rationale                          |
-	 * |---------------------|---------:|------------------------------------|
-	 * | 1 offensive bulb    |     1.3x | our bulb will deal more damage     |
-	 * | 2 offensive bulbs   |     1.6x | more damage potential              |
-	 * | 3+ offensive bulbs  |     2.0x | full offensive team                |
-	 *
-	 * @param entity The entity (ally or enemy)
-	 * @param stat The stat (ABSSHIELD or RELSHIELD)
-	 * @return Multiplier based on team composition
-	 */
-	static real getTeamCompModifier(Entity entity, integer stat) {
-		if (stat != Stats.ABSSHIELD && stat != Stats.RELSHIELD) return 1.0
-
-		integer eType = getEntityType(entity)
-		real modifier = 1.0
-
-		if (entity.isFriend) {
-			// Ally: adjust shield priority by bulb type
-			if (eType == BULB_FIRE) {
-				modifier = 1.5 // fire bulbs benefit most from shields
-			} else if (eType == BULB_HEALER) {
-				modifier = (_countHealer > 2) ? 0.7 : 1.3 // protect healer unless we have many
-			} else if (eType == BULB_METALLIC) {
-				modifier = 0.3 // metallic provides shields, low priority to receive
-			}
-
-			// Boost all ally shields when enemy has physical damage
-			if (_enemyHasStr) {
-				modifier *= 1.5
-			}
-		} else {
-			// Enemy: removing shields is more valuable when we have offensive bulbs
-			if (_countStrBulbs >= 3) {
-				modifier = 2.0
-			} else if (_countStrBulbs >= 2) {
-				modifier = 1.6
-			} else if (_countStrBulbs >= 1) {
-				modifier = 1.3
-			}
-		}
-
-		return modifier
-	}
-
-	/*
-	 * Returns dynamic coefficient with modifiers applied
-	 * Wraps getStatCoef with situational multipliers (lifeRatio, canDie, levelRatio, teamComp)
+	 * Returns dynamic coefficient with all modifiers applied
+	 * Uses ScoringModifiers for individual modifier calculations
 	 * @param entity The entity to get coefficient for
 	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
 	 * @param consequences Optional consequences to check current HP
@@ -529,19 +131,19 @@ class Scoring {
 
 		// Apply lifeRatio modifier to HP-related stats (both allies and enemies)
 		if (stat == Stats.HP || stat == Stats.HPTIME) {
-			base *= getLifeRatioModifier(entity)
+			base *= ScoringModifiers.getLifeRatioModifier(entity)
 
 			// Apply winning modifier for allies (care less about HP when winning and safe)
 			if (entity.isFriend) {
-				base *= getWinningModifier()
+				base *= ScoringModifiers.getWinningModifier()
 			}
 		}
 
 		// Apply lifeRatio modifier to shields for allies only when enemy has STR
 		// Without physical threat, shields are worth less (0.5x)
 		if (entity.isFriend && (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD)) {
-			if (_enemyHasStr) {
-				base *= getLifeRatioModifier(entity)
+			if (BattleState.enemyHasStr) {
+				base *= ScoringModifiers.getLifeRatioModifier(entity)
 			} else {
 				base *= 0.5
 			}
@@ -552,7 +154,7 @@ class Scoring {
 			// canDie modifier: massive boost when ally might die
 			if (stat == Stats.HP || stat == Stats.HPTIME || stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
 				if (canDie(entity, consequences)) {
-					base *= CANDIE_MODIFIER
+					base *= ScoringConfig.CANDIE_MODIFIER
 				}
 			}
 
@@ -562,36 +164,36 @@ class Scoring {
 			    stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD ||
 			    stat == Stats.MGC || stat == Stats.MP || stat == Stats.AGI ||
 			    stat == Stats.WSD || stat == Stats.RST) {
-				base *= getLevelRatioModifier(entity)
+				base *= ScoringModifiers.getLevelRatioModifier(entity)
 			}
 
 			// maxHP comparison modifier: low maxHP allies benefit more from HPMAX boosts
 			if (stat == Stats.HPMAX) {
-				base *= getMaxHPComparisonModifier(entity)
+				base *= ScoringModifiers.getMaxHPComparisonModifier(entity)
 			}
 
 			// teamComp modifier: adjust shield value based on team synergy (allies)
 			if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
-				base *= getTeamCompModifier(entity, stat)
+				base *= ScoringModifiers.getTeamCompModifier(entity, stat)
 			}
 		}
 
 		// teamComp modifier for enemies: removing shields more valuable with offensive bulbs
 		if (!entity.isFriend) {
 			if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
-				base *= getTeamCompModifier(entity, stat)
+				base *= ScoringModifiers.getTeamCompModifier(entity, stat)
 			}
 		}
 
 		// shieldStatus modifier: adjust based on current shield levels
 		if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
-			base *= getShieldStatusModifier(entity, stat)
+			base *= ScoringModifiers.getShieldStatusModifier(entity, stat)
 		}
 
 		// STR/MGC modifier for allies: scales with current stat, prefer boosting allies over self
 		if (entity.isFriend && (stat == Stats.STR || stat == Stats.MGC)) {
 			integer currentStat = (stat == Stats.STR) ? entity.str : entity.mgc
-			base *= getStatScalingModifier(currentStat)
+			base *= ScoringModifiers.getStatScalingModifier(currentStat)
 			// Prefer boosting allies over self
 			if (entity != Fight.self) {
 				base *= 1.1
@@ -637,7 +239,7 @@ class Scoring {
 		// WSD/RST modifier for allies: more valuable when relevant chips are ready
 		// Scale: 0.5x at 0 chips, 1.0x at 1, 1.5x at 3+
 		if (entity.isFriend && (stat == Stats.WSD || stat == Stats.RST)) {
-			base *= getChipReadyModifier(entity, stat)
+			base *= ScoringModifiers.getChipReadyModifier(entity, stat)
 			// Prefer boosting allies over self
 			if (entity != Fight.self) {
 				base *= 1.1
@@ -673,7 +275,7 @@ class Scoring {
 
 		// DMGRETURN modifier for allies: valuable when enemy has STR, first application bonus
 		if (entity.isFriend && stat == Stats.DMGRETURN) {
-			if (!_enemyHasStr) {
+			if (!BattleState.enemyHasStr) {
 				base *= 0.5  // No physical threat, dmgReturn less valuable
 			} else {
 				// Smooth scaling from 2x (at 0) to 1x (at 20+)
@@ -692,304 +294,18 @@ class Scoring {
 	}
 
 	/*
-	 * Checks if an ally might die before their next turn
-	 * Uses cached danger and current HP (accounting for consequences)
-	 * @param entity The ally to check
-	 * @param consequences Optional consequences for current HP calculation
-	 * @return true if entity might die before they can act
+	 * Returns effective duration of an effect considering:
+	 * - Infinite duration (-1) converted to remaining turns
+	 * - Turn order (source before/after target)
+	 * - Cap to ScoringConfig.MAX_DURATION for mitigation maps
+	 * @param rawDuration Raw effect duration (-1 = infinite, or 0-8)
+	 * @param source Entity applying the effect
+	 * @param target Entity receiving the effect
+	 * @return Effective duration (0 to ScoringConfig.MAX_DURATION)
 	 */
-	static boolean canDie(Entity entity, Consequences? consequences) {
-		real? danger = _allyDanger[entity]
-		if (danger == null) return false
-		integer currentHP = entity.getCurrentHP(consequences)
-		return currentHP < danger! * CANDIE_THRESHOLD
-	}
-
-	/*
-	 * Computes expected danger for an ally from enemies who play before them
-	 * Uses MapDanger's pre-computed damage maps
-	 * @param ally The ally entity
-	 * @return Expected damage the ally will take before their turn
-	 */
-	static real computeAllyDanger(Entity ally) {
-		real totalDanger = 0.0
-		// Get enemies who play before this ally
-		for (Entity entity in ally.entitiesWhoPlayBefore) {
-			if (entity.isFriend) continue // only enemies
-			// Check each offensive item the enemy has
-			Map<Item, Map<Cell, real>>? enemyMaps = MapDanger._map_entity_item_danger[entity]
-			if (enemyMaps == null) continue
-			integer tpLeft = entity.tp
-			for (Item item in entity.offensiveItems) {
-				Map<Cell, real>? itemMap = enemyMaps![item]
-				if (itemMap == null) continue
-				real? ratioDmg = itemMap![ally.cell]
-				if (ratioDmg == null || ratioDmg <= 0) continue
-				// Estimate damage from this item
-				real itemDmg = Damages.getDamage(entity, ally, item, ratioDmg!, null)
-				if (itemDmg > 0) {
-					integer uses = 0
-					while (item.cost <= tpLeft && uses < item.maxUse) {
-						totalDanger += itemDmg
-						tpLeft -= item.cost
-						uses++
-						if (item.haveCD) break
-					}
-				}
-			}
-		}
-		return totalDanger
-	}
-
-	// === Position Scoring Weights (ML-tunable) ===
-
-	// Danger weights - how much we penalize expected damage
-	static real W_DANGER_BASE = 1.0           // base danger penalty per HP of damage
-	static real W_DANGER_LOW_HP = 1.5         // multiplier when life < 60%
-	static real W_DANGER_CRITICAL = 2.0       // multiplier when danger > life/2
-
-	// Proximity weights - penalty for nearby enemies (excluding primary target)
-	static real W_PROXIMITY_AREA1 = 150.0     // adjacent cell (distance 1)
-	static real W_PROXIMITY_AREA2 = 20.0      // distance 2
-	static real W_PROXIMITY_AREA3 = 10.0      // distance 3
-
-	// Gravity weights - attraction to allies based on their role
-	static real W_GRAVITY_ALLY_SUMMON = 80.0  // we're a summon, stay close to master
-	static real W_GRAVITY_ALLY_SNC600 = 40.0  // high science ally (buffer/healer)
-	static real W_GRAVITY_ALLY_SNC400 = 25.0  // science ally
-	static real W_GRAVITY_ALLY_WIS400 = 25.0  // wisdom ally
-	static real W_GRAVITY_ALLY_RST200 = 10.0  // tanky ally
-	static real W_GRAVITY_ALLY_WIS200 = 8.0   // wisdom ally (lower)
-	static real W_GRAVITY_ALLY_DEFAULT = 1.0  // default ally attraction
-
-	// Bulb-specific gravity
-	static real W_GRAVITY_METALLIC_NEED_ARMOR = 80.0  // metallic bulb when we need shields
-	static real W_GRAVITY_METALLIC_DEFAULT = 6.0      // metallic bulb normally
-	static real W_GRAVITY_HEALER_NEED_HEAL = 40.0     // healer bulb when hurt
-	static real W_GRAVITY_HEALER_DEFAULT = 5.0        // healer bulb normally
-
-	// Tactical weights
-	static real W_LOCK_BONUS = 1000.0         // bonus for locking enemy (computed in refresh)
-	static real W_CAC_IN_RANGE = 1000.0       // bonus if enemy can reach us for melee (we're CAC)
-	static real W_COVID_LEEK = 10000.0      // big bonus for being near uninfected enemy leek
-	static real W_COVID_SUMMON = 1000.0     // bonus for being near uninfected enemy summon
-
-	// Shield weights - value of keeping shields active
-	static real W_SHIELD_ABS = 3.0            // value per point of absolute shield
-	static real W_SHIELD_REL = 6.0            // value per point of relative shield
-
-	// Distance weights for ranged vs melee
-	static integer IDEAL_DIST_RANGED = -1     // calculated at first turn: self.mp + longest item range
-	static integer IDEAL_DIST_CAC = 1         // ideal distance for melee (adjacent)
-	static integer IDEAL_DIST_ALLY = 3        // default ideal distance to allies
-	static integer IDEAL_DIST_CENTER = 4      // ideal distance to map center (cell 306)
-	static integer IDEAL_DIST_METALLIC = 1    // stay close to metallic bulb
-	static integer IDEAL_DIST_HEALER = 4      // healing range
-	
-	static Map<integer, real> defensive_duration_mitigation = [
-		0 : 1.0,
-		1 : 1.0,
-		2 : 1.8,
-		3 : 2.4,
-		4 : 2.8,
-		5 : 3.2,
-		6 : 3.6,
-		7 : 4.0,
-		8 : 4.4,
-	]
-	
-	static Map<integer, real> offensive_duration_mitigation = [
-		0 : 1.0,
-		1 : 1.0,
-		2 : 1.8,
-		3 : 2.4,
-		4 : 2.8,
-		5 : 3.2,
-		6 : 3.6,
-		7 : 4.0,
-		8 : 4.4,
-	]
-	
-	/*
-	 * Initialise les coefs de toutes les entités en vie.
-	 * Appelé à chaque tour.
-	 */
-	static void refresh(){
-		_cache_coef = [:]
-		_cache_duration = [:]
-		_allyDanger = [:]
-
-		// Count ally bulb types for team composition modifiers
-		_countFire = 0
-		_countMetal = 0
-		_countHealer = 0
-		_countStrBulbs = 0
-		for (Entity entity in Fight.getAlliesAlive()) {
-			integer eType = getEntityType(entity)
-			if (eType == BULB_FIRE) {
-				_countFire++
-				_countStrBulbs++
-			} else if (eType == BULB_ICED || eType == BULB_LIGHTNING) {
-				_countStrBulbs++
-			} else if (eType == BULB_METALLIC) {
-				_countMetal++
-			} else if (eType == BULB_HEALER) {
-				_countHealer++
-			}
-		}
-
-		// Check if any enemy has significant strength
-		_enemyHasStr = false
-		for (Entity entity in Fight.getEnemiesAlive()) {
-			if (entity.str >= 100) {
-				_enemyHasStr = true
-				break
-			}
-		}
-
-		// Check if any ally has significant strength (for vuln value on enemies)
-		_allyHasStr = false
-		for (Entity entity in Fight.getAlliesAlive()) {
-			if (entity.str >= 100) {
-				_allyHasStr = true
-				break
-			}
-		}
-
-		// Count ready WSD/RST chips for each ally
-		// Cooldown 0 = 1.0, cooldown 1 = 0.5, cooldown > 1 = 0
-		_wsdReadyChips = [:]
-		_rstReadyChips = [:]
-		for (Entity entity in Fight.getAlliesAlive()) {
-			integer entityId = entity.id
-			real wsdCount = 0.0
-			real rstCount = 0.0
-
-			// Iterate entity.items (already cached)
-			for (Item item in entity.items) {
-				if (item.isWeap) continue
-				integer chipId = item.id
-
-				// Check WSD chips
-				if (inArray(WSD_CHIPS, chipId)) {
-					integer cd = getCooldown(chipId, entityId)
-					if (cd == 0) wsdCount += 1.0
-					else if (cd == 1) wsdCount += 0.5
-				}
-				// Check RST chips
-				if (inArray(RST_CHIPS, chipId)) {
-					integer cd = getCooldown(chipId, entityId)
-					if (cd == 0) rstCount += 1.0
-					else if (cd == 1) rstCount += 0.5
-				}
-			}
-			_wsdReadyChips[entityId] = wsdCount
-			_rstReadyChips[entityId] = rstCount
-		}
-
-		// Compute W_LOCK_BONUS based on vulnerability
-		// Default 1000, reduced to 500 when vulnerable (prioritize survival over locking)
-		boolean notShielded = Fight.self.absShield <= 0 && Fight.self.relShield <= 0
-		boolean notFullLife = Fight.self.life < Fight.self.totalLife
-		if ((notShielded && _enemyHasStr) || notFullLife) {
-			W_LOCK_BONUS = 500.0
-		} else {
-			W_LOCK_BONUS = 1000.0
-		}
-
-		// Compute global HP and count ratios (leeks only, ignore bulbs)
-		// Also compute min/max ally maxHP for HPMAX modifier
-		real sumAllyLife = 0.0
-		real sumEnemyLife = 0.0
-		integer allyCount = 0
-		integer enemyCount = 0
-		_minAllyMaxHP = 999999
-		_maxAllyMaxHP = 0
-		for (Entity entity in Fight.getAlliesLeeksAlive()) {
-			sumAllyLife += entity.life
-			allyCount++
-			if (entity.totalLife < _minAllyMaxHP) _minAllyMaxHP = entity.totalLife
-			if (entity.totalLife > _maxAllyMaxHP) _maxAllyMaxHP = entity.totalLife
-		}
-		for (Entity entity in Fight.getEnemiesLeeksAlive()) {
-			sumEnemyLife += entity.life
-			enemyCount++
-		}
-		_ratioHP = (sumEnemyLife > 0) ? sumAllyLife / sumEnemyLife : 1.0
-		_ratioCount = (enemyCount > 0) ? (allyCount * 1.0) / enemyCount : 1.0
-
-		// Calculate IDEAL_DIST_RANGED once at first turn
-		if (IDEAL_DIST_RANGED == -1) {
-			integer longestRange = 0
-			for (Item item in Fight.self.items) {
-				if (item.maxRange > longestRange) {
-					longestRange = item.maxRange
-				}
-			}
-			IDEAL_DIST_RANGED = Fight.self.mp + longestRange
-		}
-		// Reduce every 5 turns to avoid stalemate
-		if(getTurn()%5 == 0) IDEAL_DIST_RANGED--;
-
-		// Pre-compute effective durations for all raw values (-1 to MAX_DURATION)
-		// Key formula: (rawDuration + 1) * 2 + (sourceAfterTarget ? 1 : 0)
-		integer turnsLeft = MAX_FIGHT_TURNS - getTurn()
-		for(integer raw = -1; raw <= MAX_DURATION; raw++){
-			// For finite durations, cap to turnsLeft (can't benefit longer than fight lasts)
-			integer base = raw == -1 ? turnsLeft : min(raw, turnsLeft)
-			base = min(base, MAX_DURATION)
-			// source plays before target → target gets full duration
-			_cache_duration[(raw + 1) * 2] = max(base, 0)
-			// source plays after target → target gets 1 less turn
-			_cache_duration[(raw + 1) * 2 + 1] = max(base - 1, 0)
-		}
-		for(Entity entity in Fight.getAllAlive()){
-			_cache_coef[entity] = [:]
-			_cache_coef[entity]![Stats.HP] = getStatCoef(entity, Stats.HP)
-			_cache_coef[entity]![Stats.HPTIME] = getStatCoef(entity, Stats.HPTIME)
-			_cache_coef[entity]![Stats.HPMAX] = getStatCoef(entity, Stats.HPMAX)
-			_cache_coef[entity]![Stats.DEBUFF] = getStatCoef(entity, Stats.DEBUFF)
-			_cache_coef[entity]![Stats.ANTIDOTE] = getStatCoef(entity, Stats.ANTIDOTE)
-			_cache_coef[entity]![Stats.ABSSHIELD] = getStatCoef(entity, Stats.ABSSHIELD)
-			_cache_coef[entity]![Stats.RELSHIELD] = getStatCoef(entity, Stats.RELSHIELD)
-			_cache_coef[entity]![Stats.DMGRETURN] = getStatCoef(entity, Stats.DMGRETURN)
-			_cache_coef[entity]![Stats.STR] = getStatCoef(entity, Stats.STR)
-			_cache_coef[entity]![Stats.MGC] = getStatCoef(entity, Stats.MGC)
-			_cache_coef[entity]![Stats.RST] = getStatCoef(entity, Stats.RST)
-			_cache_coef[entity]![Stats.WSD] = getStatCoef(entity, Stats.WSD)
-			_cache_coef[entity]![Stats.AGI] = getStatCoef(entity, Stats.AGI)
-			_cache_coef[entity]![Stats.TP] = getStatCoef(entity, Stats.TP)
-			_cache_coef[entity]![Stats.MP] = getStatCoef(entity, Stats.MP)
-			_cache_coef[entity]![Stats.PWR] = getStatCoef(entity, Stats.PWR)
-			_cache_coef[entity]![Stats.KILL] = getStatCoef(entity, Stats.KILL)
-
-			// Compute danger for allies (not self - we handle our own danger elsewhere)
-			if (entity.isFriend && entity != Fight.self) {
-				_allyDanger[entity] = computeAllyDanger(entity)
-			}
-		}
-	}
-	
-	/*
-	 * retourne le coef d'une entity pour la key donnée
-	 */
-	static real getCoef(Entity entity, integer key){
-		return _cache_coef[entity]![key]!
-	}
-
-	/*
-	 * Retourne la durée effective d'un effet en tenant compte de:
-	 * - La durée infinie (-1) convertie en tours restants
-	 * - L'ordre de jeu (source avant/après target)
-	 * - Le cap à MAX_DURATION pour les maps de mitigation
-	 * @param rawDuration durée brute de l'effet (-1 = infini, ou 0-8)
-	 * @param source entité qui applique l'effet
-	 * @param target entité qui reçoit l'effet
-	 * @return durée effective (0 à MAX_DURATION)
-	 */
-	static integer getEffectiveDuration(integer rawDuration, Entity source, Entity target){
-		// Cap rawDuration to valid cache range (handles raw > MAX_DURATION)
-		integer cappedRaw = rawDuration == -1 ? -1 : min(rawDuration, MAX_DURATION)
+	static integer getEffectiveDuration(integer rawDuration, Entity source, Entity target) {
+		// Cap rawDuration to valid cache range (handles raw > ScoringConfig.MAX_DURATION)
+		integer cappedRaw = rawDuration == -1 ? -1 : min(rawDuration, ScoringConfig.MAX_DURATION)
 		integer key = (cappedRaw + 1) * 2 + (source.turnOrder > target.turnOrder ? 1 : 0)
 		return _cache_duration[key]!
 	}

@@ -1,0 +1,317 @@
+/*
+ * ScoringModifiers - Pure modifier functions for action scoring
+ *
+ * Contains all modifier functions that adjust base coefficients based on
+ * situational context (life ratio, level, team composition, shields, etc.)
+ *
+ * These are pure functions with no dependencies on Scoring class.
+ * Used by Scoring.getDynamicCoef() to transform base coefficients.
+ *
+ * Used by: Scoring
+ */
+class ScoringModifiers {
+
+	// Precomputed: 0.5 / log(301) ≈ 0.0876
+	static real LEVEL_RATIO_SCALE = 0.0876
+
+	/*
+	 * Computes lifeRatio modifier: more valuable to heal/damage low HP targets
+	 *
+	 * ALLY formula: min(2/lifeRatio - 1, 10.0) - aggressive curve for healing urgency
+	 * | lifeRatio | modifier | meaning                          |
+	 * |-----------|----------|----------------------------------|
+	 * | 1.00      | 1.0      | full HP → no bonus               |
+	 * | 0.80      | 1.5      | slightly hurt → small boost      |
+	 * | 0.67      | 2.0      | 2/3 HP → double value            |
+	 * | 0.50      | 3.0      | half HP → triple value           |
+	 * | 0.40      | 4.0      | hurt → 4x value                  |
+	 * | 0.25      | 7.0      | critical → 7x value              |
+	 * | 0.20      | 9.0      | near death → 9x value            |
+	 * | ≤0.18     | 10.0     | dying → capped at 10x            |
+	 *
+	 * ENEMY formula: 10 - 8 * lifeRatio - linear from 2 (full) to 10 (dead)
+	 * | lifeRatio | modifier | meaning                          |
+	 * |-----------|----------|----------------------------------|
+	 * | 1.00      | 2.0      | full HP → base priority          |
+	 * | 0.75      | 4.0      | wounded → increasing priority    |
+	 * | 0.50      | 6.0      | half HP → 6x value               |
+	 * | 0.25      | 8.0      | low HP → 8x value                |
+	 * | 0.10      | 9.2      | critical → near max              |
+	 * | 0.00      | 10.0     | dead → capped at 10x             |
+	 */
+	static real getLifeRatioModifier(Entity entity) {
+		real lifeRatio = entity.life / entity.totalLife
+		if (lifeRatio <= 0.0) return 10.0 // safety: dead or invalid
+
+		if (entity.isFriend) {
+			// Ally: aggressive curve - prioritize healing low HP allies
+			return min(2.0 / lifeRatio - 1.0, 10.0)
+		} else {
+			// Enemy: linear curve from 2 (full HP) to 10 (dead)
+			return 10.0 - 8.0 * lifeRatio
+		}
+	}
+
+	/*
+	 * Computes levelRatio modifier: more valuable to buff high-level allies
+	 * Formula: 1.0 + 0.5 * log(targetLevel / selfLevel) / log(301)
+	 *
+	 * Scoring evolution (logarithmic, symmetric):
+	 * | level ratio | modifier | meaning                          |
+	 * |-------------|----------|----------------------------------|
+	 * | 1/301       | 0.50     | buffing lvl 1 as lvl 301 → half  |
+	 * | 1/10        | 0.80     | buffing much lower level         |
+	 * | 1/2         | 0.94     | buffing slightly lower level     |
+	 * | 1           | 1.00     | same level → no change           |
+	 * | 2           | 1.06     | buffing slightly higher level    |
+	 * | 10          | 1.20     | buffing much higher level        |
+	 * | 301         | 1.50     | buffing lvl 301 as lvl 1 → 1.5x  |
+	 */
+	static real getLevelRatioModifier(Entity entity) {
+		integer selfLevel = Fight.self.level
+		if (selfLevel <= 0) return 1.0 // safety
+		real ratio = entity.level / selfLevel
+		if (ratio <= 0.0) return 0.5 // safety: clamp to minimum
+		return max(0.5, min(1.5, 1.0 + LEVEL_RATIO_SCALE * log(ratio)))
+	}
+
+	/*
+	 * Computes STR/MGC scaling modifier based on current stat level
+	 * Peak value at 1000, diminishing returns above
+	 *
+	 * Scoring evolution:
+	 * | Current stat | modifier | meaning                        |
+	 * |--------------|----------|--------------------------------|
+	 * | 0            | 0.5      | no stat, low value to boost    |
+	 * | 500          | 1.0      | mid stat                       |
+	 * | 1000         | 1.5      | peak value (scales best)       |
+	 * | 1500         | 1.0      | diminishing returns            |
+	 * | 2000+        | 0.5      | very high, minimal benefit     |
+	 */
+	static real getStatScalingModifier(integer currentStat) {
+		if (currentStat <= 0) return 0.5
+		if (currentStat <= 1000) {
+			// Linear 0.5 → 1.5 over 0 → 1000
+			return 0.5 + (currentStat / 1000.0)
+		}
+		if (currentStat <= 2000) {
+			// Linear 1.5 → 0.5 over 1000 → 2000
+			return 1.5 - ((currentStat - 1000) / 1000.0)
+		}
+		return 0.5
+	}
+
+	/*
+	 * Computes maxHP comparison modifier for HPMAX stat
+	 * Low maxHP allies benefit more from HPMAX boosts
+	 *
+	 * Scoring evolution:
+	 * | Entity maxHP position | modifier | meaning                    |
+	 * |-----------------------|----------|----------------------------|
+	 * | lowest among allies   | 1.5      | needs HP boost most        |
+	 * | average               | 1.0      | neutral                    |
+	 * | highest among allies  | 0.5      | doesn't need it as much    |
+	 *
+	 * @param entity The ally entity
+	 * @return Multiplier for HPMAX coefficient (0.5 to 1.5)
+	 */
+	static real getMaxHPComparisonModifier(Entity entity) {
+		if (BattleState.maxAllyMaxHP <= BattleState.minAllyMaxHP) return 1.0  // all same or invalid
+
+		// Where does this entity fall in the range? (0 = lowest, 1 = highest)
+		real position = (entity.totalLife - BattleState.minAllyMaxHP) * 1.0 / (BattleState.maxAllyMaxHP - BattleState.minAllyMaxHP)
+
+		// Invert: low maxHP → high modifier (1.5), high maxHP → low modifier (0.5)
+		return 1.5 - position
+	}
+
+	/*
+	 * Gets the chip readiness modifier for WSD or RST
+	 * Chips at cooldown 0 count as 1.0, cooldown 1 counts as 0.5
+	 *
+	 * Scoring evolution:
+	 * | Ready count | modifier | meaning                        |
+	 * |-------------|----------|--------------------------------|
+	 * | 0           | 0.5      | no chips ready, low value      |
+	 * | 0.5         | 0.75     | one chip at cooldown 1         |
+	 * | 1           | 1.0      | one chip ready                 |
+	 * | 2           | 1.25     | two chips ready                |
+	 * | 3+          | 1.5      | many chips ready               |
+	 *
+	 * @param entity The ally entity
+	 * @param stat Stats.WSD or Stats.RST
+	 * @return Multiplier for stat coefficient
+	 */
+	static real getChipReadyModifier(Entity entity, integer stat) {
+		real readyCount = 0.0
+		if (stat == Stats.WSD) {
+			readyCount = BattleState.wsdReadyChips[entity.id]  // null coerces to 0
+		} else if (stat == Stats.RST) {
+			readyCount = BattleState.rstReadyChips[entity.id]  // null coerces to 0
+		}
+
+		if (readyCount <= 0) return 0.5
+		if (readyCount <= 1) {
+			// Linear 0.5 → 1.0 over 0 → 1
+			return 0.5 + 0.5 * readyCount
+		}
+		if (readyCount <= 3) {
+			// Linear 1.0 → 1.5 over 1 → 3
+			return 1.0 + 0.25 * (readyCount - 1)
+		}
+		return 1.5
+	}
+
+	/*
+	 * Computes winning modifier based on global HP and count ratios
+	 * Adjusts how much we care about ally HP/HPTIME based on match state
+	 *
+	 * Note: Individual danger (low HP, no shields, canDie) is handled by
+	 * other modifiers - this is ONLY about global winning/losing state.
+	 *
+	 * Formula: modifier = 1.5 - 0.5 * combined, clamped to [0.5, 1.5]
+	 * where combined = (ratioHP + ratioCount) / 2
+	 *
+	 * Scoring evolution:
+	 * | ratioHP | ratioCount | combined | modifier | meaning              |
+	 * |---------|------------|----------|----------|----------------------|
+	 * | 2.0     | 2.0        | 2.0      | 0.5      | winning → relax      |
+	 * | 1.5     | 1.5        | 1.5      | 0.75     | ahead                |
+	 * | 1.0     | 1.0        | 1.0      | 1.0      | even → neutral       |
+	 * | 0.5     | 0.5        | 0.5      | 1.25     | behind               |
+	 * | 0.33    | 0.33       | 0.33     | 1.5      | losing → prioritize  |
+	 *
+	 * @return Multiplier for ally HP/HPTIME coefficients
+	 */
+	static real getWinningModifier() {
+		real combined = (BattleState.ratioHP + BattleState.ratioCount) / 2.0
+		real modifier = 1.5 - 0.5 * combined
+		return max(0.5, min(1.5, modifier))
+	}
+
+	/*
+	 * Computes shield status modifier based on current shield levels
+	 * More valuable to shield unshielded allies / remove shields from unshielded enemies
+	 *
+	 * Scoring evolution (for ALLIES):
+	 * | Entity      | Current Shield | enemyHasStr | Modifier | Rationale                  |
+	 * |-------------|----------------|-------------|----------|----------------------------|
+	 * | LEEK        | 0              | yes         |     3.0x | urgent need for shields    |
+	 * | LEEK        | ≤80            | yes         |     2.0x | low shields, STR incoming  |
+	 * | LEEK        | any            | no          |     1.0x | no physical threat         |
+	 * | FIRE_BULB   | 0              | any         |     2.0x | fire bulb needs protection |
+	 * | other       | any            | any         |     1.0x | default                    |
+	 *
+	 * Scoring evolution (for ENEMIES - inverted logic):
+	 * | Current Shield | Modifier | Rationale                              |
+	 * |----------------|----------|----------------------------------------|
+	 * | 0              |     0.5x | already unshielded, less urgent        |
+	 * | ≤100           |     1.5x | low shields, worth removing            |
+	 * | >100           |     1.0x | normal priority                        |
+	 *
+	 * @param entity The entity
+	 * @param stat ABSSHIELD or RELSHIELD
+	 * @return Multiplier based on current shield status
+	 */
+	static real getShieldStatusModifier(Entity entity, integer stat) {
+		if (stat != Stats.ABSSHIELD && stat != Stats.RELSHIELD) return 1.0
+
+		// Get current shield value
+		integer currentShield = (stat == Stats.ABSSHIELD) ? entity.absShield : entity.relShield
+
+		if (entity.isFriend) {
+			// Ally: boost when unshielded and enemy has STR
+			integer eType = EntityTypes.getEntityType(entity)
+
+			// Fire bulb with no shields: extra boost
+			if (eType == EntityTypes.BULB_FIRE && currentShield <= 0) {
+				return 2.0
+			}
+
+			// Leek with low/no shields when enemy has STR
+			if (eType == ENTITY_LEEK && BattleState.enemyHasStr) {
+				if (currentShield <= 0) return 3.0
+				if (currentShield <= 80) return 2.0
+			}
+		} else {
+			// Enemy: vuln value - based on whether WE have STR to exploit it
+			if (!BattleState.allyHasStr) {
+				return 0.5  // No STR, vuln is less valuable
+			}
+
+			// Smooth scaling from 2x (at 0) to 1x (at threshold)
+			// ABSSHIELD: 0-100 range, RELSHIELD: 0-20 range
+			if (stat == Stats.ABSSHIELD) {
+				if (currentShield <= 0) return 2.0
+				if (currentShield >= 100) return 1.0
+				return 2.0 - (currentShield / 100.0)
+			} else {
+				// RELSHIELD: 0-20 range
+				if (currentShield <= 0) return 2.0
+				if (currentShield >= 20) return 1.0
+				return 2.0 - (currentShield / 20.0)
+			}
+		}
+
+		return 1.0
+	}
+
+	/*
+	 * Computes team composition modifier for shield stats
+	 * Based on bulb type priority and enemy threat
+	 *
+	 * Scoring evolution (for ALLIES receiving shields):
+	 * | Entity Type  | Condition          | Modifier | Rationale                          |
+	 * |--------------|--------------------|---------:|------------------------------------|
+	 * | FIRE_BULB    | always             |     1.5x | benefits most from shields         |
+	 * | HEALER_BULB  | ≤2 healers         |     1.3x | protect the healer                 |
+	 * | HEALER_BULB  | >2 healers         |     0.7x | we have backups                    |
+	 * | METALLIC_BULB| always             |     0.3x | they provide shields, not receive  |
+	 * | other bulbs  | default            |     1.0x | normal priority                    |
+	 * | any ally     | enemy has STR≥100  |    +1.5x | physical damage incoming           |
+	 *
+	 * Scoring evolution (for ENEMIES losing shields):
+	 * | Condition           | Modifier | Rationale                          |
+	 * |---------------------|---------:|------------------------------------|
+	 * | 1 offensive bulb    |     1.3x | our bulb will deal more damage     |
+	 * | 2 offensive bulbs   |     1.6x | more damage potential              |
+	 * | 3+ offensive bulbs  |     2.0x | full offensive team                |
+	 *
+	 * @param entity The entity (ally or enemy)
+	 * @param stat The stat (ABSSHIELD or RELSHIELD)
+	 * @return Multiplier based on team composition
+	 */
+	static real getTeamCompModifier(Entity entity, integer stat) {
+		if (stat != Stats.ABSSHIELD && stat != Stats.RELSHIELD) return 1.0
+
+		integer eType = EntityTypes.getEntityType(entity)
+		real modifier = 1.0
+
+		if (entity.isFriend) {
+			// Ally: adjust shield priority by bulb type
+			if (eType == EntityTypes.BULB_FIRE) {
+				modifier = 1.5 // fire bulbs benefit most from shields
+			} else if (eType == EntityTypes.BULB_HEALER) {
+				modifier = (BattleState.countHealer > 2) ? 0.7 : 1.3 // protect healer unless we have many
+			} else if (eType == EntityTypes.BULB_METALLIC) {
+				modifier = 0.3 // metallic provides shields, low priority to receive
+			}
+
+			// Boost all ally shields when enemy has physical damage
+			if (BattleState.enemyHasStr) {
+				modifier *= 1.5
+			}
+		} else {
+			// Enemy: removing shields is more valuable when we have offensive bulbs
+			if (BattleState.countStrBulbs >= 3) {
+				modifier = 2.0
+			} else if (BattleState.countStrBulbs >= 2) {
+				modifier = 1.6
+			} else if (BattleState.countStrBulbs >= 1) {
+				modifier = 1.3
+			}
+		}
+
+		return modifier
+	}
+}

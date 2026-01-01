@@ -72,7 +72,7 @@ class Position extends Danger {
 
 		// Ignore small damage (scratches < 10% of current life)
 		// Cancel the score penalty but keep dmg visible for debugging
-		if (this.dmg < currentLife * Scoring.IGNORE_DANGER_RATIO) {
+		if (this.dmg < currentLife * ScoringConfig.IGNORE_DANGER_RATIO) {
 			this.score += this.dmg  // cancel the -dmg penalty
 			return
 		}
@@ -82,12 +82,12 @@ class Position extends Danger {
 
 		// Low HP scaling (below 60%)
 		if (lifePercent < 0.6) {
-			scaledDangerScore *= Scoring.W_DANGER_LOW_HP
+			scaledDangerScore *= ScoringConfig.W_DANGER_LOW_HP
 		}
 
 		// Critical danger scaling (danger > half of remaining life)
 		if (this.dmg > currentLife / 2) {
-			scaledDangerScore *= Scoring.W_DANGER_CRITICAL
+			scaledDangerScore *= ScoringConfig.W_DANGER_CRITICAL
 		}
 
 		// Apply the difference (since base score already has -dmg)
