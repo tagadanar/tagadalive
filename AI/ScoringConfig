@@ -1,0 +1,97 @@
+/*
+ * ScoringConfig - Configuration and constants for the scoring system
+ *
+ * Contains all ML-tunable weights, thresholds, and duration mitigation tables.
+ * Centralizes configuration for easy tuning and experimentation.
+ *
+ * Used by: Scoring, ScoringModifiers, MapPosition, Position
+ */
+class ScoringConfig {
+
+	// === Combat Values ===
+	static integer KILL_VALUE = 2000
+	static integer DEATH_VALUE = -2000
+	static integer MAX_FIGHT_TURNS = 66
+	static integer MAX_DURATION = 8 // max index in duration_mitigation maps
+
+	// === CanDie Thresholds ===
+	static real CANDIE_MODIFIER = 10.0   // massive boost when ally might die
+	static real CANDIE_THRESHOLD = 0.8   // ally.hp < danger * threshold → canDie
+	static real IGNORE_DANGER_RATIO = 0.1 // ignore damage < 10% of current life
+
+	// === Chip Maps for WSD/RST Modifiers (O(1) lookup) ===
+	static Map<integer, boolean> WSD_CHIPS = [CHIP_ELEVATION: true, CHIP_CURE: true, CHIP_VACCINE: true, CHIP_ARMORING: true, CHIP_REMISSION: true]
+	static Map<integer, boolean> RST_CHIPS = [CHIP_HELMET: true, CHIP_SHIELD: true, CHIP_ARMOR: true, CHIP_WALL: true, CHIP_FORTRESS: true]
+
+	// === Position Scoring Weights (ML-tunable) ===
+
+	// Danger weights - how much we penalize expected damage
+	static real W_DANGER_BASE = 1.0           // base danger penalty per HP of damage
+	static real W_DANGER_LOW_HP = 1.5         // multiplier when life < 60%
+	static real W_DANGER_CRITICAL = 2.0       // multiplier when danger > life/2
+
+	// Proximity weights - penalty for nearby enemies (excluding primary target)
+	static real W_PROXIMITY_AREA1 = 150.0     // adjacent cell (distance 1)
+	static real W_PROXIMITY_AREA2 = 20.0      // distance 2
+	static real W_PROXIMITY_AREA3 = 10.0      // distance 3
+
+	// Gravity weights - attraction to allies based on their role
+	static real W_GRAVITY_ALLY_SUMMON = 80.0  // we're a summon, stay close to master
+	static real W_GRAVITY_ALLY_SNC600 = 40.0  // high science ally (buffer/healer)
+	static real W_GRAVITY_ALLY_SNC400 = 25.0  // science ally
+	static real W_GRAVITY_ALLY_WIS400 = 25.0  // wisdom ally
+	static real W_GRAVITY_ALLY_RST200 = 10.0  // tanky ally
+	static real W_GRAVITY_ALLY_WIS200 = 8.0   // wisdom ally (lower)
+	static real W_GRAVITY_ALLY_DEFAULT = 1.0  // default ally attraction
+
+	// Bulb-specific gravity
+	static real W_GRAVITY_METALLIC_NEED_ARMOR = 80.0  // metallic bulb when we need shields
+	static real W_GRAVITY_METALLIC_DEFAULT = 6.0      // metallic bulb normally
+	static real W_GRAVITY_HEALER_NEED_HEAL = 40.0     // healer bulb when hurt
+	static real W_GRAVITY_HEALER_DEFAULT = 5.0        // healer bulb normally
+
+	// Tactical weights
+	// Note: W_LOCK_BONUS is in Scoring (dynamically computed in refresh)
+	static real W_CAC_IN_RANGE = 1000.0       // bonus if enemy can reach us for melee (we're CAC)
+	static real W_COVID_LEEK = 10000.0        // big bonus for being near uninfected enemy leek
+	static real W_COVID_SUMMON = 1000.0       // bonus for being near uninfected enemy summon
+
+	// Shield weights - value of keeping shields active
+	static real W_SHIELD_ABS = 3.0            // value per point of absolute shield
+	static real W_SHIELD_REL = 6.0            // value per point of relative shield
+
+	// === Distance Weights ===
+	// Note: IDEAL_DIST_RANGED is in Scoring (dynamically computed in refresh)
+	static integer IDEAL_DIST_CAC = 1         // ideal distance for melee (adjacent)
+	static integer IDEAL_DIST_ALLY = 3        // default ideal distance to allies
+	static integer IDEAL_DIST_CENTER = 4      // ideal distance to map center (cell 306)
+	static integer IDEAL_DIST_METALLIC = 1    // stay close to metallic bulb
+	static integer IDEAL_DIST_HEALER = 4      // healing range
+
+	// === Duration Mitigation Tables ===
+	// Maps effect duration to value multiplier (diminishing returns for long durations)
+
+	static Map<integer, real> defensive_duration_mitigation = [
+		0 : 1.0,
+		1 : 1.0,
+		2 : 1.8,
+		3 : 2.4,
+		4 : 2.8,
+		5 : 3.2,
+		6 : 3.6,
+		7 : 4.0,
+		8 : 4.4
+	]
+
+	static Map<integer, real> offensive_duration_mitigation = [
+		0 : 1.0,
+		1 : 1.0,
+		2 : 1.8,
+		3 : 2.4,
+		4 : 2.8,
+		5 : 3.2,
+		6 : 3.6,
+		7 : 4.0,
+		8 : 4.4
+	]
+}
