@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         LWA Core
 // @namespace    https://leekwars.com/
-// @version      1.0.0
+// @version      1.5.0
 // @description  LeekWars Fight Analyzer - Core module (state, colors, helpers)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*
+// @match        https://leekwars.com/fight/*
 // @icon         https://leekwars.com/image/favicon.png
 // @grant        unsafeWindow
 // @run-at       document-start
@@ -22,10 +23,275 @@
     // Constants
     // ========================================
     LWA.MARKER = '##MARKER##';
-    LWA.VERSION = '1.0.0';
+    LWA.VERSION = '1.5.0';
     LWA.SUMMON_NAMES = ['Tourelle', 'Turret', 'Puny', 'Chest', 'Coffre'];
-    LWA.MAX_FETCH_ATTEMPTS = 5;
-    LWA.FETCH_RETRY_DELAY = 2000;
+    LWA.MAX_FETCH_ATTEMPTS = 2;
+    LWA.FETCH_RETRY_DELAY = 1000;
+
+    // ========================================
+    // Cache Configuration
+    // ========================================
+    LWA.CACHE_PREFIX = 'lwa_fight_';
+    LWA.CACHE_INDEX_KEY = 'lwa_cache_index';
+    LWA.CACHE_MAX_AGE_HOURS = 48; // Default: auto-cleanup after 48 hours
+
+    // ========================================
+    // localStorage Cache System
+    // ========================================
+    LWA.cache = {
+        /**
+         * Save fight logs to localStorage
+         * @param {string|number} fightId - Fight ID
+         * @param {string} logs - Raw log text
+         */
+        save: function(fightId, logs) {
+            try {
+                const key = LWA.CACHE_PREFIX + fightId;
+                const data = {
+                    logs: logs,
+                    timestamp: Date.now(),
+                    fightId: fightId
+                };
+                localStorage.setItem(key, JSON.stringify(data));
+
+                // Update index
+                const index = LWA.cache.getIndex();
+                if (!index.includes(String(fightId))) {
+                    index.push(String(fightId));
+                    localStorage.setItem(LWA.CACHE_INDEX_KEY, JSON.stringify(index));
+                }
+                console.log(`[LWA Cache] Saved fight ${fightId} (${(logs.length / 1024).toFixed(1)} KB)`);
+            } catch (e) {
+                console.error('[LWA Cache] Error saving:', e);
+            }
+        },
+
+        /**
+         * Get fight logs from localStorage
+         * @param {string|number} fightId - Fight ID
+         * @returns {object|null} - { logs, timestamp, fightId } or null
+         */
+        get: function(fightId) {
+            try {
+                const key = LWA.CACHE_PREFIX + fightId;
+                const data = localStorage.getItem(key);
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    console.log(`[LWA Cache] Loaded fight ${fightId} from cache`);
+                    return parsed;
+                }
+            } catch (e) {
+                console.error('[LWA Cache] Error loading:', e);
+            }
+            return null;
+        },
+
+        /**
+         * Check if fight is cached
+         * @param {string|number} fightId - Fight ID
+         * @returns {boolean}
+         */
+        has: function(fightId) {
+            return localStorage.getItem(LWA.CACHE_PREFIX + fightId) !== null;
+        },
+
+        /**
+         * Get cache index (list of cached fight IDs)
+         * @returns {string[]}
+         */
+        getIndex: function() {
+            try {
+                const index = localStorage.getItem(LWA.CACHE_INDEX_KEY);
+                return index ? JSON.parse(index) : [];
+            } catch (e) {
+                return [];
+            }
+        },
+
+        /**
+         * Get cache statistics
+         * @returns {object} - { count, totalSize, items }
+         */
+        getStats: function() {
+            const index = LWA.cache.getIndex();
+            let totalSize = 0;
+            const items = [];
+
+            for (const fightId of index) {
+                const key = LWA.CACHE_PREFIX + fightId;
+                const data = localStorage.getItem(key);
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    const size = data.length;
+                    totalSize += size;
+                    items.push({
+                        fightId: fightId,
+                        timestamp: parsed.timestamp,
+                        size: size,
+                        age: Date.now() - parsed.timestamp
+                    });
+                }
+            }
+
+            // Sort by timestamp (newest first)
+            items.sort((a, b) => b.timestamp - a.timestamp);
+
+            return {
+                count: items.length,
+                totalSize: totalSize,
+                totalSizeKB: (totalSize / 1024).toFixed(1),
+                items: items
+            };
+        },
+
+        /**
+         * Remove old cached fights
+         * @param {number} maxAgeHours - Max age in hours (default: LWA.CACHE_MAX_AGE_HOURS)
+         * @returns {number} - Number of items removed
+         */
+        cleanup: function(maxAgeHours) {
+            const maxAge = (maxAgeHours || LWA.CACHE_MAX_AGE_HOURS) * 60 * 60 * 1000;
+            const now = Date.now();
+            const index = LWA.cache.getIndex();
+            const newIndex = [];
+            let removed = 0;
+
+            for (const fightId of index) {
+                const key = LWA.CACHE_PREFIX + fightId;
+                const data = localStorage.getItem(key);
+                if (data) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        if (now - parsed.timestamp > maxAge) {
+                            localStorage.removeItem(key);
+                            removed++;
+                            console.log(`[LWA Cache] Removed old fight ${fightId}`);
+                        } else {
+                            newIndex.push(fightId);
+                        }
+                    } catch (e) {
+                        localStorage.removeItem(key);
+                        removed++;
+                    }
+                }
+            }
+
+            localStorage.setItem(LWA.CACHE_INDEX_KEY, JSON.stringify(newIndex));
+            if (removed > 0) {
+                console.log(`[LWA Cache] Cleanup: removed ${removed} old fights`);
+            }
+            return removed;
+        },
+
+        /**
+         * Clear all cached fights
+         * @returns {number} - Number of items removed
+         */
+        clear: function() {
+            const index = LWA.cache.getIndex();
+            let removed = 0;
+
+            for (const fightId of index) {
+                const key = LWA.CACHE_PREFIX + fightId;
+                localStorage.removeItem(key);
+                removed++;
+            }
+
+            localStorage.removeItem(LWA.CACHE_INDEX_KEY);
+            console.log(`[LWA Cache] Cleared ${removed} fights`);
+            return removed;
+        },
+
+        /**
+         * Remove a specific fight from cache
+         * @param {string|number} fightId - Fight ID
+         */
+        remove: function(fightId) {
+            const key = LWA.CACHE_PREFIX + fightId;
+            localStorage.removeItem(key);
+
+            const index = LWA.cache.getIndex();
+            const newIndex = index.filter(id => id !== String(fightId));
+            localStorage.setItem(LWA.CACHE_INDEX_KEY, JSON.stringify(newIndex));
+            console.log(`[LWA Cache] Removed fight ${fightId}`);
+        },
+
+        /**
+         * Set max age for auto-cleanup
+         * @param {number} hours - Max age in hours
+         */
+        setMaxAge: function(hours) {
+            LWA.CACHE_MAX_AGE_HOURS = hours;
+            localStorage.setItem('lwa_cache_max_age', hours);
+            console.log(`[LWA Cache] Max age set to ${hours} hours`);
+        },
+
+        /**
+         * Get max age setting
+         * @returns {number}
+         */
+        getMaxAge: function() {
+            try {
+                const saved = localStorage.getItem('lwa_cache_max_age');
+                if (saved) {
+                    LWA.CACHE_MAX_AGE_HOURS = parseInt(saved);
+                }
+            } catch (e) {}
+            return LWA.CACHE_MAX_AGE_HOURS;
+        }
+    };
+
+    // Initialize and run auto-cleanup on load
+    LWA.cache.getMaxAge();
+    LWA.cache.cleanup();
+
+    // ========================================
+    // User Settings (persisted, never auto-cleared)
+    // ========================================
+    LWA.SETTINGS_KEY = 'lwa_settings';
+
+    LWA.settings = {
+        /**
+         * Get all settings
+         * @returns {object}
+         */
+        getAll: function() {
+            try {
+                const saved = localStorage.getItem(LWA.SETTINGS_KEY);
+                return saved ? JSON.parse(saved) : {};
+            } catch (e) {
+                return {};
+            }
+        },
+
+        /**
+         * Get a specific setting
+         * @param {string} key - Setting key
+         * @param {*} defaultValue - Default value if not set
+         * @returns {*}
+         */
+        get: function(key, defaultValue) {
+            const all = LWA.settings.getAll();
+            return all.hasOwnProperty(key) ? all[key] : defaultValue;
+        },
+
+        /**
+         * Set a specific setting
+         * @param {string} key - Setting key
+         * @param {*} value - Value to save
+         */
+        set: function(key, value) {
+            const all = LWA.settings.getAll();
+            all[key] = value;
+            localStorage.setItem(LWA.SETTINGS_KEY, JSON.stringify(all));
+            console.log(`[LWA Settings] ${key} = ${value}`);
+        }
+    };
+
+    // Setting keys
+    LWA.SETTING_FIGHT_PANEL_POSITION = 'fightPanelPosition'; // 'bottom' or 'side'
+    LWA.SETTING_FIGHT_PANEL_COLLAPSED = 'fightPanelCollapsed'; // true or false
+    LWA.SETTING_FIGHT_PANEL_WIDTH = 'fightPanelWidth'; // custom width in pixels (default: 400)
 
     // ========================================
     // Global State
@@ -44,7 +310,10 @@
     LWA.charts = {
         opsChart: null,
         hpChart: null,
-        scoreChart: null
+        scoreChart: null,
+        tpChart: null,
+        mpChart: null,
+        ramChart: null
     };
 
     // ========================================

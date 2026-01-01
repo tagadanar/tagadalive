@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         LWA Parser
 // @namespace    https://leekwars.com/
-// @version      1.0.0
+// @version      1.1.0
 // @description  LeekWars Fight Analyzer - Parser module (log parsing)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*
+// @match        https://leekwars.com/fight/*
 // @icon         https://leekwars.com/image/favicon.png
 // @grant        unsafeWindow
 // @inject-into  content
@@ -260,7 +261,7 @@
         const turn = {
             t: 0,
             ops: 0, max: 0,
-            ctx: { life: 0, maxLife: 0, tp: 0, mp: 0, cell: 0, enemies: 0, allies: 0 },
+            ctx: { life: 0, maxLife: 0, tp: 0, maxTp: 0, mp: 0, maxMp: 0, usedRam: 0, maxRam: 0, cell: 0, enemies: 0, allies: 0 },
             mcts: { iter: 0, nodes: 0, pos: 0, best: 0 },
             chosen: { score: 0, actions: 0, desc: '' },
             combos: [],
@@ -285,10 +286,28 @@
                 if (m) { turn.ctx.life = parseInt(m[1]); turn.ctx.maxLife = parseInt(m[2]); }
             }
             else if (p.startsWith('tp:')) {
-                turn.ctx.tp = parseInt(p.substring(3)) || 0;
+                // Format: tp:current/max or legacy tp:current
+                const tpMatch = p.match(/tp:(\d+)(?:\/(\d+))?/);
+                if (tpMatch) {
+                    turn.ctx.tp = parseInt(tpMatch[1]) || 0;
+                    turn.ctx.maxTp = parseInt(tpMatch[2]) || turn.ctx.tp;
+                }
             }
             else if (p.startsWith('mp:')) {
-                turn.ctx.mp = parseInt(p.substring(3)) || 0;
+                // Format: mp:current/max or legacy mp:current
+                const mpMatch = p.match(/mp:(\d+)(?:\/(\d+))?/);
+                if (mpMatch) {
+                    turn.ctx.mp = parseInt(mpMatch[1]) || 0;
+                    turn.ctx.maxMp = parseInt(mpMatch[2]) || turn.ctx.mp;
+                }
+            }
+            else if (p.startsWith('ram:')) {
+                // Format: ram:used/max
+                const ramMatch = p.match(/ram:(\d+)\/(\d+)/);
+                if (ramMatch) {
+                    turn.ctx.usedRam = parseInt(ramMatch[1]) || 0;
+                    turn.ctx.maxRam = parseInt(ramMatch[2]) || 0;
+                }
             }
             else if (p.startsWith('c:')) {
                 turn.ctx.cell = parseInt(p.substring(2)) || 0;
@@ -426,7 +445,7 @@
                 t: d.t || 0,
                 ops: d.ops || 0,
                 max: d.max || 0,
-                ctx: d.ctx || { life: 0, maxLife: 0, tp: 0, mp: 0, cell: 0, enemies: 0, allies: 0 },
+                ctx: d.ctx || { life: 0, maxLife: 0, tp: 0, maxTp: 0, mp: 0, maxMp: 0, usedRam: 0, maxRam: 0, cell: 0, enemies: 0, allies: 0 },
                 mcts: d.mcts || { iter: 0, nodes: 0, pos: 0, best: 0 },
                 chosen: d.chosen || { score: 0, actions: 0, desc: '' },
                 combos: (d.combos || []).map(c => ({ s: c.s, as: c.as, ps: c.ps, d: c.d })),

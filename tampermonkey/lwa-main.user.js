@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         LWA Main
 // @namespace    https://leekwars.com/
-// @version      1.0.0
+// @version      1.5.0
 // @description  LeekWars Fight Analyzer - Main module (init + orchestration)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*
+// @match        https://leekwars.com/fight/*
 // @icon         https://leekwars.com/image/favicon.png
 // @grant        unsafeWindow
 // @inject-into  content
@@ -41,94 +42,113 @@
             LWA.state.fetchAttempts = 0;
         }
         LWA.state.fetchAttempts++;
-        console.log(`[LWA] Looking for logs... (attempt ${LWA.state.fetchAttempts}/${LWA.MAX_FETCH_ATTEMPTS})`);
+
+        const fightId = LWA.getFightId();
+        LWA.state.currentFightId = fightId;
+        LWA.state.isFromCache = false;
+
+        console.log(`[LWA] Looking for logs... (attempt ${LWA.state.fetchAttempts}/${LWA.MAX_FETCH_ATTEMPTS}, fightId: ${fightId})`);
 
         let allLogs = '';
         let foundLogs = false;
 
-        // DOM selectors
-        const sels = ['.logs-content', '.log-content', '.fight-logs', '.logs', '[class*="log"]', 'pre'];
-        for (const s of sels) {
-            document.querySelectorAll(s).forEach(el => {
-                const text = el.textContent || '';
-                if (text.length > 0) {
-                    allLogs += text + '\n';
-                    foundLogs = true;
-                }
-            });
-        }
-
-        // Vue data - try multiple approaches
-        const app = document.querySelector('#app');
-        if (app) {
-            // Try Vue 2 style
-            if (app.__vue__) {
-                try {
-                    const vue = app.__vue__;
-                    const fight = vue.$store?.state?.fight || vue.fight || vue.$data?.fight;
-                    if (fight?.logs) {
-                        console.log('[LWA] Found logs via Vue 2');
-                        for (const id in fight.logs) {
-                            if (Array.isArray(fight.logs[id])) {
-                                allLogs += fight.logs[id].join('\n') + '\n';
-                                foundLogs = true;
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.log('[LWA] Vue 2 access error:', e);
-                }
-            }
-
-            // Try Vue 3 style
-            if (app._instance?.proxy) {
-                try {
-                    const proxy = app._instance.proxy;
-                    const fight = proxy.fight || proxy.$store?.state?.fight;
-                    if (fight?.logs) {
-                        console.log('[LWA] Found logs via Vue 3');
-                        for (const id in fight.logs) {
-                            if (Array.isArray(fight.logs[id])) {
-                                allLogs += fight.logs[id].join('\n') + '\n';
-                                foundLogs = true;
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.log('[LWA] Vue 3 access error:', e);
-                }
+        // On fight page, try to load from cache first
+        if (LWA.isFightPage() && fightId && LWA.cache.has(fightId)) {
+            const cached = LWA.cache.get(fightId);
+            if (cached && cached.logs) {
+                allLogs = cached.logs;
+                foundLogs = true;
+                LWA.state.isFromCache = true;
+                console.log('[LWA] Loaded logs from cache');
             }
         }
 
-        // Try fetching from API if we have the fight ID
-        const fightIdMatch = location.pathname.match(/\/report\/(\d+)/);
-        if (!foundLogs && fightIdMatch) {
-            const fightId = fightIdMatch[1];
-            console.log(`[LWA] Attempting to fetch fight ${fightId} from API...`);
+        // If not from cache, try to get from DOM/Vue (only works on report page)
+        if (!foundLogs) {
+            // DOM selectors
+            const sels = ['.logs-content', '.log-content', '.fight-logs', '.logs', '[class*="log"]', 'pre'];
+            for (const s of sels) {
+                document.querySelectorAll(s).forEach(el => {
+                    const text = el.textContent || '';
+                    if (text.length > 0) {
+                        allLogs += text + '\n';
+                        foundLogs = true;
+                    }
+                });
+            }
 
-            // Try to get logs from localStorage or sessionStorage
-            try {
-                const cachedFight = sessionStorage.getItem(`fight_${fightId}`) || localStorage.getItem(`fight_${fightId}`);
-                if (cachedFight) {
-                    const fight = JSON.parse(cachedFight);
-                    if (fight?.logs) {
-                        for (const id in fight.logs) {
-                            if (Array.isArray(fight.logs[id])) {
-                                allLogs += fight.logs[id].join('\n') + '\n';
-                                foundLogs = true;
+            // Vue data - try multiple approaches
+            const app = document.querySelector('#app');
+            if (app) {
+                // Try Vue 2 style
+                if (app.__vue__) {
+                    try {
+                        const vue = app.__vue__;
+                        const fight = vue.$store?.state?.fight || vue.fight || vue.$data?.fight;
+                        if (fight?.logs) {
+                            console.log('[LWA] Found logs via Vue 2');
+                            for (const id in fight.logs) {
+                                if (Array.isArray(fight.logs[id])) {
+                                    allLogs += fight.logs[id].join('\n') + '\n';
+                                    foundLogs = true;
+                                }
                             }
                         }
+                    } catch (e) {
+                        console.log('[LWA] Vue 2 access error:', e);
                     }
                 }
-            } catch (e) { /* ignore */ }
+
+                // Try Vue 3 style
+                if (app._instance?.proxy) {
+                    try {
+                        const proxy = app._instance.proxy;
+                        const fight = proxy.fight || proxy.$store?.state?.fight;
+                        if (fight?.logs) {
+                            console.log('[LWA] Found logs via Vue 3');
+                            for (const id in fight.logs) {
+                                if (Array.isArray(fight.logs[id])) {
+                                    allLogs += fight.logs[id].join('\n') + '\n';
+                                    foundLogs = true;
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.log('[LWA] Vue 3 access error:', e);
+                    }
+                }
+            }
         }
 
         const hasMarkerData = allLogs.includes(MARKER);
         const hasErrorData = allLogs.includes('Interruption de l\'IA') || allLogs.includes('AI interrupted');
 
-        console.log(`[LWA] Logs found: ${foundLogs}, Marker data: ${hasMarkerData}, Error data: ${hasErrorData}`);
+        console.log(`[LWA] Logs found: ${foundLogs}, Marker data: ${hasMarkerData}, Error data: ${hasErrorData}, allLogs length: ${allLogs.length}`);
 
-        if (hasMarkerData || hasErrorData) {
+        // On fight page without cache, the logs appear progressively during replay
+        // Check DOM for <pre> tags that might contain marker data (shown during fight playback)
+        if (!hasMarkerData && !hasErrorData && LWA.isFightPage()) {
+            const preTags = document.querySelectorAll('pre');
+            for (const pre of preTags) {
+                const text = pre.textContent || '';
+                if (text.includes(MARKER)) {
+                    console.log('[LWA] Found marker in pre tag during fight playback');
+                    allLogs += text + '\n';
+                    break;
+                }
+            }
+        }
+
+        // Re-check after additional pre tag search
+        const hasMarkerDataFinal = allLogs.includes(MARKER);
+        const hasErrorDataFinal = allLogs.includes('Interruption de l\'IA') || allLogs.includes('AI interrupted');
+
+        if (hasMarkerDataFinal || hasErrorDataFinal) {
+            // Save to cache if we're on the report page and got fresh data
+            if (LWA.isReportPage() && fightId && !LWA.state.isFromCache && allLogs.length > 0) {
+                LWA.cache.save(fightId, allLogs);
+            }
+
             LWA.state.entitiesData = LWA.parseLogs(allLogs);
             const entityNames = Object.keys(LWA.state.entitiesData);
             console.log('[LWA] Found entities:', entityNames);
@@ -149,17 +169,21 @@
             LWA.state.currentIdx = 0;
             LWA.render();
 
-            // Inject jump buttons into LeekWars turn headers
-            setTimeout(LWA.injectJumpButtons, 500);
-        } else if (LWA.state.fetchAttempts < LWA.MAX_FETCH_ATTEMPTS) {
-            // Retry after delay - data might not be loaded yet
-            console.log(`[LWA] No data found, retrying in ${LWA.FETCH_RETRY_DELAY}ms...`);
-            setTimeout(() => LWA.fetchLogs(true), LWA.FETCH_RETRY_DELAY);
+            // Inject jump buttons into LeekWars turn headers (only on report page)
+            if (LWA.isReportPage()) {
+                setTimeout(LWA.injectJumpButtons, 500);
+            }
         } else {
-            // Max attempts reached, show no data state
-            console.log('[LWA] Max fetch attempts reached, showing no data state');
-            LWA.state.currentIdx = 0;
-            LWA.render();
+            // Retry logic - cache is checked instantly, so few retries needed
+            if (LWA.state.fetchAttempts < LWA.MAX_FETCH_ATTEMPTS) {
+                console.log(`[LWA] No data found, retrying in ${LWA.FETCH_RETRY_DELAY}ms... (attempt ${LWA.state.fetchAttempts}/${LWA.MAX_FETCH_ATTEMPTS})`);
+                setTimeout(() => LWA.fetchLogs(true), LWA.FETCH_RETRY_DELAY);
+            } else {
+                // Max attempts reached, show no data state
+                console.log('[LWA] Max fetch attempts reached, showing no data state');
+                LWA.state.currentIdx = 0;
+                LWA.render();
+            }
         }
     }
 
@@ -173,11 +197,23 @@
     }
 
     // ========================================
-    // Init
+    // Page Detection
     // ========================================
     LWA.isReportPage = function() {
         return /\/report\/\d+/.test(location.pathname);
     }
+
+    LWA.isFightPage = function() {
+        return /\/fight\/\d+/.test(location.pathname);
+    }
+
+    LWA.getFightId = function() {
+        const match = location.pathname.match(/\/(?:report|fight)\/(\d+)/);
+        return match ? match[1] : null;
+    }
+
+    LWA.state.isFromCache = false; // Track if current data is from cache
+    LWA.state.currentFightId = null;
 
     LWA.waitForElement = function(selector, timeout = 10000) {
         return new Promise((resolve, reject) => {
@@ -204,8 +240,12 @@
         });
     }
 
-    async function initializeOnReportPage() {
-        console.log('[LWA] Initializing on report page...');
+    async function initializePage() {
+        const isReport = LWA.isReportPage();
+        const isFight = LWA.isFightPage();
+        const fightId = LWA.getFightId();
+
+        console.log(`[LWA] Initializing on ${isReport ? 'report' : 'fight'} page (fight ${fightId})...`);
 
         // Reset state
         LWA.state.entitiesData = {};
@@ -213,9 +253,13 @@
         LWA.state.turnData = [];
         LWA.state.currentIdx = 0;
         LWA.state.fetchAttempts = 0;
+        LWA.state.isFromCache = false;
+        LWA.state.currentFightId = fightId;
+
+        // On fight page without cached data, nothing will be shown (handled in injectPanel)
 
         // Wait for the page structure to be ready
-        const pageReady = await LWA.waitForElement('.report, .report-page, .page-content, .panel', 8000);
+        const pageReady = await LWA.waitForElement('.report, .report-page, .fight, .fight-page, .page-content, .panel', 8000);
 
         if (!pageReady) {
             console.log('[LWA] Page structure not found after timeout, attempting anyway...');
@@ -226,22 +270,22 @@
 
         // Wait a bit more for fight data to load, then fetch logs
         // LeekWars loads fight data asynchronously
-        setTimeout(LWA.fetchLogs, 1500);
+        setTimeout(LWA.fetchLogs, isReport ? 1500 : 500);
     }
 
     function init() {
         // Styles are loaded by lwa-styles.user.js module
         console.log('%c[LWA] Fight Analyzer v' + LWA.VERSION + ' loaded', 'color: #5cad4a; font-weight: bold;');
 
-        // Only initialize panel on report pages
-        if (LWA.isReportPage()) {
+        // Initialize panel on report or fight pages
+        if (LWA.isReportPage() || LWA.isFightPage()) {
             // Wait for DOM to be ready
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', () => {
-                    setTimeout(initializeOnReportPage, 500);
+                    setTimeout(initializePage, 500);
                 });
             } else {
-                setTimeout(initializeOnReportPage, 500);
+                setTimeout(initializePage, 500);
             }
         }
 
@@ -258,16 +302,16 @@
                     clearTimeout(navigationTimeout);
                 }
 
-                if (LWA.isReportPage()) {
-                    // Navigated to a report page - wait a bit then initialize
-                    console.log('[LWA] Navigated to report page, initializing...');
-                    navigationTimeout = setTimeout(initializeOnReportPage, 1000);
+                if (LWA.isReportPage() || LWA.isFightPage()) {
+                    // Navigated to a report/fight page - wait a bit then initialize
+                    console.log('[LWA] Navigated to report/fight page, initializing...');
+                    navigationTimeout = setTimeout(initializePage, 1000);
                 } else {
-                    // Left report page - remove the panel
+                    // Left report/fight page - remove the panel
                     const panel = document.querySelector('.lwa-panel');
                     if (panel) {
                         panel.remove();
-                        console.log('[LWA] Panel removed (left report page)');
+                        console.log('[LWA] Panel removed (left report/fight page)');
                     }
                 }
             }
@@ -276,10 +320,10 @@
         // Also listen for popstate (browser back/forward)
         window.addEventListener('popstate', () => {
             setTimeout(() => {
-                if (LWA.isReportPage()) {
+                if (LWA.isReportPage() || LWA.isFightPage()) {
                     const existing = document.querySelector('.lwa-panel');
                     if (!existing) {
-                        initializeOnReportPage();
+                        initializePage();
                     }
                 }
             }, 500);

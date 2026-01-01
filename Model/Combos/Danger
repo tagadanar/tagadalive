@@ -13,7 +13,7 @@ class Danger{
 		this.combo = str
 		this.score = -dmg // je souhaite le min de dmg, à raison de -1score par dmg, == dmg dealt pour le moment
 		if(dmg >= Fight.self.getCurrentHP(consequences)) // TODO gérer les conséquences de heal dans le danger ?
-			this.score += Scoring.DEATH_VALUE
+			this.score += ScoringConfig.DEATH_VALUE
 	}
 	
 	/*
