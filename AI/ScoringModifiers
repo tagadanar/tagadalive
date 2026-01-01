@@ -314,4 +314,126 @@ class ScoringModifiers {
 
 		return modifier
 	}
+
+	/*
+	 * Computes TP modifier based on offensive stats (STR/MGC)
+	 * More valuable to give TP to entities with high offensive potential
+	 *
+	 * Scoring evolution:
+	 * | max(STR,MGC) | modifier | meaning                          |
+	 * |--------------|----------|----------------------------------|
+	 * | 0            | 0.5      | no offensive stat, low value     |
+	 * | 250          | 1.0      | mid offensive                    |
+	 * | 500+         | 1.5      | high offensive, max value        |
+	 *
+	 * @param entity The ally entity
+	 * @return Multiplier for TP coefficient (0.5 to 1.5)
+	 */
+	static real getTPModifier(Entity entity) {
+		integer maxOffensiveStat = max(entity.str, entity.mgc)
+		if (maxOffensiveStat <= 0) return 0.5
+		if (maxOffensiveStat >= 500) return 1.5
+		return 0.5 + (maxOffensiveStat / 500.0)
+	}
+
+	/*
+	 * Computes AGI modifier based on current agility
+	 * Bell curve: peak value at 700, diminishing returns above/below
+	 *
+	 * Scoring evolution:
+	 * | Current AGI | modifier | meaning                          |
+	 * |-------------|----------|----------------------------------|
+	 * | 0           | 0.5      | no agility, low value            |
+	 * | 350         | 1.0      | mid-low agility                  |
+	 * | 700         | 1.5      | optimal agility (peak)           |
+	 * | 1050        | 1.0      | diminishing returns              |
+	 * | 1400+       | 0.5      | very high, minimal benefit       |
+	 *
+	 * @param entity The ally entity
+	 * @return Multiplier for AGI coefficient (0.5 to 1.5)
+	 */
+	static real getAGIModifier(Entity entity) {
+		integer currentAgi = entity.agi
+		if (currentAgi <= 0) return 0.5
+		if (currentAgi <= 700) {
+			return 0.5 + (currentAgi / 700.0)
+		}
+		if (currentAgi <= 1400) {
+			return 1.5 - ((currentAgi - 700) / 700.0)
+		}
+		return 0.5
+	}
+
+	/*
+	 * Computes MP modifier based on offensive stats AND current MP
+	 * More valuable for high offensive entities with low MP
+	 *
+	 * Offensive component (same as TP):
+	 * | max(STR,MGC) | modifier | meaning                          |
+	 * |--------------|----------|----------------------------------|
+	 * | 0            | 0.5      | no offensive stat                |
+	 * | 500+         | 1.5      | high offensive                   |
+	 *
+	 * MP scarcity component:
+	 * | Current MP | modifier | meaning                          |
+	 * |------------|----------|----------------------------------|
+	 * | 0          | 1.2      | no MP, urgent need               |
+	 * | 10         | 1.0      | mid MP                           |
+	 * | 20+        | 0.8      | plenty of MP, lower priority     |
+	 *
+	 * @param entity The ally entity
+	 * @return Combined multiplier for MP coefficient
+	 */
+	static real getMPModifier(Entity entity) {
+		// Offensive component
+		integer maxOffensiveStat = max(entity.str, entity.mgc)
+		real offensiveModifier
+		if (maxOffensiveStat <= 0) {
+			offensiveModifier = 0.5
+		} else if (maxOffensiveStat >= 500) {
+			offensiveModifier = 1.5
+		} else {
+			offensiveModifier = 0.5 + (maxOffensiveStat / 500.0)
+		}
+
+		// MP scarcity component
+		integer currentMP = entity.mp
+		real mpModifier
+		if (currentMP <= 0) {
+			mpModifier = 1.2
+		} else if (currentMP >= 20) {
+			mpModifier = 0.8
+		} else {
+			mpModifier = 1.2 - (currentMP / 50.0)  // 1.2 at 0, 0.8 at 20
+		}
+
+		return offensiveModifier * mpModifier
+	}
+
+	/*
+	 * Computes DMGRETURN modifier based on current dmgReturn and enemy threat
+	 * More valuable when enemy has STR and entity has low dmgReturn
+	 *
+	 * Scoring evolution:
+	 * | enemyHasStr | Current dmgReturn | modifier | meaning                  |
+	 * |-------------|-------------------|----------|--------------------------|
+	 * | false       | any               | 0.5      | no physical threat       |
+	 * | true        | 0                 | 2.0      | urgent, no dmgReturn     |
+	 * | true        | 10                | 1.5      | some dmgReturn           |
+	 * | true        | 20+               | 1.0      | enough dmgReturn         |
+	 *
+	 * @param entity The ally entity
+	 * @return Multiplier for DMGRETURN coefficient (0.5 to 2.0)
+	 */
+	static real getDMGReturnModifier(Entity entity) {
+		if (!BattleState.enemyHasStr) {
+			return 0.5  // No physical threat, dmgReturn less valuable
+		}
+
+		// Smooth scaling from 2x (at 0) to 1x (at 20+)
+		integer currentDmgReturn = entity.dmgReturn
+		if (currentDmgReturn <= 0) return 2.0
+		if (currentDmgReturn >= 20) return 1.0
+		return 2.0 - (currentDmgReturn / 20.0)
+	}
 }
