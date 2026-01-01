@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LWA Main
 // @namespace    https://leekwars.com/
-// @version      1.4.0
+// @version      1.5.0
 // @description  LeekWars Fight Analyzer - Main module (init + orchestration)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*

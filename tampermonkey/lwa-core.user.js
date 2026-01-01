@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LWA Core
 // @namespace    https://leekwars.com/
-// @version      1.4.0
+// @version      1.5.0
 // @description  LeekWars Fight Analyzer - Core module (state, colors, helpers)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*
@@ -23,7 +23,7 @@
     // Constants
     // ========================================
     LWA.MARKER = '##MARKER##';
-    LWA.VERSION = '1.4.0';
+    LWA.VERSION = '1.5.0';
     LWA.SUMMON_NAMES = ['Tourelle', 'Turret', 'Puny', 'Chest', 'Coffre'];
     LWA.MAX_FETCH_ATTEMPTS = 2;
     LWA.FETCH_RETRY_DELAY = 1000;
@@ -291,6 +291,7 @@
     // Setting keys
     LWA.SETTING_FIGHT_PANEL_POSITION = 'fightPanelPosition'; // 'bottom' or 'side'
     LWA.SETTING_FIGHT_PANEL_COLLAPSED = 'fightPanelCollapsed'; // true or false
+    LWA.SETTING_FIGHT_PANEL_WIDTH = 'fightPanelWidth'; // custom width in pixels (default: 400)
 
     // ========================================
     // Global State

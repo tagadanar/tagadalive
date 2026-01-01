@@ -12,7 +12,7 @@ A modular Tampermonkey userscript that provides AI debug visualization, profiler
 - **Resource charts**: Visualize HP%, TP Used%, MP Used%, and RAM Used% over time
 - **Action logs**: See movement, attacks, heals, buffs, and kills with structured formatting
 - **Native UI integration**: Seamlessly integrates with LeekWars' dark/light theme
-- **Fight page support**: View stats on `/fight/*` pages with a collapsible side panel
+- **Fight page support**: View stats on `/fight/*` pages with a resizable, collapsible side panel
 - **Cache system**: Logs are cached in localStorage for viewing on fight pages
 - **Quick navigation**: Jump between report and fight pages with one click
 
@@ -37,7 +37,7 @@ tampermonkey/
 └── lwa-main.user.js      # Main: init + orchestration
 ```
 
-**Current versions**: All modules at v1.4.0 (except parser/charts at v1.1.0)
+**Current versions**: Core/Styles/UI/Main at v1.5.0, Parser/Charts at v1.1.0
 
 **Load order**: The modules must load in this order (handled by `@run-at` directive):
 1. `lwa-core` (document-start) - Sets up shared namespace `unsafeWindow.LWA`
@@ -90,12 +90,16 @@ Click the cache button in the panel header to:
 
 ## Fight Page Side Panel
 
-On fight pages, the analyzer displays as a **collapsible side panel**:
+On fight pages, the analyzer displays as a **resizable, collapsible side panel**:
 
-- **Toggle button**: Chevron on the right edge to collapse/expand
+- **Toggle button**: Chevron on the right edge with multiple functions:
+  - **Click**: Collapse/expand the panel
+  - **Drag horizontally**: Resize the panel width (drag left = wider, drag right = narrower)
+  - **Double-click**: Reset to default width (400px)
+- **Width limits**: Min 280px, max 70% of screen or 800px
 - **Position toggle**: Button in header to switch between side and bottom modes
-- **Responsive resize**: Combat player automatically resizes when panel opens/closes
-- **State persistence**: Panel position and collapsed state are saved in settings
+- **Responsive resize**: Combat player automatically resizes when panel opens/closes or is resized
+- **State persistence**: Panel position, collapsed state, and custom width are saved in settings
 
 ## How It Works
 
@@ -220,7 +224,10 @@ Benchmark.addCombo(totalScore, actionCount, description, positionScore, actionSc
 ### On Fight Page
 1. Visit a fight page (`/fight/{id}`)
 2. If logs are cached, the side panel appears
-3. Use the chevron to collapse/expand the panel
+3. Use the chevron button to:
+   - **Click**: Collapse/expand the panel
+   - **Drag**: Resize the panel width
+   - **Double-click**: Reset to default width
 4. The combat player resizes automatically
 5. Use the position button to switch to bottom mode
 
@@ -239,8 +246,8 @@ Benchmark.addCombo(totalScore, actionCount, description, positionScore, actionSc
 - All CSS styles
 - LeekWars theme integration
 - Responsive layout rules
-- **Side panel styles** (fixed position, transitions)
-- **Toggle button styles**
+- **Side panel styles** (fixed position, transitions, CSS variable for width)
+- **Toggle button styles** (resize cursor, visual feedback)
 - Cache modal styles
 
 ### lwa-parser.user.js
@@ -260,7 +267,7 @@ Benchmark.addCombo(totalScore, actionCount, description, positionScore, actionSc
 - `renderTimeline()` - Timeline tab
 - `renderAggregatedStats()` - Stats tab
 - **`openCacheModal()`** - Cache management modal
-- **Side panel toggle** - Collapse/expand with resize
+- **Side panel toggle** - Collapse/expand with drag-to-resize
 
 ### lwa-charts.user.js
 - `detectAnomalies()` - Anomaly detection
@@ -284,6 +291,7 @@ Benchmark.addCombo(totalScore, actionCount, description, positionScore, actionSc
 |---------|---------|-------------|
 | `fightPanelPosition` | `'side'` | Panel position on fight page (`'side'` or `'bottom'`) |
 | `fightPanelCollapsed` | `false` | Whether side panel is collapsed |
+| `fightPanelWidth` | `400` | Custom width of side panel in pixels (280-800) |
 
 ### Cache Configuration
 

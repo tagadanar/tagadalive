@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         LWA Styles
 // @namespace    https://leekwars.com/
-// @version      1.4.0
+// @version      1.5.0
 // @description  LeekWars Fight Analyzer - Styles module (CSS only)
 // @author       Sawdium
 // @match        https://leekwars.com/report/*
@@ -1749,8 +1749,13 @@
 
         /* Force width constraint when LWA panel is open */
         .app-center.lwa-panel-open {
-            width: calc(100vw - 400px - 60px) !important; /* 400px panel + ~60px left sidebar */
-            max-width: calc(100vw - 400px - 60px) !important;
+            width: calc(100vw - var(--lwa-panel-width, 400px) - 60px) !important; /* panel + ~60px left sidebar */
+            max-width: calc(100vw - var(--lwa-panel-width, 400px) - 60px) !important;
+        }
+
+        /* Disable transition during resize for smooth dragging */
+        .app-center.lwa-resizing {
+            transition: none !important;
         }
 
         /* Also constrain the fight player and page content directly */
@@ -1761,20 +1766,6 @@
         .app-center.lwa-panel-open .combat {
             max-width: 100% !important;
             width: auto !important;
-        }
-
-        @media (max-width: 1400px) {
-            .app-center.lwa-panel-open {
-                width: calc(100vw - 350px - 60px) !important;
-                max-width: calc(100vw - 350px - 60px) !important;
-            }
-        }
-
-        @media (max-width: 1100px) {
-            .app-center.lwa-panel-open {
-                width: calc(100vw - 300px - 60px) !important;
-                max-width: calc(100vw - 300px - 60px) !important;
-            }
         }
 
         @media (max-width: 900px) {
@@ -1789,13 +1780,20 @@
             position: fixed !important;
             right: 0;
             top: 60px;
-            width: 400px;
+            width: var(--lwa-panel-width, 400px);
+            min-width: 280px;
+            max-width: 70vw;
             height: calc(100vh - 60px);
             overflow-y: auto;
             overflow-x: hidden;
             z-index: 900;
             margin: 0 !important;
             transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        /* Disable transition during resize for smooth dragging */
+        .lwa-panel-side.lwa-resizing {
+            transition: none !important;
         }
 
         .lwa-panel-side .panel {
@@ -1816,10 +1814,59 @@
             pointer-events: none;
         }
 
+        /* Resize handle - left edge of side panel */
+        .lwa-resize-handle {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 6px;
+            height: 100%;
+            cursor: ew-resize;
+            background: transparent;
+            z-index: 1002;
+            transition: background 0.2s;
+        }
+
+        .lwa-resize-handle:hover,
+        .lwa-resize-handle.active {
+            background: linear-gradient(90deg, #5fad1b 0%, transparent 100%);
+        }
+
+        .lwa-resize-handle::before {
+            content: '';
+            position: absolute;
+            left: 1px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 40px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .lwa-resize-handle:hover::before,
+        .lwa-resize-handle.active::before {
+            opacity: 1;
+            background: rgba(255,255,255,0.5);
+        }
+
+        /* Prevent text selection during resize */
+        body.lwa-resizing-active {
+            user-select: none !important;
+            cursor: ew-resize !important;
+        }
+
+        body.lwa-resizing-active * {
+            cursor: ew-resize !important;
+        }
+
         /* Side toggle button - fixed position so it stays visible */
+        /* Also acts as resize handle when dragged */
         .lwa-side-toggle {
             position: fixed;
-            right: 400px;
+            right: var(--lwa-panel-width, 400px);
             top: 50%;
             transform: translateY(-50%);
             width: 28px;
@@ -1829,16 +1876,28 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
+            cursor: ew-resize;
             z-index: 1001;
-            transition: right 0.3s ease, background 0.15s;
+            transition: right 0.3s ease, background 0.15s, box-shadow 0.15s;
             box-shadow: -3px 0 10px rgba(0,0,0,0.4);
             border: 1px solid rgba(255,255,255,0.1);
             border-right: none;
         }
 
+        /* Disable transition during resize for smooth dragging */
+        .lwa-side-toggle.lwa-resizing {
+            transition: none !important;
+            background: linear-gradient(180deg, #5fad1b 0%, #4a8a15 100%) !important;
+            box-shadow: -3px 0 15px rgba(95,173,27,0.5) !important;
+        }
+
         .lwa-side-toggle:hover {
             background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
+            box-shadow: -3px 0 15px rgba(95,173,27,0.3);
+        }
+
+        .lwa-side-toggle:active {
+            background: linear-gradient(180deg, #5fad1b 0%, #4a8a15 100%);
         }
 
         .lwa-side-toggle i {
@@ -1848,6 +1907,7 @@
 
         .lwa-side-toggle.lwa-toggle-collapsed {
             right: 0;
+            cursor: pointer; /* Only click to expand when collapsed */
         }
 
         /* Adjust side panel header for compact display */
@@ -1866,35 +1926,11 @@
             padding: 10px;
         }
 
-        /* Responsive adjustments for side mode */
-        @media (max-width: 1400px) {
-            .lwa-panel-side {
-                width: 350px;
-            }
-            .lwa-side-toggle {
-                right: 350px;
-            }
-            .lwa-side-toggle.lwa-toggle-collapsed {
-                right: 0;
-            }
-        }
-
-        @media (max-width: 1100px) {
-            .lwa-panel-side {
-                width: 300px;
-            }
-            .lwa-side-toggle {
-                right: 300px;
-            }
-            .lwa-side-toggle.lwa-toggle-collapsed {
-                right: 0;
-            }
-        }
-
+        /* Responsive adjustments for side mode - mobile: switch to bottom mode */
         @media (max-width: 900px) {
             .lwa-panel-side {
                 position: relative !important;
-                width: 100%;
+                width: 100% !important;
                 height: auto;
                 max-height: none;
                 top: auto;
@@ -1918,6 +1954,10 @@
             }
             .lwa-side-toggle.lwa-toggle-collapsed {
                 right: auto;
+            }
+            /* Hide resize handle on mobile */
+            .lwa-resize-handle {
+                display: none;
             }
         }
 
