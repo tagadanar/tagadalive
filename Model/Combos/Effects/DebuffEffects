@@ -1,0 +1,86 @@
+/**
+ * DebuffEffects - Handlers for debuff-related effects
+ * 
+ * Handles: EFFECT_SHACKLE_* (all shackles), EFFECT_DEBUFF (Liberation),
+ *          EFFECT_ANTIDOTE, EFFECT_TOTAL_DEBUFF
+ */
+
+// Register all debuff effect handlers
+Consequences.registerHandlers([
+	// ============================================
+	// SHACKLES (all stackable currently)
+	// ============================================
+	
+	EFFECT_SHACKLE_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		conseq.add(entityTarget, Stats.STR, eot)
+	},
+
+	EFFECT_SHACKLE_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		conseq.add(entityTarget, Stats.MGC, eot)
+	},
+
+	EFFECT_SHACKLE_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		conseq.add(entityTarget, Stats.AGI, eot)
+	},
+
+	EFFECT_SHACKLE_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		conseq.add(entityTarget, Stats.WSD, eot)
+	},
+
+	EFFECT_SHACKLE_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		conseq.add(entityTarget, Stats.TP, eot)
+	},
+
+	EFFECT_SHACKLE_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		conseq.add(entityTarget, Stats.MP, eot)
+	},
+
+	// ============================================
+	// DEBUFF / LIBERATION
+	// ============================================
+	
+	EFFECT_DEBUFF: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Liberation reduces all effects on target by a percentage
+		for(EntityEffect entityEffect in entityTarget.effects){
+			// Skip irreducible effects - Liberation can't reduce them
+			if(entityEffect.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) continue
+			
+			// CONVERTER converts value to negative if it's a malus (e.g., poison deals damage in HPTIME)
+			// EntityEffect always has positive value, EffectOverTime has +/- based on Stats
+			// FIXME: for !stackable effects, should do -100% then + remaining after reduction
+			
+			integer value = round(entityEffect.value * (effect.avg/100) *TargetType.CONVERTER[entityEffect.type])
+			EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.turns)
+			integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
+			if(stat==null) debugE("LIBERATION effect to stat unhandled: "+entityEffect)
+			conseq.add(entityTarget, stat!, eot)
+		}
+	},
+
+	EFFECT_ANTIDOTE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Removes poison effects
+		for(EntityEffect entityEffect in entityTarget.effects){
+			if(entityEffect.type == EFFECT_POISON){
+				EffectOverTime eot = EffectOverTime(effect.item, entityEffect.value, entityEffect.turns)
+				conseq.add(entityTarget, Stats.HPTIME, eot)
+			}
+		}
+	},
+
+	EFFECT_TOTAL_DEBUFF: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Similar to DEBUFF but removes ALL buffs, not just a percentage
+		// TODO: implement full debuff logic
+	}
+])
