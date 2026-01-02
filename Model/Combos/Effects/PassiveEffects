@@ -1,0 +1,64 @@
+/**
+ * PassiveEffects - Handlers for passive effects
+ * 
+ * These effects are triggered as side-effects of other actions and are
+ * handled inline in the relevant effect handlers (DamageEffects, etc.).
+ * 
+ * They are registered here as empty handlers to avoid "unhandled effect" warnings
+ * when they appear as item effects (e.g., on passive chips).
+ * 
+ * Passive effects and where they are handled:
+ * - EFFECT_DAMAGE_TO_STRENGTH: Handled in DamageEffects (EFFECT_DAMAGE)
+ * - EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD: Handled in DamageEffects (EFFECT_DAMAGE)
+ * - EFFECT_NOVA_DAMAGE_TO_MAGIC: Handled in DamageEffects (erosion calculations)
+ * - EFFECT_POISON_TO_SCIENCE: Handled in DamageEffects (EFFECT_POISON)
+ * - EFFECT_KILL_TO_TP: Handled in Consequences.addKill()
+ * 
+ * Not yet implemented:
+ * - EFFECT_MOVED_TO_MP: Requires movement tracking
+ * - EFFECT_CRITICAL_TO_HEAL: Requires critical hit simulation
+ * - EFFECT_ALLY_KILLED_TO_AGILITY: Requires complex architecture change
+ */
+
+// Register all passive effect handlers (empty - handled elsewhere)
+Consequences.registerHandlers([
+	EFFECT_POISON_TO_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Passive: gains science when poisoned
+		// Handled inline in DamageEffects.EFFECT_POISON
+	},
+
+	EFFECT_MOVED_TO_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Passive: gains MP when moved
+		// TODO: requires movement tracking architecture
+	},
+
+	EFFECT_NOVA_DAMAGE_TO_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Passive: gains magic from nova/erosion damage
+		// Handled inline in DamageEffects erosion calculations
+	},
+
+	EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Passive: gains absolute shield when taking damage
+		// Handled inline in DamageEffects.EFFECT_DAMAGE
+	},
+
+	EFFECT_DAMAGE_TO_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Passive: gains strength when taking damage
+		// Handled inline in DamageEffects.EFFECT_DAMAGE
+	},
+
+	EFFECT_ALLY_KILLED_TO_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Passive: gains agility when ally is killed
+		// TODO: requires tracking ally deaths across the fight
+	},
+
+	EFFECT_KILL_TO_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Passive: gains TP on kill
+		// Handled in Consequences.addKill()
+	},
+
+	EFFECT_CRITICAL_TO_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Passive: heals on critical hit
+		// TODO: requires critical hit simulation
+	}
+])

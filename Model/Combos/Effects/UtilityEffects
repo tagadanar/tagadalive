@@ -1,0 +1,40 @@
+/**
+ * UtilityEffects - Handlers for utility effects
+ * 
+ * Handles: EFFECT_KILL, EFFECT_REMOVE_SHACKLES, EFFECT_ADD_STATE,
+ *          EFFECT_PROPAGATION, EFFECT_STEAL_LIFE
+ */
+
+// Register all utility effect handlers
+Consequences.registerHandlers([
+	EFFECT_KILL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Direct kill (only works on bulbs currently)
+		// Could also add full life damage consequence for scoring
+		// If killing leeks/towers becomes possible, need to check win conditions & kill bulbs
+		conseq.addKill(entityTarget)
+	},
+
+	EFFECT_PROPAGATION: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Handled in Position scoring as this is a placement issue
+		// No direct consequence here
+	},
+
+	EFFECT_REMOVE_SHACKLES: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Removes all shackle effects from target
+		// TODO: implement shackle removal logic
+	},
+
+	EFFECT_STEAL_LIFE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Damage that heals caster - like EFFECT_DAMAGE + heal
+		// TODO: implement life steal logic (different from wisdom-based life steal)
+	},
+
+	EFFECT_ADD_STATE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Applies special states (stunned, burning, etc.)
+		// States have various effects:
+		// - stunned = skip turn
+		// - burning = DoT
+		// - etc.
+		// TODO: proper state tracking - would need state->effect mapping
+	}
+])

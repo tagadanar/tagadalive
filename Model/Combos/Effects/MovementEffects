@@ -1,0 +1,48 @@
+/**
+ * MovementEffects - Handlers for movement-related effects
+ * 
+ * Handles: EFFECT_TELEPORT, EFFECT_INVERT, EFFECT_PUSH, EFFECT_ATTRACT,
+ *          EFFECT_REPEL, EFFECT_SUMMON, EFFECT_RESURRECT
+ * 
+ * NOTE: These effects are currently not scored as they would need
+ * position simulation. They are registered as empty handlers to avoid
+ * "unhandled effect" warnings.
+ * 
+ * TODO: Implement position simulation for proper scoring of these effects.
+ * See improvement axis #5 in the codebase analysis.
+ */
+
+// Register all movement effect handlers (empty - not scored yet)
+Consequences.registerHandlers([
+	EFFECT_TELEPORT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Would need: MapPosition.evaluatePositionChange(from, to) for teleport value
+	},
+
+	EFFECT_INVERT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Swaps positions between caster and target
+	},
+
+	EFFECT_PUSH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Pushes target away from caster
+		// Could deal damage if pushed into obstacle
+	},
+
+	EFFECT_ATTRACT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Pulls target toward caster
+	},
+
+	EFFECT_REPEL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Repels target away
+	},
+
+	EFFECT_SUMMON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Summons a bulb
+		// Would need: BulbValue class with HP, damage potential, utility scores
+		// Factor in TP cost vs expected return over remaining turns
+	},
+
+	EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Resurrects a dead entity
+		// Would need similar evaluation to SUMMON
+	}
+])
