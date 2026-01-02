@@ -1,0 +1,146 @@
+/**
+ * DamageEffects - Handlers for damage-related effects
+ * 
+ * Handles: EFFECT_DAMAGE, EFFECT_POISON, EFFECT_LIFE_DAMAGE, 
+ *          EFFECT_NOVA_DAMAGE, EFFECT_AFTEREFFECT
+ */
+
+// Register all damage effect handlers
+Consequences.registerHandlers([
+	EFFECT_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		integer targetsCount = effect.multiplyByTarget ? count(conseq.targets) : 1
+		real beforeShield = effect.avg *targetsCount *ratioDmg *(1+(entitySource.getCurrentStr(conseq)/100))
+			*(1+(entitySource.getCurrentPwr(conseq)/100))
+		real value = (beforeShield *(1-(entityTarget.getCurrentRel(conseq)/100)))
+			- entityTarget.getCurrentAbs(conseq)
+		value = value < 0 ? 0.0 : value // no negative damage
+		conseq.add(entityTarget, Stats.HP, -round(value))
+
+		// Inline passives for damage taken (target's passives)
+		Map<integer, real> passives = entityTarget.passives
+		if(passives[EFFECT_DAMAGE_TO_STRENGTH]) {
+			integer strGain = round(value * passives[EFFECT_DAMAGE_TO_STRENGTH]!)
+			if(strGain > 0) conseq.add(entityTarget, Stats.STR, strGain)
+		}
+		if(passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]) {
+			integer shieldGain = round(value * passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]!)
+			if(shieldGain > 0) conseq.add(entityTarget, Stats.ABSSHIELD, shieldGain)
+		}
+
+		if(entityTarget.getCurrentHP(conseq) <= 0)
+			conseq.addKill(entityTarget)
+
+		// Erosion
+		real erosion = value / Stats.DMG_EROSION_DIVISOR
+		conseq.add(entityTarget, Stats.HPMAX, -round(erosion))
+		// Inline passive for nova/erosion
+		if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
+		}
+
+		// Life steal
+		integer lifeSteal = round(value * (entitySource.getCurrentWsd(conseq)/1000))
+		integer lifeMissing = entitySource.getCurrentHPMissing(conseq)
+		lifeSteal = lifeSteal>lifeMissing ? lifeMissing : lifeSteal
+		if(lifeSteal>0) conseq.add(entitySource, Stats.HP, lifeSteal)
+
+		// Damage return
+		var dmgReturn = beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100)
+		if(dmgReturn>0){
+			conseq.add(entitySource, Stats.HP, -round(dmgReturn))
+			conseq.add(entitySource, Stats.HPMAX, round(-dmgReturn/Stats.DMG_EROSION_DIVISOR))
+			if(dmgReturn>=entitySource.getCurrentHP(conseq)) 
+				conseq.addKill(entitySource) 
+		}
+	},
+
+	EFFECT_POISON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Check notReplaceable (e.g., COVID) - skip if target already has this effect
+		if(effect.notReplaceable){
+			if(entityTarget.getCurrentItemEffect(effect.item, conseq)) return;
+		}
+
+		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
+			*(1+(entitySource.getCurrentPwr(conseq)/100)) *effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		conseq.add(entityTarget, Stats.HPTIME, eot)
+
+		// Inline passive for poison taken (target's passives)
+		Map<integer, real> passives = entityTarget.passives
+		if(passives[EFFECT_POISON_TO_SCIENCE]) {
+			integer sciGain = round(effect.avg * passives[EFFECT_POISON_TO_SCIENCE]!)
+			if(sciGain > 0) conseq.add(entityTarget, Stats.SNC, sciGain)
+		}
+
+		// Erosion (only 1 turn - often antidoted/liberated)
+		real erosion = value / effect.duration / Stats.PSN_EROSION_DIVISOR
+		conseq.add(entityTarget, Stats.HPMAX, -round(erosion))
+		// Inline passive for nova/erosion
+		if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
+		}
+	},
+
+	EFFECT_LIFE_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		real beforeShield = entitySource.life * (effect.avg/100) * (1 + entitySource.getCurrentPwr(conseq)/100)
+		integer value = round((beforeShield * (1-(entityTarget.getCurrentRel(conseq)/100)))
+			- entityTarget.getCurrentAbs(conseq))
+		value = value < 0 ? 0 : value // no negative damage
+		conseq.add(entityTarget, Stats.HP, -value)
+
+		if(entityTarget.getCurrentHP(conseq) <= 0)
+			conseq.addKill(entityTarget)
+
+		// Erosion
+		real erosion = value / Stats.DMG_EROSION_DIVISOR
+		conseq.add(entityTarget, Stats.HPMAX, -round(erosion))
+		// Inline passive for nova/erosion (target's passives)
+		Map<integer, real> passives = entityTarget.passives
+		if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
+		}
+
+		if(entityTarget != entitySource){
+			// Damage return
+			integer dmgReturn = round(beforeShield * (entityTarget.getCurrentDmgReturn(conseq)/100))
+			if(dmgReturn>0){
+				conseq.add(entitySource, Stats.HP, -dmgReturn)
+				conseq.add(entitySource, Stats.HPMAX, round(-dmgReturn/Stats.DMG_EROSION_DIVISOR))
+				if(dmgReturn>=entitySource.getCurrentHP(conseq))
+					conseq.addKill(entitySource) 
+			}
+		}
+	},
+
+	EFFECT_NOVA_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		integer value = round(effect.avg * (1 + entitySource.getCurrentSnc(conseq)/100) * (1 + entitySource.getCurrentPwr(conseq)/100) * ratioDmg)
+		value = min(value, entityTarget.getCurrentHPMissing(conseq))
+		conseq.add(entityTarget, Stats.HPMAX, -value)
+		// Inline passive for nova (target's passives)
+		Map<integer, real> passives = entityTarget.passives
+		if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(value * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
+		}
+	},
+
+	EFFECT_AFTEREFFECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		conseq.add(entityTarget, Stats.HP, -value)
+		conseq.add(entityTarget, Stats.HPTIME, eot)
+
+		// Erosion (only 1 turn - often antidoted/liberated)
+		real erosion = value / Stats.DMG_EROSION_DIVISOR
+		conseq.add(entityTarget, Stats.HPMAX, -round(erosion))
+		// Inline passive for nova/erosion (target's passives)
+		Map<integer, real> passives = entityTarget.passives
+		if(passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if(magicGain > 0) conseq.add(entityTarget, Stats.MGC, magicGain)
+		}
+	}
+])

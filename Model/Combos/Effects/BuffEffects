@@ -1,0 +1,194 @@
+/**
+ * BuffEffects - Handlers for buff-related effects
+ * 
+ * Handles: EFFECT_RAW_BUFF_* (flat buffs), EFFECT_BUFF_* (scaled by science)
+ */
+
+// Register all buff effect handlers
+Consequences.registerHandlers([
+	// ============================================
+	// RAW BUFFS (flat value, no science scaling)
+	// ============================================
+	
+	EFFECT_RAW_BUFF_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.STR, eot)
+			}
+		}
+		integer value = round(effect.avg *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.STR, eot)
+	},
+
+	EFFECT_RAW_BUFF_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.MGC, eot)
+			}
+		}
+		integer value = round(effect.avg *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.MGC, eot)
+	},
+
+	EFFECT_RAW_BUFF_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.AGI, eot)
+			}
+		}
+		integer value = round(effect.avg *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.AGI, eot)
+	},
+
+	EFFECT_RAW_BUFF_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.WSD, eot)
+			}
+		}
+		integer value = round(effect.avg *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.WSD, eot)
+	},
+
+	EFFECT_RAW_BUFF_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.RST, eot)
+			}
+		}
+		integer value = round(effect.avg *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.RST, eot)
+	},
+
+	EFFECT_RAW_BUFF_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.TP, eot)
+			}
+		}
+		integer value = round(effect.avg *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.TP, eot)
+	},
+
+	EFFECT_RAW_BUFF_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.MP, eot)
+			}
+		}
+		integer value = round(effect.avg *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.MP, eot)
+	},
+
+	EFFECT_RAW_BUFF_POWER: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration)
+		conseq.add(entityTarget, Stats.PWR, eot)
+	},
+
+	EFFECT_RAW_BUFF_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Not implemented - placeholder
+	},
+
+	// ============================================
+	// SCALED BUFFS (scaled by caster's science)
+	// ============================================
+	
+	EFFECT_BUFF_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.STR, eot)
+			}
+		}
+		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.STR, eot)
+	},
+
+	EFFECT_BUFF_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.AGI, eot)
+			}
+		}
+		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.AGI, eot)
+	},
+
+	EFFECT_BUFF_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.WSD, eot)
+			}
+		}
+		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.WSD, eot)
+	},
+
+	EFFECT_BUFF_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.RST, eot)
+			}
+		}
+		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.RST, eot)
+	},
+
+	EFFECT_BUFF_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.TP, eot)
+			}
+		}
+		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.TP, eot)
+	},
+
+	EFFECT_BUFF_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if(!effect.stackable){
+			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
+			if(itemEffect){
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				conseq.add(entityTarget, Stats.MP, eot)
+			}
+		}
+		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		conseq.add(entityTarget, Stats.MP, eot)
+	}
+])
