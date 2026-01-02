@@ -186,7 +186,8 @@ class MCTS {
 	static Combo search(Cell startCell, Map<Item, Action> actionsAtCell, integer tp, integer mp, Item? weapon) {
 		integer startOps = getOperations()
 
-		// Prune and prepare initial actions
+		// Prune and prepare initial actions - computed ONCE and reused
+		// This saves ~300 calls to pruneActions() over 150 iterations
 		Array<Action> prunedActions = MCTS.pruneActions(mapValues(actionsAtCell))
 
 		// If no actions available, return movement-only combo
@@ -213,12 +214,14 @@ class MCTS {
 
 			// Expansion: add a new child if not terminal
 			if (!node.isTerminal && !node.isFullyExpanded()) {
-				node = MCTS.expand(node, actionsAtCell)
+				// Pass prunedActions instead of recalculating
+				node = MCTS.expand(node, prunedActions)
 				nodesCreated++
 			}
 
 			// Simulation: greedy rollout from this node
-			real value = MCTS.rollout(node, actionsAtCell)
+			// Pass prunedActions instead of recalculating
+			real value = MCTS.rollout(node, prunedActions)
 
 			// Backpropagation: update statistics
 			MCTS.backpropagate(node, value)
@@ -271,8 +274,9 @@ class MCTS {
 
 	/*
 	 * Expansion phase: add one child node
+	 * @param prunedActions Pre-computed pruned actions (optimization: avoids recalculating each iteration)
 	 */
-	static MCTSNode expand(MCTSNode node, Map<Item, Action> actionsAtCell) {
+	static MCTSNode expand(MCTSNode node, Array<Action> prunedActions) {
 		if (count(node.untriedActions) == 0) return node
 
 		// Pick first untried action (deterministic)
@@ -281,9 +285,8 @@ class MCTS {
 		// Create child node
 		MCTSNode child = MCTSNode(node, action)
 
-		// Initialize child's available actions
-		Array<Action> actionsFromCell = MCTS.pruneActions(mapValues(actionsAtCell))
-		child.initUntriedActions(actionsFromCell)
+		// Initialize child's available actions using pre-computed prunedActions
+		child.initUntriedActions(prunedActions)
 
 		push(node.children, child)
 		return child
@@ -292,8 +295,9 @@ class MCTS {
 	/*
 	 * Rollout phase: greedy simulation with chained consequences
 	 * Properly chains actions to capture buff synergies (e.g., STR buff → higher damage)
+	 * @param prunedActions Pre-computed pruned actions (optimization: avoids recalculating each iteration)
 	 */
-	static real rollout(MCTSNode node, Map<Item, Action> actionsAtCell) {
+	static real rollout(MCTSNode node, Array<Action> prunedActions) {
 		integer simTP = node.remainingTP
 		Item? simWeapon = node.weaponInHand
 		Consequences currentState = node.state  // Chain from this, no clone needed
@@ -309,8 +313,8 @@ class MCTS {
 			n = n!.parent
 		}
 
-		// Get prioritized actions (self-cast first via pruneActions)
-		Array<Action> actions = MCTS.pruneActions(mapValues(actionsAtCell))
+		// Use pre-computed pruned actions (self-cast first, sorted by score)
+		Array<Action> actions = prunedActions
 
 		// Rollout with chained consequences - picks best valid action each step
 		integer rolloutSteps = 0
