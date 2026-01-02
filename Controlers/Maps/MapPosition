@@ -254,12 +254,29 @@ class MapPosition {
 
 	/*
 	 * Compute proximity penalty for nearby enemies
+	 * 
+	 * Optimization: Pre-compute area cells and use Map for O(1) lookup
+	 * instead of calling getAreaCells() + inArray() O(n) at each iteration.
+	 * Saves ~380 ops per call × ~50-100 positions = ~19k-38k ops per turn.
 	 */
 	static real _computeProximityPenalty(Cell cell, Entity? primaryTarget) {
 		real penalty = 0
 		Cell? primaryCell = primaryTarget != null ? primaryTarget!.cell : null
 
-		for (Cell c in cell.getAreaCells(AREA_CIRCLE_1)) {
+		// Pre-compute area cells ONCE (instead of recalculating each iteration)
+		Array<Cell> area1 = cell.getAreaCells(AREA_CIRCLE_1)
+		Array<Cell> area2 = cell.getAreaCells(AREA_CIRCLE_2)
+		Array<Cell> area3 = cell.getAreaCells(AREA_CIRCLE_3)
+
+		// Create Maps for O(1) lookup (instead of inArray O(n) scan)
+		Map<Cell, boolean> area1Set = [:]
+		for (Cell c in area1) area1Set[c] = true
+
+		Map<Cell, boolean> area2Set = [:]
+		for (Cell c in area2) area2Set[c] = true
+
+		// Loop 1: AREA_CIRCLE_1 (innermost ring)
+		for (Cell c in area1) {
 			if (c == cell) continue
 			Entity? enemy = Board.entityCells[c]
 			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
@@ -267,16 +284,18 @@ class MapPosition {
 			}
 		}
 
-		for (Cell c in cell.getAreaCells(AREA_CIRCLE_2)) {
-			if (inArray(cell.getAreaCells(AREA_CIRCLE_1), c)) continue
+		// Loop 2: AREA_CIRCLE_2 minus AREA_CIRCLE_1 (middle ring only)
+		for (Cell c in area2) {
+			if (area1Set[c]) continue  // O(1) lookup instead of inArray O(n)
 			Entity? enemy = Board.entityCells[c]
 			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA2
 			}
 		}
 
-		for (Cell c in cell.getAreaCells(AREA_CIRCLE_3)) {
-			if (inArray(cell.getAreaCells(AREA_CIRCLE_2), c)) continue
+		// Loop 3: AREA_CIRCLE_3 minus AREA_CIRCLE_2 (outer ring only)
+		for (Cell c in area3) {
+			if (area2Set[c]) continue  // O(1) lookup instead of inArray O(n)
 			Entity? enemy = Board.entityCells[c]
 			if (enemy != null && !enemy!.isFriend && c != primaryCell) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA3
