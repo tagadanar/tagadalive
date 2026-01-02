@@ -55,7 +55,7 @@ class MCTSNode {
 
 		// Update resources
 		integer switchCost = baseAction.item.isWeap && baseAction.item != parent.weaponInHand ? 1 : 0
-		this.remainingTP = parent.remainingTP - baseAction.item.cost - switchCost
+		this.remainingTP = this.state.currentTP - switchCost  // TP cost and boosts computed in Consequences
 		this.weaponInHand = baseAction.item.isWeap ? baseAction.item : parent.weaponInHand
 
 		// MP cost for movement (computed in Consequences)
@@ -345,6 +345,9 @@ class MCTS {
 
 			if (bestAction == null) break
 
+			// Track TP before action (to compute delta including boosts)
+			integer prevCurrentTP = currentState.currentTP
+
 			// Create chained action to get proper score with consequences
 			Action chainedAction = Action(bestAction!, currentState)
 
@@ -355,7 +358,7 @@ class MCTS {
 			// Apply action: update state and resources
 			currentState = chainedAction.consequences
 			integer switchCost = bestAction!.item.isWeap && bestAction!.item != simWeapon ? 1 : 0
-			simTP -= bestAction!.item.cost + switchCost
+			simTP += (currentState.currentTP - prevCurrentTP) - switchCost  // delta includes -cost +boost
 			if (bestAction!.item.isWeap) simWeapon = bestAction!.item
 			usageCounts[bestAction!.item] = (usageCounts[bestAction!.item] ? usageCounts[bestAction!.item]! : 0) + 1
 			rolloutSteps++

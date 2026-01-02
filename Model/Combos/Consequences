@@ -8,6 +8,7 @@ class Consequences {
 	Array<Entity> targets = []
 	Cell currentCell
 	integer currentMP
+	integer currentTP
 	private integer _boostMP_before = 0
 
 
@@ -17,6 +18,7 @@ class Consequences {
 	constructor() {
 		this.currentCell = Fight.self.cell
 		this.currentMP = Fight.self.mp
+		this.currentTP = Fight.self.tp
 		this.score = 0.0
 	}
 
@@ -24,6 +26,7 @@ class Consequences {
 		Benchmark.start("Consequences")
 		this.currentCell = Fight.self.cell
 		this.currentMP = Fight.self.mp
+		this.currentTP = Fight.self.tp
 		this.score = 0.0  // Must initialize before construct() modifies it
 		construct(action)
 		Benchmark.stop("Consequences")
@@ -33,6 +36,7 @@ class Consequences {
 		Benchmark.start("Consequences.fromConseq")
 		this.currentCell = consequences.currentCell
 		this.currentMP = consequences.currentMP
+		this.currentTP = consequences.currentTP
 		this._alterations = clone(consequences._alterations, 2) as Map<Entity, Map<integer, integer>>
 		this._altEffects = clone(consequences._altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
 		this._killed = clone(consequences._killed) as Map<Entity, Entity>
@@ -53,8 +57,11 @@ class Consequences {
 			// actualisation de la case actuelle
 			this.currentCell = action.from
 		}
-		// on retient les boosts mp déjà appliquer à soit mm pour après
+		// déduction du coût TP de l'action
+		this.currentTP -= action.item.cost
+		// on retient les boosts mp/tp déjà appliquer à soit mm pour après
 		integer? boostMPbefore = this._alterations[Fight.self] != null ? this._alterations[Fight.self]![Stats.MP] : null
+		integer? boostTPbefore = this._alterations[Fight.self] != null ? this._alterations[Fight.self]![Stats.TP] : null
 
 		// actualisation des conséquences de l'action sur le jeu
 		this.targets = Targets.getTargets(action)
@@ -78,6 +85,13 @@ class Consequences {
 		// si je viens de m'ajouter des MP
 		if(boostMP != null && boostMP > boostMPbefore){
 			this.currentMP += boostMP - boostMPbefore // j'ajoute les mp gagnés
+		}
+
+		// actualisation des TP en cas de self boost de tp
+		integer? boostTP = this.getAlteration(Fight.self, Stats.TP)
+		// si je viens de m'ajouter des TP
+		if(boostTP != null && boostTP > boostTPbefore){
+			this.currentTP += boostTP - boostTPbefore // j'ajoute les tp gagnés
 		}
 
 		// Cooldown opportunity cost: penalize using CD items for marginal gains
