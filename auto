@@ -43,7 +43,6 @@ include('Services/Benchmark')
 
 
 include('AI/ScoringConfig')
-include('AI/EntityTypes')
 include('AI/EntityCoefs')
 include('AI/BattleState')
 include('AI/ScoringModifiers')

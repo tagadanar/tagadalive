@@ -63,15 +63,15 @@ class BattleState {
 
 		for (Entity entity in Fight.getAlliesAlive()) {
 			// Count bulb types
-			integer eType = EntityTypes.getEntityType(entity)
-			if (eType == EntityTypes.BULB_FIRE) {
+			integer eType = entity.extendedType
+			if (eType == Entity.BULB_FIRE) {
 				countFire++
 				countStrBulbs++
-			} else if (eType == EntityTypes.BULB_ICED || eType == EntityTypes.BULB_LIGHTNING) {
+			} else if (eType == Entity.BULB_ICED || eType == Entity.BULB_LIGHTNING) {
 				countStrBulbs++
-			} else if (eType == EntityTypes.BULB_METALLIC) {
+			} else if (eType == Entity.BULB_METALLIC) {
 				countMetal++
-			} else if (eType == EntityTypes.BULB_HEALER) {
+			} else if (eType == Entity.BULB_HEALER) {
 				countHealer++
 			}
 

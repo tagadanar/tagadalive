@@ -221,10 +221,10 @@ class ScoringModifiers {
 
 		if (entity.isFriend) {
 			// Ally: boost when unshielded and enemy has STR
-			integer eType = EntityTypes.getEntityType(entity)
+			integer eType = entity.extendedType
 
 			// Fire bulb with no shields: extra boost
-			if (eType == EntityTypes.BULB_FIRE && currentShield <= 0) {
+			if (eType == Entity.BULB_FIRE && currentShield <= 0) {
 				return 2.0
 			}
 
@@ -284,16 +284,16 @@ class ScoringModifiers {
 	static real getTeamCompModifier(Entity entity, integer stat) {
 		if (stat != Stats.ABSSHIELD && stat != Stats.RELSHIELD) return 1.0
 
-		integer eType = EntityTypes.getEntityType(entity)
+		integer eType = entity.extendedType
 		real modifier = 1.0
 
 		if (entity.isFriend) {
 			// Ally: adjust shield priority by bulb type
-			if (eType == EntityTypes.BULB_FIRE) {
+			if (eType == Entity.BULB_FIRE) {
 				modifier = 1.5 // fire bulbs benefit most from shields
-			} else if (eType == EntityTypes.BULB_HEALER) {
+			} else if (eType == Entity.BULB_HEALER) {
 				modifier = (BattleState.countHealer > 2) ? 0.7 : 1.3 // protect healer unless we have many
-			} else if (eType == EntityTypes.BULB_METALLIC) {
+			} else if (eType == Entity.BULB_METALLIC) {
 				modifier = 0.3 // metallic provides shields, low priority to receive
 			}
 

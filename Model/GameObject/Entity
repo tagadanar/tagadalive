@@ -3,6 +3,19 @@
  * Il y a un objet Entity instancié pour chacune des entités présente sur le champ de bataille.
  */
 class Entity {
+	// === Bulb Type Constants ===
+	// Extended type values for bulbs (not provided by LeekScript)
+	// Values chosen to not conflict with ENTITY_LEEK (0), ENTITY_BULB (1),
+	// ENTITY_TURRET (2), ENTITY_CHEST (3), ENTITY_MOB (4)
+	static integer BULB_HEALER = 101
+	static integer BULB_WIZARD = 102
+	static integer BULB_FIRE = 103
+	static integer BULB_ICED = 104
+	static integer BULB_LIGHTNING = 105
+	static integer BULB_METALLIC = 106
+	static integer BULB_ROCKY = 107
+	static integer BULB_PUNY = 108
+
 	integer id
 	string name
 	Cell cell
@@ -98,14 +111,14 @@ class Entity {
 		// Cache extended type (bulb-specific type detection done once here)
 		if (this.isBulb) {
 			string n = this.name
-			if (n == "metallic_bulb") this.extendedType = 106
-			else if (n == "healer_bulb") this.extendedType = 101
-			else if (n == "lightning_bulb") this.extendedType = 105
-			else if (n == "wizard_bulb") this.extendedType = 102
-			else if (n == "fire_bulb") this.extendedType = 103
-			else if (n == "iced_bulb") this.extendedType = 104
-			else if (n == "rocky_bulb") this.extendedType = 107
-			else if (n == "puny_bulb") this.extendedType = 108
+			if (n == "metallic_bulb") this.extendedType = BULB_METALLIC
+			else if (n == "healer_bulb") this.extendedType = BULB_HEALER
+			else if (n == "lightning_bulb") this.extendedType = BULB_LIGHTNING
+			else if (n == "wizard_bulb") this.extendedType = BULB_WIZARD
+			else if (n == "fire_bulb") this.extendedType = BULB_FIRE
+			else if (n == "iced_bulb") this.extendedType = BULB_ICED
+			else if (n == "rocky_bulb") this.extendedType = BULB_ROCKY
+			else if (n == "puny_bulb") this.extendedType = BULB_PUNY
 			else this.extendedType = ENTITY_BULB
 		} else {
 			this.extendedType = this.entityType

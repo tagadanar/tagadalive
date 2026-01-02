@@ -6,7 +6,7 @@
  *
  * Architecture:
  * - ScoringConfig: ML-tunable constants and weights
- * - EntityTypes: Entity type detection (bulbs, leeks, etc.)
+ * - Entity: Bulb type constants (BULB_FIRE, etc.) and extendedType field
  * - EntityCoefs: Base coefficient tables per entity type
  * - BattleState: Per-turn team state (composition, flags, ratios)
  * - ScoringModifiers: Pure modifier functions
