@@ -22,9 +22,10 @@ class PTS {
 	static integer lastActionsBuilt = 0
 	static real lastScore = 0.0
 
-	// Cell scores from last opportunity generation
-	// Used by Hybrid modes to prioritize cell order
-	// Maps Cell → best opportunity score achievable from that cell
+	// Cell priority scores from last opportunity generation
+	// Used by Hybrid modes to prioritize MCTS/Beam cell exploration order
+	// Maps Cell → weighted sum of top-3 opportunity scores (1.0, 0.7, 0.4 weights)
+	// Cells with multiple good opportunities rank higher than single-opportunity cells
 	static Map<Cell, real> lastCellScores = [:]
 
 	/*
@@ -36,6 +37,9 @@ class PTS {
 		Benchmark.start("PTS.generateOpportunities")
 		Array<Opportunity> opportunities = []
 		PTS.lastCellScores = [:]  // Reset cell scores
+
+		// Temporary storage: collect all opportunity scores per cell
+		Map<Cell, Array<real>> cellScoresCollector = [:]
 
 		// Iterate all items
 		for (Item item in Fight.self.items) {
@@ -55,18 +59,37 @@ class PTS {
 				if (opp != null) {
 					push(opportunities, opp!)
 
-					// Track cell scores: for each attack cell, record best opportunity score
+					// Collect scores per cell for priority calculation
 					// Skip self-cast opportunities (Fight.selfCell is a sentinel, not a real cell)
 					if (!opp!.isSelfCast) {
 						for (Cell cell in opp!.attackCells) {
-							real currentBest = PTS.lastCellScores[cell] != null ? PTS.lastCellScores[cell]! : 0.0
-							if (opp!.baseScore > currentBest) {
-								PTS.lastCellScores[cell] = opp!.baseScore
+							if (cellScoresCollector[cell] == null) {
+								cellScoresCollector[cell] = []
 							}
+							push(cellScoresCollector[cell]!, opp!.baseScore)
 						}
 					}
 				}
 			}
+		}
+
+		// Compute weighted top-K sum for each cell
+		// Cells with multiple high-scoring opportunities rank higher
+		// Weights: 1.0 (best), 0.7 (2nd), 0.4 (3rd) - diminishing returns
+		for (Cell cell : Array<real> scores in cellScoresCollector) {
+			// Sort descending
+			Array<real> sorted = arraySort(scores, (real a, real b) => integer|real {
+				return Sort.desc(a, b)
+			}) as Array<real>
+
+			// Weighted sum of top 3
+			real priority = 0.0
+			integer k = min(3, count(sorted))
+			for (integer i = 0; i < k; i++) {
+				real weight = 1.0 - i * 0.3  // 1.0, 0.7, 0.4
+				priority += sorted[i] * weight
+			}
+			PTS.lastCellScores[cell] = priority
 		}
 
 		PTS.lastOpportunities = count(opportunities)
@@ -313,10 +336,9 @@ class PTS {
 					Cell aimCell = bestOpp!.getAimCell(bestCell!)
 					Action action = Action(bestOpp!.item, bestCell!, aimCell)
 
-					if (actionsBuilt == 0) {
-						push(combo.actions, action)
-					} else {
-						combo.add(action)
+					// Use combo.add() for proper delta check; skip if action doesn't improve score
+					if (!combo.add(action)) {
+						continue
 					}
 
 					Action lastAction = combo.actions[count(combo.actions) - 1]

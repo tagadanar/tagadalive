@@ -134,6 +134,44 @@ Boost poison when enemy can't cleanse:
 
 ---
 
+## Future: Interleaved Movement in MCTS
+
+Mid-combo repositioning: move → attack → move → attack (instead of move once, then all actions).
+
+### Strategy 1+2: Escape Hatch + Top K Pruning
+
+**When to consider movement**: Only when current cell has few/no valid offensive actions left (≤1 action).
+
+**How to prune**: Only offer top 3 cells by `(bestActionScore - moveCost * penalty)`.
+
+```
+// Pseudo-code for action expansion
+getExpandableActions(node, baseActions):
+    valid = filterValidActions(baseActions, node)
+
+    // Normal case: enough offensive options, no movement
+    if count(valid) >= 2:
+        return valid
+
+    // Stuck case: add top 3 repositioning cells
+    if node.remainingMP > 0:
+        topCells = getTopRepositionCells(node, 3)  // scored by opportunity - move cost
+        for cell in topCells:
+            push(valid, MoveAction(cell))
+
+    return valid
+```
+
+**Branching impact**: +3 only when stuck, not every node.
+
+**Prerequisites**:
+- Precompute `cellBestScores[cell]` = max action score from each cell
+- Reuse existing `MapPath.getCachedReachableCells()` for reachability
+
+**When to implement**: After unified MCTS is stable, measure how often mid-combo repositioning would help (>20% of turns = worth it).
+
+---
+
 ## Notes
 
 - **LeekScript v4** (typed variant)
