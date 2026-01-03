@@ -48,6 +48,8 @@ include('AI/BattleState')
 include('AI/ScoringModifiers')
 include('AI/Scoring')
 include('AI/MCTS')
+include('AI/Opportunity')
+include('AI/PTS')
 include('AI/AI')
 
 

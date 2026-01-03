@@ -2,8 +2,9 @@ include('auto');
 
 init()
 
-// Run MCTS
-Combo combo = AI.getMCTSCombo()
+// Get best combo using selected algorithm (PTS, MCTS, or Hybrid)
+// Change AI.mode in AI/AI to switch: MODE_PTS, MODE_MCTS, MODE_HYBRID
+Combo combo = AI.getCombo()
 
 // Play the combo
 combo.play()

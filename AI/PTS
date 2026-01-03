@@ -1,0 +1,327 @@
+/*
+ * PTS - Priority Target Simulation
+ *
+ * Alternative to MCTS that iterates TARGET-first instead of CELL-first.
+ *
+ * Algorithm:
+ * 1. OPPORTUNITY GENERATION: For each (target, item) pair, compute attack cells and base score
+ * 2. COMBO BUILDING: Greedy selection with proper consequence chaining
+ * 3. FINAL POSITIONING: Find best end-of-turn position
+ *
+ * Key differences from MCTS:
+ * - No tree search: single greedy pass through sorted opportunities
+ * - No deep cloning: sequential consequence chaining (no branching)
+ * - Scales with targets (~8) not cells (~50+)
+ * - Much faster: O(targets × items) vs O(cells × items × MCTS_iterations)
+ *
+ * Can be used standalone or to SEED MCTS with a good starting position.
+ */
+class PTS {
+	// Statistics for debugging
+	static integer lastOpportunities = 0
+	static integer lastActionsBuilt = 0
+	static real lastScore = 0.0
+
+	// Cell scores from last opportunity generation
+	// Used by HYBRID_GUIDED to prioritize MCTS cell order
+	// Maps Cell → best opportunity score achievable from that cell
+	static Map<Cell, real> lastCellScores = [:]
+
+	/*
+	 * Generate all opportunities: (target, item) pairs with valid attack cells.
+	 * Considers ALL targets: enemies, allies, and self.
+	 * Also populates lastCellScores for MCTS prioritization.
+	 */
+	static Array<Opportunity> generateOpportunities() {
+		Benchmark.start("PTS.generateOpportunities")
+		Array<Opportunity> opportunities = []
+		PTS.lastCellScores = [:]  // Reset cell scores
+
+		// Iterate all items
+		for (Item item in Fight.self.items) {
+			// Skip items on cooldown
+			if (getCooldown(item.id, Fight.self.id) > 0) continue
+
+			// Get valid targets for this item
+			Map<integer, Entity> targets = item.targetSet()
+
+			// For each target
+			for (Entity target in targets) {
+				// Skip invincible enemies
+				if (target.isInvincible && !target.isFriend) continue
+
+				// Generate opportunity based on item type
+				Opportunity? opp = PTS.createOpportunity(item, target)
+				if (opp != null) {
+					push(opportunities, opp!)
+
+					// Track cell scores: for each attack cell, record best opportunity score
+					// This tells MCTS which cells are most promising
+					for (Cell cell in opp!.attackCells) {
+						real currentBest = PTS.lastCellScores[cell] != null ? PTS.lastCellScores[cell]! : 0.0
+						if (opp!.baseScore > currentBest) {
+							PTS.lastCellScores[cell] = opp!.baseScore
+						}
+					}
+				}
+			}
+		}
+
+		PTS.lastOpportunities = count(opportunities)
+		Benchmark.stop("PTS.generateOpportunities")
+		return opportunities
+	}
+
+	/*
+	 * Create an opportunity for a (item, target) pair.
+	 * Computes attack cells and base score.
+	 */
+	static Opportunity? createOpportunity(Item item, Entity target) {
+		// Self-cast case: item targets self with minRange 0
+		if (target == Fight.self && item.minRange == 0) {
+			// Create a temporary action to get base score
+			Action tempAction = Action(item, Fight.selfCell, Fight.selfCell)
+			if (tempAction.score! <= 0) return null
+			return Opportunity(target, item, tempAction.score!)
+		}
+
+		// Can't target self with minRange > 0
+		if (target == Fight.self) return null
+
+		// Get cells from which we can hit this target
+		Array<Cell> attackCells
+		Cell targetCell = target.cell
+
+		if (item.area == AREA_POINT) {
+			attackCells = Targets.getCellsToUseItemOnCell(item, target.cell, [Fight.self.id])
+		} else if (item.area == AREA_LASER_LINE) {
+			attackCells = Targets.getLazerCellsToUseItemOnCell(item, target.cell)
+		} else {
+			// AOE: for each cell in target's area, get attack cells
+			// We pick the target cell itself as the aim point for simplicity
+			// (full AOE optimization would check all cells for cluster value)
+			attackCells = Targets.getCellsToUseItemOnCell(item, target.cell, [Fight.self.id])
+		}
+
+		// No valid attack cells
+		if (count(attackCells) == 0) return null
+
+		// Filter to reachable cells only (to avoid creating useless opportunities)
+		Array<Cell> reachableAttackCells = []
+		for (Cell cell in attackCells) {
+			if (Fight.self.reachableCells[cell] != null) {
+				push(reachableAttackCells, cell)
+			}
+		}
+
+		// If no reachable attack cells, skip this opportunity
+		if (count(reachableAttackCells) == 0) return null
+
+		// Compute base score using a representative cell (closest reachable)
+		Cell? bestCell = null
+		integer bestDist = 99999
+		for (Cell cell in reachableAttackCells) {
+			integer dist = Fight.self.reachableCells[cell]!
+			if (dist < bestDist) {
+				bestDist = dist
+				bestCell = cell
+			}
+		}
+
+		if (bestCell == null) return null
+
+		// Create temporary action to get base score
+		Action tempAction = Action(item, bestCell!, targetCell)
+		if (tempAction.score! <= 0) return null
+
+		return Opportunity(target, item, reachableAttackCells, targetCell, tempAction.score!)
+	}
+
+	/*
+	 * Build a combo from opportunities using greedy selection with consequence chaining.
+	 * This is the core PTS algorithm.
+	 */
+	static Combo buildCombo() {
+		Benchmark.start("PTS.buildCombo")
+
+		// Phase 1: Generate opportunities
+		Array<Opportunity> opportunities = PTS.generateOpportunities()
+
+		// If no opportunities, return movement-only combo
+		if (count(opportunities) == 0) {
+			Combo combo = Combo()
+			combo.addFinalPosition(MapPosition.findBestPosition(Fight.self.cell, Fight.self.mp, Consequences()))
+			PTS.lastActionsBuilt = 0
+			PTS.lastScore = combo.getScore()!
+			Benchmark.stop("PTS.buildCombo")
+			return combo
+		}
+
+		// Phase 2: Sort opportunities by base score (descending)
+		// Self-cast opportunities get priority (like MCTS does)
+		Array<Opportunity> selfCast = []
+		Array<Opportunity> other = []
+		for (Opportunity opp in opportunities) {
+			if (opp.isSelfCast) push(selfCast, opp)
+			else push(other, opp)
+		}
+
+		// Sort non-self-cast by base score descending
+		Array<Opportunity> sortedOther = arraySort(other, (Opportunity a, Opportunity b) => integer|real {
+			return Sort.desc(a.baseScore, b.baseScore)
+		}) as Array<Opportunity>
+
+		// Merge: self-cast first (sorted), then others
+		Array<Opportunity> selfCastSorted = arraySort(selfCast, (Opportunity a, Opportunity b) => integer|real {
+			return Sort.desc(a.baseScore, b.baseScore)
+		}) as Array<Opportunity>
+
+		Array<Opportunity> sorted = []
+		for (Opportunity o in selfCastSorted) push(sorted, o)
+		for (Opportunity o in sortedOther) push(sorted, o)
+
+		// Phase 3: Greedy combo building with consequence chaining
+		Combo combo = Combo()
+		Cell currentCell = Fight.self.cell
+		integer currentTP = Fight.self.tp
+		integer currentMP = Fight.self.mp
+		Item? weaponInHand = Fight.self.getWeaponInHand()
+		Map<Item, integer> usesThisTurn = [:]
+		Map<Item, integer> cooldowns = [:]  // Items used this turn get their CD set
+		Map<Cell, integer> reachableCells = Fight.self.reachableCells
+
+		integer actionsBuilt = 0
+
+		for (Opportunity opp in sorted) {
+			// Get current consequences from combo (or empty for first action)
+			Consequences currentCsq = combo.getCurrentConsequences()
+
+			// Check if opportunity can be executed (TP, cooldown, uses, target alive)
+			if (!opp.canExecute(currentTP, usesThisTurn, cooldowns, currentCsq, weaponInHand)) {
+				continue
+			}
+
+			// Find best reachable cell for this opportunity
+			Cell? attackCell = opp.findBestReachableCell(currentCell, currentMP, reachableCells)
+			if (attackCell == null) continue
+
+			// Compute movement cost
+			integer moveCost = 0
+			if (!opp.isSelfCast && attackCell != currentCell) {
+				integer? cost = reachableCells[attackCell!]
+				if (cost == null) continue
+				moveCost = cost!
+			}
+
+			// Check MP
+			if (moveCost > currentMP) continue
+
+			// Create the action - Combo.add() will handle consequence chaining
+			Action action = Action(opp.item, attackCell!, opp.targetCell!)
+
+			// For first action, check score directly
+			// For subsequent actions, combo.add() chains and checks score > 0
+			if (actionsBuilt == 0) {
+				if (action.score! <= 0) continue
+				push(combo.actions, action)
+			} else {
+				// combo.add() creates chained action and checks if score > 0
+				if (!combo.add(action)) continue
+			}
+
+			// Get the actual action that was added (with proper chaining)
+			Action addedAction = combo.actions[count(combo.actions) - 1]
+
+			// Update state from consequences
+			Consequences newCsq = addedAction.consequences
+			currentTP = newCsq.currentTP
+			currentMP = newCsq.currentMP
+			currentCell = newCsq.currentCell
+
+			// Track weapon switch cost
+			if (opp.item.isWeap && opp.item != weaponInHand) {
+				currentTP -= 1
+				weaponInHand = opp.item
+			}
+
+			// Track item usage
+			usesThisTurn[opp.item] = (usesThisTurn[opp.item] != null ? usesThisTurn[opp.item]! : 0) + 1
+			if (opp.item.haveCD) {
+				cooldowns[opp.item] = opp.item.cdDuration
+			}
+
+			// Update reachable cells from new position if we moved
+			if (!opp.isSelfCast && attackCell != Fight.selfCell) {
+				reachableCells = MapPath.getCachedReachableCells(currentCell, currentMP, Fight.self.cellsToIgnore)
+			}
+
+			actionsBuilt++
+		}
+
+		// Phase 4: Final positioning
+		Consequences finalCsq = combo.getCurrentConsequences()
+		combo.addFinalPosition(MapPosition.findBestPosition(currentCell, currentMP, finalCsq))
+
+		PTS.lastActionsBuilt = actionsBuilt
+		PTS.lastScore = combo.getScore()!
+
+		// Track for debugging
+		string comboDesc = PTS.buildComboDesc(combo)
+		real posScore = combo.finalPosition != null ? combo.finalPosition!.score : 0
+		Benchmark.addCombo(combo.getScore()!, actionsBuilt, "PTS:" + comboDesc, posScore, PTS.lastScore - posScore)
+
+		Benchmark.stop("PTS.buildCombo")
+		return combo
+	}
+
+	/*
+	 * Build a combo and return the cell it operates from.
+	 * Used to seed MCTS with a good starting position.
+	 */
+	static Combo buildComboWithStartCell(Cell? startCellOut) {
+		Combo combo = PTS.buildCombo()
+
+		// Determine the primary operating cell
+		if (count(combo.actions) > 0) {
+			// Use the cell of the first non-self-cast action
+			for (Action action in combo.actions) {
+				if (action.from != Fight.selfCell) {
+					// Can't modify startCellOut directly in LS, caller should read from combo
+					return combo
+				}
+			}
+		}
+
+		return combo
+	}
+
+	/*
+	 * Get the primary cell used in a combo (for seeding MCTS).
+	 * Returns the cell of the first non-self-cast action, or current cell if all self-cast.
+	 */
+	static Cell getComboStartCell(Combo combo) {
+		for (Action action in combo.actions) {
+			if (action.from != Fight.selfCell) {
+				return action.from
+			}
+		}
+		return Fight.self.cell
+	}
+
+	/*
+	 * Build combo description for debugging.
+	 */
+	static string buildComboDesc(Combo combo) {
+		string desc = ""
+		for (Action a in combo.actions) {
+			if (desc != "") desc += "→"
+			desc += a.item.name + "(" + round(a.score!) + ")"
+		}
+		if (combo.finalPosition) {
+			if (desc != "") desc += "→"
+			desc += "mv(" + combo.finalPosition!.cell.id + ")"
+		}
+		if (desc == "") desc = "stay"
+		return desc
+	}
+}
