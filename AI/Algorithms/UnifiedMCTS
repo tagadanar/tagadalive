@@ -85,9 +85,11 @@ class UnifiedMCTSNode {
 		this.action = chainedAction
 		this.state = chainedAction.consequences
 
-		// Update resources
+		// Update resources - IMPORTANT: switchCost must be reflected in BOTH
+		// remainingTP (for TP checks) AND state.currentTP (for chaining next action)
 		integer switchCost = baseAction.item.isWeap && baseAction.item != parent.weaponInHand ? 1 : 0
-		this.remainingTP = this.state.currentTP - switchCost
+		this.state.currentTP -= switchCost  // Deduct from state so next action chains correctly
+		this.remainingTP = this.state.currentTP
 		this.weaponInHand = baseAction.item.isWeap ? baseAction.item : parent.weaponInHand
 		this.remainingMP = max(0, this.state.currentMP)
 	}
@@ -578,17 +580,8 @@ class UnifiedMCTS {
 			if (bestChild == null) break
 
 			if (bestChild!.action != null) {
-				// Use combo.add() for proper chaining
-				if (count(combo.actions) == 0) {
-					// First action - add directly if positive score
-					if (bestChild!.action!.score! > 0) {
-						push(combo.actions, bestChild!.action!)
-					} else {
-						break
-					}
-				} else {
-					if (!combo.add(bestChild!.action!)) break
-				}
+				// Use combo.add() for proper chaining and usage validation
+				if (!combo.add(bestChild!.action!)) break
 			}
 
 			node = bestChild

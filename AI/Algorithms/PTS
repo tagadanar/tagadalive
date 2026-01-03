@@ -132,12 +132,20 @@ class PTS {
 					if (cellToAim![c] == null) {
 						cellToAim![c] = aoeCell
 					} else if (aoeCell == target.cell) {
-						cellToAim![c] = aoeCell
+						// Only update if actually in range (the original aoeCell was validated by getCellsToUseItemOnCell)
+						integer dist = getCellDistance(c.id, aoeCell.id)
+						if (dist >= item.minRange && dist <= item.maxRange) {
+							cellToAim![c] = aoeCell
+						}
 					} else {
 						integer curDist = getCellDistance(cellToAim![c]!.id, target.cell.id)
 						integer newDist = getCellDistance(aoeCell.id, target.cell.id)
 						if (newDist < curDist) {
-							cellToAim![c] = aoeCell
+							// Only update if new aimCell is in range from attack cell
+							integer dist = getCellDistance(c.id, aoeCell.id)
+							if (dist >= item.minRange && dist <= item.maxRange) {
+								cellToAim![c] = aoeCell
+							}
 						}
 					}
 				}
