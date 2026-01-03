@@ -32,6 +32,7 @@ class Hybrid {
 		// Step 3: Check if we have budget for MCTS refinement
 		if (MCTS.shouldStop()) {
 			Benchmark.setAlgo("HYBRID", "PTS")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + PTS.buildComboDesc(ptsCombo))
 			Benchmark.stop("Hybrid.getMCTSSeeded")
 			return ptsCombo
 		}
@@ -67,9 +68,11 @@ class Hybrid {
 
 		if (mctsScore > ptsScore) {
 			Benchmark.setAlgo("HYBRID", "MCTS")
+			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), MCTS.buildComboDesc(mctsCombo))
 			return mctsCombo
 		} else {
 			Benchmark.setAlgo("HYBRID", "PTS")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + PTS.buildComboDesc(ptsCombo))
 			return ptsCombo
 		}
 	}
@@ -94,6 +97,7 @@ class Hybrid {
 		// Step 2: Check if we have budget for MCTS
 		if (MCTS.shouldStop()) {
 			Benchmark.setAlgo("HYBRID_GUIDED", "PTS")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + PTS.buildComboDesc(ptsCombo))
 			Benchmark.stop("Hybrid.getMCTSGuided")
 			return ptsCombo
 		}
@@ -106,9 +110,11 @@ class Hybrid {
 
 		if (mctsScore > ptsScore) {
 			Benchmark.setAlgo("HYBRID_GUIDED", "MCTS")
+			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), MCTS.buildComboDesc(mctsCombo))
 			return mctsCombo
 		} else {
 			Benchmark.setAlgo("HYBRID_GUIDED", "PTS")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + PTS.buildComboDesc(ptsCombo))
 			return ptsCombo
 		}
 	}
@@ -124,6 +130,7 @@ class Hybrid {
 
 		if (BeamSearch.shouldStop()) {
 			Benchmark.setAlgo("HYBRID_BEAM", "PTS")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + PTS.buildComboDesc(ptsCombo))
 			Benchmark.stop("Hybrid.getBeamGuided")
 			return ptsCombo
 		}
@@ -135,9 +142,11 @@ class Hybrid {
 
 		if (beamScore > ptsScore) {
 			Benchmark.setAlgo("HYBRID_BEAM", "BEAM")
+			Benchmark.setChosen(beamScore, count(beamCombo.actions), BeamSearch.buildComboDesc(beamCombo))
 			return beamCombo
 		} else {
 			Benchmark.setAlgo("HYBRID_BEAM", "PTS")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + PTS.buildComboDesc(ptsCombo))
 			return ptsCombo
 		}
 	}
@@ -227,7 +236,7 @@ class Hybrid {
 		}
 
 		Benchmark.setMCTS(MCTS.lastIterations, MCTS.lastNodesCreated, positionsExplored, bestCombo!.getScore()!)
-		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), MCTS.buildComboDesc(bestCombo!))
+		// Note: setChosen is called by the parent function (getMCTSGuided) after comparing with PTS
 
 		return bestCombo!
 	}
@@ -312,7 +321,7 @@ class Hybrid {
 		}
 
 		// BeamSearch.search() already calls Benchmark.setBeam() with detailed stats
-		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), BeamSearch.buildComboDesc(bestCombo!))
+		// Note: setChosen is called by the parent function (getBeamGuided) after comparing with PTS
 
 		return bestCombo!
 	}
