@@ -51,9 +51,16 @@ class Consequences {
 		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
 		// déplacement jusqu'à la case de l'action
 		if(action.from != Fight.selfCell){
-			if(reachableCells[action.from] != null) this.currentMP = this.currentMP - reachableCells[action.from]
-			else debugW('Impossible action: unreachable cell !!\n'+action+'\n'+this)
-			if(this.currentMP < 0) debugW('Impossible action: negative MP !!\n'+action+'\n'+this)
+			if(reachableCells[action.from] != null) {
+				integer moveCost = reachableCells[action.from]!
+				// Only warn if movement cost exceeds effective MP (treating negative as 0)
+				if(moveCost > 0 && moveCost > max(0, this.currentMP)) {
+					debugW('Impossible action: move cost ' + moveCost + ' > effective MP ' + max(0, this.currentMP) + '\n' + action + '\n' + this)
+				}
+				this.currentMP = this.currentMP - moveCost  // Keep actual tracking for boost calculations
+			} else {
+				debugW('Impossible action: unreachable cell !!\n'+action+'\n'+this)
+			}
 			// actualisation de la case actuelle
 			this.currentCell = action.from
 		}
