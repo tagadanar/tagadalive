@@ -13,6 +13,9 @@ class Combo {
 	 * @return true if action was added (improves score), false otherwise
 	 */
 	boolean add(Action action){
+		// Validate usage limit
+		if(this.getUsageCount(action.item) >= action.item.maxUse) return false
+
 		if(count(this.actions) == 0) {
 			// Guard first action: must have positive score
 			if(action.score! <= 0) return false
@@ -26,6 +29,17 @@ class Combo {
 			else return false
 		}
 		return true
+	}
+
+	/*
+	 * Count how many times an item is used in this combo
+	 */
+	integer getUsageCount(Item item) {
+		integer count = 0
+		for (Action a in this.actions) {
+			if (a.item == item) count++
+		}
+		return count
 	}
 	
 	void addFinalPosition(Position position){
@@ -111,14 +125,23 @@ class Combo {
 				moveTowardCell(action.from.id)
 				Benchmark.logMove(startCell, getCell())
 				startCell = getCell()
+				// Skip action if we didn't reach the attack cell
+				if(getCell() != action.from.id) {
+					debugW("Skipping " + action.item.name + ": didn't reach c" + action.from.id + ", at c" + getCell())
+					continue
+				}
 			}
 			if(action.to == Fight.selfCell){
 				action.item.useItemOnCell(Board.getCell(getCell())!)
 				Benchmark.logBuff(action.item.name)
 			} else {
 				integer result = action.item.useItemOnCellWithResult(action.to)
-				if(result != USE_SUCCESS) {
-					debugW("Action failed: " + action.item.name + " to c" + action.to.id + " result=" + result + " TP=" + getTP())
+				if(result != USE_SUCCESS && result != USE_CRITICAL) {
+					integer dist = getCellDistance(getCell(), action.to.id)
+					boolean los = lineOfSight(getCell(), action.to.id, [])
+					debugW("Action failed: " + action.item.name + " from c" + getCell() + " to c" + action.to.id +
+						" result=" + result + " dist=" + dist + " range=[" + action.item.minRange + "-" + action.item.maxRange +
+						"] LOS=" + los + " TP=" + getTP())
 				}
 				Benchmark.log(action.item.name + ">c" + action.to.id)
 			}
