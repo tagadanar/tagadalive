@@ -217,8 +217,8 @@ Benchmark.setMCTS(iterations, nodesExplored, positionsEvaluated, bestScore)
 // After PTS search
 Benchmark.setPTS(opportunities, actionCount, bestScore)
 
-// After BeamSearch
-Benchmark.setBeam(maxDepth, totalCandidates, positionsEvaluated, bestScore)
+// After BeamSearch (called automatically by BeamSearch.search())
+Benchmark.setBeam(depth, candidates, opsExpand, opsSort, opsPos, opsTotal, bestScore, budgetLow)
 
 // Set algorithm mode and winner (for hybrid modes)
 Benchmark.setAlgo(mode, winner)  // e.g., setAlgo("HYBRID_GUIDED", "MCTS")
