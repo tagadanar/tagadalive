@@ -4,7 +4,7 @@
  * Algorithm selection: set AI.mode in main before calling AI.getCombo()
  * Example: AI.mode = AI.MODE_HYBRID_GUIDED
  *
- * See AI/Combos/ for algorithm implementations:
+ * See AI/Algorithms/ for algorithm implementations:
  *   - PTS: Fast greedy target-first
  *   - MCTS: Monte Carlo Tree Search
  *   - BeamSearch: Beam search multi-path
