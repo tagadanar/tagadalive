@@ -9,8 +9,9 @@ include('auto');
 // ║  MODE_HYBRID        PTS seeds MCTS on 1 cell (~150k ops)                 ║
 // ║  MODE_HYBRID_GUIDED PTS guides MCTS cell order (~250k ops) [RECOMMENDED] ║
 // ║  MODE_HYBRID_BEAM   PTS guides BeamSearch (~200k ops)                    ║
+// ║  MODE_UNIFIED_MCTS  Single tree with cells as first-level (~300k ops)    ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
-AI.mode = AI.MODE_HYBRID_GUIDED
+AI.mode = AI.MODE_UNIFIED_MCTS
 
 // Initialize game state
 init()

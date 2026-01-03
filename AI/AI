@@ -18,6 +18,7 @@ class AI {
 	static integer MODE_HYBRID = 3        // PTS seeds MCTS at one cell
 	static integer MODE_HYBRID_GUIDED = 4 // PTS guides MCTS cell order (recommended)
 	static integer MODE_HYBRID_BEAM = 5   // PTS guides Beam Search cell order
+	static integer MODE_UNIFIED_MCTS = 6  // Unified MCTS with cell selection in tree
 
 	// Current mode (default value, can be overridden in main)
 	static integer mode = AI.MODE_HYBRID_GUIDED
@@ -32,6 +33,7 @@ class AI {
 		if (m == AI.MODE_HYBRID) return "HYBRID"
 		if (m == AI.MODE_HYBRID_GUIDED) return "HYBRID_GUIDED"
 		if (m == AI.MODE_HYBRID_BEAM) return "HYBRID_BEAM"
+		if (m == AI.MODE_UNIFIED_MCTS) return "UNIFIED_MCTS"
 		return "UNKNOWN"
 	}
 
@@ -59,8 +61,11 @@ class AI {
 		if (AI.mode == AI.MODE_HYBRID_GUIDED) {
 			return Hybrid.getMCTSGuided()
 		}
-		// MODE_HYBRID_BEAM
-		return Hybrid.getBeamGuided()
+		if (AI.mode == AI.MODE_HYBRID_BEAM) {
+			return Hybrid.getBeamGuided()
+		}
+		// MODE_UNIFIED_MCTS
+		return UnifiedMCTS.run()
 	}
 
 	/*
