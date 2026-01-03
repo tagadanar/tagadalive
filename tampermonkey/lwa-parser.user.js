@@ -264,7 +264,7 @@
             ctx: { life: 0, maxLife: 0, tp: 0, maxTp: 0, mp: 0, maxMp: 0, usedRam: 0, maxRam: 0, cell: 0, enemies: 0, allies: 0 },
             mcts: { iter: 0, nodes: 0, pos: 0, best: 0 },
             pts: { opps: 0, actions: 0, best: 0 },
-            beam: { depth: 0, candidates: 0, pos: 0, best: 0 },
+            beam: { depth: 0, candidates: 0, opsExpand: 0, opsSort: 0, opsPos: 0, opsTotal: 0, best: 0, budgetLow: false },
             algo: { mode: '', winner: '' },
             chosen: { score: 0, actions: 0, desc: '' },
             combos: [],
@@ -338,8 +338,12 @@
                 const vals = p.substring(2).split(',');
                 turn.beam.depth = parseInt(vals[0]) || 0;
                 turn.beam.candidates = parseInt(vals[1]) || 0;
-                turn.beam.pos = parseInt(vals[2]) || 0;
-                turn.beam.best = parseInt(vals[3]) || 0;
+                turn.beam.opsExpand = parseInt(vals[2]) || 0;
+                turn.beam.opsSort = parseInt(vals[3]) || 0;
+                turn.beam.opsPos = parseInt(vals[4]) || 0;
+                turn.beam.opsTotal = parseInt(vals[5]) || 0;
+                turn.beam.best = parseInt(vals[6]) || 0;
+                turn.beam.budgetLow = parseInt(vals[7]) === 1;
             }
             else if (p.startsWith('algo:')) {
                 const vals = p.substring(5).split(',');
@@ -469,7 +473,7 @@
                 ctx: d.ctx || { life: 0, maxLife: 0, tp: 0, maxTp: 0, mp: 0, maxMp: 0, usedRam: 0, maxRam: 0, cell: 0, enemies: 0, allies: 0 },
                 mcts: d.mcts || { iter: 0, nodes: 0, pos: 0, best: 0 },
                 pts: d.pts || { opps: 0, actions: 0, best: 0 },
-                beam: d.beam || { depth: 0, candidates: 0, pos: 0, best: 0 },
+                beam: d.beam || { depth: 0, candidates: 0, opsExpand: 0, opsSort: 0, opsPos: 0, opsTotal: 0, best: 0, budgetLow: false },
                 algo: d.algo || { mode: '', winner: '' },
                 chosen: d.chosen || { score: 0, actions: 0, desc: '' },
                 combos: (d.combos || []).map(c => ({ s: c.s, as: c.as, ps: c.ps, d: c.d })),
