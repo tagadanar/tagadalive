@@ -284,4 +284,96 @@ class Benchmark{
 
 		debug(s)
 	}
+
+	static void displayText(){
+		var totalOps = getOperations() - _startOps
+		var maxOps = getMaxOperations()
+		var pctOps = round(totalOps * 100 / maxOps)
+
+		debug("═══════════════════════════════════════")
+		debug("Turn " + _turn + " | " + _name + " | " + pctOps + "% ops")
+		debug("───────────────────────────────────────")
+
+		// Context
+		debug("HP: " + _selfLife + "/" + _selfMaxLife + " | TP: " + getTP() + "/" + getTotalTP(getEntity()) + " | MP: " + getMP() + "/" + getTotalMP(getEntity()))
+		debug("Cell: " + _selfCell + " | Enemies: " + _enemies + " | Allies: " + _allies)
+
+		// Algorithm results
+		debug("───────────────────────────────────────")
+		if (_algoMode != "") {
+			debug("Algorithm: " + _algoMode + " → " + _algoWinner + " wins")
+		}
+		debug("MCTS: " + _mctsIter + " iter, " + _mctsNodes + " nodes, " + _mctsPos + " pos → score " + _mctsBest)
+		if (_ptsOpps > 0) {
+			debug("PTS:  " + _ptsOpps + " opps, " + _ptsActions + " actions → score " + _ptsBest)
+		}
+
+		// Chosen combo
+		if (_chosenDesc != "") {
+			debug("───────────────────────────────────────")
+			debug("★ Chosen: " + _chosenDesc)
+			debug("  Score: " + _chosenScore + " | Actions: " + _chosenActions)
+		}
+
+		// Top combos
+		if (count(_comboScore) > 0) {
+			debug("───────────────────────────────────────")
+			debug("Top Combos:")
+			for (var i = 0; i < count(_comboScore); i++) {
+				debug("  " + (i + 1) + ". " + _comboDesc[i] + " (score: " + _comboScore[i] + ")")
+			}
+		}
+
+		// Profiler - group by category
+		debug("───────────────────────────────────────")
+		debug("Profiler (" + format(totalOps) + "/" + format(maxOps) + " ops):")
+
+		Map<string, Array<Array>> catFuncs = [:]
+		for (string name : integer nbCall in _count_func) {
+			if (nbCall == 0) continue
+			var cat = getCategoryForFunc(name)
+			if (!catFuncs[cat]) catFuncs[cat] = []
+			var pct = round(_cumul_func[name]! * 100 / totalOps)
+			push(catFuncs[cat]!, [name, nbCall, _cumul_func[name]!, pct])
+		}
+
+		for (var cat in CATEGORIES) {
+			var catName = cat[0] as string
+			if (catFuncs[catName] && count(catFuncs[catName]!) > 0) {
+				var catTotal = 0
+				for (var m in catFuncs[catName]!) catTotal += m[2] as integer
+				var catPct = round(catTotal * 100 / totalOps)
+				debug("  [" + catName + "] " + catPct + "% (" + format(catTotal) + " ops)")
+				var funcs = arraySort(catFuncs[catName]!, (a, b) -> a[2] < b[2] ? 1 : -1) as Array<Array>
+				for (var m in funcs) {
+					debug("    " + m[0] + ": " + m[1] + "x " + format(m[2]) + " (" + m[3] + "%)")
+				}
+			}
+		}
+
+		if (catFuncs["OTHER"] && count(catFuncs["OTHER"]!) > 0) {
+			var catTotal = 0
+			for (var m in catFuncs["OTHER"]!) catTotal += m[2] as integer
+			var catPct = round(catTotal * 100 / totalOps)
+			debug("  [OTHER] " + catPct + "% (" + format(catTotal) + " ops)")
+			var funcs = arraySort(catFuncs["OTHER"]!, (a, b) -> a[2] < b[2] ? 1 : -1) as Array<Array>
+			for (var m in funcs) {
+				debug("    " + m[0] + ": " + m[1] + "x " + format(m[2]) + " (" + m[3] + "%)")
+			}
+		}
+
+		// Logs
+		if (count(_logs) > 0) {
+			debug("───────────────────────────────────────")
+			debug("Logs:")
+			for (var log in _logs) debug("  " + log)
+		}
+
+		debug("═══════════════════════════════════════")
+	}
+
+	static void displayAll(){
+		display()
+		displayText()
+	}
 }
