@@ -191,6 +191,9 @@ class Hybrid {
 		for (Cell cell in priorityCells) push(allCells, cell)
 		for (Cell cell in remainingCells) push(allCells, cell)
 
+		// Track explored cells for visualization
+		Array<Cell> exploredCells = []
+
 		// Run MCTS for each cell
 		for (Cell cell in allCells) {
 			if (MCTS.shouldStop() && bestCombo != null) {
@@ -199,6 +202,7 @@ class Hybrid {
 			}
 
 			positionsExplored++
+			push(exploredCells, cell)
 
 			integer? mpCost = Fight.self.reachableCells[cell]
 			// Always allow current cell (mpCost=0), even if Fight.self.mp is 0 or negative (shackled)
@@ -227,6 +231,15 @@ class Hybrid {
 				bestCombo = combo
 			}
 		}
+
+		// Compute skipped cells (cells in allCells but not explored)
+		Array<Cell> skippedCells = []
+		for (integer i = positionsExplored; i < count(allCells); i++) {
+			push(skippedCells, allCells[i])
+		}
+
+		// Track cells for visualization
+		Benchmark.setMCTSCells(priorityCells, exploredCells, skippedCells)
 
 		Benchmark.stop("Hybrid.runMCTSPrioritized")
 
