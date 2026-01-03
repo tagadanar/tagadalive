@@ -3,13 +3,13 @@ include('auto');
 // ╔══════════════════════════════════════════════════════════════════════════╗
 // ║                         ALGORITHM CONFIGURATION                          ║
 // ╠══════════════════════════════════════════════════════════════════════════╣
-// ║  MODE_PTS           Fast greedy, target-first (~50k ops)                 ║
-// ║  MODE_MCTS          Full tree search (~300k ops)                         ║
-// ║  MODE_BEAM          Multi-path beam search (~150k ops)                   ║
-// ║  MODE_HYBRID        PTS seeds MCTS on 1 cell (~150k ops)                 ║
-// ║  MODE_HYBRID_GUIDED PTS guides MCTS cell order (~250k ops) [RECOMMENDED] ║
-// ║  MODE_HYBRID_BEAM   PTS guides BeamSearch (~200k ops)                    ║
-// ║  MODE_UNIFIED_MCTS  Single tree with cells as first-level (~300k ops)    ║
+// ║  MODE_PTS           Fast greedy, target-first                            ║
+// ║  MODE_MCTS          Full tree search                                     ║
+// ║  MODE_BEAM          Multi-path beam search                               ║
+// ║  MODE_HYBRID        PTS seeds MCTS on 1 cell                             ║
+// ║  MODE_HYBRID_GUIDED PTS guides MCTS cell order                           ║
+// ║  MODE_HYBRID_BEAM   PTS guides BeamSearch                                ║
+// ║  MODE_UNIFIED_MCTS  Single tree with cells as first-level [RECOMMENDED]  ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 AI.mode = AI.MODE_UNIFIED_MCTS
 

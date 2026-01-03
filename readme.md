@@ -16,9 +16,10 @@ tagadalive/
 ├── AI/
 │   ├── AI                # Façade et dispatcher de mode
 │   ├── Algorithms/       # Algorithmes de recherche
-│   │   ├── PTS           # Priority Target Simulation (greedy, ~50k ops)
-│   │   ├── MCTS          # Monte Carlo Tree Search (~300k ops)
-│   │   ├── BeamSearch    # Recherche en faisceau (~150k ops)
+│   │   ├── PTS           # Priority Target Simulation (greedy)
+│   │   ├── MCTS          # Monte Carlo Tree Search
+│   │   ├── BeamSearch    # Recherche en faisceau
+│   │   ├── UnifiedMCTS   # MCTS unifié (cellules au 1er niveau) [DEFAULT]
 │   │   └── Hybrid        # Modes hybrides (combinaisons)
 │   ├── Scoring           # Système de scoring
 │   ├── ScoringConfig     # Constantes ML-tunable
