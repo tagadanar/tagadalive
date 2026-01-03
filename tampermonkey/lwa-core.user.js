@@ -309,6 +309,7 @@
     // Chart instances (managed by lwa-charts)
     LWA.charts = {
         opsChart: null,
+        opsAnalysisChart: null,
         hpChart: null,
         scoreChart: null,
         tpChart: null,
