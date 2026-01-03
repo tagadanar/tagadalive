@@ -17,6 +17,8 @@ A modular Tampermonkey userscript that provides AI debug visualization, profiler
 - **Action logs**: See movement, attacks, heals, buffs, and kills with structured formatting
 - **Native UI integration**: Seamlessly integrates with LeekWars' dark/light theme
 - **Fight page support**: View stats on `/fight/*` pages with a resizable, collapsible side panel
+- **Follow mode**: Auto-sync with fight player turn (toggle on/off)
+- **MCTS cells visualization**: See seeds, explored, and skipped cells for each turn
 - **Cache system**: Logs are cached in localStorage for viewing on fight pages
 - **Quick navigation**: Jump between report and fight pages with one click
 
@@ -25,7 +27,7 @@ A modular Tampermonkey userscript that provides AI debug visualization, profiler
 | Page | Features |
 |------|----------|
 | **Report** (`/report/*`) | Full panel at bottom, logs cached automatically, button to view fight |
-| **Fight** (`/fight/*`) | Side panel (collapsible), toggle to bottom position, resizes combat player |
+| **Fight** (`/fight/*`) | Side panel (collapsible), toggle to bottom position, resizes combat player, Follow toggle to sync with player |
 
 ## Architecture
 
@@ -96,6 +98,9 @@ Click the cache button in the panel header to:
 
 On fight pages, the analyzer displays as a **resizable, collapsible side panel**:
 
+- **Follow toggle**: Checkbox in header to auto-sync with fight player turn (checked by default)
+  - When enabled, panel updates automatically as fight plays
+  - When disabled, allows manual navigation without auto-jumping
 - **Toggle button**: Chevron on the right edge with multiple functions:
   - **Click**: Collapse/expand the panel
   - **Drag horizontally**: Resize the panel width (drag left = wider, drag right = narrower)
@@ -151,6 +156,7 @@ Where:
 | `p:` | PTS stats (opps,actions,best) | `p:45,5,890` |
 | `b:` | BeamSearch stats (depth,candidates,pos,best) | `b:6,120,8,1100` |
 | `algo:` | Algorithm mode and winner | `algo:HYBRID_GUIDED,MCTS` |
+| `cells:` | MCTS cells (seeds;explored;skipped) | `cells:123,456;123,456,789;234,567` |
 | `ch:` | Chosen combo (score,actions,desc) | `ch:850,3,Flash(81)->mv(256:...)` |
 | `cb:` | Top combo (score,actScore,posScore,desc) | `cb:900,600,300,Spark(120)->...` |
 | `cat:` | Function category | `cat:MCTS` |
@@ -213,6 +219,9 @@ Benchmark.logError("Error occurred")
 ```javascript
 // After MCTS search
 Benchmark.setMCTS(iterations, nodesExplored, positionsEvaluated, bestScore)
+
+// Track MCTS cell exploration (for HYBRID_GUIDED mode)
+Benchmark.setMCTSCells(seedCells, exploredCells, skippedCells)
 
 // After PTS search
 Benchmark.setPTS(opportunities, actionCount, bestScore)

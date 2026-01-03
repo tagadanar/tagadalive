@@ -266,6 +266,7 @@
             pts: { opps: 0, actions: 0, best: 0 },
             beam: { depth: 0, candidates: 0, opsExpand: 0, opsSort: 0, opsPos: 0, opsTotal: 0, best: 0, budgetLow: false },
             algo: { mode: '', winner: '' },
+            cells: { seeds: [], explored: [], skipped: [] },
             chosen: { score: 0, actions: 0, desc: '' },
             combos: [],
             methods: [],
@@ -349,6 +350,14 @@
                 const vals = p.substring(5).split(',');
                 turn.algo.mode = vals[0] || '';
                 turn.algo.winner = vals[1] || '';
+            }
+            else if (p.startsWith('cells:')) {
+                // Format: cells:seeds;explored;skipped (each is comma-separated cell IDs)
+                const groups = p.substring(6).split(';');
+                const parseIds = (s) => s ? s.split(',').filter(x => x).map(x => parseInt(x)) : [];
+                turn.cells.seeds = parseIds(groups[0]);
+                turn.cells.explored = parseIds(groups[1]);
+                turn.cells.skipped = parseIds(groups[2]);
             }
             else if (p.startsWith('ch:')) {
                 const m = p.match(/ch:(-?\d+),(\d+),(.+)/);
@@ -475,6 +484,7 @@
                 pts: d.pts || { opps: 0, actions: 0, best: 0 },
                 beam: d.beam || { depth: 0, candidates: 0, opsExpand: 0, opsSort: 0, opsPos: 0, opsTotal: 0, best: 0, budgetLow: false },
                 algo: d.algo || { mode: '', winner: '' },
+                cells: d.cells || { seeds: [], explored: [], skipped: [] },
                 chosen: d.chosen || { score: 0, actions: 0, desc: '' },
                 combos: (d.combos || []).map(c => ({ s: c.s, as: c.as, ps: c.ps, d: c.d })),
                 methods: (d.methods || []).map(m => ({

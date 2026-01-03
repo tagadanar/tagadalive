@@ -30,6 +30,10 @@ class Benchmark{
 	// Algorithm comparison
 	static _algoMode = ""
 	static _algoWinner = ""
+	// MCTS cells tracking
+	static Array<integer> _mctsSeeds = []      // Priority cells from PTS
+	static Array<integer> _mctsExplored = []   // Cells actually explored
+	static Array<integer> _mctsSkipped = []    // Cells skipped (budget)
 	static _chosenDesc = ""
 	static _chosenScore = 0
 	static _chosenActions = 0
@@ -110,6 +114,9 @@ class Benchmark{
 		_beamBudgetLow = false
 		_algoMode = ""
 		_algoWinner = ""
+		_mctsSeeds = []
+		_mctsExplored = []
+		_mctsSkipped = []
 		_chosenDesc = ""
 		_chosenScore = 0
 		_chosenActions = 0
@@ -176,6 +183,15 @@ class Benchmark{
 	static void setAlgo(string mode, string winner){
 		_algoMode = mode
 		_algoWinner = winner
+	}
+
+	static void setMCTSCells(Array<Cell> seeds, Array<Cell> explored, Array<Cell> skipped){
+		_mctsSeeds = []
+		_mctsExplored = []
+		_mctsSkipped = []
+		for (Cell c in seeds) push(_mctsSeeds, c.id)
+		for (Cell c in explored) push(_mctsExplored, c.id)
+		for (Cell c in skipped) push(_mctsSkipped, c.id)
 	}
 
 	static void setChosen(real score, integer actions, string desc){
@@ -267,6 +283,11 @@ class Benchmark{
 		s += "|b:" + _beamDepth + "," + _beamCandidates + "," + _beamOpsExpand + "," + _beamOpsSort + "," + _beamOpsPos + "," + _beamOpsTotal + "," + _beamBest + "," + (_beamBudgetLow ? 1 : 0)
 		if(_algoMode != "") s += "|algo:" + _algoMode + "," + _algoWinner
 		s += "|fc:" + funcCount  // Function count for verification
+
+		// MCTS cells: seeds, explored, skipped
+		if (count(_mctsSeeds) > 0 || count(_mctsExplored) > 0) {
+			s += "|cells:" + join(_mctsSeeds, ",") + ";" + join(_mctsExplored, ",") + ";" + join(_mctsSkipped, ",")
+		}
 
 		if(_chosenDesc != "") s += "|ch:" + _chosenScore + "," + _chosenActions + "," + _chosenDesc
 
