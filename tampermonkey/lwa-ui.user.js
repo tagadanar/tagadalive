@@ -958,19 +958,41 @@
         const algoMode = d.algo?.mode || '';
         const algoWinner = d.algo?.winner || '';
         const isHybrid = algoMode.includes('HYBRID');
+        const isBeamMode = algoMode === 'BEAM' || algoMode === 'HYBRID_BEAM';
+        const isMCTSMode = algoMode === 'MCTS' || algoMode === 'HYBRID' || algoMode === 'HYBRID_GUIDED';
+        const isPTSMode = algoMode === 'PTS';
+
+        // Determine which sections to show
+        const showMCTS = isMCTSMode || (!isBeamMode && !isPTSMode && d.mcts.iter > 0);
+        const showBeam = isBeamMode || d.beam?.depth > 0;
+        const showPTS = isHybrid || isPTSMode || d.pts?.opps > 0;
+
+        // Build algo banner scores
+        let algoScores = '';
+        if (algoMode === 'HYBRID_BEAM') {
+            algoScores = `(PTS: ${d.pts?.best || 0} vs BEAM: ${d.beam?.best || 0})`;
+        } else if (isHybrid) {
+            algoScores = `(PTS: ${d.pts?.best || 0} vs MCTS: ${d.mcts.best})`;
+        }
+
+        // Determine winner class
+        let winnerClass = 'mcts-win';
+        if (algoWinner === 'PTS') winnerClass = 'pts-win';
+        else if (algoWinner === 'BEAM') winnerClass = 'beam-win';
 
         return `
             ${hasAlgo ? `
-            <div class="lwa-algo-banner ${algoWinner === 'PTS' ? 'pts-win' : 'mcts-win'}">
+            <div class="lwa-algo-banner ${winnerClass}">
                 <span class="lwa-algo-mode">${algoMode}</span>
                 <span class="lwa-algo-arrow">→</span>
                 <span class="lwa-algo-winner">${algoWinner} wins</span>
-                ${isHybrid ? `<span class="lwa-algo-scores">(PTS: ${d.pts?.best || 0} vs MCTS: ${d.mcts.best})</span>` : ''}
+                ${algoScores ? `<span class="lwa-algo-scores">${algoScores}</span>` : ''}
             </div>
             ` : ''}
 
             <div class="lwa-search-comparison">
                 <!-- MCTS Section -->
+                ${showMCTS ? `
                 <div class="lwa-section ${algoWinner === 'MCTS' ? 'winner' : ''}">
                     <div class="lwa-section-title">
                         MCTS Search
@@ -995,8 +1017,38 @@
                         </div>
                     </div>
                 </div>
+                ` : ''}
+
+                <!-- BeamSearch Section -->
+                ${showBeam ? `
+                <div class="lwa-section ${algoWinner === 'BEAM' ? 'winner' : ''}">
+                    <div class="lwa-section-title">
+                        BeamSearch
+                        ${algoWinner === 'BEAM' ? '<span class="lwa-winner-badge">★ Winner</span>' : ''}
+                    </div>
+                    <div class="lwa-mcts-grid">
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Profondeur maximale atteinte">
+                            <div class="lwa-mcts-val" style="color:${C.green}">${d.beam?.depth || 0}</div>
+                            <div class="lwa-mcts-lbl">Depth</div>
+                        </div>
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Nombre total de candidats évalués">
+                            <div class="lwa-mcts-val" style="color:${C.blue}">${d.beam?.candidates || 0}</div>
+                            <div class="lwa-mcts-lbl">Candidates</div>
+                        </div>
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Positions de départ testées">
+                            <div class="lwa-mcts-val" style="color:${C.purple}">${d.beam?.pos || 0}</div>
+                            <div class="lwa-mcts-lbl">Positions</div>
+                        </div>
+                        <div class="lwa-mcts-card highlight lwa-tip" data-tip="Meilleur score trouvé">
+                            <div class="lwa-mcts-val" style="color:${C.orange}">${d.beam?.best || 0}</div>
+                            <div class="lwa-mcts-lbl">Best Score</div>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
 
                 <!-- PTS Section -->
+                ${showPTS ? `
                 <div class="lwa-section ${algoWinner === 'PTS' ? 'winner' : ''}">
                     <div class="lwa-section-title">
                         PTS (Priority Target Simulation)
@@ -1017,6 +1069,7 @@
                         </div>
                     </div>
                 </div>
+                ` : ''}
             </div>
 
             ${chosenDesc ? `
@@ -1079,19 +1132,45 @@
             const winner = turn.algo?.winner || '';
             const ptsScore = turn.pts?.best || 0;
             const mctsScore = turn.mcts.best;
-            const hasComparison = winner && ptsScore > 0;
+            const beamScore = turn.beam?.best || 0;
+            const algoMode = turn.algo?.mode || '';
+            const isBeamMode = algoMode === 'BEAM' || algoMode === 'HYBRID_BEAM';
+            const hasComparison = winner && (ptsScore > 0 || beamScore > 0);
+
+            // Build comparison string based on mode
+            let comparisonHtml = '';
+            if (hasComparison) {
+                if (isBeamMode) {
+                    comparisonHtml = `
+                        <span style="color:${winner === 'PTS' ? '#2bc491' : C.textMuted}">PTS:${ptsScore}</span> vs
+                        <span style="color:${winner === 'BEAM' ? '#a017d6' : C.textMuted}">BEAM:${beamScore}</span>
+                    `;
+                } else {
+                    comparisonHtml = `
+                        <span style="color:${winner === 'PTS' ? '#2bc491' : C.textMuted}">PTS:${ptsScore}</span> vs
+                        <span style="color:${winner === 'MCTS' ? '#ff8800' : C.textMuted}">MCTS:${mctsScore}</span>
+                    `;
+                }
+            }
+
+            // Build default score info based on mode
+            let defaultScoreHtml = '';
+            if (isBeamMode) {
+                defaultScoreHtml = `Score: ${beamScore} | depth ${turn.beam?.depth || 0} | ${fmt(turn.ops)} ops`;
+            } else {
+                defaultScoreHtml = `Score: ${mctsScore} | ${turn.mcts.iter} iter | ${fmt(turn.ops)} ops`;
+            }
 
             html += `
                 <div class="lwa-tl-event" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:6px;padding-top:8px">
                     ${hasComparison ? `
                         <div class="lwa-tl-algo-badge ${winner.toLowerCase()}">${winner}</div>
                         <div class="lwa-tl-desc" style="color:${C.textMuted}">
-                            <span style="color:${winner === 'PTS' ? '#2bc491' : C.textMuted}">PTS:${ptsScore}</span> vs
-                            <span style="color:${winner === 'MCTS' ? '#ff8800' : C.textMuted}">MCTS:${mctsScore}</span>
+                            ${comparisonHtml}
                             | ${fmt(turn.ops)} ops
                         </div>
                     ` : `
-                        <div class="lwa-tl-desc" style="color:${C.textMuted}">Score: ${mctsScore} | ${turn.mcts.iter} iter | ${fmt(turn.ops)} ops</div>
+                        <div class="lwa-tl-desc" style="color:${C.textMuted}">${defaultScoreHtml}</div>
                     `}
                 </div>
             `;
@@ -1255,6 +1334,7 @@
             'REFRESH': { icon: '🔄', class: 'refresh', label: 'Refresh' },
             'PTS': { icon: '🎯', class: 'pts', label: 'PTS Search' },
             'MCTS': { icon: '🌳', class: 'mcts', label: 'MCTS Search' },
+            'BEAM': { icon: '🔦', class: 'beam', label: 'BeamSearch' },
             'POSITION': { icon: '📍', class: 'position', label: 'Position Analysis' },
             'ACTION': { icon: '⚔️', class: 'action', label: 'Action Generation' },
             'CONSEQUENCES': { icon: '💥', class: 'consequences', label: 'Consequences' },
@@ -1264,7 +1344,7 @@
 
         // Group methods by category
         const categories = {};
-        const categoryOrder = ['SUMMARY', 'INIT', 'REFRESH', 'PTS', 'MCTS', 'POSITION', 'ACTION', 'CONSEQUENCES', 'OTHER'];
+        const categoryOrder = ['SUMMARY', 'INIT', 'REFRESH', 'PTS', 'MCTS', 'BEAM', 'POSITION', 'ACTION', 'CONSEQUENCES', 'OTHER'];
 
         for (const m of d.methods) {
             const cat = m.category || 'OTHER';
@@ -1312,7 +1392,27 @@
                     <button class="lwa-eye-btn" data-action="show-raw-log" data-category="SUMMARY" title="Voir le log brut">👁</button>
                 </div>
                 <div class="lwa-log-cat-content">
-                    <!-- MCTS Stats -->
+                    <!-- Algorithm Stats (MCTS or Beam based on mode) -->
+                    ${d.beam?.depth > 0 ? `
+                    <div class="lwa-log-summary">
+                        <div class="lwa-log-summary-card">
+                            <div class="value" style="color:${C.green}">${d.beam.depth}</div>
+                            <div class="label">Beam Depth</div>
+                        </div>
+                        <div class="lwa-log-summary-card">
+                            <div class="value" style="color:${C.blue}">${d.beam.candidates}</div>
+                            <div class="label">Candidates</div>
+                        </div>
+                        <div class="lwa-log-summary-card">
+                            <div class="value" style="color:${C.purple}">${d.beam.pos}</div>
+                            <div class="label">Positions</div>
+                        </div>
+                        <div class="lwa-log-summary-card">
+                            <div class="value" style="color:${C.orange}">${d.beam.best}</div>
+                            <div class="label">Best Score</div>
+                        </div>
+                    </div>
+                    ` : `
                     <div class="lwa-log-summary">
                         <div class="lwa-log-summary-card">
                             <div class="value" style="color:${C.green}">${d.mcts.iter}</div>
@@ -1331,6 +1431,7 @@
                             <div class="label">Best Score</div>
                         </div>
                     </div>
+                    `}
 
                     <!-- Chosen Action Details -->
                     <div class="lwa-log-detail-section">

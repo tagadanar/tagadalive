@@ -355,6 +355,11 @@
             border: 1px solid #2bc491;
         }
 
+        .lwa-algo-banner.beam-win {
+            background: rgba(160, 23, 214, 0.1);
+            border: 1px solid #a017d6;
+        }
+
         .lwa-algo-mode {
             background: rgba(0,0,0,0.1);
             padding: 3px 8px;
@@ -421,6 +426,10 @@
         .lwa-tl-algo-badge.mcts {
             background: rgba(255, 136, 0, 0.2);
             color: #ff8800;
+        }
+        .lwa-tl-algo-badge.beam {
+            background: rgba(160, 23, 214, 0.2);
+            color: #a017d6;
         }
 
         /* PTS-specific cards - 3 columns instead of 4 */
