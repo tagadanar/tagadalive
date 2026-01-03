@@ -466,14 +466,6 @@ class MCTS {
 
 	/*
 	 * Build a short description of a combo for debugging.
-	 * Format: "Item1(score)→Item2(score)→mv(cell:total=Dd+Pp+Gg+Tt+Ss)" or "stay"
-	 *
-	 * Position breakdown abbreviations:
-	 *   d = danger (negative dmg taken if enemies attack)
-	 *   p = proximity (penalty for nearby enemies)
-	 *   g = gravity (attraction/repulsion to priority targets)
-	 *   t = tactical (lock, CAC range, COVID bonuses)
-	 *   s = shield (value of keeping current shields)
 	 */
 	static string buildComboDesc(Combo combo) {
 		string desc = ""
@@ -484,14 +476,7 @@ class MCTS {
 		if (combo.finalPosition) {
 			if (desc != "") desc += "→"
 			Position p = combo.finalPosition!
-			desc += "mv(" + p.cell.id + ":"
-			desc += round(p.score) + "="
-			desc += round(-p.dmg) + "d"
-			desc += (p.proximityScore >= 0 ? "+" : "") + round(p.proximityScore) + "p"
-			desc += (p.gravityScore >= 0 ? "+" : "") + round(p.gravityScore) + "g"
-			desc += (p.tacticalScore >= 0 ? "+" : "") + round(p.tacticalScore) + "t"
-			desc += (p.shieldScore >= 0 ? "+" : "") + round(p.shieldScore) + "s"
-			desc += ")"
+			desc += "mv(" + p.cell.id + ":" + round(p.score) + ")"
 		}
 		if (desc == "") desc = "stay"
 		return desc

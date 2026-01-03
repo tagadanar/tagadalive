@@ -1,16 +1,28 @@
 include('auto');
 
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║                         ALGORITHM CONFIGURATION                          ║
+// ╠══════════════════════════════════════════════════════════════════════════╣
+// ║  MODE_PTS           Fast greedy, target-first (~50k ops)                 ║
+// ║  MODE_MCTS          Full tree search (~300k ops)                         ║
+// ║  MODE_BEAM          Multi-path beam search (~150k ops)                   ║
+// ║  MODE_HYBRID        PTS seeds MCTS on 1 cell (~150k ops)                 ║
+// ║  MODE_HYBRID_GUIDED PTS guides MCTS cell order (~250k ops) [RECOMMENDED] ║
+// ║  MODE_HYBRID_BEAM   PTS guides BeamSearch (~200k ops)                    ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+AI.mode = AI.MODE_HYBRID_GUIDED
+
+// Initialize game state
 init()
 
-// Get best combo using selected algorithm (PTS, MCTS, or Hybrid)
-// Change AI.mode in AI/AI to switch: MODE_PTS, MODE_MCTS, MODE_HYBRID
+// Get best combo using selected algorithm
 Combo combo = AI.getCombo()
 
-// Play the combo
+// Execute the combo
 combo.play()
 
-// Output debug data
-// display()     -> JSON format for Tampermonkey (recommended)
-// displayText() -> Human-readable format
-// displayAll()  -> Both formats
+// Output debug data (choose one):
+// - display()     : JSON format for Tampermonkey panel
+// - displayText() : Human-readable format
+// - displayAll()  : Both formats
 Benchmark.display()

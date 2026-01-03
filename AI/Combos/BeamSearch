@@ -1,0 +1,273 @@
+/*
+ * Beam Search implementation for action sequence optimization
+ *
+ * Alternative to MCTS that maintains a fixed-width beam of best partial combos.
+ *
+ * Algorithm:
+ * 1. Initialize beam with empty combo at starting position
+ * 2. For each depth level:
+ *    - Expand each beam state with all valid actions
+ *    - Score candidates by cumulative action score
+ *    - Keep top BEAM_WIDTH candidates
+ * 3. Extract best combo from final beam
+ * 4. Add final positioning
+ *
+ * Key differences from MCTS:
+ * - No tree structure: maintains flat beam of candidates
+ * - No UCB1: pure greedy selection of top-K at each level
+ * - No rollouts: evaluates actions directly via consequence chaining
+ * - Faster: O(BEAM_WIDTH × MAX_DEPTH × actions) vs MCTS tree traversal
+ *
+ * Key differences from PTS:
+ * - Explores multiple action orderings (beam width > 1)
+ * - Can find better action sequences than greedy single-pass
+ * - Slightly slower but more thorough than PTS
+ */
+
+/*
+ * State tracked for each candidate in the beam
+ */
+class BeamState {
+	Array<Action> actions = []        // Actions taken so far
+	Consequences state                // Current game state after actions
+	integer remainingTP               // TP after actions
+	integer remainingMP               // MP after actions (and movement)
+	Item? weaponInHand                // Current weapon equipped
+	Map<Item, integer> usageCounts    // Items used this turn
+	real score                        // Cumulative score of all actions
+	Cell startCell                    // Starting cell for this search
+
+	/*
+	 * Initial state constructor - empty combo at starting position
+	 */
+	constructor(Cell startCell, integer tp, integer mp, Item? weapon) {
+		this.startCell = startCell
+		this.remainingTP = tp
+		this.remainingMP = mp
+		this.weaponInHand = weapon
+		this.usageCounts = [:]
+		this.score = 0.0
+		this.state = Consequences()
+		this.state.currentCell = startCell
+		this.state.currentMP = mp
+	}
+
+	/*
+	 * Clone constructor - create new state from parent with an added action
+	 */
+	constructor(BeamState parent, Action chainedAction) {
+		this.actions = []
+		for (Action a in parent.actions) push(this.actions, a)
+		push(this.actions, chainedAction)
+
+		this.startCell = parent.startCell
+		this.state = chainedAction.consequences
+
+		integer switchCost = chainedAction.item.isWeap && chainedAction.item != parent.weaponInHand ? 1 : 0
+		this.remainingTP = this.state.currentTP - switchCost
+		this.remainingMP = this.state.currentMP
+		this.weaponInHand = chainedAction.item.isWeap ? chainedAction.item : parent.weaponInHand
+
+		this.usageCounts = [:]
+		for (Item item : integer cnt in parent.usageCounts) {
+			this.usageCounts[item] = cnt
+		}
+		this.usageCounts[chainedAction.item] = (this.usageCounts[chainedAction.item] ? this.usageCounts[chainedAction.item]! : 0) + 1
+
+		this.score = parent.score + chainedAction.score!
+	}
+
+	/*
+	 * Check if an action can be executed from this state
+	 */
+	boolean canExecute(Action baseAction) {
+		integer currentUses = this.usageCounts[baseAction.item] ? this.usageCounts[baseAction.item]! : 0
+		if (currentUses >= baseAction.item.maxUse) return false
+
+		if (baseAction.to != Fight.selfCell) {
+			Entity? target = Board.entityCells[baseAction.to]
+			if (target != null && this.state.isKilled(target!)) return false
+		}
+
+		integer switchCost = baseAction.item.isWeap && baseAction.item != this.weaponInHand ? 1 : 0
+		if (baseAction.item.cost + switchCost > this.remainingTP) return false
+
+		return true
+	}
+
+	/*
+	 * Create a new state with an action added
+	 */
+	BeamState? extend(Action baseAction) {
+		Action chainedAction = Action(baseAction, this.state)
+		if (chainedAction.score! <= 0) return null
+		return BeamState(this, chainedAction)
+	}
+
+	/*
+	 * Convert this state to a Combo
+	 */
+	Combo toCombo() {
+		Combo combo = Combo()
+		for (Action a in this.actions) {
+			push(combo.actions, a)
+		}
+		return combo
+	}
+}
+
+
+class BeamSearch {
+	// Configuration
+	static integer BEAM_WIDTH = 15        // Number of candidates to keep at each level
+	static integer MAX_DEPTH = 6          // Maximum actions in a combo
+	static integer MAX_ACTIONS_TO_TRY = 8 // Prune action space
+	static integer SAFETY_BUFFER = 200000 // Keep 200k ops for combo execution
+
+	// Statistics for debugging
+	static integer lastIterations = 0
+	static integer lastCandidates = 0
+	static integer lastBeamSize = 0
+	static real lastScore = 0.0
+
+	/*
+	 * Check if we should stop (less than SAFETY_BUFFER ops remaining)
+	 */
+	static boolean shouldStop() {
+		return getOperations() > getMaxOperations() - BeamSearch.SAFETY_BUFFER
+	}
+
+	/*
+	 * Main beam search from a given starting position
+	 */
+	static Combo search(Cell startCell, Map<Item, Action> actionsAtCell, integer tp, integer mp, Item? weapon) {
+		Benchmark.start("BeamSearch.search")
+
+		Array<Action> prunedActions = BeamSearch.pruneActions(mapValues(actionsAtCell))
+
+		if (count(prunedActions) == 0) {
+			Combo moveOnlyCombo = Combo()
+			moveOnlyCombo.addFinalPosition(MapPosition.findBestPosition(startCell, mp, Consequences()))
+			Benchmark.stop("BeamSearch.search")
+			return moveOnlyCombo
+		}
+
+		Array<BeamState> beam = [BeamState(startCell, tp, mp, weapon)]
+
+		integer totalCandidates = 0
+		integer depth = 0
+
+		while (depth < BeamSearch.MAX_DEPTH) {
+			if (BeamSearch.shouldStop()) {
+				debug("BeamSearch: Budget low at depth " + depth)
+				break
+			}
+
+			depth++
+
+			Array<BeamState> candidates = []
+
+			for (BeamState state in beam) {
+				for (Action baseAction in prunedActions) {
+					if (!state.canExecute(baseAction)) continue
+
+					BeamState? newState = state.extend(baseAction)
+					if (newState != null) {
+						push(candidates, newState!)
+						totalCandidates++
+					}
+				}
+			}
+
+			if (count(candidates) == 0) break
+
+			Array<BeamState> sorted = arraySort(candidates, (BeamState a, BeamState b) => integer|real {
+				return Sort.desc(a.score, b.score)
+			}) as Array<BeamState>
+
+			beam = []
+			for (integer i = 0; i < BeamSearch.BEAM_WIDTH && i < count(sorted); i++) {
+				push(beam, sorted[i])
+			}
+		}
+
+		BeamSearch.lastIterations = depth
+		BeamSearch.lastCandidates = totalCandidates
+		BeamSearch.lastBeamSize = count(beam)
+
+		Combo bestCombo
+		if (count(beam) > 0) {
+			BeamState best = beam[0]
+			bestCombo = best.toCombo()
+			BeamSearch.lastScore = best.score
+
+			Consequences finalCsq = bestCombo.getCurrentConsequences()
+			Cell currentCell = bestCombo.getCurrentCell()
+			integer currentMP = bestCombo.getCurrentMP()
+			bestCombo.addFinalPosition(MapPosition.findBestPosition(currentCell, currentMP, finalCsq))
+		} else {
+			bestCombo = Combo()
+			bestCombo.addFinalPosition(MapPosition.findBestPosition(startCell, mp, Consequences()))
+			BeamSearch.lastScore = 0.0
+		}
+
+		real actScore = 0
+		for (Action a in bestCombo.actions) actScore += a.score!
+		real posScore = bestCombo.finalPosition ? bestCombo.finalPosition!.score : 0
+		Benchmark.addCombo(bestCombo.getScore()!, count(bestCombo.actions), BeamSearch.buildComboDesc(bestCombo), posScore, actScore)
+
+		Benchmark.stop("BeamSearch.search")
+		return bestCombo
+	}
+
+	/*
+	 * Prune action space to top-K actions by immediate score
+	 */
+	static Array<Action> pruneActions(Array<Action> actions) {
+		Array<Action> viable = []
+		for (Action act in actions) {
+			if (act.score! > 0) push(viable, act)
+		}
+		if (count(viable) == 0) return []
+
+		Array<Action> selfCast = []
+		Array<Action> other = []
+		for (Action act in viable) {
+			if (act.from == Fight.selfCell) push(selfCast, act)
+			else push(other, act)
+		}
+
+		if (count(other) <= BeamSearch.MAX_ACTIONS_TO_TRY) {
+			return viable
+		}
+
+		Array<Action> sorted = arraySort(other, (Action x, Action y) => integer|real {
+			return Sort.desc(x.score!, y.score!)
+		}) as Array<Action>
+
+		Array<Action> pruned = selfCast
+		for (integer i = 0; i < BeamSearch.MAX_ACTIONS_TO_TRY && i < count(sorted); i++) {
+			push(pruned, sorted[i])
+		}
+
+		return pruned
+	}
+
+	/*
+	 * Build combo description for debugging.
+	 */
+	static string buildComboDesc(Combo combo) {
+		string desc = ""
+		for (Action a in combo.actions) {
+			if (desc != "") desc += "→"
+			desc += a.item.name + "(" + round(a.score!) + ")"
+		}
+		if (combo.finalPosition) {
+			if (desc != "") desc += "→"
+			Position p = combo.finalPosition!
+			desc += "mv(" + p.cell.id + ":" + round(p.score) + ")"
+		}
+		if (desc == "") desc = "stay"
+		return desc
+	}
+}
