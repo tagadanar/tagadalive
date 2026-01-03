@@ -6,7 +6,11 @@ A modular Tampermonkey userscript that provides AI debug visualization, profiler
 
 - **Turn-by-turn navigation**: Browse through each turn of your AI's execution
 - **Performance profiler**: See operation counts and percentages for each function, grouped by category
-- **MCTS visualization**: Track iterations, nodes explored, positions evaluated, and best scores
+- **Algorithm visualization**: Adapts to selected mode:
+  - **MCTS**: iterations, nodes explored, positions, best score
+  - **BeamSearch**: depth, candidates evaluated, positions, best score
+  - **PTS**: opportunities, actions, best score
+- **Hybrid mode comparison**: Shows algorithm banner with winner (PTS vs MCTS or PTS vs Beam)
 - **Combo analysis**: View top-scored combos with action scores and position breakdown
 - **Resource tracking**: Monitor HP, TP, MP, RAM, cell position, and entity counts
 - **Resource charts**: Visualize HP%, TP Used%, MP Used%, and RAM Used% over time
@@ -144,6 +148,9 @@ Where:
 | `e:` | Enemy count | `e:2` |
 | `a:` | Ally count | `a:1` |
 | `m:` | MCTS stats (iter,nodes,pos,best) | `m:100,500,50,1234` |
+| `p:` | PTS stats (opps,actions,best) | `p:45,5,890` |
+| `b:` | BeamSearch stats (depth,candidates,pos,best) | `b:6,120,8,1100` |
+| `algo:` | Algorithm mode and winner | `algo:HYBRID_GUIDED,MCTS` |
 | `ch:` | Chosen combo (score,actions,desc) | `ch:850,3,Flash(81)->mv(256:...)` |
 | `cb:` | Top combo (score,actScore,posScore,desc) | `cb:900,600,300,Spark(120)->...` |
 | `cat:` | Function category | `cat:MCTS` |
@@ -158,7 +165,9 @@ The profiler groups functions into categories for easier analysis:
 |----------|-----------|
 | INIT | `init`, `Map.init`, `Items.init` |
 | REFRESH | `MapPath.refresh`, `Fight.refresh`, `Map.refresh`, etc. |
-| MCTS | `AI.getMCTSCombo`, `MCTS.iter` |
+| PTS | `PTS.buildCombo`, `PTS.generateOpportunities` |
+| MCTS | `MCTS.search`, `Hybrid.runMCTSFull`, `Hybrid.runMCTSPrioritized` |
+| BEAM | `BeamSearch.search`, `Hybrid.runBeamFull`, `Hybrid.runBeamPrioritized` |
 | POSITION | `MP.evalPos`, `MP.findBest` |
 | ACTION | `addAction` |
 | CONSEQUENCES | `Consequences`, `Consequences.fromConseq` |
@@ -199,11 +208,20 @@ Benchmark.logWarn("Warning!")
 Benchmark.logError("Error occurred")
 ```
 
-### Tracking MCTS/AI Decisions
+### Tracking Algorithm Decisions
 
 ```javascript
 // After MCTS search
 Benchmark.setMCTS(iterations, nodesExplored, positionsEvaluated, bestScore)
+
+// After PTS search
+Benchmark.setPTS(opportunities, actionCount, bestScore)
+
+// After BeamSearch
+Benchmark.setBeam(maxDepth, totalCandidates, positionsEvaluated, bestScore)
+
+// Set algorithm mode and winner (for hybrid modes)
+Benchmark.setAlgo(mode, winner)  // e.g., setAlgo("HYBRID_GUIDED", "MCTS")
 
 // After choosing final action
 Benchmark.setChosen(score, actionCount, description)
