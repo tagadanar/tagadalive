@@ -10,12 +10,19 @@ class Combo {
 	/*
 	 * Ajout d'action dans l'ensemble d'actions du combo
 	 * @param action Action a ajouter dans le combo
+	 * @return true if action was added (improves score), false otherwise
 	 */
 	boolean add(Action action){
-		if(count(this.actions) == 0) push(this.actions, action)
-		else {
-			Action actualized = Action(action, this.getCurrentConsequences())
-			if(actualized.score > 0) push(this.actions, actualized)
+		if(count(this.actions) == 0) {
+			// Guard first action: must have positive score
+			if(action.score! <= 0) return false
+			push(this.actions, action)
+		} else {
+			Consequences currentCsq = this.getCurrentConsequences()
+			real prevScore = currentCsq.score != null ? currentCsq.score! : 0.0
+			Action actualized = Action(action, currentCsq)
+			// Check DELTA (score improvement), not cumulative
+			if(actualized.score! > prevScore) push(this.actions, actualized)
 			else return false
 		}
 		return true
@@ -26,12 +33,16 @@ class Combo {
 	}
 	
 	/*
-	 * retourne la somme des scores des actions du combo
+	 * Returns the combo's total score: last action's cumulative score + position score.
+	 * Action scores are cumulative (each includes all previous effects), so we only need the last one.
 	 */
 	real? getScore(){
 		if(this.score == null){
-			for(Action action in this.actions){
-				this.score += action.score!
+			// Last action's score is cumulative (includes all previous action effects)
+			if(count(this.actions) > 0) {
+				this.score = this.actions[count(this.actions) - 1].score!
+			} else {
+				this.score = 0.0  // Movement-only combo
 			}
 			this.score += this.finalPosition!.score
 		}
