@@ -303,7 +303,8 @@
         currentIdx: 0,
         activeTab: 'overview',
         logsExpanded: false,
-        fetchAttempts: 0
+        fetchAttempts: 0,
+        followTurn: true  // Auto-sync with fight player turn
     };
 
     // Chart instances (managed by lwa-charts)

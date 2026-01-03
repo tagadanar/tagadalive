@@ -101,8 +101,12 @@
         // Build header actions based on page type
         let headerActions = '';
         if (isFightPage) {
-            // Fight page: button to toggle panel position
+            // Fight page: follow toggle + panel position button
             headerActions += `
+                <label class="lwa-follow-toggle" title="Suivre le tour du combat">
+                    <input type="checkbox" data-action="toggle-follow" ${LWA.state.followTurn ? 'checked' : ''}>
+                    <span>Follow</span>
+                </label>
                 <button class="lwa-header-btn" data-action="toggle-panel-position" title="${panelPosition === 'side' ? 'Mettre en bas' : 'Mettre sur le côté'}">
                     ${panelPosition === 'side' ? '⬇️' : '➡️'}
                 </button>
@@ -197,6 +201,19 @@
             });
         }
 
+        // Follow toggle handler
+        const followToggle = wrapper.querySelector('[data-action="toggle-follow"]');
+        if (followToggle) {
+            followToggle.addEventListener('change', function(e) {
+                const _LWA = unsafeWindow.LWA;
+                _LWA.state.followTurn = e.target.checked;
+                console.log('[LWA] Follow turn:', _LWA.state.followTurn);
+                // If enabled, immediately sync to current turn
+                if (_LWA.state.followTurn && _LWA.setupTurnObserver) {
+                    _LWA.setupTurnObserver();
+                }
+            });
+        }
 
         // Insert based on mode
         if (isSideMode) {
@@ -1016,6 +1033,26 @@
                             <div class="lwa-mcts-lbl">Best Score</div>
                         </div>
                     </div>
+                    ${d.cells && (d.cells.seeds.length > 0 || d.cells.explored.length > 0) ? `
+                    <div class="lwa-cells-section" style="margin-top:12px;padding-top:12px;border-top:1px solid ${C.border}">
+                        <div class="lwa-cells-header" style="display:flex;gap:16px;margin-bottom:8px">
+                            <span class="lwa-tip" data-tip="Cellules prioritaires (PTS seeds)" style="color:${C.cyan}">
+                                Seeds: <b>${d.cells.seeds.length}</b>
+                            </span>
+                            <span class="lwa-tip" data-tip="Cellules explorées par MCTS" style="color:${C.green}">
+                                Explored: <b>${d.cells.explored.length}</b>
+                            </span>
+                            <span class="lwa-tip" data-tip="Cellules non explorées (budget)" style="color:${C.red}">
+                                Skipped: <b>${d.cells.skipped.length}</b>
+                            </span>
+                        </div>
+                        <div class="lwa-cells-ids" style="font-size:11px;color:${C.textDim};max-height:200px;overflow-y:auto">
+                            ${d.cells.seeds.length > 0 ? `<div style="margin-bottom:6px"><span style="color:${C.cyan};font-weight:600">Seeds:</span> <span style="word-break:break-all">${d.cells.seeds.join(', ')}</span></div>` : ''}
+                            ${d.cells.explored.length > 0 ? `<div style="margin-bottom:6px"><span style="color:${C.green};font-weight:600">Explored:</span> <span style="word-break:break-all">${d.cells.explored.join(', ')}</span></div>` : ''}
+                            ${d.cells.skipped.length > 0 ? `<div><span style="color:${C.red};font-weight:600">Skipped:</span> <span style="word-break:break-all">${d.cells.skipped.join(', ')}</span></div>` : ''}
+                        </div>
+                    </div>
+                    ` : ''}
                 </div>
                 ` : ''}
 

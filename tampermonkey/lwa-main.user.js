@@ -275,6 +275,9 @@
         console.log('[LWA] Setting up turn observer on fight page');
 
         const syncTurn = () => {
+            // Check if follow is enabled
+            if (!LWA.state.followTurn) return;
+
             const text = turnElement.textContent || '';
             const match = text.match(/(\d+)/);
             if (!match) return;
@@ -301,7 +304,10 @@
     }
 
     // Expose for re-initialization after data loads
-    LWA.setupTurnObserver = setupTurnObserver;
+    LWA.setupTurnObserver = function() {
+        lastObservedTurn = null; // Reset to force re-sync
+        setupTurnObserver();
+    };
 
     async function initializePage() {
         const isReport = LWA.isReportPage();

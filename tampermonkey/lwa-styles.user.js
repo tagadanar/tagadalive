@@ -292,15 +292,14 @@
 
         /* MCTS Cards */
         .lwa-mcts-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            display: flex;
+            flex-wrap: wrap;
             gap: 8px;
         }
 
-        @media (min-width: 600px) {
-            .lwa-mcts-grid {
-                grid-template-columns: repeat(4, 1fr);
-            }
+        .lwa-mcts-grid > * {
+            flex: 1 1 80px;
+            min-width: 70px;
         }
 
         .lwa-mcts-card {
@@ -433,15 +432,7 @@
         }
 
         /* PTS-specific cards - 3 columns instead of 4 */
-        .lwa-section:nth-child(2) .lwa-mcts-grid {
-            grid-template-columns: repeat(3, 1fr);
-        }
-
-        @media (min-width: 600px) {
-            .lwa-section:nth-child(2) .lwa-mcts-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
+        /* PTS section has 3 cards - they'll auto-size with flexbox */
 
         /* Chosen Action */
         .lwa-chosen {
@@ -1832,6 +1823,29 @@
         .lwa-header-btn:hover {
             background: rgba(255,255,255,0.2);
             border-color: rgba(255,255,255,0.3);
+        }
+
+        .lwa-follow-toggle {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #eee;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.15s;
+        }
+
+        .lwa-follow-toggle:hover {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .lwa-follow-toggle input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
         }
 
         .lwa-cache-btn {
