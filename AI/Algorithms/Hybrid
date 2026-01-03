@@ -311,7 +311,7 @@ class Hybrid {
 			return emergency
 		}
 
-		Benchmark.setBeam(BeamSearch.lastIterations, BeamSearch.lastCandidates, positionsExplored, bestCombo!.getScore()!)
+		// BeamSearch.search() already calls Benchmark.setBeam() with detailed stats
 		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), BeamSearch.buildComboDesc(bestCombo!))
 
 		return bestCombo!
@@ -427,7 +427,7 @@ class Hybrid {
 			return emergency
 		}
 
-		Benchmark.setBeam(BeamSearch.lastIterations, BeamSearch.lastCandidates, positionsExplored, bestCombo!.getScore()!)
+		// BeamSearch.search() already calls Benchmark.setBeam() with detailed stats
 		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), BeamSearch.buildComboDesc(bestCombo!))
 
 		return bestCombo!

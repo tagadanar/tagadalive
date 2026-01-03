@@ -7,21 +7,28 @@
  * 1. Initialize beam with empty combo at starting position
  * 2. For each depth level:
  *    - Expand each beam state with all valid actions
- *    - Score candidates by cumulative action score
+ *    - Score candidates by action score only (position evaluated at end)
  *    - Keep top BEAM_WIDTH candidates
- * 3. Extract best combo from final beam
- * 4. Add final positioning
+ * 3. For ALL candidates in final beam:
+ *    - Evaluate best reachable position with remaining MP
+ *    - Compute totalScore = actionScore + positionScore
+ * 4. Return combo with best totalScore
+ *
+ * Position evaluation strategy:
+ * - Position is only evaluated at the END of combos, not during search
+ * - This is efficient: intermediate positions don't matter, only final position
+ * - Cost depends on remaining MP: 0 MP = cheap (1 cell), 5+ MP = more cells to evaluate
+ * - Beam diversity is crucial: if all candidates spent all MP charging, no escape options
  *
  * Key differences from MCTS:
  * - No tree structure: maintains flat beam of candidates
  * - No UCB1: pure greedy selection of top-K at each level
  * - No rollouts: evaluates actions directly via consequence chaining
- * - Faster: O(BEAM_WIDTH × MAX_DEPTH × actions) vs MCTS tree traversal
  *
  * Key differences from PTS:
  * - Explores multiple action orderings (beam width > 1)
  * - Can find better action sequences than greedy single-pass
- * - Slightly slower but more thorough than PTS
+ * - Evaluates position for multiple final candidates, not just the top one
  */
 
 /*
@@ -34,7 +41,7 @@ class BeamState {
 	integer remainingMP               // MP after actions (and movement)
 	Item? weaponInHand                // Current weapon equipped
 	Map<Item, integer> usageCounts    // Items used this turn
-	real score                        // Cumulative score of all actions
+	real actionScore                  // Cumulative score of all actions
 	Cell startCell                    // Starting cell for this search
 
 	/*
@@ -46,7 +53,7 @@ class BeamState {
 		this.remainingMP = mp
 		this.weaponInHand = weapon
 		this.usageCounts = [:]
-		this.score = 0.0
+		this.actionScore = 0.0
 		this.state = Consequences()
 		this.state.currentCell = startCell
 		this.state.currentMP = mp
@@ -74,7 +81,7 @@ class BeamState {
 		}
 		this.usageCounts[chainedAction.item] = (this.usageCounts[chainedAction.item] ? this.usageCounts[chainedAction.item]! : 0) + 1
 
-		this.score = parent.score + chainedAction.score!
+		this.actionScore = parent.actionScore + chainedAction.score!
 	}
 
 	/*
@@ -156,14 +163,19 @@ class BeamSearch {
 
 		integer totalCandidates = 0
 		integer depth = 0
+		integer opsStart = getOperations()
+		integer opsExpand = 0
+		integer opsSort = 0
+		boolean budgetLow = false
 
 		while (depth < BeamSearch.MAX_DEPTH) {
 			if (BeamSearch.shouldStop()) {
-				debug("BeamSearch: Budget low at depth " + depth)
+				budgetLow = true
 				break
 			}
 
 			depth++
+			integer opsBeforeExpand = getOperations()
 
 			Array<BeamState> candidates = []
 
@@ -181,14 +193,20 @@ class BeamSearch {
 
 			if (count(candidates) == 0) break
 
+			integer opsAfterExpand = getOperations()
+			opsExpand += opsAfterExpand - opsBeforeExpand
+
 			Array<BeamState> sorted = arraySort(candidates, (BeamState a, BeamState b) => integer|real {
-				return Sort.desc(a.score, b.score)
+				return Sort.desc(a.actionScore, b.actionScore)
 			}) as Array<BeamState>
 
 			beam = []
 			for (integer i = 0; i < BeamSearch.BEAM_WIDTH && i < count(sorted); i++) {
 				push(beam, sorted[i])
 			}
+
+			integer opsAfterSort = getOperations()
+			opsSort += opsAfterSort - opsAfterExpand
 		}
 
 		BeamSearch.lastIterations = depth
@@ -197,14 +215,38 @@ class BeamSearch {
 
 		Combo bestCombo
 		if (count(beam) > 0) {
-			BeamState best = beam[0]
-			bestCombo = best.toCombo()
-			BeamSearch.lastScore = best.score
+			// Evaluate position for ALL candidates in final beam
+			// Cost depends on remaining MP: 0 MP = cheap (1 cell), 5+ MP = expensive (15+ cells)
+			// This ensures we pick the combo with best (actions + final position), not just best actions
+			integer opsBeforePos = getOperations()
+			BeamState? bestState = null
+			Position? bestPosition = null
+			real bestTotalScore = -999999.0
 
-			Consequences finalCsq = bestCombo.getCurrentConsequences()
-			Cell currentCell = bestCombo.getCurrentCell()
-			integer currentMP = bestCombo.getCurrentMP()
-			bestCombo.addFinalPosition(MapPosition.findBestPosition(currentCell, currentMP, finalCsq))
+			for (BeamState candidate in beam) {
+				Position pos = MapPosition.findBestPosition(
+					candidate.state.currentCell,
+					candidate.remainingMP,
+					candidate.state
+				)
+				real totalScore = candidate.actionScore + pos.score
+				if (totalScore > bestTotalScore) {
+					bestTotalScore = totalScore
+					bestState = candidate
+					bestPosition = pos
+				}
+			}
+
+			integer opsAfterPos = getOperations()
+			integer opsPos = opsAfterPos - opsBeforePos
+			integer opsTotal = opsAfterPos - opsStart
+
+			// Report stats to Benchmark for MARKER output
+			Benchmark.setBeam(depth, totalCandidates, opsExpand, opsSort, opsPos, opsTotal, bestTotalScore, budgetLow)
+
+			bestCombo = bestState!.toCombo()
+			bestCombo.addFinalPosition(bestPosition!)
+			BeamSearch.lastScore = bestTotalScore
 		} else {
 			bestCombo = Combo()
 			bestCombo.addFinalPosition(MapPosition.findBestPosition(startCell, mp, Consequences()))

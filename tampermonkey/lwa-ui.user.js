@@ -1397,19 +1397,33 @@
                     <div class="lwa-log-summary">
                         <div class="lwa-log-summary-card">
                             <div class="value" style="color:${C.green}">${d.beam.depth}</div>
-                            <div class="label">Beam Depth</div>
+                            <div class="label">Depth</div>
                         </div>
                         <div class="lwa-log-summary-card">
                             <div class="value" style="color:${C.blue}">${d.beam.candidates}</div>
                             <div class="label">Candidates</div>
                         </div>
                         <div class="lwa-log-summary-card">
-                            <div class="value" style="color:${C.purple}">${d.beam.pos}</div>
-                            <div class="label">Positions</div>
+                            <div class="value" style="color:${C.orange}">${d.beam.best}${d.beam.budgetLow ? ' ⚠️' : ''}</div>
+                            <div class="label">Best Score</div>
                         </div>
                         <div class="lwa-log-summary-card">
-                            <div class="value" style="color:${C.orange}">${d.beam.best}</div>
-                            <div class="label">Best Score</div>
+                            <div class="value" style="color:${C.purple}">${(d.beam.opsTotal || 0).toLocaleString()}</div>
+                            <div class="label">Total Ops</div>
+                        </div>
+                    </div>
+                    <div class="lwa-log-summary" style="margin-top: 4px;">
+                        <div class="lwa-log-summary-card">
+                            <div class="value" style="font-size:11px">${(d.beam.opsExpand || 0).toLocaleString()}</div>
+                            <div class="label">Expand</div>
+                        </div>
+                        <div class="lwa-log-summary-card">
+                            <div class="value" style="font-size:11px">${(d.beam.opsSort || 0).toLocaleString()}</div>
+                            <div class="label">Sort</div>
+                        </div>
+                        <div class="lwa-log-summary-card">
+                            <div class="value" style="font-size:11px">${(d.beam.opsPos || 0).toLocaleString()}</div>
+                            <div class="label">Position</div>
                         </div>
                     </div>
                     ` : `

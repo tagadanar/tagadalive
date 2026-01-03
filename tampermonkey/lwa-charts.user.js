@@ -408,7 +408,7 @@
                     onClick: (e, elements) => {
                         if (elements.length > 0) {
                             LWA.state.currentIdx = elements[0].index;
-                            render();
+                            LWA.render();
                         }
                     }
                 }
@@ -521,7 +521,7 @@
                     onClick: (e, elements) => {
                         if (elements.length > 0) {
                             LWA.state.currentIdx = elements[0].index;
-                            render();
+                            LWA.render();
                         }
                     }
                 }
@@ -938,7 +938,7 @@
                 onClick: (e, elements) => {
                     if (elements.length > 0) {
                         LWA.state.currentIdx = elements[0].index;
-                        render();
+                        LWA.render();
                     }
                 },
                 onHover: (e, elements) => {
