@@ -263,6 +263,9 @@
             ops: 0, max: 0,
             ctx: { life: 0, maxLife: 0, tp: 0, maxTp: 0, mp: 0, maxMp: 0, usedRam: 0, maxRam: 0, cell: 0, enemies: 0, allies: 0 },
             mcts: { iter: 0, nodes: 0, pos: 0, best: 0 },
+            pts: { opps: 0, actions: 0, best: 0 },
+            beam: { depth: 0, candidates: 0, pos: 0, best: 0 },
+            algo: { mode: '', winner: '' },
             chosen: { score: 0, actions: 0, desc: '' },
             combos: [],
             methods: [],
@@ -324,6 +327,24 @@
                 turn.mcts.nodes = parseInt(vals[1]) || 0;
                 turn.mcts.pos = parseInt(vals[2]) || 0;
                 turn.mcts.best = parseInt(vals[3]) || 0;
+            }
+            else if (p.startsWith('p:')) {
+                const vals = p.substring(2).split(',');
+                turn.pts.opps = parseInt(vals[0]) || 0;
+                turn.pts.actions = parseInt(vals[1]) || 0;
+                turn.pts.best = parseInt(vals[2]) || 0;
+            }
+            else if (p.startsWith('b:')) {
+                const vals = p.substring(2).split(',');
+                turn.beam.depth = parseInt(vals[0]) || 0;
+                turn.beam.candidates = parseInt(vals[1]) || 0;
+                turn.beam.pos = parseInt(vals[2]) || 0;
+                turn.beam.best = parseInt(vals[3]) || 0;
+            }
+            else if (p.startsWith('algo:')) {
+                const vals = p.substring(5).split(',');
+                turn.algo.mode = vals[0] || '';
+                turn.algo.winner = vals[1] || '';
             }
             else if (p.startsWith('ch:')) {
                 const m = p.match(/ch:(-?\d+),(\d+),(.+)/);
@@ -447,6 +468,9 @@
                 max: d.max || 0,
                 ctx: d.ctx || { life: 0, maxLife: 0, tp: 0, maxTp: 0, mp: 0, maxMp: 0, usedRam: 0, maxRam: 0, cell: 0, enemies: 0, allies: 0 },
                 mcts: d.mcts || { iter: 0, nodes: 0, pos: 0, best: 0 },
+                pts: d.pts || { opps: 0, actions: 0, best: 0 },
+                beam: d.beam || { depth: 0, candidates: 0, pos: 0, best: 0 },
+                algo: d.algo || { mode: '', winner: '' },
                 chosen: d.chosen || { score: 0, actions: 0, desc: '' },
                 combos: (d.combos || []).map(c => ({ s: c.s, as: c.as, ps: c.ps, d: c.d })),
                 methods: (d.methods || []).map(m => ({
@@ -473,7 +497,8 @@
 
         let totalOps = 0, totalMaxOps = 0, totalIter = 0, totalNodes = 0, totalActions = 0;
         let totalDamage = 0, totalHeal = 0, totalTPUsed = 0, totalMPUsed = 0;
-        let scores = [];
+        let mctsScores = [], ptsScores = [], beamScores = [];
+        let ptsWins = 0, mctsWins = 0, beamWins = 0, totalPtsOpps = 0;
         let lifeStart = LWA.state.turnData[0]?.ctx.life || 0;
         let lifeEnd = LWA.state.turnData[LWA.state.turnData.length - 1]?.ctx.life || 0;
         let maxLifeStart = LWA.state.turnData[0]?.ctx.maxLife || 1;
@@ -484,9 +509,17 @@
             totalIter += t.mcts.iter;
             totalNodes += t.mcts.nodes;
             totalActions += t.chosen.actions;
-            scores.push(t.mcts.best);
+            mctsScores.push(t.mcts.best);
+            if (t.pts?.best) ptsScores.push(t.pts.best);
+            if (t.beam?.best) beamScores.push(t.beam.best);
+            totalPtsOpps += t.pts?.opps || 0;
             totalTPUsed += t.ctx.tp;
             totalMPUsed += t.ctx.mp;
+
+            // Track algo wins
+            if (t.algo?.winner === 'PTS') ptsWins++;
+            else if (t.algo?.winner === 'MCTS') mctsWins++;
+            else if (t.algo?.winner === 'BEAM') beamWins++;
 
             // Parse damage/heal from combo descriptions
             const desc = t.chosen.desc || '';
@@ -504,7 +537,10 @@
             }
         }
 
-        const avgScore = scores.length > 0 ? Math.round(scores.reduce((a,b) => a+b, 0) / scores.length) : 0;
+        const avgMctsScore = mctsScores.length > 0 ? Math.round(mctsScores.reduce((a,b) => a+b, 0) / mctsScores.length) : 0;
+        const avgPtsScore = ptsScores.length > 0 ? Math.round(ptsScores.reduce((a,b) => a+b, 0) / ptsScores.length) : 0;
+        const avgBeamScore = beamScores.length > 0 ? Math.round(beamScores.reduce((a,b) => a+b, 0) / beamScores.length) : 0;
+        const avgScore = Math.max(avgMctsScore, avgPtsScore, avgBeamScore); // Use best for efficiency calc
         const avgOpsPerTurn = Math.round(totalOps / LWA.state.turnData.length);
         const lifeDelta = lifeEnd - lifeStart;
         const survivalRate = pct(lifeEnd, maxLifeStart);
@@ -524,8 +560,15 @@
             totalNodes,
             totalActions,
             avgScore,
-            scoreMin: scores.length > 0 ? Math.min(...scores) : 0,
-            scoreMax: scores.length > 0 ? Math.max(...scores) : 0,
+            avgMctsScore,
+            avgPtsScore,
+            avgBeamScore,
+            scoreMin: mctsScores.length > 0 ? Math.min(...mctsScores) : 0,
+            scoreMax: mctsScores.length > 0 ? Math.max(...mctsScores) : 0,
+            ptsWins,
+            mctsWins,
+            beamWins,
+            totalPtsOpps,
             totalDamage,
             totalHeal,
             dpt,
