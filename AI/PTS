@@ -57,10 +57,13 @@ class PTS {
 
 					// Track cell scores: for each attack cell, record best opportunity score
 					// This tells MCTS which cells are most promising
-					for (Cell cell in opp!.attackCells) {
-						real currentBest = PTS.lastCellScores[cell] != null ? PTS.lastCellScores[cell]! : 0.0
-						if (opp!.baseScore > currentBest) {
-							PTS.lastCellScores[cell] = opp!.baseScore
+					// Skip self-cast opportunities (Fight.selfCell is a sentinel, not a real cell)
+					if (!opp!.isSelfCast) {
+						for (Cell cell in opp!.attackCells) {
+							real currentBest = PTS.lastCellScores[cell] != null ? PTS.lastCellScores[cell]! : 0.0
+							if (opp!.baseScore > currentBest) {
+								PTS.lastCellScores[cell] = opp!.baseScore
+							}
 						}
 					}
 				}
@@ -97,10 +100,20 @@ class PTS {
 		} else if (item.area == AREA_LASER_LINE) {
 			attackCells = Targets.getLazerCellsToUseItemOnCell(item, target.cell)
 		} else {
-			// AOE: for each cell in target's area, get attack cells
-			// We pick the target cell itself as the aim point for simplicity
-			// (full AOE optimization would check all cells for cluster value)
-			attackCells = Targets.getCellsToUseItemOnCell(item, target.cell, [Fight.self.id])
+			// AOE: check ALL cells in target's area (matches MapAction behavior)
+			// This handles min-range and LOS cases where we can't hit center directly
+			// but can hit an adjacent cell that includes target in AOE
+			Map<Cell, boolean> seenCells = [:]
+			attackCells = []
+			for (Cell aoeCell in target.cell.getAreaCells(item.area)) {
+				Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, aoeCell, [Fight.self.id])
+				for (Cell c in cells) {
+					if (!seenCells[c]) {
+						seenCells[c] = true
+						push(attackCells, c)
+					}
+				}
+			}
 		}
 
 		// No valid attack cells
