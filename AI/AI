@@ -1,7 +1,9 @@
 /*
  * AI - Main entry point and utilities for combo search
  *
- * Algorithm selection is done in main via AI.setMode().
+ * Algorithm selection: set AI.mode in main before calling AI.getCombo()
+ * Example: AI.mode = AI.MODE_HYBRID_GUIDED
+ *
  * See AI/Combos/ for algorithm implementations:
  *   - PTS: Fast greedy target-first
  *   - MCTS: Monte Carlo Tree Search
@@ -17,16 +19,8 @@ class AI {
 	static integer MODE_HYBRID_GUIDED = 4 // PTS guides MCTS cell order (recommended)
 	static integer MODE_HYBRID_BEAM = 5   // PTS guides Beam Search cell order
 
-	// Current mode - set via AI.setMode() in main
+	// Current mode (default value, can be overridden in main)
 	static integer mode = AI.MODE_HYBRID_GUIDED
-
-	/*
-	 * Set the algorithm mode.
-	 * Call this in main before AI.getCombo().
-	 */
-	static void setMode(integer newMode) {
-		AI.mode = newMode
-	}
 
 	/*
 	 * Get readable name for a mode (for debugging)
