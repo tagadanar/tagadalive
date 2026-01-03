@@ -219,6 +219,11 @@
         const hasMPData = mpMaxData.some(v => v > 0);
         const hasRAMData = ramMaxData.some(v => v > 0);
 
+        // Compute operations data
+        const opsData = LWA.state.turnData.map(t => t.ops || 0);
+        const opsMaxData = LWA.state.turnData.map(t => t.max || 0);
+        const hasOpsData = opsMaxData.some(v => v > 0);
+
         return `
             <!-- Charts Section -->
             <div class="lwa-section">
@@ -242,7 +247,7 @@
                         <canvas id="score-chart"></canvas>
                     </div>
                 </div>
-                ${hasTPData || hasMPData || hasRAMData ? `
+                ${hasTPData || hasMPData || hasRAMData || (hasOpsData && LWA.state.turnData.length > 1) ? `
                 <div class="lwa-charts-row" style="margin-top:12px">
                     ${hasTPData ? `
                     <div class="lwa-mini-chart">
@@ -269,6 +274,15 @@
                             <span class="lwa-chart-range">${Math.min(...ramUsedData)} - ${Math.max(...ramUsedData)} / ${Math.max(...ramMaxData)}</span>
                         </div>
                         <canvas id="ram-chart"></canvas>
+                    </div>
+                    ` : ''}
+                    ${hasOpsData && LWA.state.turnData.length > 1 ? `
+                    <div class="lwa-mini-chart">
+                        <div class="lwa-mini-chart-title ops" style="color:${C.green}">
+                            Ops per Turn
+                            <span class="lwa-chart-range">${fmt(Math.min(...opsData))} - ${fmt(Math.max(...opsData))} / ${fmt(Math.max(...opsMaxData))}</span>
+                        </div>
+                        <canvas id="ops-analysis-chart"></canvas>
                     </div>
                     ` : ''}
                 </div>
@@ -735,6 +749,89 @@
                                     const max = ramMaxData[idx];
                                     const pct = ramPctData[idx];
                                     return [`RAM Used: ${used} / ${max}`, `(${pct}%)`];
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            grid: { display: false },
+                            ticks: { font: { size: 9 }, color: chartGray, maxRotation: 0 }
+                        },
+                        y: {
+                            min: 0,
+                            max: 100,
+                            grid: { color: 'rgba(0,0,0,0.08)' },
+                            ticks: { font: { size: 10 }, color: chartGray, callback: (v) => v + '%' }
+                        }
+                    },
+                    onClick: (e, elements) => {
+                        if (elements.length > 0) {
+                            LWA.state.currentIdx = elements[0].index;
+                            LWA.render();
+                        }
+                    }
+                }
+            });
+        }
+
+        // Operations Chart in Analysis tab - shows ops used per turn
+        const opsAnalysisCtx = document.getElementById('ops-analysis-chart');
+        if (opsAnalysisCtx && LWA.state.turnData.length >= 2) {
+            if (LWA.charts.opsAnalysisChart) LWA.charts.opsAnalysisChart.destroy();
+
+            const opsData = LWA.state.turnData.map(t => t.ops || 0);
+            const opsMaxData = LWA.state.turnData.map(t => t.max || 0);
+            const opsPctData = LWA.state.turnData.map(t => {
+                const maxOps = t.max || 1;
+                return Math.round((t.ops || 0) * 100 / maxOps);
+            });
+
+            LWA.charts.opsAnalysisChart = new Chart(opsAnalysisCtx, {
+                type: 'line',
+                data: {
+                    labels: LWA.state.turnData.map(t => 'T' + t.t),
+                    datasets: [{
+                        label: 'Ops Used %',
+                        data: opsPctData,
+                        borderColor: chartGreen,
+                        backgroundColor: 'rgba(95, 173, 27, 0.25)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: LWA.state.turnData.map((_, i) => i === LWA.state.currentIdx ? 8 : 4),
+                        pointBackgroundColor: LWA.state.turnData.map((t, i) => {
+                            const pct = opsPctData[i];
+                            if (i === LWA.state.currentIdx) return chartOrange;
+                            if (pct > 90) return '#d9534f';
+                            if (pct > 70) return '#e89b3c';
+                            return chartGreen;
+                        }),
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { intersect: false, mode: 'index' },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            padding: 10,
+                            displayColors: false,
+                            callbacks: {
+                                title: (items) => items[0] ? `Tour ${LWA.state.turnData[items[0].dataIndex]?.t}` : '',
+                                label: (item) => {
+                                    const idx = item.dataIndex;
+                                    const used = opsData[idx];
+                                    const max = opsMaxData[idx];
+                                    const pct = opsPctData[idx];
+                                    return [`Ops: ${fmt(used)} / ${fmt(max)}`, `(${pct}%)`];
                                 }
                             }
                         }

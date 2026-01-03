@@ -1209,7 +1209,7 @@
 
             <div class="lwa-section">
                 <div class="lwa-section-title">Top ${d.combos.length} Combos</div>
-                ${d.combos.length > 0 ? d.combos.map((c, i) => {
+                ${d.combos.length > 0 ? [...d.combos].sort((a, b) => b.s - a.s).map((c, i) => {
                     const source = getComboSource(c.d);
                     const cleanDesc = c.d.replace(/^(PTS|MCTS):/, '');
                     return `
