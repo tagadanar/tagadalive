@@ -1,0 +1,125 @@
+/*
+ * Opportunity represents a potential action on a target.
+ * Used by PTS (Priority Target Simulation) to build combos target-first.
+ *
+ * Instead of iterating cells then actions (like MCTS), we iterate:
+ *   TARGET -> ITEM -> find valid CELLS
+ *
+ * This naturally filters irrelevant positions and scales with targets, not cells.
+ */
+class Opportunity {
+	Entity target              // The entity we want to affect
+	Item item                  // The item to use
+	Array<Cell> attackCells    // Cells from which we can hit target with item
+	Cell? targetCell           // Cell to aim at (entity cell for point, may differ for AOE)
+	real baseScore             // Quick estimate score (no consequence chaining)
+	boolean isSelfCast         // True if self-cast action (buff/heal on self)
+
+	/*
+	 * Constructor for a standard opportunity (target + item + cells)
+	 */
+	constructor(Entity target, Item item, Array<Cell> attackCells, Cell targetCell, real baseScore) {
+		this.target = target
+		this.item = item
+		this.attackCells = attackCells
+		this.targetCell = targetCell
+		this.baseScore = baseScore
+		this.isSelfCast = (target == Fight.self && item.minRange == 0)
+	}
+
+	/*
+	 * Constructor for self-cast opportunity
+	 */
+	constructor(Entity target, Item item, real baseScore) {
+		this.target = target
+		this.item = item
+		this.attackCells = [Fight.selfCell]
+		this.targetCell = Fight.selfCell
+		this.baseScore = baseScore
+		this.isSelfCast = true
+	}
+
+	/*
+	 * Find the best reachable cell from a given position with available MP.
+	 * Returns the cell with minimum movement cost, or null if none reachable.
+	 */
+	Cell? findBestReachableCell(Cell fromCell, integer availableMP, Map<Cell, integer> reachableCells) {
+		// Self-cast: no movement needed
+		if (this.isSelfCast) return Fight.selfCell
+
+		Cell? bestCell = null
+		integer bestCost = 99999
+
+		for (Cell cell in this.attackCells) {
+			integer? cost = reachableCells[cell]
+			if (cost != null && cost <= availableMP && cost < bestCost) {
+				bestCost = cost!
+				bestCell = cell
+			}
+		}
+
+		return bestCell
+	}
+
+	/*
+	 * Find best cell prioritizing position score (when multiple cells have same MP cost)
+	 * This is more expensive but gives better positioning choices.
+	 */
+	Cell? findBestReachableCellWithPositioning(Cell fromCell, integer availableMP, Map<Cell, integer> reachableCells, Consequences csq) {
+		if (this.isSelfCast) return Fight.selfCell
+
+		Cell? bestCell = null
+		integer bestCost = 99999
+		real bestPositionScore = -999999.0
+
+		for (Cell cell in this.attackCells) {
+			integer? cost = reachableCells[cell]
+			if (cost != null && cost <= availableMP) {
+				// Among cells with same cost, prefer better position score
+				if (cost < bestCost) {
+					bestCost = cost!
+					bestCell = cell
+					// Only compute position score if we found a new best cost
+					Danger d = MapDanger.getCellDanger(cell, csq)
+					bestPositionScore = d.score
+				} else if (cost == bestCost) {
+					// Same cost: compare position scores
+					Danger d = MapDanger.getCellDanger(cell, csq)
+					if (d.score > bestPositionScore) {
+						bestPositionScore = d.score
+						bestCell = cell
+					}
+				}
+			}
+		}
+
+		return bestCell
+	}
+
+	/*
+	 * Check if this opportunity can be executed given current state.
+	 * Does NOT check reachability (caller should use findBestReachableCell first).
+	 */
+	boolean canExecute(integer availableTP, Map<Item, integer> usesThisTurn, Map<Item, integer> cooldowns, Consequences csq, Item? weaponInHand) {
+		// Check cooldown
+		integer cd = cooldowns[this.item] != null ? cooldowns[this.item]! : 0
+		if (cd > 0) return false
+
+		// Check uses this turn
+		integer uses = usesThisTurn[this.item] != null ? usesThisTurn[this.item]! : 0
+		if (uses >= this.item.maxUse) return false
+
+		// Check target not dead
+		if (csq.isKilled(this.target)) return false
+
+		// Check TP (including weapon switch cost)
+		integer switchCost = this.item.isWeap && this.item != weaponInHand ? 1 : 0
+		if (availableTP < this.item.cost + switchCost) return false
+
+		return true
+	}
+
+	string string() {
+		return "<Opp " + this.item.name + "→" + this.target.name + " score:" + round(this.baseScore) + " cells:" + count(this.attackCells) + ">"
+	}
+}
