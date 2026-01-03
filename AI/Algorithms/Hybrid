@@ -180,7 +180,8 @@ class Hybrid {
 		// Add remaining reachable cells
 		Array<Cell> remainingCells = []
 		for (Cell cell : integer mp in Fight.self.reachableCells) {
-			if (mp > Fight.self.mp) break
+			// Always allow current cell (mp=0), even if Fight.self.mp is 0 or negative (shackled)
+			if (mp > 0 && mp > Fight.self.mp) break
 			if (cellPriorities[cell] == null) {
 				push(remainingCells, cell)
 			}
@@ -267,7 +268,8 @@ class Hybrid {
 
 		Array<Cell> remainingCells = []
 		for (Cell cell : integer mp in Fight.self.reachableCells) {
-			if (mp > Fight.self.mp) break
+			// Always allow current cell (mp=0), even if Fight.self.mp is 0 or negative (shackled)
+			if (mp > 0 && mp > Fight.self.mp) break
 			if (cellPriorities[cell] == null) {
 				push(remainingCells, cell)
 			}
