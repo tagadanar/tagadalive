@@ -94,6 +94,7 @@ class PTS {
 		// Get cells from which we can hit this target
 		Array<Cell> attackCells
 		Cell targetCell = target.cell
+		Map<Cell, Cell>? cellToAim = null  // For AOE: attackCell → aimCell
 
 		if (item.area == AREA_POINT) {
 			attackCells = Targets.getCellsToUseItemOnCell(item, target.cell, [Fight.self.id])
@@ -103,16 +104,31 @@ class PTS {
 			// AOE: check ALL cells in target's area (matches MapAction behavior)
 			// This handles min-range and LOS cases where we can't hit center directly
 			// but can hit an adjacent cell that includes target in AOE
-			Map<Cell, boolean> seenCells = [:]
-			attackCells = []
+			// Track which aimCell to use from each attackCell (prefer closest to target for max damage)
+			cellToAim = [:]
 			for (Cell aoeCell in target.cell.getAreaCells(item.area)) {
 				Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, aoeCell, [Fight.self.id])
 				for (Cell c in cells) {
-					if (!seenCells[c]) {
-						seenCells[c] = true
-						push(attackCells, c)
+					if (cellToAim![c] == null) {
+						// First aimCell found for this attackCell
+						cellToAim![c] = aoeCell
+					} else if (aoeCell == target.cell) {
+						// Prefer aiming at target.cell directly (max damage, no AOE falloff)
+						cellToAim![c] = aoeCell
+					} else {
+						// Keep aimCell closest to target (less AOE falloff)
+						integer curDist = getCellDistance(cellToAim![c]!.id, target.cell.id)
+						integer newDist = getCellDistance(aoeCell.id, target.cell.id)
+						if (newDist < curDist) {
+							cellToAim![c] = aoeCell
+						}
 					}
 				}
+			}
+			// Extract attack cells from the map
+			attackCells = []
+			for (Cell c in cellToAim!) {
+				push(attackCells, c)
 			}
 		}
 
@@ -143,11 +159,21 @@ class PTS {
 
 		if (bestCell == null) return null
 
+		// For AOE, use the mapped aimCell for scoring; for non-AOE, use targetCell
+		Cell aimCell = (cellToAim != null && cellToAim![bestCell!] != null) ? cellToAim![bestCell!]! : targetCell
+
 		// Create temporary action to get base score
-		Action tempAction = Action(item, bestCell!, targetCell)
+		Action tempAction = Action(item, bestCell!, aimCell)
 		if (tempAction.score! <= 0) return null
 
-		return Opportunity(target, item, reachableAttackCells, targetCell, tempAction.score!)
+		// Return appropriate opportunity type
+		if (cellToAim != null) {
+			// AOE: include aim mapping for each attack cell
+			return Opportunity(target, item, reachableAttackCells, targetCell, tempAction.score!, cellToAim!)
+		} else {
+			// Non-AOE: simple opportunity
+			return Opportunity(target, item, reachableAttackCells, targetCell, tempAction.score!)
+		}
 	}
 
 	/*
@@ -230,7 +256,9 @@ class PTS {
 			if (moveCost > currentMP) continue
 
 			// Create the action - Combo.add() will handle consequence chaining
-			Action action = Action(opp.item, attackCell!, opp.targetCell!)
+			// For AOE, use the mapped aimCell; for non-AOE, uses targetCell
+			Cell aimCell = opp.getAimCell(attackCell!)
+			Action action = Action(opp.item, attackCell!, aimCell)
 
 			// For first action, check score directly
 			// For subsequent actions, combo.add() chains and checks score > 0
