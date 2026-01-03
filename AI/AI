@@ -2,12 +2,13 @@
  * AI - Main entry point and utilities for combo search
  *
  * Algorithm selection: set AI.mode in main before calling AI.getCombo()
- * Example: AI.mode = AI.MODE_HYBRID_GUIDED
+ * Example: AI.mode = AI.MODE_UNIFIED_MCTS
  *
  * See AI/Algorithms/ for algorithm implementations:
  *   - PTS: Fast greedy target-first
  *   - MCTS: Monte Carlo Tree Search
  *   - BeamSearch: Beam search multi-path
+ *   - UnifiedMCTS: Single tree with cells as first-level (recommended)
  *   - Hybrid: Combines PTS with other algorithms
  */
 class AI {
@@ -16,12 +17,12 @@ class AI {
 	static integer MODE_MCTS = 1          // Monte Carlo Tree Search (thorough, slower)
 	static integer MODE_BEAM = 2          // Beam Search (balanced speed/quality)
 	static integer MODE_HYBRID = 3        // PTS seeds MCTS at one cell
-	static integer MODE_HYBRID_GUIDED = 4 // PTS guides MCTS cell order (recommended)
+	static integer MODE_HYBRID_GUIDED = 4 // PTS guides MCTS cell order
 	static integer MODE_HYBRID_BEAM = 5   // PTS guides Beam Search cell order
-	static integer MODE_UNIFIED_MCTS = 6  // Unified MCTS with cell selection in tree
+	static integer MODE_UNIFIED_MCTS = 6  // Unified MCTS with cell selection in tree (recommended)
 
 	// Current mode (default value, can be overridden in main)
-	static integer mode = AI.MODE_HYBRID_GUIDED
+	static integer mode = AI.MODE_UNIFIED_MCTS
 
 	/*
 	 * Get readable name for a mode (for debugging)
