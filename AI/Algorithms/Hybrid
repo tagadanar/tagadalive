@@ -200,8 +200,9 @@ class Hybrid {
 			positionsExplored++
 
 			integer? mpCost = Fight.self.reachableCells[cell]
-			if (mpCost == null || mpCost! > Fight.self.mp) continue
-			integer remainingMP = Fight.self.mp - mpCost!
+			// Always allow current cell (mpCost=0), even if Fight.self.mp is 0 or negative (shackled)
+			if (mpCost == null || (mpCost! > 0 && mpCost! > Fight.self.mp)) continue
+			integer remainingMP = max(0, Fight.self.mp - mpCost!)
 
 			Map<Item, Action> cellActions = mapBestAction[cell] ? clone(mapBestAction[cell]!, 1) as Map<Item, Action> : [:]
 
@@ -285,8 +286,9 @@ class Hybrid {
 			positionsExplored++
 
 			integer? mpCost = Fight.self.reachableCells[cell]
-			if (mpCost == null || mpCost! > Fight.self.mp) continue
-			integer remainingMP = Fight.self.mp - mpCost!
+			// Always allow current cell (mpCost=0), even if Fight.self.mp is 0 or negative (shackled)
+			if (mpCost == null || (mpCost! > 0 && mpCost! > Fight.self.mp)) continue
+			integer remainingMP = max(0, Fight.self.mp - mpCost!)
 
 			Map<Item, Action> cellActions = mapBestAction[cell] ? clone(mapBestAction[cell]!, 1) as Map<Item, Action> : [:]
 
@@ -337,7 +339,8 @@ class Hybrid {
 		integer positionsExplored = 0
 
 		for (Cell cell : integer mp in Fight.self.reachableCells) {
-			if (mp > Fight.self.mp) break
+			// Always process current cell (mp=0), even if Fight.self.mp is 0 or negative (shackled)
+			if (mp > 0 && mp > Fight.self.mp) break
 
 			if (MCTS.shouldStop() && bestCombo != null) {
 				debug("MCTS: Budget low, " + positionsExplored + " pos explored")
@@ -360,7 +363,7 @@ class Hybrid {
 				cell,
 				cellActions,
 				Fight.self.tp,
-				Fight.self.mp - mp,
+				max(0, Fight.self.mp - mp),
 				Fight.self.getWeaponInHand()
 			)
 
@@ -395,7 +398,8 @@ class Hybrid {
 		integer positionsExplored = 0
 
 		for (Cell cell : integer mp in Fight.self.reachableCells) {
-			if (mp > Fight.self.mp) break
+			// Always process current cell (mp=0), even if Fight.self.mp is 0 or negative (shackled)
+			if (mp > 0 && mp > Fight.self.mp) break
 
 			if (BeamSearch.shouldStop() && bestCombo != null) {
 				debug("Beam: Budget low, " + positionsExplored + " pos explored")
@@ -418,7 +422,7 @@ class Hybrid {
 				cell,
 				cellActions,
 				Fight.self.tp,
-				Fight.self.mp - mp,
+				max(0, Fight.self.mp - mp),
 				Fight.self.getWeaponInHand()
 			)
 
