@@ -6,8 +6,10 @@
  *
  * Available strategies:
  * - HYBRID: PTS seeds MCTS at one cell
- * - HYBRID_GUIDED: PTS guides MCTS cell order (recommended)
+ * - HYBRID_GUIDED: PTS guides MCTS cell order
  * - HYBRID_BEAM: PTS guides BeamSearch cell order
+ *
+ * Note: UNIFIED_MCTS is now the recommended algorithm (see AI/Algorithms/UnifiedMCTS)
  */
 class Hybrid {
 
