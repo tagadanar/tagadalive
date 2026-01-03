@@ -15,7 +15,7 @@ tagadalive/
 ├── auto                  # Agrégateur d'includes
 ├── AI/
 │   ├── AI                # Façade et dispatcher de mode
-│   ├── Combos/           # Algorithmes de recherche
+│   ├── Algorithms/       # Algorithmes de recherche
 │   │   ├── PTS           # Priority Target Simulation (greedy, ~50k ops)
 │   │   ├── MCTS          # Monte Carlo Tree Search (~300k ops)
 │   │   ├── BeamSearch    # Recherche en faisceau (~150k ops)
