@@ -173,6 +173,11 @@
             if (LWA.isReportPage()) {
                 setTimeout(LWA.injectJumpButtons, 500);
             }
+
+            // Setup turn observer on fight pages (now that we have turnData)
+            if (LWA.isFightPage() && LWA.setupTurnObserver) {
+                setTimeout(LWA.setupTurnObserver, 500);
+            }
         } else {
             // Retry logic - cache is checked instantly, so few retries needed
             if (LWA.state.fetchAttempts < LWA.MAX_FETCH_ATTEMPTS) {
@@ -193,6 +198,12 @@
             LWA.state.turnData = LWA.state.entitiesData[name].turns;
             LWA.state.currentIdx = 0;
             LWA.render();
+
+            // Re-sync with current fight turn after entity switch
+            if (LWA.isFightPage() && LWA.setupTurnObserver) {
+                lastObservedTurn = null; // Reset to force re-sync
+                LWA.setupTurnObserver();
+            }
         }
     }
 
@@ -240,6 +251,64 @@
         });
     }
 
+    // Turn observer for fight page - syncs with LeekWars player
+    let turnObserver = null;
+    let lastObservedTurn = null;
+
+    function setupTurnObserver() {
+        // Clean up any existing observer
+        if (turnObserver) {
+            turnObserver.disconnect();
+            turnObserver = null;
+        }
+
+        // Only on fight pages
+        if (!LWA.isFightPage()) return;
+
+        const turnElement = document.querySelector('.control.turn');
+        if (!turnElement) {
+            // Retry after a delay if element not found yet
+            setTimeout(setupTurnObserver, 1000);
+            return;
+        }
+
+        console.log('[LWA] Setting up turn observer on fight page');
+
+        const syncTurn = () => {
+            // Check if follow is enabled
+            if (!LWA.state.followTurn) return;
+
+            const text = turnElement.textContent || '';
+            const match = text.match(/(\d+)/);
+            if (!match) return;
+
+            const turnNum = parseInt(match[1], 10);
+            if (turnNum === lastObservedTurn) return;
+            lastObservedTurn = turnNum;
+
+            // Find the index in turnData that matches this turn number
+            const idx = LWA.state.turnData.findIndex(t => t.t === turnNum);
+            if (idx >= 0 && idx !== LWA.state.currentIdx) {
+                console.log(`[LWA] Syncing to turn ${turnNum} (idx ${idx})`);
+                LWA.state.currentIdx = idx;
+                LWA.render();
+            }
+        };
+
+        // Initial sync
+        syncTurn();
+
+        // Observe changes
+        turnObserver = new MutationObserver(syncTurn);
+        turnObserver.observe(turnElement, { childList: true, characterData: true, subtree: true });
+    }
+
+    // Expose for re-initialization after data loads
+    LWA.setupTurnObserver = function() {
+        lastObservedTurn = null; // Reset to force re-sync
+        setupTurnObserver();
+    };
+
     async function initializePage() {
         const isReport = LWA.isReportPage();
         const isFight = LWA.isFightPage();
@@ -255,6 +324,7 @@
         LWA.state.fetchAttempts = 0;
         LWA.state.isFromCache = false;
         LWA.state.currentFightId = fightId;
+        lastObservedTurn = null;
 
         // On fight page without cached data, nothing will be shown (handled in injectPanel)
 
@@ -271,6 +341,11 @@
         // Wait a bit more for fight data to load, then fetch logs
         // LeekWars loads fight data asynchronously
         setTimeout(LWA.fetchLogs, isReport ? 1500 : 500);
+
+        // Setup turn observer on fight pages (after logs are fetched)
+        if (isFight) {
+            setTimeout(setupTurnObserver, 2000);
+        }
     }
 
     function init() {
