@@ -39,11 +39,17 @@
     LWA.detectAnomalies = function() {
         const anomalies = [];
         const avgOps = LWA.state.turnData.reduce((sum, t) => sum + t.ops, 0) / LWA.state.turnData.length;
-        const avgScore = LWA.state.turnData.reduce((sum, t) => sum + t.mcts.best, 0) / LWA.state.turnData.length;
+        // Use the winning score (max of MCTS/PTS) for average calculation
+        const avgScore = LWA.state.turnData.reduce((sum, t) => {
+            const winningScore = Math.max(t.mcts.best, t.pts?.best || 0);
+            return sum + winningScore;
+        }, 0) / LWA.state.turnData.length;
 
         for (let i = 0; i < LWA.state.turnData.length; i++) {
             const t = LWA.state.turnData[i];
             const opsPct = pct(t.ops, t.max);
+            const winningScore = Math.max(t.mcts.best, t.pts?.best || 0);
+            const winner = t.algo?.winner || '';
 
             // High ops usage (>90%)
             if (opsPct > 90) {
@@ -67,14 +73,14 @@
             }
 
             // Low score compared to average
-            if (t.mcts.best < avgScore * 0.5 && avgScore > 0) {
+            if (winningScore < avgScore * 0.5 && avgScore > 0) {
                 anomalies.push({
                     turn: t.t,
                     idx: i,
                     type: 'warning',
                     icon: '📉',
                     title: 'Low Score',
-                    desc: `Score ${t.mcts.best} (avg: ${Math.round(avgScore)})`
+                    desc: `${winner || 'Best'} score ${winningScore} (avg: ${Math.round(avgScore)})`
                 });
             }
 
@@ -95,15 +101,27 @@
                 }
             }
 
-            // Few MCTS iterations
-            if (t.mcts.iter < 5 && t.mcts.iter > 0) {
+            // Few MCTS iterations (only if MCTS was used)
+            if (t.mcts.iter < 5 && t.mcts.iter > 0 && (winner === 'MCTS' || winner === '')) {
                 anomalies.push({
                     turn: t.t,
                     idx: i,
                     type: 'info',
                     icon: '🔍',
                     title: 'Low Search Depth',
-                    desc: `Only ${t.mcts.iter} iterations`
+                    desc: `Only ${t.mcts.iter} MCTS iterations`
+                });
+            }
+
+            // PTS won with significant margin
+            if (winner === 'PTS' && t.pts?.best > t.mcts.best * 1.2 && t.mcts.best > 0) {
+                anomalies.push({
+                    turn: t.t,
+                    idx: i,
+                    type: 'info',
+                    icon: '🎯',
+                    title: 'PTS Outperformed',
+                    desc: `PTS ${t.pts.best} vs MCTS ${t.mcts.best} (+${Math.round((t.pts.best / t.mcts.best - 1) * 100)}%)`
                 });
             }
         }
@@ -179,11 +197,14 @@
 
         // Compute chart stats for display
         const hpData = LWA.state.turnData.map(t => t.ctx.life);
-        const scoreData = LWA.state.turnData.map(t => t.mcts.best);
+        const mctsScoreData = LWA.state.turnData.map(t => t.mcts.best);
+        const ptsScoreData = LWA.state.turnData.map(t => t.pts?.best || 0);
+        const hasPTSData = ptsScoreData.some(v => v !== 0);
         const hpMin = Math.min(...hpData);
         const hpMax = Math.max(...hpData);
-        const scoreMin = Math.min(...scoreData);
-        const scoreMax = Math.max(...scoreData);
+        const allScores = [...mctsScoreData, ...ptsScoreData.filter(s => s !== 0)];
+        const scoreMin = allScores.length > 0 ? Math.min(...allScores) : 0;
+        const scoreMax = allScores.length > 0 ? Math.max(...allScores) : 0;
 
         // Compute TP/MP/RAM stats - calculate USED values (maxTP - remainingTP = usedTP)
         const tpUsedData = LWA.state.turnData.map(t => (t.ctx.maxTp || 0) - (t.ctx.tp || 0));
@@ -215,7 +236,7 @@
                     </div>
                     <div class="lwa-mini-chart">
                         <div class="lwa-mini-chart-title score">
-                            Score MCTS
+                            ${hasPTSData ? 'MCTS vs PTS Scores' : 'Score MCTS'}
                             <span class="lwa-chart-range">${scoreMin} - ${scoreMax}</span>
                         </div>
                         <canvas id="score-chart"></canvas>
@@ -394,52 +415,93 @@
             });
         }
 
-        // Score Chart
+        // Score Chart - MCTS vs PTS comparison
         const scoreCtx = document.getElementById('score-chart');
         if (scoreCtx && LWA.state.turnData.length >= 1) {
             if (LWA.charts.scoreChart) LWA.charts.scoreChart.destroy();
 
-            const scoreData = LWA.state.turnData.map(t => t.mcts?.best ?? 0);
-            const minScore = Math.min(...scoreData);
-            const maxScore = Math.max(...scoreData);
+            const mctsData = LWA.state.turnData.map(t => t.mcts?.best ?? 0);
+            const ptsData = LWA.state.turnData.map(t => t.pts?.best ?? 0);
+            const hasPTS = ptsData.some(v => v !== 0);
+            const winnerData = LWA.state.turnData.map(t => t.algo?.winner || '');
+
+            const allScores = [...mctsData, ...ptsData.filter(s => s !== 0)];
+            const minScore = allScores.length > 0 ? Math.min(...allScores) : 0;
+            const maxScore = allScores.length > 0 ? Math.max(...allScores) : 0;
 
             // Calculate better scale with padding
             const scoreRange = maxScore - minScore || Math.abs(maxScore) * 0.1 || 10;
             const yMin = minScore - scoreRange * 0.2;
             const yMax = maxScore + scoreRange * 0.15;
 
+            const datasets = [{
+                label: 'MCTS',
+                data: mctsData,
+                borderColor: chartOrange,
+                backgroundColor: 'rgba(255, 136, 0, 0.15)',
+                fill: false,
+                tension: 0.3,
+                pointRadius: LWA.state.turnData.map((t, i) => {
+                    if (i === LWA.state.currentIdx) return 8;
+                    return winnerData[i] === 'MCTS' ? 6 : 4;
+                }),
+                pointBackgroundColor: LWA.state.turnData.map((t, i) => {
+                    if (i === LWA.state.currentIdx) return chartGreen;
+                    return winnerData[i] === 'MCTS' ? chartOrange : 'rgba(255, 136, 0, 0.5)';
+                }),
+                pointBorderColor: LWA.state.turnData.map((t, i) => winnerData[i] === 'MCTS' ? '#fff' : 'transparent'),
+                pointBorderWidth: 2,
+                borderWidth: 2
+            }];
+
+            if (hasPTS) {
+                datasets.push({
+                    label: 'PTS',
+                    data: ptsData,
+                    borderColor: '#2bc491',
+                    backgroundColor: 'rgba(43, 196, 145, 0.15)',
+                    fill: false,
+                    tension: 0.3,
+                    pointRadius: LWA.state.turnData.map((t, i) => {
+                        if (i === LWA.state.currentIdx) return 8;
+                        return winnerData[i] === 'PTS' ? 6 : 4;
+                    }),
+                    pointBackgroundColor: LWA.state.turnData.map((t, i) => {
+                        if (i === LWA.state.currentIdx) return chartGreen;
+                        return winnerData[i] === 'PTS' ? '#2bc491' : 'rgba(43, 196, 145, 0.5)';
+                    }),
+                    pointBorderColor: LWA.state.turnData.map((t, i) => winnerData[i] === 'PTS' ? '#fff' : 'transparent'),
+                    pointBorderWidth: 2,
+                    borderWidth: 2
+                });
+            }
+
             LWA.charts.scoreChart = new Chart(scoreCtx, {
                 type: 'line',
                 data: {
                     labels: LWA.state.turnData.map(t => 'T' + t.t),
-                    datasets: [{
-                        data: scoreData,
-                        borderColor: chartOrange,
-                        backgroundColor: 'rgba(255, 136, 0, 0.25)',
-                        fill: true,
-                        tension: 0.3,
-                        pointRadius: LWA.state.turnData.map((_, i) => i === LWA.state.currentIdx ? 8 : 4),
-                        pointBackgroundColor: LWA.state.turnData.map((_, i) => i === LWA.state.currentIdx ? chartGreen : chartOrange),
-                        pointBorderColor: '#fff',
-                        pointBorderWidth: 2,
-                        borderWidth: 3
-                    }]
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     interaction: { intersect: false, mode: 'index' },
                     plugins: {
-                        legend: { display: false },
+                        legend: { display: hasPTS, position: 'top', labels: { boxWidth: 12, font: { size: 10 } } },
                         tooltip: {
                             backgroundColor: 'rgba(0,0,0,0.8)',
                             titleColor: '#fff',
                             bodyColor: '#fff',
                             padding: 10,
-                            displayColors: false,
+                            displayColors: true,
                             callbacks: {
-                                title: (items) => items[0] ? `Tour ${LWA.state.turnData[items[0].dataIndex]?.t}` : '',
-                                label: (item) => `Score: ${item.raw}`
+                                title: (items) => {
+                                    if (!items[0]) return '';
+                                    const idx = items[0].dataIndex;
+                                    const winner = winnerData[idx];
+                                    return `Tour ${LWA.state.turnData[idx]?.t}${winner ? ` - ${winner} wins` : ''}`;
+                                },
+                                label: (item) => `${item.dataset.label}: ${item.raw}`
                             }
                         }
                     },
@@ -789,6 +851,32 @@
                     </div>
                 </div>
             </div>
+
+            ${(stats.ptsWins > 0 || stats.mctsWins > 0) ? `
+            <div class="lwa-section">
+                <div class="lwa-section-title">Algorithm Comparison (PTS vs MCTS)</div>
+                <div class="lwa-agg-grid">
+                    <div class="lwa-agg-card ${stats.ptsWins > stats.mctsWins ? 'good' : ''}">
+                        <div class="lwa-agg-val" style="color:#2bc491">${stats.ptsWins}</div>
+                        <div class="lwa-agg-lbl">PTS Wins</div>
+                        <div class="lwa-agg-desc">${pct(stats.ptsWins, stats.totalTurns)}%</div>
+                    </div>
+                    <div class="lwa-agg-card ${stats.mctsWins > stats.ptsWins ? 'good' : ''}">
+                        <div class="lwa-agg-val" style="color:${C.orange}">${stats.mctsWins}</div>
+                        <div class="lwa-agg-lbl">MCTS Wins</div>
+                        <div class="lwa-agg-desc">${pct(stats.mctsWins, stats.totalTurns)}%</div>
+                    </div>
+                    <div class="lwa-agg-card">
+                        <div class="lwa-agg-val" style="color:#2bc491">${stats.avgPtsScore}</div>
+                        <div class="lwa-agg-lbl">Avg PTS Score</div>
+                    </div>
+                    <div class="lwa-agg-card">
+                        <div class="lwa-agg-val" style="color:${C.orange}">${stats.avgMctsScore}</div>
+                        <div class="lwa-agg-lbl">Avg MCTS Score</div>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
 
             ${topMethods.length > 0 ? `
             <div class="lwa-section">
