@@ -41,7 +41,9 @@ class AI {
 	static Combo getCombo() {
 		if (AI.mode == AI.MODE_PTS) {
 			Benchmark.setAlgo("PTS", "PTS")
-			return PTS.buildCombo()
+			Combo ptsCombo = PTS.buildCombo()
+			Benchmark.setChosen(ptsCombo.getScore()!, count(ptsCombo.actions), "PTS:" + PTS.buildComboDesc(ptsCombo))
+			return ptsCombo
 		}
 		if (AI.mode == AI.MODE_MCTS) {
 			Benchmark.setAlgo("MCTS", "MCTS")
