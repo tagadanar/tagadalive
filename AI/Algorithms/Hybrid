@@ -1,0 +1,435 @@
+/*
+ * Hybrid Combo Strategies
+ *
+ * Combines PTS (fast greedy) with MCTS/BeamSearch (thorough exploration)
+ * to get the best of both worlds.
+ *
+ * Available strategies:
+ * - HYBRID: PTS seeds MCTS at one cell
+ * - HYBRID_GUIDED: PTS guides MCTS cell order (recommended)
+ * - HYBRID_BEAM: PTS guides BeamSearch cell order
+ */
+class Hybrid {
+
+	/*
+	 * HYBRID mode: PTS builds a fast combo, then MCTS refines from that position.
+	 *
+	 * Benefits:
+	 * - PTS quickly identifies the best target and rough action sequence
+	 * - MCTS explores action ordering and synergies from that position
+	 * - Faster than full MCTS (only searches from 1 position, not all)
+	 */
+	static Combo getMCTSSeeded() {
+		Benchmark.start("Hybrid.getMCTSSeeded")
+
+		// Step 1: Get PTS combo (fast)
+		Combo ptsCombo = PTS.buildCombo()
+		real ptsScore = ptsCombo.getScore()!
+
+		// Step 2: Determine starting cell from PTS
+		Cell startCell = PTS.getComboStartCell(ptsCombo)
+
+		// Step 3: Check if we have budget for MCTS refinement
+		if (MCTS.shouldStop()) {
+			Benchmark.setAlgo("HYBRID", "PTS")
+			Benchmark.stop("Hybrid.getMCTSSeeded")
+			return ptsCombo
+		}
+
+		// Step 4: Run MCTS from the PTS-chosen cell
+		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
+		integer mp = Fight.self.mp
+		integer? mpToCell = Fight.self.reachableCells[startCell]
+		if (mpToCell != null) mp -= mpToCell!
+
+		Map<Item, Action> cellActions = mapBestAction[startCell] ? clone(mapBestAction[startCell]!, 1) as Map<Item, Action> : [:]
+
+		// Merge self-cast actions
+		if (mapBestAction[Fight.selfCell]) {
+			for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
+				if (!cellActions[item] || action.score! > cellActions[item]!.score!) {
+					cellActions[item] = action
+				}
+			}
+		}
+
+		Combo mctsCombo = MCTS.search(
+			startCell,
+			cellActions,
+			Fight.self.tp,
+			mp,
+			Fight.self.getWeaponInHand()
+		)
+
+		real mctsScore = mctsCombo.getScore()!
+
+		Benchmark.stop("Hybrid.getMCTSSeeded")
+
+		if (mctsScore > ptsScore) {
+			Benchmark.setAlgo("HYBRID", "MCTS")
+			return mctsCombo
+		} else {
+			Benchmark.setAlgo("HYBRID", "PTS")
+			return ptsCombo
+		}
+	}
+
+	/*
+	 * HYBRID_GUIDED mode: PTS guides MCTS cell priority order.
+	 *
+	 * How it works:
+	 * 1. PTS generates opportunities and tracks cell scores
+	 * 2. PTS builds its combo (we keep this for comparison)
+	 * 3. MCTS searches cells in ORDER of PTS scores (best first)
+	 * 4. If budget runs out, we've searched the most promising cells
+	 * 5. Return the best combo between PTS and MCTS
+	 */
+	static Combo getMCTSGuided() {
+		Benchmark.start("Hybrid.getMCTSGuided")
+
+		// Step 1: Run PTS (populates PTS.lastCellScores)
+		Combo ptsCombo = PTS.buildCombo()
+		real ptsScore = ptsCombo.getScore()!
+
+		// Step 2: Check if we have budget for MCTS
+		if (MCTS.shouldStop()) {
+			Benchmark.setAlgo("HYBRID_GUIDED", "PTS")
+			Benchmark.stop("Hybrid.getMCTSGuided")
+			return ptsCombo
+		}
+
+		// Step 3: Run MCTS with PTS-guided cell order
+		Combo mctsCombo = Hybrid.runMCTSPrioritized(PTS.lastCellScores)
+		real mctsScore = mctsCombo.getScore()!
+
+		Benchmark.stop("Hybrid.getMCTSGuided")
+
+		if (mctsScore > ptsScore) {
+			Benchmark.setAlgo("HYBRID_GUIDED", "MCTS")
+			return mctsCombo
+		} else {
+			Benchmark.setAlgo("HYBRID_GUIDED", "PTS")
+			return ptsCombo
+		}
+	}
+
+	/*
+	 * HYBRID_BEAM mode: PTS guides BeamSearch cell priority order.
+	 */
+	static Combo getBeamGuided() {
+		Benchmark.start("Hybrid.getBeamGuided")
+
+		Combo ptsCombo = PTS.buildCombo()
+		real ptsScore = ptsCombo.getScore()!
+
+		if (BeamSearch.shouldStop()) {
+			Benchmark.setAlgo("HYBRID_BEAM", "PTS")
+			Benchmark.stop("Hybrid.getBeamGuided")
+			return ptsCombo
+		}
+
+		Combo beamCombo = Hybrid.runBeamPrioritized(PTS.lastCellScores)
+		real beamScore = beamCombo.getScore()!
+
+		Benchmark.stop("Hybrid.getBeamGuided")
+
+		if (beamScore > ptsScore) {
+			Benchmark.setAlgo("HYBRID_BEAM", "BEAM")
+			return beamCombo
+		} else {
+			Benchmark.setAlgo("HYBRID_BEAM", "PTS")
+			return ptsCombo
+		}
+	}
+
+	/*
+	 * Run MCTS on all cells, prioritized by PTS scores.
+	 */
+	static Combo runMCTSPrioritized(Map<Cell, real> cellPriorities) {
+		Benchmark.start("Hybrid.runMCTSPrioritized")
+
+		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
+		Combo? bestCombo = null
+		integer positionsExplored = 0
+
+		// Build prioritized cell list
+		Array<Cell> priorityCells = []
+		for (Cell cell : real score in cellPriorities) {
+			if (Fight.self.reachableCells[cell] != null) {
+				push(priorityCells, cell)
+			}
+		}
+
+		priorityCells = arraySort(priorityCells, (Cell a, Cell b) => integer|real {
+			real scoreA = cellPriorities[a] != null ? cellPriorities[a]! : 0.0
+			real scoreB = cellPriorities[b] != null ? cellPriorities[b]! : 0.0
+			return Sort.desc(scoreA, scoreB)
+		}) as Array<Cell>
+
+		integer priorityCellsCount = count(priorityCells)
+
+		// Add remaining reachable cells
+		Array<Cell> remainingCells = []
+		for (Cell cell : integer mp in Fight.self.reachableCells) {
+			if (mp > Fight.self.mp) break
+			if (cellPriorities[cell] == null) {
+				push(remainingCells, cell)
+			}
+		}
+
+		Array<Cell> allCells = []
+		for (Cell cell in priorityCells) push(allCells, cell)
+		for (Cell cell in remainingCells) push(allCells, cell)
+
+		// Run MCTS for each cell
+		for (Cell cell in allCells) {
+			if (MCTS.shouldStop() && bestCombo != null) {
+				debug("MCTSPrioritized: Budget low after " + positionsExplored + " cells")
+				break
+			}
+
+			positionsExplored++
+
+			integer? mpCost = Fight.self.reachableCells[cell]
+			if (mpCost == null || mpCost! > Fight.self.mp) continue
+			integer remainingMP = Fight.self.mp - mpCost!
+
+			Map<Item, Action> cellActions = mapBestAction[cell] ? clone(mapBestAction[cell]!, 1) as Map<Item, Action> : [:]
+
+			if (mapBestAction[Fight.selfCell]) {
+				for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
+					if (!cellActions[item] || action.score! > cellActions[item]!.score!) {
+						cellActions[item] = action
+					}
+				}
+			}
+
+			Combo combo = MCTS.search(
+				cell,
+				cellActions,
+				Fight.self.tp,
+				remainingMP,
+				Fight.self.getWeaponInHand()
+			)
+
+			if (!bestCombo || bestCombo!.getScore()! < combo.getScore()!) {
+				bestCombo = combo
+			}
+		}
+
+		Benchmark.stop("Hybrid.runMCTSPrioritized")
+
+		if (bestCombo == null) {
+			debugE("MCTSPrioritized: No combo found!")
+			Combo emergency = Combo()
+			emergency.addFinalPosition(MapPosition.findBestPosition(Fight.self.cell, Fight.self.mp, Consequences()))
+			return emergency
+		}
+
+		Benchmark.setMCTS(MCTS.lastIterations, MCTS.lastNodesCreated, positionsExplored, bestCombo!.getScore()!)
+		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), MCTS.buildComboDesc(bestCombo!))
+
+		return bestCombo!
+	}
+
+	/*
+	 * Run BeamSearch on all cells, prioritized by PTS scores.
+	 */
+	static Combo runBeamPrioritized(Map<Cell, real> cellPriorities) {
+		Benchmark.start("Hybrid.runBeamPrioritized")
+
+		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
+		Combo? bestCombo = null
+		integer positionsExplored = 0
+
+		Array<Cell> priorityCells = []
+		for (Cell cell : real score in cellPriorities) {
+			if (Fight.self.reachableCells[cell] != null) {
+				push(priorityCells, cell)
+			}
+		}
+
+		priorityCells = arraySort(priorityCells, (Cell a, Cell b) => integer|real {
+			real scoreA = cellPriorities[a] != null ? cellPriorities[a]! : 0.0
+			real scoreB = cellPriorities[b] != null ? cellPriorities[b]! : 0.0
+			return Sort.desc(scoreA, scoreB)
+		}) as Array<Cell>
+
+		Array<Cell> remainingCells = []
+		for (Cell cell : integer mp in Fight.self.reachableCells) {
+			if (mp > Fight.self.mp) break
+			if (cellPriorities[cell] == null) {
+				push(remainingCells, cell)
+			}
+		}
+
+		Array<Cell> allCells = []
+		for (Cell cell in priorityCells) push(allCells, cell)
+		for (Cell cell in remainingCells) push(allCells, cell)
+
+		for (Cell cell in allCells) {
+			if (BeamSearch.shouldStop() && bestCombo != null) {
+				debug("BeamPrioritized: Budget low after " + positionsExplored + " cells")
+				break
+			}
+
+			positionsExplored++
+
+			integer? mpCost = Fight.self.reachableCells[cell]
+			if (mpCost == null || mpCost! > Fight.self.mp) continue
+			integer remainingMP = Fight.self.mp - mpCost!
+
+			Map<Item, Action> cellActions = mapBestAction[cell] ? clone(mapBestAction[cell]!, 1) as Map<Item, Action> : [:]
+
+			if (mapBestAction[Fight.selfCell]) {
+				for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
+					if (!cellActions[item] || action.score! > cellActions[item]!.score!) {
+						cellActions[item] = action
+					}
+				}
+			}
+
+			Combo combo = BeamSearch.search(
+				cell,
+				cellActions,
+				Fight.self.tp,
+				remainingMP,
+				Fight.self.getWeaponInHand()
+			)
+
+			if (!bestCombo || bestCombo!.getScore()! < combo.getScore()!) {
+				bestCombo = combo
+			}
+		}
+
+		Benchmark.stop("Hybrid.runBeamPrioritized")
+
+		if (bestCombo == null) {
+			debugE("BeamPrioritized: No combo found!")
+			Combo emergency = Combo()
+			emergency.addFinalPosition(MapPosition.findBestPosition(Fight.self.cell, Fight.self.mp, Consequences()))
+			return emergency
+		}
+
+		Benchmark.setBeam(BeamSearch.lastIterations, BeamSearch.lastCandidates, positionsExplored, bestCombo!.getScore()!)
+		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), BeamSearch.buildComboDesc(bestCombo!))
+
+		return bestCombo!
+	}
+
+	/*
+	 * Run pure MCTS on all reachable cells (no PTS guidance).
+	 */
+	static Combo runMCTSFull() {
+		Benchmark.start("Hybrid.runMCTSFull")
+
+		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
+		Combo? bestCombo = null
+		integer positionsExplored = 0
+
+		for (Cell cell : integer mp in Fight.self.reachableCells) {
+			if (mp > Fight.self.mp) break
+
+			if (MCTS.shouldStop() && bestCombo != null) {
+				debug("MCTS: Budget low, " + positionsExplored + " pos explored")
+				break
+			}
+
+			positionsExplored++
+
+			Map<Item, Action> cellActions = mapBestAction[cell] ? clone(mapBestAction[cell]!, 1) as Map<Item, Action> : [:]
+
+			if (mapBestAction[Fight.selfCell]) {
+				for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
+					if (!cellActions[item] || action.score! > cellActions[item]!.score!) {
+						cellActions[item] = action
+					}
+				}
+			}
+
+			Combo combo = MCTS.search(
+				cell,
+				cellActions,
+				Fight.self.tp,
+				Fight.self.mp - mp,
+				Fight.self.getWeaponInHand()
+			)
+
+			if (!bestCombo || bestCombo!.getScore()! < combo.getScore()!) {
+				bestCombo = combo
+			}
+		}
+
+		Benchmark.stop("Hybrid.runMCTSFull")
+
+		if (bestCombo == null) {
+			debugE("MCTS: No combo found!")
+			Combo emergency = Combo()
+			emergency.addFinalPosition(MapPosition.findBestPosition(Fight.self.cell, Fight.self.mp, Consequences()))
+			return emergency
+		}
+
+		Benchmark.setMCTS(MCTS.lastIterations, MCTS.lastNodesCreated, positionsExplored, bestCombo!.getScore()!)
+		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), MCTS.buildComboDesc(bestCombo!))
+
+		return bestCombo!
+	}
+
+	/*
+	 * Run pure BeamSearch on all reachable cells (no PTS guidance).
+	 */
+	static Combo runBeamFull() {
+		Benchmark.start("Hybrid.runBeamFull")
+
+		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
+		Combo? bestCombo = null
+		integer positionsExplored = 0
+
+		for (Cell cell : integer mp in Fight.self.reachableCells) {
+			if (mp > Fight.self.mp) break
+
+			if (BeamSearch.shouldStop() && bestCombo != null) {
+				debug("Beam: Budget low, " + positionsExplored + " pos explored")
+				break
+			}
+
+			positionsExplored++
+
+			Map<Item, Action> cellActions = mapBestAction[cell] ? clone(mapBestAction[cell]!, 1) as Map<Item, Action> : [:]
+
+			if (mapBestAction[Fight.selfCell]) {
+				for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
+					if (!cellActions[item] || action.score! > cellActions[item]!.score!) {
+						cellActions[item] = action
+					}
+				}
+			}
+
+			Combo combo = BeamSearch.search(
+				cell,
+				cellActions,
+				Fight.self.tp,
+				Fight.self.mp - mp,
+				Fight.self.getWeaponInHand()
+			)
+
+			if (!bestCombo || bestCombo!.getScore()! < combo.getScore()!) {
+				bestCombo = combo
+			}
+		}
+
+		Benchmark.stop("Hybrid.runBeamFull")
+
+		if (bestCombo == null) {
+			debugE("Beam: No combo found!")
+			Combo emergency = Combo()
+			emergency.addFinalPosition(MapPosition.findBestPosition(Fight.self.cell, Fight.self.mp, Consequences()))
+			return emergency
+		}
+
+		Benchmark.setBeam(BeamSearch.lastIterations, BeamSearch.lastCandidates, positionsExplored, bestCombo!.getScore()!)
+		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), BeamSearch.buildComboDesc(bestCombo!))
+
+		return bestCombo!
+	}
+}

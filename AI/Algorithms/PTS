@@ -14,7 +14,7 @@
  * - Scales with targets (~8) not cells (~50+)
  * - Much faster: O(targets × items) vs O(cells × items × MCTS_iterations)
  *
- * Can be used standalone or to SEED MCTS with a good starting position.
+ * Can be used standalone or to SEED other algorithms with cell priorities.
  */
 class PTS {
 	// Statistics for debugging
@@ -23,14 +23,14 @@ class PTS {
 	static real lastScore = 0.0
 
 	// Cell scores from last opportunity generation
-	// Used by HYBRID_GUIDED to prioritize MCTS cell order
+	// Used by Hybrid modes to prioritize cell order
 	// Maps Cell → best opportunity score achievable from that cell
 	static Map<Cell, real> lastCellScores = [:]
 
 	/*
 	 * Generate all opportunities: (target, item) pairs with valid attack cells.
 	 * Considers ALL targets: enemies, allies, and self.
-	 * Also populates lastCellScores for MCTS prioritization.
+	 * Also populates lastCellScores for prioritization.
 	 */
 	static Array<Opportunity> generateOpportunities() {
 		Benchmark.start("PTS.generateOpportunities")
@@ -56,7 +56,6 @@ class PTS {
 					push(opportunities, opp!)
 
 					// Track cell scores: for each attack cell, record best opportunity score
-					// This tells MCTS which cells are most promising
 					// Skip self-cast opportunities (Fight.selfCell is a sentinel, not a real cell)
 					if (!opp!.isSelfCast) {
 						for (Cell cell in opp!.attackCells) {
@@ -101,22 +100,16 @@ class PTS {
 		} else if (item.area == AREA_LASER_LINE) {
 			attackCells = Targets.getLazerCellsToUseItemOnCell(item, target.cell)
 		} else {
-			// AOE: check ALL cells in target's area (matches MapAction behavior)
-			// This handles min-range and LOS cases where we can't hit center directly
-			// but can hit an adjacent cell that includes target in AOE
-			// Track which aimCell to use from each attackCell (prefer closest to target for max damage)
+			// AOE: check ALL cells in target's area
 			cellToAim = [:]
 			for (Cell aoeCell in target.cell.getAreaCells(item.area)) {
 				Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, aoeCell, [Fight.self.id])
 				for (Cell c in cells) {
 					if (cellToAim![c] == null) {
-						// First aimCell found for this attackCell
 						cellToAim![c] = aoeCell
 					} else if (aoeCell == target.cell) {
-						// Prefer aiming at target.cell directly (max damage, no AOE falloff)
 						cellToAim![c] = aoeCell
 					} else {
-						// Keep aimCell closest to target (less AOE falloff)
 						integer curDist = getCellDistance(cellToAim![c]!.id, target.cell.id)
 						integer newDist = getCellDistance(aoeCell.id, target.cell.id)
 						if (newDist < curDist) {
@@ -125,17 +118,15 @@ class PTS {
 					}
 				}
 			}
-			// Extract attack cells from the map
 			attackCells = []
 			for (Cell c in cellToAim!) {
 				push(attackCells, c)
 			}
 		}
 
-		// No valid attack cells
 		if (count(attackCells) == 0) return null
 
-		// Filter to reachable cells only (to avoid creating useless opportunities)
+		// Filter to reachable cells only
 		Array<Cell> reachableAttackCells = []
 		for (Cell cell in attackCells) {
 			if (Fight.self.reachableCells[cell] != null) {
@@ -143,10 +134,9 @@ class PTS {
 			}
 		}
 
-		// If no reachable attack cells, skip this opportunity
 		if (count(reachableAttackCells) == 0) return null
 
-		// Compute base score using a representative cell (closest reachable)
+		// Compute base score using closest reachable cell
 		Cell? bestCell = null
 		integer bestDist = 99999
 		for (Cell cell in reachableAttackCells) {
@@ -159,19 +149,13 @@ class PTS {
 
 		if (bestCell == null) return null
 
-		// For AOE, use the mapped aimCell for scoring; for non-AOE, use targetCell
 		Cell aimCell = (cellToAim != null && cellToAim![bestCell!] != null) ? cellToAim![bestCell!]! : targetCell
-
-		// Create temporary action to get base score
 		Action tempAction = Action(item, bestCell!, aimCell)
 		if (tempAction.score! <= 0) return null
 
-		// Return appropriate opportunity type
 		if (cellToAim != null) {
-			// AOE: include aim mapping for each attack cell
 			return Opportunity(target, item, reachableAttackCells, targetCell, tempAction.score!, cellToAim!)
 		} else {
-			// Non-AOE: simple opportunity
 			return Opportunity(target, item, reachableAttackCells, targetCell, tempAction.score!)
 		}
 	}
@@ -196,8 +180,7 @@ class PTS {
 			return combo
 		}
 
-		// Phase 2: Sort opportunities by base score (descending)
-		// Self-cast opportunities get priority (like MCTS does)
+		// Phase 2: Sort opportunities (self-cast first, then by score descending)
 		Array<Opportunity> selfCast = []
 		Array<Opportunity> other = []
 		for (Opportunity opp in opportunities) {
@@ -205,12 +188,10 @@ class PTS {
 			else push(other, opp)
 		}
 
-		// Sort non-self-cast by base score descending
 		Array<Opportunity> sortedOther = arraySort(other, (Opportunity a, Opportunity b) => integer|real {
 			return Sort.desc(a.baseScore, b.baseScore)
 		}) as Array<Opportunity>
 
-		// Merge: self-cast first (sorted), then others
 		Array<Opportunity> selfCastSorted = arraySort(selfCast, (Opportunity a, Opportunity b) => integer|real {
 			return Sort.desc(a.baseScore, b.baseScore)
 		}) as Array<Opportunity>
@@ -226,25 +207,21 @@ class PTS {
 		integer currentMP = Fight.self.mp
 		Item? weaponInHand = Fight.self.getWeaponInHand()
 		Map<Item, integer> usesThisTurn = [:]
-		Map<Item, integer> cooldowns = [:]  // Items used this turn get their CD set
+		Map<Item, integer> cooldowns = [:]
 		Map<Cell, integer> reachableCells = Fight.self.reachableCells
 
 		integer actionsBuilt = 0
 
 		for (Opportunity opp in sorted) {
-			// Get current consequences from combo (or empty for first action)
 			Consequences currentCsq = combo.getCurrentConsequences()
 
-			// Check if opportunity can be executed (TP, cooldown, uses, target alive)
 			if (!opp.canExecute(currentTP, usesThisTurn, cooldowns, currentCsq, weaponInHand)) {
 				continue
 			}
 
-			// Find best reachable cell for this opportunity
 			Cell? attackCell = opp.findBestReachableCell(currentCell, currentMP, reachableCells)
 			if (attackCell == null) continue
 
-			// Compute movement cost
 			integer moveCost = 0
 			if (!opp.isSelfCast && attackCell != currentCell) {
 				integer? cost = reachableCells[attackCell!]
@@ -252,46 +229,34 @@ class PTS {
 				moveCost = cost!
 			}
 
-			// Check MP
 			if (moveCost > currentMP) continue
 
-			// Create the action - Combo.add() will handle consequence chaining
-			// For AOE, use the mapped aimCell; for non-AOE, uses targetCell
 			Cell aimCell = opp.getAimCell(attackCell!)
 			Action action = Action(opp.item, attackCell!, aimCell)
 
-			// For first action, check score directly
-			// For subsequent actions, combo.add() chains and checks score > 0
 			if (actionsBuilt == 0) {
 				if (action.score! <= 0) continue
 				push(combo.actions, action)
 			} else {
-				// combo.add() creates chained action and checks if score > 0
 				if (!combo.add(action)) continue
 			}
 
-			// Get the actual action that was added (with proper chaining)
 			Action addedAction = combo.actions[count(combo.actions) - 1]
-
-			// Update state from consequences
 			Consequences newCsq = addedAction.consequences
 			currentTP = newCsq.currentTP
 			currentMP = newCsq.currentMP
 			currentCell = newCsq.currentCell
 
-			// Track weapon switch cost
 			if (opp.item.isWeap && opp.item != weaponInHand) {
 				currentTP -= 1
 				weaponInHand = opp.item
 			}
 
-			// Track item usage
 			usesThisTurn[opp.item] = (usesThisTurn[opp.item] != null ? usesThisTurn[opp.item]! : 0) + 1
 			if (opp.item.haveCD) {
 				cooldowns[opp.item] = opp.item.cdDuration
 			}
 
-			// Update reachable cells from new position if we moved
 			if (!opp.isSelfCast && attackCell != Fight.selfCell) {
 				reachableCells = MapPath.getCachedReachableCells(currentCell, currentMP, Fight.self.cellsToIgnore)
 			}
@@ -306,7 +271,8 @@ class PTS {
 		PTS.lastActionsBuilt = actionsBuilt
 		PTS.lastScore = combo.getScore()!
 
-		// Track for debugging
+		Benchmark.setPTS(PTS.lastOpportunities, actionsBuilt, PTS.lastScore)
+
 		string comboDesc = PTS.buildComboDesc(combo)
 		real posScore = combo.finalPosition != null ? combo.finalPosition!.score : 0
 		Benchmark.addCombo(combo.getScore()!, actionsBuilt, "PTS:" + comboDesc, posScore, PTS.lastScore - posScore)
@@ -316,29 +282,7 @@ class PTS {
 	}
 
 	/*
-	 * Build a combo and return the cell it operates from.
-	 * Used to seed MCTS with a good starting position.
-	 */
-	static Combo buildComboWithStartCell(Cell? startCellOut) {
-		Combo combo = PTS.buildCombo()
-
-		// Determine the primary operating cell
-		if (count(combo.actions) > 0) {
-			// Use the cell of the first non-self-cast action
-			for (Action action in combo.actions) {
-				if (action.from != Fight.selfCell) {
-					// Can't modify startCellOut directly in LS, caller should read from combo
-					return combo
-				}
-			}
-		}
-
-		return combo
-	}
-
-	/*
-	 * Get the primary cell used in a combo (for seeding MCTS).
-	 * Returns the cell of the first non-self-cast action, or current cell if all self-cast.
+	 * Get the primary cell used in a combo (for seeding other algorithms).
 	 */
 	static Cell getComboStartCell(Combo combo) {
 		for (Action action in combo.actions) {

@@ -1,451 +1,74 @@
+/*
+ * AI - Main entry point and utilities for combo search
+ *
+ * Algorithm selection: set AI.mode in main before calling AI.getCombo()
+ * Example: AI.mode = AI.MODE_HYBRID_GUIDED
+ *
+ * See AI/Algorithms/ for algorithm implementations:
+ *   - PTS: Fast greedy target-first
+ *   - MCTS: Monte Carlo Tree Search
+ *   - BeamSearch: Beam search multi-path
+ *   - Hybrid: Combines PTS with other algorithms
+ */
 class AI {
-	// === AI Mode Selection ===
-	// Use these constants to switch between algorithms
+	// === Algorithm Modes ===
 	static integer MODE_PTS = 0           // Priority Target Simulation (fast, greedy)
 	static integer MODE_MCTS = 1          // Monte Carlo Tree Search (thorough, slower)
-	static integer MODE_HYBRID = 2        // PTS seeds MCTS at one cell (fast)
-	static integer MODE_HYBRID_GUIDED = 3 // PTS guides MCTS cell order (best comparison)
+	static integer MODE_BEAM = 2          // Beam Search (balanced speed/quality)
+	static integer MODE_HYBRID = 3        // PTS seeds MCTS at one cell
+	static integer MODE_HYBRID_GUIDED = 4 // PTS guides MCTS cell order (recommended)
+	static integer MODE_HYBRID_BEAM = 5   // PTS guides Beam Search cell order
 
-	// Current mode - change this to switch algorithms
+	// Current mode (default value, can be overridden in main)
 	static integer mode = AI.MODE_HYBRID_GUIDED
 
 	/*
+	 * Get readable name for a mode (for debugging)
+	 */
+	static string getModeName(integer m) {
+		if (m == AI.MODE_PTS) return "PTS"
+		if (m == AI.MODE_MCTS) return "MCTS"
+		if (m == AI.MODE_BEAM) return "BEAM"
+		if (m == AI.MODE_HYBRID) return "HYBRID"
+		if (m == AI.MODE_HYBRID_GUIDED) return "HYBRID_GUIDED"
+		if (m == AI.MODE_HYBRID_BEAM) return "HYBRID_BEAM"
+		return "UNKNOWN"
+	}
+
+	/*
 	 * Main entry point: get the best combo using the selected algorithm.
-	 * Dispatches to PTS, MCTS, or Hybrid based on AI.mode.
 	 */
 	static Combo getCombo() {
 		if (AI.mode == AI.MODE_PTS) {
+			Benchmark.setAlgo("PTS", "PTS")
 			return PTS.buildCombo()
-		} else if (AI.mode == AI.MODE_MCTS) {
-			return AI.getMCTSCombo()
-		} else if (AI.mode == AI.MODE_HYBRID) {
-			return AI.getHybridCombo()
-		} else {
-			return AI.getHybridGuidedCombo()
 		}
+		if (AI.mode == AI.MODE_MCTS) {
+			Benchmark.setAlgo("MCTS", "MCTS")
+			return Hybrid.runMCTSFull()
+		}
+		if (AI.mode == AI.MODE_BEAM) {
+			Benchmark.setAlgo("BEAM", "BEAM")
+			return Hybrid.runBeamFull()
+		}
+		if (AI.mode == AI.MODE_HYBRID) {
+			return Hybrid.getMCTSSeeded()
+		}
+		if (AI.mode == AI.MODE_HYBRID_GUIDED) {
+			return Hybrid.getMCTSGuided()
+		}
+		// MODE_HYBRID_BEAM
+		return Hybrid.getBeamGuided()
 	}
 
 	/*
-	 * Hybrid mode: PTS builds a fast combo, then MCTS refines from that position.
-	 * Benefits:
-	 * - PTS quickly identifies the best target and rough action sequence
-	 * - MCTS explores action ordering and synergies from that position
-	 * - Faster than full MCTS (only searches from 1 position, not all)
-	 * - Better than PTS alone (MCTS can find deeper synergies)
+	 * Find best end-of-turn position for a combo.
+	 * Used by all algorithms after action selection.
 	 */
-	static Combo getHybridCombo() {
-		Benchmark.start("AI.getHybridCombo")
-
-		// Step 1: Get PTS combo (fast)
-		Combo ptsCombo = PTS.buildCombo()
-		real ptsScore = ptsCombo.getScore()!
-
-		// Step 2: Determine starting cell from PTS
-		Cell startCell = PTS.getComboStartCell(ptsCombo)
-
-		// Step 3: Check if we have budget for MCTS refinement
-		if (MCTS.shouldStop()) {
-			debug("Hybrid: PTS only (budget low)")
-			Benchmark.stop("AI.getHybridCombo")
-			return ptsCombo
-		}
-
-		// Step 4: Run MCTS from the PTS-chosen cell
-		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
-		integer mp = Fight.self.mp
-		integer? mpToCell = Fight.self.reachableCells[startCell]
-		if (mpToCell != null) mp -= mpToCell!
-
-		// Get actions for the start cell
-		Map<Item, Action> cellActions = mapBestAction[startCell] ? clone(mapBestAction[startCell]!, 1) as Map<Item, Action> : [:]
-
-		// Merge self-cast actions
-		if (mapBestAction[Fight.selfCell]) {
-			for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
-				if (!cellActions[item] || action.score! > cellActions[item]!.score!) {
-					cellActions[item] = action
-				}
-			}
-		}
-
-		// Run MCTS from the PTS position
-		Combo mctsCombo = MCTS.search(
-			startCell,
-			cellActions,
-			Fight.self.tp,
-			mp,
-			Fight.self.getWeaponInHand()
-		)
-
-		// Step 5: Pick the better combo
-		real mctsScore = mctsCombo.getScore()!
-
-		Benchmark.stop("AI.getHybridCombo")
-
-		if (mctsScore > ptsScore) {
-			debug("Hybrid: MCTS wins (" + round(mctsScore) + " > " + round(ptsScore) + ")")
-			return mctsCombo
-		} else {
-			debug("Hybrid: PTS wins (" + round(ptsScore) + " >= " + round(mctsScore) + ")")
-			return ptsCombo
-		}
-	}
-
-	/*
-	 * Hybrid Guided mode: PTS guides MCTS cell priority order.
-	 *
-	 * How it works:
-	 * 1. PTS generates opportunities and tracks cell scores
-	 * 2. PTS builds its combo (we keep this for comparison)
-	 * 3. MCTS searches cells in ORDER of PTS scores (best first)
-	 * 4. If budget runs out, we've searched the most promising cells
-	 * 5. Return the best combo between PTS and MCTS
-	 *
-	 * Benefits:
-	 * - True comparison: full MCTS vs PTS
-	 * - Smart degradation: if budget is tight, best cells are searched first
-	 * - Never worse than either algorithm alone
-	 */
-	static Combo getHybridGuidedCombo() {
-		Benchmark.start("AI.getHybridGuidedCombo")
-
-		// Step 1: Run PTS (populates PTS.lastCellScores)
-		Combo ptsCombo = PTS.buildCombo()
-		real ptsScore = ptsCombo.getScore()!
-
-		// Step 2: Check if we have budget for MCTS
-		if (MCTS.shouldStop()) {
-			debug("HybridGuided: PTS only (budget low)")
-			Benchmark.stop("AI.getHybridGuidedCombo")
-			return ptsCombo
-		}
-
-		// Step 3: Run MCTS with PTS-guided cell order
-		Combo mctsCombo = AI.getMCTSComboPrioritized(PTS.lastCellScores)
-		real mctsScore = mctsCombo.getScore()!
-
-		Benchmark.stop("AI.getHybridGuidedCombo")
-
-		// Step 4: Return the best
-		if (mctsScore > ptsScore) {
-			debug("HybridGuided: MCTS wins (" + round(mctsScore) + " > " + round(ptsScore) + ")")
-			return mctsCombo
-		} else {
-			debug("HybridGuided: PTS wins (" + round(ptsScore) + " >= " + round(mctsScore) + ")")
-			return ptsCombo
-		}
-	}
-
-	/*
-	 * MCTS with prioritized cell order based on PTS scores.
-	 * Searches cells with highest PTS opportunity scores first.
-	 * This ensures if we run out of operations, we've covered the best cells.
-	 *
-	 * @param cellPriorities Map of Cell → PTS opportunity score
-	 */
-	static Combo getMCTSComboPrioritized(Map<Cell, real> cellPriorities) {
-		Benchmark.start("AI.getMCTSComboPrioritized")
-
-		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
-		Combo? bestCombo = null
-		integer positionsExplored = 0
-		integer priorityCellsCount = 0
-
-		// Build prioritized cell list
-		// Step 1: Get cells with PTS scores, sorted by score descending
-		Array<Cell> priorityCells = []
-		for (Cell cell : real score in cellPriorities) {
-			// Only include reachable cells
-			if (Fight.self.reachableCells[cell] != null) {
-				push(priorityCells, cell)
-			}
-		}
-
-		// Sort by PTS score descending
-		priorityCells = arraySort(priorityCells, (Cell a, Cell b) => integer|real {
-			real scoreA = cellPriorities[a] != null ? cellPriorities[a]! : 0.0
-			real scoreB = cellPriorities[b] != null ? cellPriorities[b]! : 0.0
-			return Sort.desc(scoreA, scoreB)
-		}) as Array<Cell>
-
-		priorityCellsCount = count(priorityCells)
-
-		// Step 2: Add remaining reachable cells (not in priority list) sorted by MP
-		Array<Cell> remainingCells = []
-		for (Cell cell : integer mp in Fight.self.reachableCells) {
-			if (mp > Fight.self.mp) break
-			if (cellPriorities[cell] == null) {
-				push(remainingCells, cell)
-			}
-		}
-
-		// Step 3: Combine: priority cells first, then remaining
-		Array<Cell> allCells = []
-		for (Cell cell in priorityCells) push(allCells, cell)
-		for (Cell cell in remainingCells) push(allCells, cell)
-
-		// Step 4: Run MCTS for each cell in priority order
-		for (Cell cell in allCells) {
-			// Check operation budget
-			if (MCTS.shouldStop() && bestCombo != null) {
-				debug("MCTSPrioritized: Budget low after " + positionsExplored + " cells (" + priorityCellsCount + " priority)")
-				break
-			}
-
-			positionsExplored++
-
-			// Get MP cost to reach this cell
-			integer? mpCost = Fight.self.reachableCells[cell]
-			if (mpCost == null || mpCost! > Fight.self.mp) continue
-			integer remainingMP = Fight.self.mp - mpCost!
-
-			// Get actions for this cell
-			Map<Item, Action> cellActions = mapBestAction[cell] ? clone(mapBestAction[cell]!, 1) as Map<Item, Action> : [:]
-
-			// Merge self-cast actions
-			if (mapBestAction[Fight.selfCell]) {
-				for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
-					if (!cellActions[item] || action.score! > cellActions[item]!.score!) {
-						cellActions[item] = action
-					}
-				}
-			}
-
-			// Run MCTS from this cell
-			Combo combo = MCTS.search(
-				cell,
-				cellActions,
-				Fight.self.tp,
-				remainingMP,
-				Fight.self.getWeaponInHand()
-			)
-
-			if (!bestCombo || bestCombo!.getScore()! < combo.getScore()!) {
-				bestCombo = combo
-			}
-		}
-
-		Benchmark.stop("AI.getMCTSComboPrioritized")
-
-		// Safety check
-		if (bestCombo == null) {
-			debugE("MCTSPrioritized: No combo found!")
-			Combo emergency = Combo()
-			emergency.addFinalPosition(MCTS.findBestPositionFromCell(Fight.self.cell, Fight.self.mp, Consequences()))
-			return emergency
-		}
-
-		// Track stats
-		Benchmark.setMCTS(MCTS.lastIterations, MCTS.lastNodesCreated, positionsExplored, bestCombo!.getScore()!)
-		string comboDesc = MCTS.buildComboDesc(bestCombo!)
-		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), comboDesc)
-
-		return bestCombo!
-	}
-
-	/*
-	 * @unused Legacy greedy algorithm - replaced by getMCTSCombo()
-	 * Premier exemple d'algo naif où je cherche uniquement à maximiser les dégats sur nearest enemy
-	 * en exploitant uniquement les données de la MapDanger
-	 */
-	static Combo getSimpleOffensiveCombo(){
-		Combo combo = Combo()
-		integer tpleft = Fight.self.tp
-		Item? inHand = Fight.self.getWeaponInHand()
-		Entity enemy = Fight.getEntity(getNearestEnemy())
-		for(Item item in Fight.self.offensiveItemsByTargets[enemy]!){
-			real ratioDmg = MapDanger._map_entity_item_danger[Fight.self]![item]![enemy.cell]!
-			real tmpdmg = Damages.getDamage(Fight.self, Fight.getEntity(getEntityOnCell(enemy.cell.id)), item, ratioDmg, null)
-			var switchCost = item.isWeap && item != inHand ? 1 : 0
-			if(tmpdmg > 0){
-				while(item.cost+switchCost<=tpleft){
-					tpleft-=item.cost+switchCost
-					if(switchCost==1){ inHand = item; switchCost = 0 }
-					combo.add(Action(item, Targets.getCellToUseItemOnCell(Fight.self, item, enemy.cell, [Fight.self.id])!, enemy.cell))
-					if(item.haveCD) break
-				}
-			}
-		}
-		return combo
-	}
-	
-	/*
-	 * @unused Legacy greedy algorithm - replaced by getMCTSCombo()
-	 * Exploration des actions simple, recherche de move en 2 déplacements
-	 */
-	static Combo getPotentialCombo(){
-		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
-		Combo? bestCombo = null
-		// all reachableCells
-		//var arrayCombo = []
-		for(Cell cell:integer mp in Fight.self.reachableCells){
-			if(mp>Fight.self.mp) break
-			if(!mapBestAction[cell]) mapBestAction[cell] = [:];
-			// cas 1 : uniquement les items sur d'autres leeks:
-						
-			//when i handle move after combo
-			Combo combo = Combo()
-			integer tpleft = Fight.self.tp
-			Item? inHand = Fight.self.getWeaponInHand()
-			
-			// tri par score des actions
-			Array<Action> sortedAction = arraySort(mapValues(mapBestAction[cell]!), (Action a, Action b) => integer|real {
-				return Sort.desc(a.score!, b.score!)
-			}) as Array<Action>;
-			
-			// ajout du meilleur score sur la case jusqu'à épuisement des TP/CD
-			for(Action action in sortedAction){
-				integer switchCost = action.item.isWeap && action.item != inHand ? 1 : 0
-				while(action.item.cost+switchCost<=tpleft){
-					if(combo.add(action)){
-						tpleft-=action.item.cost+switchCost
-						if(switchCost==1){ inHand = action.item; switchCost = 0 }
-					} else break
-					if(action.item.haveCD) break
-				}
-			}
-			// recherche d'une case de fin de tour
-			combo.addFinalPosition(AI.findBestPosition(combo))
-
-			if(!bestCombo || bestCombo!.getScore() < combo.getScore()){
-				bestCombo = combo
-			}
-				
-			// cas 2: en ajoutant les items que je peux selfcast
-			
-			//when i handle move after combo
-			Combo combo2 = Combo()
-			integer tpleft2 = Fight.self.tp
-			Item? inHand2 = Fight.self.getWeaponInHand()
-			
-			// ajout des actions sur moi mm dans les meilleurs moves sur cette case
-			if(mapBestAction[Fight.selfCell]){
-				for(Item item: Action action in mapBestAction[Fight.selfCell]!){
-					if(mapBestAction[cell]![item]){
-						if(action.score > mapBestAction[cell]![item]!.score) mapBestAction[cell]![item] = action
-					}else{
-						mapBestAction[cell]![item] = action
-					}
-				}
-			}
-			// note : cette façon de faire en dessous "casse" les clés, le string() renvoie tjr le bon item, mais les champs sont null
-			//mapBestAction[cell] += mapBestAction[Fight.selfCell]
-			
-			// tri par score des actions
-			sortedAction = arraySort(mapValues(mapBestAction[cell]!), (Action a, Action b) => integer|real {
-				return Sort.desc(a.score!, b.score!)
-			}) as Array<Action>;
-			
-			// ajout du meilleur score sur la case jusqu'à épuisement des TP/CD
-			for(Item item:Action action in mapBestAction[cell]!){
-				integer switchCost = item.isWeap && item != inHand2 ? 1 : 0
-				while(item.cost+switchCost<=tpleft2){
-					if(combo2.add(action)){
-						tpleft2-=item.cost+switchCost
-						if(switchCost==1){ inHand2 = item; switchCost = 0 }
-					} else break
-					if(item.haveCD) break
-				}
-			}
-			// recherche d'une case de fin de tour
-			combo2.addFinalPosition(AI.findBestPosition(combo2))
-
-			if(!bestCombo || bestCombo!.getScore() < combo2.getScore()){
-				bestCombo = combo2
-			}	
-				
-		}
-
-		return bestCombo!
-	}
-	
-	/*
-	 * Find best end-of-turn position using full positioning score:
-	 * - Danger (damage we could receive)
-	 * - Life-based scaling (more cautious when low HP)
-	 * - Proximity to other enemies
-	 * - Gravity (ideal distances to allies/enemies)
-	 * - Tactical bonuses (lock, COVID, CAC range)
-	 * - Shield value
-	 * - MP efficiency
-	 */
-	static Position findBestPosition(Combo combo){
+	static Position findBestPosition(Combo combo) {
 		Consequences consequences = combo.getCurrentConsequences()
 		Cell currentCell = combo.getCurrentCell()
 		integer currentMP = combo.getCurrentMP()
-
 		return MapPosition.findBestPosition(currentCell, currentMP, consequences)
-	}
-
-	/*
-	 * MCTS-based combo search
-	 * Explores action sequences using Monte Carlo Tree Search instead of greedy selection
-	 * Keeps position enumeration (hybrid approach) but uses MCTS within each position
-	 * ALWAYS returns a combo - never falls back to greedy
-	 */
-	static Combo getMCTSCombo() {
-		Benchmark.start("AI.getMCTSCombo")
-
-		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
-		Combo? bestCombo = null
-		integer positionsExplored = 0
-
-		// For each reachable position
-		for (Cell cell : integer mp in Fight.self.reachableCells) {
-			if (mp > Fight.self.mp) break
-
-			// Check operation budget - stop exploring new positions if low
-			if (MCTS.shouldStop() && bestCombo != null) {
-				debug("MCTS: Budget low, " + positionsExplored + " pos explored")
-				break
-			}
-
-			positionsExplored++
-
-			// Get actions for this cell (may be empty)
-			Map<Item, Action> cellActions = mapBestAction[cell] ? clone(mapBestAction[cell]!, 1) as Map<Item, Action> : [:]
-
-			// Merge self-cast actions
-			if (mapBestAction[Fight.selfCell]) {
-				for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
-					if (!cellActions[item] || action.score! > cellActions[item]!.score!) {
-						cellActions[item] = action
-					}
-				}
-			}
-
-			// Run MCTS from this position (always returns a combo now)
-			Combo combo = MCTS.search(
-				cell,
-				cellActions,
-				Fight.self.tp,
-				Fight.self.mp - mp,
-				Fight.self.getWeaponInHand()
-			)
-
-			if (!bestCombo || bestCombo!.getScore()! < combo.getScore()!) {
-				bestCombo = combo
-			}
-		}
-
-		Benchmark.stop("AI.getMCTSCombo")
-
-		// Should never be null now, but safety check
-		if (bestCombo == null) {
-			debugE("MCTS: No combo found - this should not happen!")
-			// Emergency: just return current position
-			Combo emergency = Combo()
-			emergency.addFinalPosition(MCTS.findBestPositionFromCell(Fight.self.cell, Fight.self.mp, Consequences()))
-			return emergency
-		}
-
-		// Track MCTS stats for debugging
-		Benchmark.setMCTS(MCTS.lastIterations, MCTS.lastNodesCreated, positionsExplored, bestCombo!.getScore()!)
-
-		// Track chosen combo
-		string comboDesc = MCTS.buildComboDesc(bestCombo!)
-		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), comboDesc)
-
-		return bestCombo!
 	}
 }

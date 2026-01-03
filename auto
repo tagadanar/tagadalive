@@ -47,9 +47,14 @@ include('AI/EntityCoefs')
 include('AI/BattleState')
 include('AI/ScoringModifiers')
 include('AI/Scoring')
-include('AI/MCTS')
 include('AI/Opportunity')
-include('AI/PTS')
+
+// Search algorithms
+include('AI/Algorithms/MCTS')
+include('AI/Algorithms/BeamSearch')
+include('AI/Algorithms/PTS')
+include('AI/Algorithms/Hybrid')
+
 include('AI/AI')
 
 
