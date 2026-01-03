@@ -152,6 +152,16 @@ class Item {
 			useWeaponOnCell(cell.id)
 		} else useChipOnCell(this.id, cell.id)
 	}
+
+	/*
+	 * Same as useItemOnCell but returns the result code
+	 */
+	integer useItemOnCellWithResult(Cell cell){
+		if(this.isWeap){
+			if(getWeapon(Fight.self.id)!=this.id) setWeapon(this.id)
+			return useWeaponOnCell(cell.id)
+		} else return useChipOnCell(this.id, cell.id)
+	}
 	
 	/*
 	 * tente d'utiliser l'item

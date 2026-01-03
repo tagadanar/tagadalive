@@ -48,7 +48,7 @@ class UnifiedMCTSNode {
 		this.isRoot = true
 		this.currentCell = Fight.self.cell
 		this.remainingTP = Fight.self.tp
-		this.remainingMP = Fight.self.mp
+		this.remainingMP = max(0, Fight.self.mp)
 		this.weaponInHand = Fight.self.getWeaponInHand()
 		this.state = Consequences()
 		this.state.currentCell = this.currentCell
@@ -64,7 +64,7 @@ class UnifiedMCTSNode {
 		this.cell = cell
 		this.currentCell = cell
 		this.remainingTP = parent.remainingTP
-		this.remainingMP = parent.remainingMP - mpCost
+		this.remainingMP = max(0, parent.remainingMP - mpCost)
 		this.weaponInHand = parent.weaponInHand
 
 		// Create state at this cell
@@ -89,7 +89,7 @@ class UnifiedMCTSNode {
 		integer switchCost = baseAction.item.isWeap && baseAction.item != parent.weaponInHand ? 1 : 0
 		this.remainingTP = this.state.currentTP - switchCost
 		this.weaponInHand = baseAction.item.isWeap ? baseAction.item : parent.weaponInHand
-		this.remainingMP = this.state.currentMP
+		this.remainingMP = max(0, this.state.currentMP)
 	}
 
 	/*

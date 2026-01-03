@@ -116,7 +116,10 @@ class Combo {
 				action.item.useItemOnCell(Board.getCell(getCell())!)
 				Benchmark.logBuff(action.item.name)
 			} else {
-				action.item.useItemOnCell(action.to)
+				integer result = action.item.useItemOnCellWithResult(action.to)
+				if(result != USE_SUCCESS) {
+					debugW("Action failed: " + action.item.name + " to c" + action.to.id + " result=" + result + " TP=" + getTP())
+				}
 				Benchmark.log(action.item.name + ">c" + action.to.id)
 			}
 		}
