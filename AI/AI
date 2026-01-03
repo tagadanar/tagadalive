@@ -15,8 +15,10 @@ class AI {
 	 */
 	static Combo getCombo() {
 		if (AI.mode == AI.MODE_PTS) {
+			Benchmark.setAlgo("PTS", "PTS")
 			return PTS.buildCombo()
 		} else if (AI.mode == AI.MODE_MCTS) {
+			Benchmark.setAlgo("MCTS", "MCTS")
 			return AI.getMCTSCombo()
 		} else if (AI.mode == AI.MODE_HYBRID) {
 			return AI.getHybridCombo()
@@ -45,7 +47,7 @@ class AI {
 
 		// Step 3: Check if we have budget for MCTS refinement
 		if (MCTS.shouldStop()) {
-			debug("Hybrid: PTS only (budget low)")
+			Benchmark.setAlgo("HYBRID", "PTS")
 			Benchmark.stop("AI.getHybridCombo")
 			return ptsCombo
 		}
@@ -82,11 +84,12 @@ class AI {
 
 		Benchmark.stop("AI.getHybridCombo")
 
+		// Track winner
 		if (mctsScore > ptsScore) {
-			debug("Hybrid: MCTS wins (" + round(mctsScore) + " > " + round(ptsScore) + ")")
+			Benchmark.setAlgo("HYBRID", "MCTS")
 			return mctsCombo
 		} else {
-			debug("Hybrid: PTS wins (" + round(ptsScore) + " >= " + round(mctsScore) + ")")
+			Benchmark.setAlgo("HYBRID", "PTS")
 			return ptsCombo
 		}
 	}
@@ -115,7 +118,7 @@ class AI {
 
 		// Step 2: Check if we have budget for MCTS
 		if (MCTS.shouldStop()) {
-			debug("HybridGuided: PTS only (budget low)")
+			Benchmark.setAlgo("HYBRID_GUIDED", "PTS")
 			Benchmark.stop("AI.getHybridGuidedCombo")
 			return ptsCombo
 		}
@@ -126,12 +129,12 @@ class AI {
 
 		Benchmark.stop("AI.getHybridGuidedCombo")
 
-		// Step 4: Return the best
+		// Step 4: Return the best and track winner
 		if (mctsScore > ptsScore) {
-			debug("HybridGuided: MCTS wins (" + round(mctsScore) + " > " + round(ptsScore) + ")")
+			Benchmark.setAlgo("HYBRID_GUIDED", "MCTS")
 			return mctsCombo
 		} else {
-			debug("HybridGuided: PTS wins (" + round(ptsScore) + " >= " + round(mctsScore) + ")")
+			Benchmark.setAlgo("HYBRID_GUIDED", "PTS")
 			return ptsCombo
 		}
 	}

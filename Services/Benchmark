@@ -13,6 +13,13 @@ class Benchmark{
 	static _mctsNodes = 0
 	static _mctsPos = 0
 	static _mctsBest = 0
+	// PTS stats
+	static _ptsOpps = 0
+	static _ptsActions = 0
+	static _ptsBest = 0
+	// Algorithm comparison
+	static _algoMode = ""
+	static _algoWinner = ""
 	static _chosenDesc = ""
 	static _chosenScore = 0
 	static _chosenActions = 0
@@ -79,6 +86,11 @@ class Benchmark{
 		_mctsNodes = 0
 		_mctsPos = 0
 		_mctsBest = 0
+		_ptsOpps = 0
+		_ptsActions = 0
+		_ptsBest = 0
+		_algoMode = ""
+		_algoWinner = ""
 		_chosenDesc = ""
 		_chosenScore = 0
 		_chosenActions = 0
@@ -123,6 +135,17 @@ class Benchmark{
 		_mctsNodes = nodes
 		_mctsPos = pos
 		_mctsBest = round(best)
+	}
+
+	static void setPTS(integer opps, integer actions, real best){
+		_ptsOpps = opps
+		_ptsActions = actions
+		_ptsBest = round(best)
+	}
+
+	static void setAlgo(string mode, string winner){
+		_algoMode = mode
+		_algoWinner = winner
 	}
 
 	static void setChosen(real score, integer actions, string desc){
@@ -173,7 +196,8 @@ class Benchmark{
 	static Array<Array<string>> CATEGORIES = [
 		["INIT", "init", "Map.init", "Items.init"],
 		["REFRESH", "MapPath.refresh", "Fight.refresh", "Map.refresh", "Scoring.refresh", "MapDanger.refresh", "MapPosition.refresh", "MapAction.refresh"],
-		["MCTS", "AI.getMCTSCombo", "MCTS.iter"],
+		["PTS", "PTS.generateOpportunities", "PTS.buildCombo", "AI.getHybridGuidedCombo", "AI.getHybridCombo"],
+		["MCTS", "AI.getMCTSCombo", "AI.getMCTSComboPrioritized", "MCTS.iter"],
 		["POSITION", "MP.evalPos", "MP.findBest"],
 		["ACTION", "addAction"],
 		["CONSEQUENCES", "Consequences", "Consequences.fromConseq"]
@@ -208,6 +232,8 @@ class Benchmark{
 		s += "|ram:" + getUsedRAM() + "/" + getMaxRAM()
 		s += "|c:" + _selfCell + "|e:" + _enemies + "|a:" + _allies
 		s += "|m:" + _mctsIter + "," + _mctsNodes + "," + _mctsPos + "," + _mctsBest
+		s += "|p:" + _ptsOpps + "," + _ptsActions + "," + _ptsBest
+		if(_algoMode != "") s += "|algo:" + _algoMode + "," + _algoWinner
 		s += "|fc:" + funcCount  // Function count for verification
 
 		if(_chosenDesc != "") s += "|ch:" + _chosenScore + "," + _chosenActions + "," + _chosenDesc

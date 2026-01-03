@@ -333,6 +333,107 @@
             margin-top: 2px;
         }
 
+        /* Algorithm Banner */
+        .lwa-algo-banner {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 4px;
+            margin-bottom: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .lwa-algo-banner.mcts-win {
+            background: rgba(50, 178, 218, 0.1);
+            border: 1px solid #32b2da;
+        }
+
+        .lwa-algo-banner.pts-win {
+            background: rgba(43, 196, 145, 0.1);
+            border: 1px solid #2bc491;
+        }
+
+        .lwa-algo-mode {
+            background: rgba(0,0,0,0.1);
+            padding: 3px 8px;
+            border-radius: 3px;
+            color: var(--text-color, #333);
+        }
+
+        .lwa-algo-arrow {
+            color: var(--text-color-secondary, #666);
+        }
+
+        .lwa-algo-winner {
+            color: #5fad1b;
+            font-weight: 700;
+        }
+
+        .lwa-algo-scores {
+            margin-left: auto;
+            font-size: 11px;
+            font-weight: 400;
+            color: var(--text-color-secondary, #666);
+        }
+
+        /* Search Comparison Layout */
+        .lwa-search-comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        @media (max-width: 550px) {
+            .lwa-search-comparison {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .lwa-section.winner {
+            border: 2px solid #5fad1b;
+            background: rgba(95, 173, 27, 0.05);
+        }
+
+        .lwa-winner-badge {
+            background: #5fad1b;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            margin-left: auto;
+        }
+
+        /* Timeline algo badge */
+        .lwa-tl-algo-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            margin-right: 6px;
+        }
+        .lwa-tl-algo-badge.pts {
+            background: rgba(43, 196, 145, 0.2);
+            color: #2bc491;
+        }
+        .lwa-tl-algo-badge.mcts {
+            background: rgba(255, 136, 0, 0.2);
+            color: #ff8800;
+        }
+
+        /* PTS-specific cards - 3 columns instead of 4 */
+        .lwa-section:nth-child(2) .lwa-mcts-grid {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        @media (min-width: 600px) {
+            .lwa-section:nth-child(2) .lwa-mcts-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
         /* Chosen Action */
         .lwa-chosen {
             background: rgba(255, 136, 0, 0.08);
@@ -380,6 +481,23 @@
         .lwa-chosen-stats span {
             color: #ff8800;
             font-weight: 600;
+        }
+
+        /* Combo source badge (PTS/MCTS) */
+        .lwa-combo-source {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .lwa-combo-source.pts {
+            background: rgba(43, 196, 145, 0.2);
+            color: #2bc491;
+        }
+        .lwa-combo-source.mcts {
+            background: rgba(255, 136, 0, 0.2);
+            color: #ff8800;
         }
 
         /* Ops Progress */
@@ -829,6 +947,7 @@
 
         .lwa-log-cat-icon.init { background: rgba(50, 178, 218, 0.15); color: #32b2da; }
         .lwa-log-cat-icon.refresh { background: rgba(95, 173, 27, 0.15); color: #5fad1b; }
+        .lwa-log-cat-icon.pts { background: rgba(43, 196, 145, 0.15); color: #2bc491; }
         .lwa-log-cat-icon.mcts { background: rgba(255, 136, 0, 0.15); color: #ff8800; }
         .lwa-log-cat-icon.position { background: rgba(160, 23, 214, 0.15); color: #a017d6; }
         .lwa-log-cat-icon.action { background: rgba(226, 36, 36, 0.15); color: #e22424; }

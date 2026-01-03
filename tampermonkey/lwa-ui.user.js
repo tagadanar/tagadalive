@@ -880,6 +880,12 @@
                 let rawContent = '';
                 if (category === 'SUMMARY') {
                     rawContent = `MCTS: ${d.mcts.pos} pos, ${d.mcts.iter} iter, ${d.mcts.nodes} nodes, score=${d.mcts.best}\n`;
+                    if (d.pts?.opps > 0) {
+                        rawContent += `PTS: ${d.pts.opps} opps, ${d.pts.actions} actions, score=${d.pts.best}\n`;
+                    }
+                    if (d.algo?.mode) {
+                        rawContent += `Algorithm: ${d.algo.mode} → ${d.algo.winner} wins\n`;
+                    }
                     rawContent += `Turn ${d.t}: ${d.chosen.actions} actions, score=${d.chosen.score}\n`;
                     if (d.chosen.desc) rawContent += `Chosen: ${d.chosen.desc}\n`;
                     rawContent += `Operations: ${d.ops}/${d.max} (${Math.round(d.ops * 100 / d.max)}%)\n`;
@@ -948,26 +954,67 @@
 
     LWA.renderOverview = function(d, opsPct) {
         const chosenDesc = d.chosen.desc;
+        const hasAlgo = d.algo && d.algo.mode;
+        const algoMode = d.algo?.mode || '';
+        const algoWinner = d.algo?.winner || '';
+        const isHybrid = algoMode.includes('HYBRID');
 
         return `
-            <div class="lwa-section">
-                <div class="lwa-section-title">MCTS Search</div>
-                <div class="lwa-mcts-grid">
-                    <div class="lwa-mcts-card lwa-tip" data-tip="Nombre de simulations MCTS effectuées">
-                        <div class="lwa-mcts-val" style="color:${C.green}">${d.mcts.iter}</div>
-                        <div class="lwa-mcts-lbl">Iterations</div>
+            ${hasAlgo ? `
+            <div class="lwa-algo-banner ${algoWinner === 'PTS' ? 'pts-win' : 'mcts-win'}">
+                <span class="lwa-algo-mode">${algoMode}</span>
+                <span class="lwa-algo-arrow">→</span>
+                <span class="lwa-algo-winner">${algoWinner} wins</span>
+                ${isHybrid ? `<span class="lwa-algo-scores">(PTS: ${d.pts?.best || 0} vs MCTS: ${d.mcts.best})</span>` : ''}
+            </div>
+            ` : ''}
+
+            <div class="lwa-search-comparison">
+                <!-- MCTS Section -->
+                <div class="lwa-section ${algoWinner === 'MCTS' ? 'winner' : ''}">
+                    <div class="lwa-section-title">
+                        MCTS Search
+                        ${algoWinner === 'MCTS' ? '<span class="lwa-winner-badge">★ Winner</span>' : ''}
                     </div>
-                    <div class="lwa-mcts-card lwa-tip" data-tip="Nombre de noeuds explorés dans l'arbre">
-                        <div class="lwa-mcts-val" style="color:${C.blue}">${d.mcts.nodes}</div>
-                        <div class="lwa-mcts-lbl">Nodes</div>
+                    <div class="lwa-mcts-grid">
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Nombre de simulations MCTS effectuées">
+                            <div class="lwa-mcts-val" style="color:${C.green}">${d.mcts.iter}</div>
+                            <div class="lwa-mcts-lbl">Iterations</div>
+                        </div>
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Nombre de noeuds explorés dans l'arbre">
+                            <div class="lwa-mcts-val" style="color:${C.blue}">${d.mcts.nodes}</div>
+                            <div class="lwa-mcts-lbl">Nodes</div>
+                        </div>
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Positions de départ testées">
+                            <div class="lwa-mcts-val" style="color:${C.purple}">${d.mcts.pos}</div>
+                            <div class="lwa-mcts-lbl">Positions</div>
+                        </div>
+                        <div class="lwa-mcts-card highlight lwa-tip" data-tip="Meilleur score trouvé">
+                            <div class="lwa-mcts-val" style="color:${C.orange}">${d.mcts.best}</div>
+                            <div class="lwa-mcts-lbl">Best Score</div>
+                        </div>
                     </div>
-                    <div class="lwa-mcts-card lwa-tip" data-tip="Positions de départ testées">
-                        <div class="lwa-mcts-val" style="color:${C.purple}">${d.mcts.pos}</div>
-                        <div class="lwa-mcts-lbl">Positions</div>
+                </div>
+
+                <!-- PTS Section -->
+                <div class="lwa-section ${algoWinner === 'PTS' ? 'winner' : ''}">
+                    <div class="lwa-section-title">
+                        PTS (Priority Target Simulation)
+                        ${algoWinner === 'PTS' ? '<span class="lwa-winner-badge">★ Winner</span>' : ''}
                     </div>
-                    <div class="lwa-mcts-card highlight lwa-tip" data-tip="Meilleur score trouvé">
-                        <div class="lwa-mcts-val" style="color:${C.orange}">${d.mcts.best}</div>
-                        <div class="lwa-mcts-lbl">Best Score</div>
+                    <div class="lwa-mcts-grid">
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Nombre d'opportunités (cible × item) générées">
+                            <div class="lwa-mcts-val" style="color:${C.cyan}">${d.pts?.opps || 0}</div>
+                            <div class="lwa-mcts-lbl">Opportunities</div>
+                        </div>
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Nombre d'actions dans le combo PTS">
+                            <div class="lwa-mcts-val" style="color:${C.blue}">${d.pts?.actions || 0}</div>
+                            <div class="lwa-mcts-lbl">Actions</div>
+                        </div>
+                        <div class="lwa-mcts-card highlight lwa-tip" data-tip="Meilleur score trouvé par PTS">
+                            <div class="lwa-mcts-val" style="color:${C.orange}">${d.pts?.best || 0}</div>
+                            <div class="lwa-mcts-lbl">Best Score</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1028,10 +1075,24 @@
                 }
             }
 
-            // Add score info
+            // Add score info with algo comparison
+            const winner = turn.algo?.winner || '';
+            const ptsScore = turn.pts?.best || 0;
+            const mctsScore = turn.mcts.best;
+            const hasComparison = winner && ptsScore > 0;
+
             html += `
                 <div class="lwa-tl-event" style="border-top:1px solid rgba(255,255,255,0.1);margin-top:6px;padding-top:8px">
-                    <div class="lwa-tl-desc" style="color:${C.textMuted}">Score: ${turn.mcts.best} | ${turn.mcts.iter} iter | ${fmt(turn.ops)} ops</div>
+                    ${hasComparison ? `
+                        <div class="lwa-tl-algo-badge ${winner.toLowerCase()}">${winner}</div>
+                        <div class="lwa-tl-desc" style="color:${C.textMuted}">
+                            <span style="color:${winner === 'PTS' ? '#2bc491' : C.textMuted}">PTS:${ptsScore}</span> vs
+                            <span style="color:${winner === 'MCTS' ? '#ff8800' : C.textMuted}">MCTS:${mctsScore}</span>
+                            | ${fmt(turn.ops)} ops
+                        </div>
+                    ` : `
+                        <div class="lwa-tl-desc" style="color:${C.textMuted}">Score: ${mctsScore} | ${turn.mcts.iter} iter | ${fmt(turn.ops)} ops</div>
+                    `}
                 </div>
             `;
 
@@ -1043,14 +1104,23 @@
     }
 
     LWA.renderCombos = function(d) {
-        const chosenDesc = d.chosen.desc;
+        const chosenDesc = d.chosen.desc || '';
+        const winner = d.algo?.winner || '';
+        // Extract source from combo description (PTS: or MCTS: prefix)
+        const getComboSource = (desc) => {
+            if (desc.startsWith('PTS:')) return 'PTS';
+            if (desc.startsWith('MCTS:')) return 'MCTS';
+            return '';
+        };
+        const chosenSource = getComboSource(chosenDesc) || winner;
 
         return `
             ${chosenDesc ? `
             <div class="lwa-chosen" style="margin-bottom:14px">
                 <div class="lwa-chosen-head">
                     <div class="lwa-chosen-icon">★</div>
-                    <div class="lwa-chosen-desc">${formatComboDesc(chosenDesc)}</div>
+                    ${chosenSource ? `<div class="lwa-combo-source ${chosenSource.toLowerCase()}">${chosenSource}</div>` : ''}
+                    <div class="lwa-chosen-desc">${formatComboDesc(chosenDesc.replace(/^(PTS|MCTS):/, ''))}</div>
                 </div>
                 <div class="lwa-chosen-stats">
                     Score: <span>${d.chosen.score}</span> &nbsp;|&nbsp; Actions: <span>${d.chosen.actions}</span>
@@ -1060,17 +1130,21 @@
 
             <div class="lwa-section">
                 <div class="lwa-section-title">Top ${d.combos.length} Combos</div>
-                ${d.combos.length > 0 ? d.combos.map((c, i) => `
+                ${d.combos.length > 0 ? d.combos.map((c, i) => {
+                    const source = getComboSource(c.d);
+                    const cleanDesc = c.d.replace(/^(PTS|MCTS):/, '');
+                    return `
                     <div class="lwa-combo">
                         <div class="lwa-combo-head">
                             <div class="lwa-combo-rank">${i + 1}</div>
-                            <div class="lwa-combo-desc">${formatComboDesc(c.d)}</div>
+                            ${source ? `<div class="lwa-combo-source ${source.toLowerCase()}">${source}</div>` : ''}
+                            <div class="lwa-combo-desc">${formatComboDesc(cleanDesc)}</div>
                         </div>
                         <div class="lwa-combo-stats">
                             Total: <span>${c.s}</span> &nbsp;|&nbsp; Actions: <span>${c.as}</span> &nbsp;|&nbsp; Position: <span>${c.ps}</span>
                         </div>
                     </div>
-                `).join('') : '<div style="color:' + C.textDim + ';text-align:center;padding:20px">No combos tracked</div>'}
+                `}).join('') : '<div style="color:' + C.textDim + ';text-align:center;padding:20px">No combos tracked</div>'}
             </div>
         `;
     }
@@ -1179,6 +1253,7 @@
             'SUMMARY': { icon: '📊', class: 'summary', label: 'Turn Summary' },
             'INIT': { icon: '🚀', class: 'init', label: 'Initialization' },
             'REFRESH': { icon: '🔄', class: 'refresh', label: 'Refresh' },
+            'PTS': { icon: '🎯', class: 'pts', label: 'PTS Search' },
             'MCTS': { icon: '🌳', class: 'mcts', label: 'MCTS Search' },
             'POSITION': { icon: '📍', class: 'position', label: 'Position Analysis' },
             'ACTION': { icon: '⚔️', class: 'action', label: 'Action Generation' },
@@ -1189,7 +1264,7 @@
 
         // Group methods by category
         const categories = {};
-        const categoryOrder = ['SUMMARY', 'INIT', 'REFRESH', 'MCTS', 'POSITION', 'ACTION', 'CONSEQUENCES', 'OTHER'];
+        const categoryOrder = ['SUMMARY', 'INIT', 'REFRESH', 'PTS', 'MCTS', 'POSITION', 'ACTION', 'CONSEQUENCES', 'OTHER'];
 
         for (const m of d.methods) {
             const cat = m.category || 'OTHER';

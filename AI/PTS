@@ -306,6 +306,9 @@ class PTS {
 		PTS.lastActionsBuilt = actionsBuilt
 		PTS.lastScore = combo.getScore()!
 
+		// Track stats for monitoring
+		Benchmark.setPTS(PTS.lastOpportunities, actionsBuilt, PTS.lastScore)
+
 		// Track for debugging
 		string comboDesc = PTS.buildComboDesc(combo)
 		real posScore = combo.finalPosition != null ? combo.finalPosition!.score : 0
