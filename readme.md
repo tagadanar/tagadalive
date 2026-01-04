@@ -34,14 +34,14 @@ tagadalive/
 
 Configurable dans `main` via `AI.mode = AI.MODE_*` :
 
-| Mode | Description | Ops typiques |
-|------|-------------|--------------|
-| `MODE_PTS` | Greedy target-first | ~50k |
-| `MODE_MCTS` | Tree search avec UCB1 | ~300k |
-| `MODE_BEAM` | Multi-path beam search | ~150k |
-| `MODE_HYBRID` | PTS → MCTS sur 1 cellule | ~150k |
-| `MODE_HYBRID_GUIDED` | PTS guide MCTS (recommandé) | ~250k |
-| `MODE_HYBRID_BEAM` | PTS guide BeamSearch | ~200k |
+| Mode | Description |
+|------|-------------|
+| `MODE_PTS` | Greedy target-first |
+| `MODE_MCTS` | Tree search avec UCB1 |
+| `MODE_BEAM` | Multi-path beam search |
+| `MODE_HYBRID` | PTS → MCTS sur 1 cellule |
+| `MODE_HYBRID_GUIDED` | PTS guide MCTS (recommandé) |
+| `MODE_HYBRID_BEAM` | PTS guide BeamSearch |
 
 **Mode par défaut** : `HYBRID_GUIDED`
 
