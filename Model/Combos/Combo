@@ -142,6 +142,12 @@ class Combo {
 					debugW("Action failed: " + action.item.name + " from c" + getCell() + " to c" + action.to.id +
 						" result=" + result + " dist=" + dist + " range=[" + action.item.minRange + "-" + action.item.maxRange +
 						"] LOS=" + los + " TP=" + getTP())
+					// Dump combo for debugging TP tracking issues
+					debugW("Combo dump (Fight.self.tp was " + Fight.self.tp + "):")
+					for (integer i = 0; i < count(this.actions); i++) {
+						Action a = this.actions[i]
+						debugW("  [" + i + "] " + a.item.name + " cost=" + a.item.cost + " csq.TP=" + a.consequences.currentTP)
+					}
 				}
 				Benchmark.log(action.item.name + ">c" + action.to.id)
 			}
