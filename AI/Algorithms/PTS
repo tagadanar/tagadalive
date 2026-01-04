@@ -192,7 +192,7 @@ class PTS {
 	 *
 	 * Features:
 	 * - Outer loop allows multiple uses of same item (e.g., firing weapon 3x)
-	 * - Top-2 evaluation after buffs to pick best post-buff action
+	 * - Greedy selection: always picks first valid opportunity in priority order
 	 */
 	static Combo buildCombo() {
 		Benchmark.start("PTS.buildCombo")
@@ -241,16 +241,11 @@ class PTS {
 		Map<Cell, integer> reachableCells = Fight.self.reachableCells
 
 		integer actionsBuilt = 0
-		boolean justUsedBuff = false  // Track if last action was a buff (for Top-2 eval)
 
 		// Outer loop: restart from top after each action to handle multiple uses
 		boolean foundValidAction = true
 		while (foundValidAction) {
 			foundValidAction = false
-
-			// Collect candidates for Top-2 evaluation (only after buff)
-			Array<Opportunity> candidates = []
-			Array<Cell> candidateCells = []
 
 			for (Opportunity opp in sorted) {
 				Consequences currentCsq = combo.getCurrentConsequences()
@@ -271,15 +266,7 @@ class PTS {
 
 				if (moveCost > currentMP) continue
 
-				// Top-2 evaluation: collect candidates after buff, pick best by chained score
-				if (justUsedBuff && !opp.isSelfCast) {
-					push(candidates, opp)
-					push(candidateCells, attackCell!)
-					if (count(candidates) >= 2) break  // Top-2
-					continue
-				}
-
-				// Standard path: use first valid opportunity
+				// Use first valid opportunity (greedy selection)
 				Cell aimCell = opp.getAimCell(attackCell!)
 				Action action = Action(opp.item, attackCell!, aimCell)
 
@@ -312,67 +299,7 @@ class PTS {
 
 				actionsBuilt++
 				foundValidAction = true
-				justUsedBuff = opp.isSelfCast  // Track if this was a buff
 				break  // Restart from top to maintain priority order
-			}
-
-			// Top-2 evaluation: pick best among candidates by chained score
-			if (count(candidates) > 0) {
-				Opportunity? bestOpp = null
-				Cell? bestCell = null
-				real bestScore = -999999.0
-
-				Consequences currentCsq = combo.getCurrentConsequences()
-
-				for (integer i = 0; i < count(candidates); i++) {
-					Opportunity opp = candidates[i]
-					Cell attackCell = candidateCells[i]
-					Cell aimCell = opp.getAimCell(attackCell)
-
-					// Create chained action to get real score
-					Action tempAction = Action(opp.item, attackCell, aimCell)
-					Action chainedAction = Action(tempAction, currentCsq)
-
-					if (chainedAction.score! > bestScore) {
-						bestScore = chainedAction.score!
-						bestOpp = opp
-						bestCell = attackCell
-					}
-				}
-
-				if (bestOpp != null && bestScore > 0) {
-					Cell aimCell = bestOpp!.getAimCell(bestCell!)
-					Action action = Action(bestOpp!.item, bestCell!, aimCell)
-
-					// Use combo.add() for proper delta check; skip if action doesn't improve score
-					if (!combo.add(action)) {
-						continue
-					}
-
-					Action lastAction = combo.actions[count(combo.actions) - 1]
-					Consequences newCsq = lastAction.consequences
-					currentTP = newCsq.currentTP
-					currentMP = newCsq.currentMP
-					currentCell = newCsq.currentCell
-
-					if (bestOpp!.item.isWeap && bestOpp!.item != weaponInHand) {
-						currentTP -= 1
-						weaponInHand = bestOpp!.item
-					}
-
-					usesThisTurn[bestOpp!.item] = (usesThisTurn[bestOpp!.item] != null ? usesThisTurn[bestOpp!.item]! : 0) + 1
-					if (bestOpp!.item.haveCD) {
-						cooldowns[bestOpp!.item] = bestOpp!.item.cdDuration
-					}
-
-					if (!bestOpp!.isSelfCast && bestCell != Fight.selfCell) {
-						reachableCells = MapPath.getCachedReachableCells(currentCell, currentMP, Fight.self.cellsToIgnore)
-					}
-
-					actionsBuilt++
-					foundValidAction = true
-					justUsedBuff = false  // We just used a non-buff action
-				}
 			}
 		}
 
