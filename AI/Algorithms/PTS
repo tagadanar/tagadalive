@@ -160,11 +160,14 @@ class PTS {
 
 		// Find closest CURRENTLY reachable cell for base score calculation
 		// But store ALL attack cells for later use (after movement, more may be reachable)
+		// Use fresh reachableCells with current MP (not stale Fight.self.reachableCells)
+		Map<Cell, integer> currentReachable = MapPath.getCachedReachableCells(
+			Fight.self.cell, Fight.self.mp, Fight.self.cellsToIgnore)
 		Cell? bestReachableCell = null
 		integer bestDist = 99999
 		for (Cell cell in attackCells) {
-			integer? dist = Fight.self.reachableCells[cell]
-			if (dist != null && dist < bestDist) {
+			integer? dist = currentReachable[cell]
+			if (dist != null && dist <= Fight.self.mp && dist < bestDist) {
 				bestDist = dist!
 				bestReachableCell = cell
 			}
@@ -238,7 +241,9 @@ class PTS {
 		Item? weaponInHand = Fight.self.getWeaponInHand()
 		Map<Item, integer> usesThisTurn = [:]
 		Map<Item, integer> cooldowns = [:]
-		Map<Cell, integer> reachableCells = Fight.self.reachableCells
+		// Use fresh reachableCells computed from current position/MP (not stale Fight.self.reachableCells)
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(
+			Fight.self.cell, Fight.self.mp, Fight.self.cellsToIgnore)
 
 		integer actionsBuilt = 0
 
