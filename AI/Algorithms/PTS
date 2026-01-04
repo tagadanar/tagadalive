@@ -99,8 +99,7 @@ class PTS {
 
 	/*
 	 * Create an opportunity for a (item, target) pair.
-	 * Computes attack cells and base score.
-	 * Stores ALL valid attack cells (not filtered to current reachable) for use after movement.
+	 * Uses MapAction's pre-validated attack cells (already checked for range, LOS, reachability).
 	 */
 	static Opportunity? createOpportunity(Item item, Entity target) {
 		// Self-cast case: item targets self with minRange 0
@@ -114,78 +113,52 @@ class PTS {
 		// Can't target self with minRange > 0
 		if (target == Fight.self) return null
 
-		// Get ALL cells from which we can hit this target (not filtered to reachable)
-		Array<Cell> attackCells
+		// Get validated attack cells from MapAction index (O(1) lookup)
+		// These cells are already validated for range, LOS, and reachability
+		Array<Cell>? attackCells = MapAction.getAttackCellsForEntity(item, target.id)
+		if (attackCells == null || count(attackCells!) == 0) return null
+
 		Cell targetCell = target.cell
-		Map<Cell, Cell>? cellToAim = null  // For AOE: attackCell → aimCell
+		boolean isAOE = item.area != AREA_POINT && item.area != AREA_LASER_LINE
 
-		if (item.area == AREA_POINT) {
-			attackCells = Targets.getCellsToUseItemOnCell(item, target.cell, [Fight.self.id])
-		} else if (item.area == AREA_LASER_LINE) {
-			attackCells = Targets.getLazerCellsToUseItemOnCell(item, target.cell)
-		} else {
-			// AOE: check ALL cells in target's area
-			cellToAim = [:]
-			for (Cell aoeCell in target.cell.getAreaCells(item.area)) {
-				Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, aoeCell, [Fight.self.id])
-				for (Cell c in cells) {
-					if (cellToAim![c] == null) {
-						cellToAim![c] = aoeCell
-					} else if (aoeCell == target.cell) {
-						// Only update if actually in range (the original aoeCell was validated by getCellsToUseItemOnCell)
-						integer dist = getCellDistance(c.id, aoeCell.id)
-						if (dist >= item.minRange && dist <= item.maxRange) {
-							cellToAim![c] = aoeCell
-						}
-					} else {
-						integer curDist = getCellDistance(cellToAim![c]!.id, target.cell.id)
-						integer newDist = getCellDistance(aoeCell.id, target.cell.id)
-						if (newDist < curDist) {
-							// Only update if new aimCell is in range from attack cell
-							integer dist = getCellDistance(c.id, aoeCell.id)
-							if (dist >= item.minRange && dist <= item.maxRange) {
-								cellToAim![c] = aoeCell
-							}
-						}
-					}
-				}
-			}
-			attackCells = []
-			for (Cell c in cellToAim!) {
-				push(attackCells, c)
-			}
-		}
-
-		if (count(attackCells) == 0) return null
-
-		// Find closest CURRENTLY reachable cell for base score calculation
-		// But store ALL attack cells for later use (after movement, more may be reachable)
-		// Use fresh reachableCells with current MP (not stale Fight.self.reachableCells)
-		Map<Cell, integer> currentReachable = MapPath.getCachedReachableCells(
-			Fight.self.cell, Fight.self.mp, Fight.self.cellsToIgnore)
+		// Find closest reachable cell for base score calculation
 		Cell? bestReachableCell = null
 		integer bestDist = 99999
-		for (Cell cell in attackCells) {
-			integer? dist = currentReachable[cell]
-			if (dist != null && dist <= Fight.self.mp && dist < bestDist) {
+		for (Cell cell in attackCells!) {
+			// All cells in the index are reachable, find closest
+			integer? dist = Fight.self.reachableCells[cell]
+			if (dist != null && dist < bestDist) {
 				bestDist = dist!
 				bestReachableCell = cell
 			}
 		}
 
-		// If no attack cell is currently reachable, skip this opportunity for now
 		if (bestReachableCell == null) return null
 
-		// Compute base score using closest reachable cell
-		Cell aimCell = (cellToAim != null && cellToAim![bestReachableCell!] != null) ? cellToAim![bestReachableCell!]! : targetCell
+		// Get aim cell (for AOE, use MapAction's stored aimCell)
+		Cell aimCell
+		if (isAOE) {
+			Cell? storedAim = MapAction.getAimCellForEntity(item, target.id, bestReachableCell!)
+			aimCell = storedAim != null ? storedAim! : targetCell
+		} else {
+			aimCell = targetCell
+		}
+
+		// Compute base score
 		Action tempAction = Action(item, bestReachableCell!, aimCell)
 		if (tempAction.score! <= 0) return null
 
-		// Store FULL attackCells (not filtered) - filtering happens at use time in findBestReachableCell
-		if (cellToAim != null) {
-			return Opportunity(target, item, attackCells, targetCell, tempAction.score!, cellToAim!)
+		// Build cellToAim map for AOE (Opportunity needs this for getAimCell)
+		if (isAOE) {
+			Map<Cell, Cell> cellToAim = [:]
+			for (Cell c in attackCells!) {
+				Cell? aim = MapAction.getAimCellForEntity(item, target.id, c)
+				if (aim != null) cellToAim[c] = aim!
+				else cellToAim[c] = targetCell
+			}
+			return Opportunity(target, item, attackCells!, targetCell, tempAction.score!, cellToAim)
 		} else {
-			return Opportunity(target, item, attackCells, targetCell, tempAction.score!)
+			return Opportunity(target, item, attackCells!, targetCell, tempAction.score!)
 		}
 	}
 

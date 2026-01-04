@@ -2,12 +2,18 @@ class MapAction {
 	static Map<Item, Map<Cell, Array<Action>>> _item_cell_actions // [item:[cell:[actions]]]
 	static Map<Cell, Map<Item, Array<Action>>> _cell_item_actions // [cell:[item:[actions]]]
 	static Map<Cell, Map<Item, Action>> _cell_item_bestAction // [cell:[item:action]]
-	
+	// PTS index: [item][entityId] = attackCells for O(1) lookup
+	static Map<Item, Map<integer, Array<Cell>>> _item_entityId_attackCells
+	// PTS index for AOE: [item][entityId][fromCell] = aimCell
+	static Map<Item, Map<integer, Map<Cell, Cell>>> _item_entityId_aimCells
+
 	static void refresh() {
 		// remise à zéro des maps
 		_item_cell_actions = [:]
 		_cell_item_actions = [:]
 		_cell_item_bestAction = [:]
+		_item_entityId_attackCells = [:]
+		_item_entityId_aimCells = [:]
 		// pour chaque item
 		for(Item item in Fight.self.items){
 			// si j'ai le cooldown
@@ -21,11 +27,15 @@ class MapAction {
 						// si c'est moi la cible, je peux le lancer sur moi même que si la minrange le permet
 						if(item.minRange == 0){
 							MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
+							MapAction.addEntityIndex(item, entity.id, Fight.selfCell, null)
 						}
 					} else {
 						// sinon je liste toutes les cases depuis lesquelles je peux tirer sur la cible
 						Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, entity.cell, [Fight.self.id])
-						for(Cell c in cells) MapAction.addAction(item, c, entity.cell)
+						for(Cell c in cells) {
+							MapAction.addAction(item, c, entity.cell)
+							MapAction.addEntityIndex(item, entity.id, c, null)
+						}
 					}
 				}
 			}else if(item.area == AREA_LASER_LINE){
@@ -35,9 +45,10 @@ class MapAction {
 					Array<Cell> cellsFrom = Targets.getLazerCellsToUseItemOnCell(item, entity.cell)
 					for(Cell cell in cellsFrom){
 						MapAction.addAction(item, cell, entity.cell)
+						MapAction.addEntityIndex(item, entity.id, cell, null)
 					}
 				}
-				// maybe here I should handle AREA_FIRST_INLINE ? 
+				// maybe here I should handle AREA_FIRST_INLINE ?
 			}else{ // every aoe
 				for(Entity entity in item.targetSet()){
 					if(entity.isInvincible && !entity.isFriend) continue // skip invincible enemies
@@ -45,9 +56,12 @@ class MapAction {
 					// TODO réfléchir à l'implem de ce genre de move sur case vide..
 					// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
 					// if(entity==Fight.self && item.minRange <= ?){}
-					for(Cell cell in entity.cell.getAreaCells(item.area)){
-						Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, cell, [Fight.self.id])
-						for(Cell c in cells) MapAction.addAction(item, c, cell)
+					for(Cell aimCell in entity.cell.getAreaCells(item.area)){
+						Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, aimCell, [Fight.self.id])
+						for(Cell c in cells) {
+							MapAction.addAction(item, c, aimCell)
+							MapAction.addEntityIndex(item, entity.id, c, aimCell)
+						}
 					}
 				}
 			}
@@ -58,6 +72,56 @@ class MapAction {
 		return _cell_item_bestAction
 	}
 	
+	/*
+	 * Add entity index for PTS O(1) lookup
+	 * @param item The item being used
+	 * @param entityId The target entity's ID
+	 * @param fromCell The cell from which the action can be performed
+	 * @param aimCell For AOE: the cell to aim at (null for AREA_POINT/LASER)
+	 */
+	static void addEntityIndex(Item item, integer entityId, Cell fromCell, Cell? aimCell) {
+		// Initialize nested maps if needed
+		if (!_item_entityId_attackCells[item]) _item_entityId_attackCells[item] = [:]
+		if (!_item_entityId_attackCells[item]![entityId]) _item_entityId_attackCells[item]![entityId] = []
+
+		// Add attack cell (avoid duplicates for AOE where multiple aimCells share same fromCell)
+		Array<Cell> cells = _item_entityId_attackCells[item]![entityId]!
+		boolean found = false
+		for (Cell c in cells) {
+			if (c == fromCell) { found = true; break }
+		}
+		if (!found) push(cells, fromCell)
+
+		// For AOE: store the best aimCell (closest to target entity)
+		if (aimCell != null) {
+			if (!_item_entityId_aimCells[item]) _item_entityId_aimCells[item] = [:]
+			if (!_item_entityId_aimCells[item]![entityId]) _item_entityId_aimCells[item]![entityId] = [:]
+			// Only set if not already set (first aimCell found is used)
+			if (_item_entityId_aimCells[item]![entityId]![fromCell] == null) {
+				_item_entityId_aimCells[item]![entityId]![fromCell] = aimCell
+			}
+		}
+	}
+
+	/*
+	 * Get attack cells for a specific (item, entityId) pair - used by PTS
+	 * Returns null if no valid attack cells exist
+	 */
+	static Array<Cell>? getAttackCellsForEntity(Item item, integer entityId) {
+		if (_item_entityId_attackCells[item] == null) return null
+		return _item_entityId_attackCells[item]![entityId]
+	}
+
+	/*
+	 * Get aim cell for AOE items from a specific attack cell - used by PTS
+	 * Returns null for non-AOE items or if no mapping exists
+	 */
+	static Cell? getAimCellForEntity(Item item, integer entityId, Cell fromCell) {
+		if (_item_entityId_aimCells[item] == null) return null
+		if (_item_entityId_aimCells[item]![entityId] == null) return null
+		return _item_entityId_aimCells[item]![entityId]![fromCell]
+	}
+
 	static void addAction(Item item, Cell from, Cell targetCell){
 		if(targetCell != Fight.selfCell &&
 		   (Fight.self.reachableCells[from]==null || Fight.self.reachableCells[from] > Fight.self.mp)) return;
