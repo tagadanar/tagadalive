@@ -26,15 +26,17 @@ class MapAction {
 					if(entity==Fight.self){
 						// si c'est moi la cible, je peux le lancer sur moi même que si la minrange le permet
 						if(item.minRange == 0){
-							MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
-							MapAction.addEntityIndex(item, entity.id, Fight.selfCell, null)
+							if(MapAction.addAction(item, Fight.selfCell, Fight.selfCell)) {
+								MapAction.addEntityIndex(item, entity.id, Fight.selfCell, null)
+							}
 						}
 					} else {
 						// sinon je liste toutes les cases depuis lesquelles je peux tirer sur la cible
 						Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, entity.cell, [Fight.self.id])
 						for(Cell c in cells) {
-							MapAction.addAction(item, c, entity.cell)
-							MapAction.addEntityIndex(item, entity.id, c, null)
+							if(MapAction.addAction(item, c, entity.cell)) {
+								MapAction.addEntityIndex(item, entity.id, c, null)
+							}
 						}
 					}
 				}
@@ -44,8 +46,9 @@ class MapAction {
 					if(entity==Fight.self) continue; // on peut jamais se tirer dessus au lazer
 					Array<Cell> cellsFrom = Targets.getLazerCellsToUseItemOnCell(item, entity.cell)
 					for(Cell cell in cellsFrom){
-						MapAction.addAction(item, cell, entity.cell)
-						MapAction.addEntityIndex(item, entity.id, cell, null)
+						if(MapAction.addAction(item, cell, entity.cell)) {
+							MapAction.addEntityIndex(item, entity.id, cell, null)
+						}
 					}
 				}
 				// maybe here I should handle AREA_FIRST_INLINE ?
@@ -59,8 +62,9 @@ class MapAction {
 					for(Cell aimCell in entity.cell.getAreaCells(item.area)){
 						Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, aimCell, [Fight.self.id])
 						for(Cell c in cells) {
-							MapAction.addAction(item, c, aimCell)
-							MapAction.addEntityIndex(item, entity.id, c, aimCell)
+							if(MapAction.addAction(item, c, aimCell)) {
+								MapAction.addEntityIndex(item, entity.id, c, aimCell)
+							}
 						}
 					}
 				}
@@ -122,22 +126,22 @@ class MapAction {
 		return _item_entityId_aimCells[item]![entityId]![fromCell]
 	}
 
-	static void addAction(Item item, Cell from, Cell targetCell){
+	static boolean addAction(Item item, Cell from, Cell targetCell){
 		if(targetCell != Fight.selfCell &&
-		   (Fight.self.reachableCells[from]==null || Fight.self.reachableCells[from] > Fight.self.mp)) return;
+		   (Fight.self.reachableCells[from]==null || Fight.self.reachableCells[from] > Fight.self.mp)) return false
 		Benchmark.start("addAction")
 		Action action = new Action(item, from, targetCell)
-		
+
 		// ajout dans la map par item puis cells
 		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]
 		if(!_item_cell_actions[item]![from]) _item_cell_actions[item]![from] = []
 		push(_item_cell_actions[item]![from]!, action)
-		
+
 		// ajout dans la map par cell puis items
 		if(!_cell_item_actions[from]) _cell_item_actions[from] = [:]
 		if(!_cell_item_actions[from]![item]) _cell_item_actions[from]![item] = []
 		push(_cell_item_actions[from]![item]!, action)
-		
+
 		// ici, je ne set sur chaque case, pour chaque item, que la meilleure action et pas les autres:
 		// => réduction forte de la complexité
 		// => pas de perte normalement si j'ai déjà check avant les effets qui change drastiquement le scoring, genre kill un leek
@@ -147,5 +151,6 @@ class MapAction {
 		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
 		else if(_cell_item_bestAction[from]![item]!.score < action.score) _cell_item_bestAction[from]![item] = action
 		Benchmark.stop("addAction")
+		return true
 	}
 }
