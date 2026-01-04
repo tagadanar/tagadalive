@@ -59,6 +59,10 @@ class Benchmark{
 	static Array<string> _logs = []
 	static _maxLogs = 20
 
+	// Cooldowns tracking: array of [itemName, currentCD, maxCD]
+	static Array<Array> _cooldownsStart = []
+	static Array<Array> _cooldownsEnd = []
+
 	// === Profiling ===
 
 	static void reset(){
@@ -126,6 +130,8 @@ class Benchmark{
 		_comboPosScore = []
 		_comboActScore = []
 		_logs = []
+		_cooldownsStart = []
+		_cooldownsEnd = []
 		_selfLife = getLife()
 		_selfMaxLife = getTotalLife(getEntity())
 		_selfTP = getTP()
@@ -236,6 +242,26 @@ class Benchmark{
 		if(count(_logs) < _maxLogs) push(_logs, "💀" + target)
 	}
 
+	// === Cooldowns tracking ===
+
+	static void collectCooldownsStart(Array<Item> items, integer entityId) {
+		_cooldownsStart = []
+		for (Item item in items) {
+			if (!item.haveCD) continue
+			integer cd = getCooldown(item.id, entityId)
+			push(_cooldownsStart, [item.name, cd, item.cdDuration])
+		}
+	}
+
+	static void collectCooldownsEnd(Array<Item> items, integer entityId) {
+		_cooldownsEnd = []
+		for (Item item in items) {
+			if (!item.haveCD) continue
+			integer cd = getCooldown(item.id, entityId)
+			push(_cooldownsEnd, [item.name, cd, item.cdDuration])
+		}
+	}
+
 	// === Display: ONE debug() call ===
 
 	// Category definitions for grouped display
@@ -329,6 +355,24 @@ class Benchmark{
 		}
 
 		for(var i = 0; i < count(_logs); i++) s += "|l:" + _logs[i]
+
+		// Cooldowns start of turn: cds:name,current,max;...
+		if (count(_cooldownsStart) > 0) {
+			var cdParts = []
+			for (var cd in _cooldownsStart) {
+				push(cdParts, cd[0] + "," + cd[1] + "," + cd[2])
+			}
+			s += "|cds:" + join(cdParts, ";")
+		}
+
+		// Cooldowns end of turn: cde:name,current,max;...
+		if (count(_cooldownsEnd) > 0) {
+			var cdParts = []
+			for (var cd in _cooldownsEnd) {
+				push(cdParts, cd[0] + "," + cd[1] + "," + cd[2])
+			}
+			s += "|cde:" + join(cdParts, ";")
+		}
 
 		// Display ops and final total
 		var displayOps = getOperations() - displayStart
