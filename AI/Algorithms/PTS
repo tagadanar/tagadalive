@@ -263,6 +263,7 @@ class PTS {
 
 				if (opp.item.isWeap && opp.item != weaponInHand) {
 					currentTP -= 1
+					newCsq.currentTP -= 1  // Propagate switch cost to consequences for next actualization
 					weaponInHand = opp.item
 				}
 
