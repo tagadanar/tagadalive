@@ -6,6 +6,7 @@ A modular Tampermonkey userscript that provides AI debug visualization, profiler
 
 - **Turn-by-turn navigation**: Browse through each turn of your AI's execution
 - **Performance profiler**: See operation counts and percentages for each function, grouped by category
+- **Cooldown tracking**: View item cooldowns at start and end of each turn with visual progress bars
 - **Algorithm visualization**: Adapts to selected mode:
   - **MCTS**: iterations, nodes explored, positions, best score
   - **BeamSearch**: depth, candidates evaluated, positions, best score
@@ -159,6 +160,8 @@ Where:
 | `cells:` | MCTS cells (seeds;explored;skipped) | `cells:123,456;123,456,789;234,567` |
 | `ch:` | Chosen combo (score,actions,desc) | `ch:850,3,Flash(81)->mv(256:...)` |
 | `cb:` | Top combo (score,actScore,posScore,desc) | `cb:900,600,300,Spark(120)->...` |
+| `cds:` | Cooldowns at start of turn (name,current,max;...) | `cds:Flash,0,3;Shield,2,5` |
+| `cde:` | Cooldowns at end of turn (name,current,max;...) | `cde:Flash,3,3;Shield,2,5` |
 | `cat:` | Function category | `cat:MCTS` |
 | `f:` | Function stats (name,calls,total,pct,parent) | `f:AI.search,10,5000,11,` |
 | `l:` | Log entry | `l:Attack dealt 150 damage` |
@@ -213,6 +216,26 @@ Benchmark.log("Custom message")
 Benchmark.logWarn("Warning!")
 Benchmark.logError("Error occurred")
 ```
+
+### Tracking Cooldowns
+
+```javascript
+// At start of turn (after init)
+Benchmark.collectCooldownsStart(Fight.self.items, Fight.self.id)
+
+// At end of turn (after combo.play())
+Benchmark.collectCooldownsEnd(Fight.self.items, Fight.self.id)
+```
+
+The cooldowns panel shows:
+- **Start of turn**: Item availability before actions (green = ready to use)
+- **End of turn**: Item state after actions (shows newly triggered cooldowns)
+
+Color coding:
+- 🟢 Green: Available (cooldown = 0)
+- 🟡 Yellow: 1 turn remaining
+- 🟠 Orange: 2 turns remaining
+- 🔴 Red: 3+ turns remaining
 
 ### Tracking Algorithm Decisions
 
@@ -287,7 +310,8 @@ Benchmark.addCombo(totalScore, actionCount, description, positionScore, actionSc
 - `createPanel()` - Panel creation
 - `injectPanel()` - Panel injection (bottom or side mode)
 - `render()` - Main render function
-- `renderOverview()` - Overview tab
+- `renderOverview()` - Overview tab (includes cooldowns section)
+- `renderCooldownsList()` - Cooldown items with progress bars
 - `renderCombos()` - Combos tab
 - `renderProfiler()` - Profiler tab
 - `renderLogs()` - Logs tab

@@ -848,6 +848,17 @@
 
         // Bind data-action handlers (replaces inline onclick for cross-context safety)
         bindDataActionHandlers();
+
+        // Bind cooldown tabs
+        document.querySelectorAll('.lwa-cd-tab').forEach(tab => {
+            tab.onclick = () => {
+                const tabName = tab.dataset.cdTab;
+                document.querySelectorAll('.lwa-cd-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.lwa-cd-tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelector(`[data-cd-content="${tabName}"]`)?.classList.add('active');
+            };
+        });
     }
 
     function bindDataActionHandlers() {
@@ -1131,6 +1142,57 @@
                     <div class="lwa-ops-pct" style="color:${opsPct > 90 ? C.red : opsPct > 70 ? C.orange : C.green}">${opsPct}%</div>
                 </div>
                 ${LWA.state.turnData.length > 1 ? '<div class="lwa-chart-container"><canvas id="ops-chart"></canvas></div>' : ''}
+            </div>
+
+            ${(d.cooldownsStart && d.cooldownsStart.length > 0) || (d.cooldownsEnd && d.cooldownsEnd.length > 0) ? `
+            <div class="lwa-section lwa-cooldowns-section" style="margin-top:14px">
+                <div class="lwa-section-title">⏱️ Cooldowns</div>
+                <div class="lwa-cd-tabs">
+                    <button class="lwa-cd-tab active" data-cd-tab="start">Début de tour</button>
+                    <button class="lwa-cd-tab" data-cd-tab="end">Fin de tour</button>
+                </div>
+                <div class="lwa-cd-tab-content active" data-cd-content="start">
+                    ${LWA.renderCooldownsList(d.cooldownsStart || [])}
+                </div>
+                <div class="lwa-cd-tab-content" data-cd-content="end">
+                    ${LWA.renderCooldownsList(d.cooldownsEnd || [])}
+                </div>
+                <div class="lwa-cd-legend">
+                    <span class="lwa-cd-legend-item ready"><span class="lwa-cd-dot"></span>Disponible</span>
+                    <span class="lwa-cd-legend-item soon"><span class="lwa-cd-dot"></span>1 tour</span>
+                    <span class="lwa-cd-legend-item almost"><span class="lwa-cd-dot"></span>2 tours</span>
+                    <span class="lwa-cd-legend-item"><span class="lwa-cd-dot"></span>3+ tours</span>
+                </div>
+            </div>
+            ` : ''}
+        `;
+    }
+
+    LWA.renderCooldownsList = function(cooldowns) {
+        if (!cooldowns || cooldowns.length === 0) {
+            return '<div class="lwa-cd-empty">Aucun item avec cooldown</div>';
+        }
+        return `
+            <div class="lwa-cooldowns-grid">
+                ${[...cooldowns].sort((a, b) => a.current - b.current).map(cd => {
+                    const pctRemaining = Math.round((cd.current / cd.max) * 100);
+                    const pctComplete = 100 - pctRemaining;
+                    const isReady = cd.current === 0;
+                    const isSoon = cd.current === 1;
+                    const isAlmost = cd.current === 2;
+                    const stateClass = isReady ? 'ready' : isSoon ? 'soon' : isAlmost ? 'almost' : '';
+                    return `
+                    <div class="lwa-cooldown-item ${stateClass}">
+                        <div class="lwa-cd-icon">${isReady ? '✓' : cd.current}</div>
+                        <div class="lwa-cd-name">${cd.name}</div>
+                        <div class="lwa-cd-bar-container">
+                            <div class="lwa-cd-bar">
+                                <div class="lwa-cd-fill ${stateClass}" style="width:${pctComplete}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }).join('')}
             </div>
         `;
     }
