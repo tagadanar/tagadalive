@@ -556,6 +556,206 @@
             border: 1px solid var(--border, #ddd);
         }
 
+        /* ===== COOLDOWNS ===== */
+        .lwa-cooldowns-section {
+            background: var(--background-header, #f5f5f5);
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .lwa-cd-tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+
+        .lwa-cd-tab {
+            flex: 1;
+            padding: 6px 12px;
+            border: none;
+            background: var(--pure-white, #fff);
+            border: 1px solid var(--border, #ddd);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-color-secondary, #666);
+            transition: all 0.15s;
+        }
+
+        .lwa-cd-tab:hover {
+            background: #f0f0f0;
+        }
+
+        .lwa-cd-tab.active {
+            background: #5fad1b;
+            color: #fff;
+            border-color: #5fad1b;
+        }
+
+        .lwa-cd-tab-content {
+            display: none;
+        }
+
+        .lwa-cd-tab-content.active {
+            display: block;
+        }
+
+        .lwa-cd-empty {
+            text-align: center;
+            color: var(--text-color-secondary, #666);
+            font-size: 12px;
+            padding: 12px;
+        }
+
+        .lwa-cd-count {
+            font-size: 11px;
+            background: rgba(255, 136, 0, 0.2);
+            color: #ff8800;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 6px;
+        }
+
+        .lwa-cooldowns-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .lwa-cooldown-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            background: var(--pure-white, #fff);
+            border-radius: 4px;
+            border: 1px solid var(--border, #ddd);
+            border-left: 3px solid #e22424;
+            min-width: 140px;
+            flex: 1 1 140px;
+            max-width: 200px;
+        }
+
+        .lwa-cooldown-item.almost {
+            border-left-color: #ff8800;
+        }
+
+        .lwa-cooldown-item.soon {
+            border-left-color: #f0c040;
+        }
+
+        .lwa-cooldown-item.ready {
+            border-left-color: #5fad1b;
+            background: rgba(95, 173, 27, 0.08);
+        }
+
+        .lwa-cd-icon {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #e22424;
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .lwa-cooldown-item.almost .lwa-cd-icon {
+            background: #ff8800;
+        }
+
+        .lwa-cooldown-item.soon .lwa-cd-icon {
+            background: #f0c040;
+            color: #333;
+        }
+
+        .lwa-cooldown-item.ready .lwa-cd-icon {
+            background: #5fad1b;
+            font-size: 12px;
+        }
+
+        .lwa-cd-name {
+            font-weight: 600;
+            font-size: 11px;
+            color: var(--text-color, #333);
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .lwa-cd-bar-container {
+            width: 40px;
+            flex-shrink: 0;
+        }
+
+        .lwa-cd-bar {
+            height: 4px;
+            background: #ddd;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .lwa-cd-fill {
+            height: 100%;
+            background: #e22424;
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+
+        .lwa-cd-fill.almost {
+            background: #ff8800;
+        }
+
+        .lwa-cd-fill.soon {
+            background: #f0c040;
+        }
+
+        .lwa-cd-fill.ready {
+            background: #5fad1b;
+        }
+
+        /* Légende */
+        .lwa-cd-legend {
+            display: flex;
+            gap: 12px;
+            margin-top: 10px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border, #ddd);
+            justify-content: center;
+        }
+
+        .lwa-cd-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            color: var(--text-color-secondary, #666);
+        }
+
+        .lwa-cd-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e22424;
+        }
+
+        .lwa-cd-legend-item.ready .lwa-cd-dot {
+            background: #5fad1b;
+        }
+
+        .lwa-cd-legend-item.soon .lwa-cd-dot {
+            background: #f0c040;
+        }
+
+        .lwa-cd-legend-item.almost .lwa-cd-dot {
+            background: #ff8800;
+        }
+
         /* ===== AGGREGATED STATS ===== */
         .lwa-agg-grid {
             display: grid;

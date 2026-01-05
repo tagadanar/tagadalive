@@ -271,6 +271,8 @@
             combos: [],
             methods: [],
             logs: [],
+            cooldownsStart: [],
+            cooldownsEnd: [],
             funcCount: 0,
             displayOps: 0
         };
@@ -408,6 +410,36 @@
             else if (p.startsWith('l:')) {
                 turn.logs.push(p.substring(2));
             }
+            else if (p.startsWith('cds:')) {
+                // Format: cds:name,current,max;... (start of turn)
+                const cdItems = p.substring(4).split(';');
+                for (const cdItem of cdItems) {
+                    if (!cdItem) continue;
+                    const parts = cdItem.split(',');
+                    if (parts.length >= 3) {
+                        turn.cooldownsStart.push({
+                            name: parts[0],
+                            current: parseInt(parts[1]) || 0,
+                            max: parseInt(parts[2]) || 0
+                        });
+                    }
+                }
+            }
+            else if (p.startsWith('cde:')) {
+                // Format: cde:name,current,max;... (end of turn)
+                const cdItems = p.substring(4).split(';');
+                for (const cdItem of cdItems) {
+                    if (!cdItem) continue;
+                    const parts = cdItem.split(',');
+                    if (parts.length >= 3) {
+                        turn.cooldownsEnd.push({
+                            name: parts[0],
+                            current: parseInt(parts[1]) || 0,
+                            max: parseInt(parts[2]) || 0
+                        });
+                    }
+                }
+            }
             // Legacy format support
             else if (p.startsWith('ops:')) {
                 const m = p.match(/ops:(\d+)\/(\d+)/);
@@ -494,7 +526,9 @@
                     avg: Math.round(m[1] / m[2]),
                     pct: 0
                 })),
-                logs: d.logs || []
+                logs: d.logs || [],
+                cooldownsStart: (d.cooldownsStart || []).map(c => ({ name: c.name, current: c.current, max: c.max })),
+                cooldownsEnd: (d.cooldownsEnd || []).map(c => ({ name: c.name, current: c.current, max: c.max }))
             };
         } catch (e) {
             return null;

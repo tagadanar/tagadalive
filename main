@@ -16,11 +16,17 @@ AI.mode = AI.MODE_UNIFIED_MCTS
 // Initialize game state
 init()
 
+// Collect cooldowns at START of turn (before actions)
+Benchmark.collectCooldownsStart(Fight.self.items, Fight.self.id)
+
 // Get best combo using selected algorithm
 Combo combo = AI.getCombo()
 
 // Execute the combo
 combo.play()
+
+// Collect cooldowns at END of turn (after actions)
+Benchmark.collectCooldownsEnd(Fight.self.items, Fight.self.id)
 
 // Output debug data (choose one):
 // - display()     : JSON format for Tampermonkey panel
