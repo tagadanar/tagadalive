@@ -9,13 +9,13 @@
 class ScoringConfig {
 
 	// === Combat Values ===
-	static integer KILL_VALUE = 2000
-	static integer DEATH_VALUE = -2000
+	static integer KILL_VALUE = 5000
+	static integer DEATH_VALUE = -2500
 	static integer MAX_FIGHT_TURNS = 66
 	static integer MAX_DURATION = 8 // max index in duration_mitigation maps
 
 	// === CanDie Thresholds ===
-	static real CANDIE_MODIFIER = 10.0   // massive boost when ally might die
+	static real CANDIE_MODIFIER = 5.0   // massive boost when ally might die
 	static real CANDIE_THRESHOLD = 0.8   // ally.hp < danger * threshold → canDie
 	static real IGNORE_DANGER_RATIO = 0.1 // ignore damage < 10% of current life
 
