@@ -139,16 +139,6 @@ class Scoring {
 			}
 		}
 
-		// Apply lifeRatio modifier to shields for allies only when enemy has STR
-		// Without physical threat, shields are worth less (0.5x)
-		if (entity.isFriend && (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD)) {
-			if (BattleState.enemyHasStr) {
-				base *= ScoringModifiers.getLifeRatioModifier(entity)
-			} else {
-				base *= 0.5
-			}
-		}
-
 		// Apply modifiers for allies only (not self, not enemies)
 		if (entity.isFriend && entity != Fight.self) {
 			// canDie modifier: massive boost when ally might die
@@ -186,7 +176,7 @@ class Scoring {
 		}
 
 		// shieldStatus modifier: adjust based on current shield levels
-		if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
+		if (BattleState.enemyHasStr && (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD)) {
 			base *= ScoringModifiers.getShieldStatusModifier(entity, stat)
 		}
 

@@ -227,9 +227,13 @@ class ScoringModifiers {
 			}
 
 			// Leek with low/no shields when enemy has STR
-			if (eType == ENTITY_LEEK && BattleState.enemyHasStr) {
-				if (currentShield <= 0) return 3.0
-				if (currentShield <= 80) return 2.0
+			if (eType == ENTITY_LEEK){
+				if(BattleState.enemyHasStr) {
+					if (currentShield <= 0) return 3.0
+					if (currentShield <= 80) return 2.0
+				} else {
+					return 0.5
+				}
 			}
 		} else {
 			// Enemy: vuln value - based on whether WE have STR to exploit it
