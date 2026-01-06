@@ -63,7 +63,7 @@ Consequences.registerHandlers([
 
 		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg
 			*(1+(entitySource.getCurrentPwr(conseq)/100)) *effect.duration)
-		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.HPTIME, eot)
 
 		// Inline passive for poison taken (target's passives)
@@ -129,7 +129,7 @@ Consequences.registerHandlers([
 
 	EFFECT_AFTEREFFECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.HP, -value)
 		conseq.add(entityTarget, Stats.HPTIME, eot)
 

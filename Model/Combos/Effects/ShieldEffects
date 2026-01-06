@@ -13,12 +13,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 			}
 		}
 		integer value = round(effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 	},
 
@@ -26,45 +26,45 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.RELSHIELD, eot)
 			}
 		}
 		integer value = round(effect.avg*(1+(entitySource.getCurrentRst(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.RELSHIELD, value)
 	},
 
 	EFFECT_ABSOLUTE_VULNERABILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Always stackable currently - no check needed
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 	},
 
 	EFFECT_VULNERABILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Always stackable currently - no check needed
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.RELSHIELD, eot)
 	},
 
 	EFFECT_STEAL_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Always stackable currently - no check needed
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 	},
 
 	EFFECT_RAW_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Flat per-attack buff (entityTarget is caster due to modifCaster)
-		EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.ABSSHIELD, eot)
 	},
 
 	EFFECT_RAW_RELATIVE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Flat per-attack buff (entityTarget is caster due to modifCaster)
-		EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.RELSHIELD, eot)
 	},
 
@@ -72,12 +72,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.DMGRETURN, eot)
 			}
 		}
 		integer value = round(effect.avg *(1+(entitySource.getCurrentAgi(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.DMGRETURN, eot)
 	}
 ])

@@ -1,6 +1,7 @@
 class Consequences {
 	Map<Entity, Map<integer, integer>> _alterations = [:]// [entity:[caracteristic:value]]
 	Map<Entity, Map<Item, Array<EffectOverTime>>> _altEffects = [:]// [entity:[item:[EffectOverTime]]]
+	Map<Entity, Map<integer, integer>> _effectTypeAlterations = [:]// [entity:[effectType:valueAltered]]
 	Map<Entity, Entity> _killed = [:]
 	real? score = null
 	boolean isAlteringDanger = false
@@ -39,6 +40,7 @@ class Consequences {
 		this.currentTP = consequences.currentTP
 		this._alterations = clone(consequences._alterations, 2) as Map<Entity, Map<integer, integer>>
 		this._altEffects = clone(consequences._altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
+		this._effectTypeAlterations = clone(consequences._effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
 		this._killed = clone(consequences._killed) as Map<Entity, Entity>
 		this.hashcode = consequences.hashcode
 		this.score = consequences.score != null ? consequences.score : 0.0  // Inherit parent score
@@ -181,7 +183,25 @@ class Consequences {
 		if(_alterations[entity] == null) return null
 		return _alterations[entity]![key]
 	}
-	
+
+	/**
+	 * Get how much of an effect type has already been altered/countered in simulation.
+	 * Used by removal/reduction effects (Antidote, Liberation, Manumission) to avoid double-counting.
+	 */
+	integer getEffectTypeAlteration(Entity entity, integer effectType){
+		if(!_effectTypeAlterations[entity]) return 0
+		return _effectTypeAlterations[entity]![effectType]  // null coerces to 0
+	}
+
+	/**
+	 * Track that we altered/countered some amount of an effect type.
+	 * Called after processing an effect to record what was handled.
+	 */
+	void addEffectTypeAlteration(Entity entity, integer effectType, integer value){
+		if(!_effectTypeAlterations[entity]) _effectTypeAlterations[entity] = [:]
+		_effectTypeAlterations[entity]![effectType] += value
+	}
+
 	real? getScore(){
 		return this.score
 	}
