@@ -239,19 +239,8 @@ class ScoringModifiers {
 			// Enemy: vuln value - based on whether WE have STR to exploit it
 			if (!BattleState.allyHasStr) {
 				return 0.5  // No STR, vuln is less valuable
-			}
-
-			// Smooth scaling from 2x (at 0) to 1x (at threshold)
-			// ABSSHIELD: 0-100 range, RELSHIELD: 0-20 range
-			if (stat == Stats.ABSSHIELD) {
-				if (currentShield <= 0) return 2.0
-				if (currentShield >= 100) return 1.0
-				return 2.0 - (currentShield / 100.0)
 			} else {
-				// RELSHIELD: 0-20 range
-				if (currentShield <= 0) return 2.0
-				if (currentShield >= 20) return 1.0
-				return 2.0 - (currentShield / 20.0)
+				return 2
 			}
 		}
 

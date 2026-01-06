@@ -176,7 +176,7 @@ class Scoring {
 		}
 
 		// shieldStatus modifier: adjust based on current shield levels
-		if (BattleState.enemyHasStr && (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD)) {
+		if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
 			base *= ScoringModifiers.getShieldStatusModifier(entity, stat)
 		}
 
