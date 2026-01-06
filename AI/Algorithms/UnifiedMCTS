@@ -179,7 +179,7 @@ class UnifiedMCTSNode {
 class UnifiedMCTS {
 	// Configuration
 	static real EXPLORATION_CONSTANT = 1.414    // sqrt(2), standard UCB1
-	static integer MAX_ITERATIONS = 10000       // Let budget be the real limit
+	static integer MAX_ITERATIONS = 100000       // Let budget be the real limit
 	static integer MAX_ACTIONS_PER_CELL = 8     // Prune actions per cell
 	static integer SAFETY_BUFFER = 250000       // Keep 250k ops for combo execution
 	static boolean USE_PTS_SEEDING = true       // Enable PTS priors
