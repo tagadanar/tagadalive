@@ -15,7 +15,7 @@ class EntityCoefs {
 	// Bulb types have individual entries for fine-grained control
 	static Map<integer, Map<integer, real>> baseCoefs = [
 		ENTITY_LEEK: [
-			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 2.0,
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
 			Stats.ABSSHIELD: 3.0, Stats.RELSHIELD: 6.0, Stats.DMGRETURN: 3.0,
 			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 0.8,

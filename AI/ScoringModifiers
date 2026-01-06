@@ -236,11 +236,11 @@ class ScoringModifiers {
 				}
 			}
 		} else {
-			// Enemy: vuln value - based on whether WE have STR to exploit it
+			// Enemy: libe/vuln value - based on whether WE have STR to exploit it
 			if (!BattleState.allyHasStr) {
 				return 0.5  // No STR, vuln is less valuable
 			} else {
-				return 2
+				return 3.0
 			}
 		}
 
