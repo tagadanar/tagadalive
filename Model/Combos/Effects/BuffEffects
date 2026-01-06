@@ -14,12 +14,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.STR, eot)
 			}
 		}
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.STR, eot)
 	},
 
@@ -27,12 +27,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.MGC, eot)
 			}
 		}
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MGC, eot)
 	},
 
@@ -40,12 +40,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.AGI, eot)
 			}
 		}
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.AGI, eot)
 	},
 
@@ -53,12 +53,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.WSD, eot)
 			}
 		}
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.WSD, eot)
 	},
 
@@ -66,12 +66,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.RST, eot)
 			}
 		}
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.RST, eot)
 	},
 
@@ -79,12 +79,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.TP, eot)
 			}
 		}
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.TP, eot)
 	},
 
@@ -92,17 +92,17 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.MP, eot)
 			}
 		}
 		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MP, eot)
 	},
 
 	EFFECT_RAW_BUFF_POWER: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.PWR, eot)
 	},
 
@@ -118,12 +118,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.STR, eot)
 			}
 		}
 		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.STR, eot)
 	},
 
@@ -131,12 +131,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.AGI, eot)
 			}
 		}
 		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.AGI, eot)
 	},
 
@@ -144,12 +144,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.WSD, eot)
 			}
 		}
 		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.WSD, eot)
 	},
 
@@ -157,12 +157,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.RST, eot)
 			}
 		}
 		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.RST, eot)
 	},
 
@@ -170,12 +170,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.TP, eot)
 			}
 		}
 		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.TP, eot)
 	},
 
@@ -183,12 +183,12 @@ Consequences.registerHandlers([
 		if(!effect.stackable){
 			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 				conseq.add(entityTarget, Stats.MP, eot)
 			}
 		}
 		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MP, eot)
 	}
 ])

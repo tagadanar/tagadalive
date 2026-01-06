@@ -11,12 +11,12 @@ Consequences.registerHandlers([
 			if(!effect.stackable){
 				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
 				if(itemEffect){
-					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration)
+					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
 					conseq.add(entityTarget, Stats.HPTIME, eot)
 				}
 			}
 			integer value = round(effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg)
-			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 			conseq.add(entityTarget, Stats.HPTIME, eot)
 		} else { // HP (instant heal)
 			integer value = round(effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg)
