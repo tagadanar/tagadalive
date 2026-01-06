@@ -78,7 +78,9 @@ class Consequences {
 			if(this._killed[target]) continue
 			// For self in AOE, use simulated position (this.currentCell) not real position (target.cell)
 			integer targetCellId = (target == Fight.self) ? this.currentCell.id : target.cell.id
-			real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(action.to.id, targetCellId)) : 1.0
+			// For self-cast AOE, center is caster's simulated position, not sentinel cell
+			Cell aoeCenterCell = (action.to == Fight.selfCell) ? this.currentCell : action.to
+			real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(aoeCenterCell.id, targetCellId)) : 1.0
 			if(ratioDmg<=0){
 				debugE('Bug in Consequences: ratioDmg<=0 for target ' + target + ' at cell ' + targetCellId)
 				debugE(action)

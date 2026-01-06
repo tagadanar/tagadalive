@@ -2,15 +2,25 @@ class Targets{
 
 	static Array<Entity> getTargets(Action action){
 		Array<Entity> targets
-		if(action.to == Fight.selfCell) targets = [Fight.self]
+		if(action.to == Fight.selfCell) {
+			if(action.item.isAOE) {
+				// For AOE self-cast, get targets around actual caster position
+				Cell actualPosition = (action.from == Fight.selfCell) ? Fight.self.cell : action.from
+				targets = getItemTargets(action.item, actualPosition)
+				// Ensure self is included (may not be in entity list)
+				if(!inArray(targets, Fight.self)) push(targets, Fight.self)
+			} else {
+				targets = [Fight.self]
+			}
+		}
 		else{
 			if(action.item.area == AREA_LASER_LINE)
 				targets = Targets.getLazerTargetsFromCell(action.item, action.from, action.to)
 			else
 				targets = getItemTargets(action.item, action.to)
 		}
-		// ajout de moi même si je suis dans l'aoe
-		if(action.item.isAOE && action.item.onCaster){
+		// ajout de moi même si je suis dans l'aoe (non-self-cast only)
+		if(action.item.isAOE && action.item.onCaster && action.to != Fight.selfCell){
 			for(Cell cell in action.to.getAreaCells(action.item.area)){
 				if(action.from == cell){
 					push(targets, Fight.self)
