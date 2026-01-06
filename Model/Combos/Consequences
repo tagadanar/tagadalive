@@ -152,13 +152,13 @@ class Consequences {
 			integer tpGain = round(passives[EFFECT_KILL_TO_TP]!)
 			if(tpGain > 0) this.add(Fight.self, Stats.TP, tpGain)
 		}
-		// Chest power gain (all fight types): 10 + 50% pwr + type bonus (wood +10, iron +50, diamond +100)
+		// Chest power gain (all fight types): 50% pwr + type bonus (wood +10, iron +50, diamond +100)
 		if(entity.entityType == ENTITY_CHEST) {
 			integer chestBonus = 0
 			if(entity.name == "wood_chest") chestBonus = 10
 			else if(entity.name == "iron_chest") chestBonus = 50
 			else if(entity.name == "diamond_chest") chestBonus = 100
-			integer pwrGain = 10 + chestBonus + round(entity.pwr * 0.5)
+			integer pwrGain = chestBonus + round(entity.pwr * 0.5)
 			this.add(Fight.self, Stats.PWR, pwrGain)
 		}
 		// BR power gain (leek = 10 + 50% pwr, bulb = 2 + 50% pwr)
