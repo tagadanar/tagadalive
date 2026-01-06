@@ -115,7 +115,7 @@ class PTS {
 
 		// Get validated attack cells from MapAction index (O(1) lookup)
 		// These cells are already validated for range, LOS, and reachability
-		Array<Cell>? attackCells = MapAction.getAttackCellsForEntity(item, target.id)
+		Map<Cell, Cell>? attackCells = MapAction.getAttackCellsForEntity(item, target.id)
 		if (attackCells == null || count(attackCells!) == 0) return null
 
 		Cell targetCell = target.cell
