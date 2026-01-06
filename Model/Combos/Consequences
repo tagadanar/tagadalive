@@ -87,18 +87,16 @@ class Consequences {
 			}
 		}
 
-		// actualisation des MP en cas de self boost de mp
-		integer? boostMP = this.getAlteration(Fight.self, Stats.MP)  // Use safe accessor
-		// si je viens de m'ajouter des MP
-		if(boostMP != null && boostMP > boostMPbefore){
-			this.currentMP += boostMP - boostMPbefore // j'ajoute les mp gagnés
+		// actualisation des MP en cas de self boost/debuff de mp (e.g., Liberation reducing Leather Boots)
+		integer? boostMP = this.getAlteration(Fight.self, Stats.MP)
+		if(boostMP != boostMPbefore){
+			this.currentMP += boostMP - boostMPbefore  // null coerces to 0
 		}
 
-		// actualisation des TP en cas de self boost de tp
+		// actualisation des TP en cas de self boost/debuff de tp (e.g., Liberation reducing Motivation)
 		integer? boostTP = this.getAlteration(Fight.self, Stats.TP)
-		// si je viens de m'ajouter des TP
-		if(boostTP != null && boostTP > boostTPbefore){
-			this.currentTP += boostTP - boostTPbefore // j'ajoute les tp gagnés
+		if(boostTP != boostTPbefore){
+			this.currentTP += boostTP - boostTPbefore  // null coerces to 0
 		}
 
 		// Cooldown opportunity cost: penalize using CD items for marginal gains
