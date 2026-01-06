@@ -81,6 +81,34 @@ When calculating danger from enemy attacks, account for their passive bonuses:
 - [ ] **Consequences.ls:25-26** - Deep clone on every action evaluation
 - [ ] **main.ls:31-39** - `failSafe()` uses force-unwrap on items that may not be equipped
 
+### Consequences Clone Optimization - Copy-on-Write Pattern
+
+**Problem**: Deep clone on every action evaluation (~150×/MCTS search = 2-3M ops/search).
+
+**Proposed Solution**: Copy-on-Write (CoW) pattern - shallow copy initially, only deep clone when modifying.
+
+```javascript
+// Shallow copy initially
+this._alterations = consequences._alterations
+this._alterationsModified = false
+
+// Only clone when writing
+function setAlteration(entity, stat, value) {
+    if (!this._alterationsModified) {
+        this._alterations = clone(this._alterations, 2)
+        this._alterationsModified = true
+    }
+    // ... write
+}
+```
+
+**Needs deeper study**:
+- [ ] Profile actual write frequency vs read-only paths in MCTS/PTS/Beam
+- [ ] Identify which fields are most frequently modified (_alterations, _altEffects, _killed?)
+- [ ] Measure baseline operation count to quantify improvement
+- [ ] Consider object pooling as alternative (reuse Consequences objects)
+- [ ] Risk: CoW adds branching overhead - only beneficial if writes are infrequent
+
 ## Code Quality
 
 - [ ] Standardize comments language (mixed French/English)
