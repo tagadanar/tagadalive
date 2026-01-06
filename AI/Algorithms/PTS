@@ -194,12 +194,22 @@ class PTS {
 			else push(other, opp)
 		}
 
+		// TODO: Future improvement - test priority-ordered sequences explicitly
+		// Instead of pure greedy, could try:
+		// 1. Build "template sequences" like [Liberation → buff → damage]
+		// 2. For each template, greedily fill with best items at each priority level
+		// 3. Compare final scores of template-built combos vs pure greedy
+		// This would guarantee Liberation→Rifle ordering without sacrificing score optimization
+
+		// Sort by score first, priority as tiebreaker (PTS stays greedy/score-focused)
 		Array<Opportunity> sortedOther = arraySort(other, (Opportunity a, Opportunity b) => integer|real {
-			return Sort.desc(a.baseScore, b.baseScore)
+			if (a.baseScore != b.baseScore) return Sort.desc(a.baseScore, b.baseScore)
+			return Sort.asc(a.item.priority, b.item.priority)  // Lower priority first as tiebreaker
 		}) as Array<Opportunity>
 
 		Array<Opportunity> selfCastSorted = arraySort(selfCast, (Opportunity a, Opportunity b) => integer|real {
-			return Sort.desc(a.baseScore, b.baseScore)
+			if (a.baseScore != b.baseScore) return Sort.desc(a.baseScore, b.baseScore)
+			return Sort.asc(a.item.priority, b.item.priority)
 		}) as Array<Opportunity>
 
 		Array<Opportunity> sorted = []

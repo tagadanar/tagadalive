@@ -442,9 +442,12 @@ class MCTS {
 			return viable
 		}
 
-		// Sort other actions by score descending
+		// Sort by priority first (lower = earlier), score as tiebreaker
+		// This guides MCTS exploration toward correct action sequences (buffs before damage)
 		Array<Action> sorted = arraySort(other, (Action x, Action y) => integer|real {
-			return Sort.desc(x.score!, y.score!)
+			if (x.item.priority != y.item.priority)
+				return Sort.asc(x.item.priority, y.item.priority)  // Lower priority first
+			return Sort.desc(x.score!, y.score!)  // Then higher score
 		}) as Array<Action>
 
 		// Take top K from other, keep all self-cast
