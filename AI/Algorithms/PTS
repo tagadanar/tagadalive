@@ -62,11 +62,11 @@ class PTS {
 					// Collect scores per cell for priority calculation
 					// Skip self-cast opportunities (Fight.selfCell is a sentinel, not a real cell)
 					if (!opp!.isSelfCast) {
-						for (Cell cell in opp!.attackCells) {
-							if (cellScoresCollector[cell] == null) {
-								cellScoresCollector[cell] = []
+						for (Cell attackCell : Cell aimCell in opp!.attackCells) {
+							if (cellScoresCollector[attackCell] == null) {
+								cellScoresCollector[attackCell] = []
 							}
-							push(cellScoresCollector[cell]!, opp!.baseScore)
+							push(cellScoresCollector[attackCell]!, opp!.baseScore)
 						}
 					}
 				}
@@ -121,12 +121,12 @@ class PTS {
 		// Find closest reachable cell for base score calculation
 		Cell? bestReachableCell = null
 		integer bestDist = 99999
-		for (Cell cell in attackCells!) {
+		for (Cell attackCell : Cell aimCell in attackCells!) {
 			// All cells in the index are reachable, find closest
-			integer? dist = Fight.self.reachableCells[cell]
+			integer? dist = Fight.self.reachableCells[attackCell]
 			if (dist != null && dist < bestDist) {
 				bestDist = dist!
-				bestReachableCell = cell
+				bestReachableCell = attackCell
 			}
 		}
 
