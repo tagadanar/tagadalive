@@ -47,7 +47,8 @@ class MapPosition {
 	 */
 	static void _refreshNearestEnemyPathDist() {
 		if (_nearest_enemy != null) {
-			_nearest_enemy_path_dist = MapPath.getCachedReachableCells(_nearest_enemy!.cell, 100, [])
+			// Ignore all entities to get pure terrain path distance
+			_nearest_enemy_path_dist = MapPath.getCachedReachableCells(_nearest_enemy!.cell, 100, mapKeys(Board.entityCells))
 		} else {
 			_nearest_enemy_path_dist = null
 		}
