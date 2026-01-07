@@ -116,10 +116,7 @@ class PTS {
 		// Get validated attack cells from MapAction index (O(1) lookup)
 		// These cells are already validated for range, LOS, and reachability
 		Map<Cell, Cell>? attackCells = MapAction.getAttackCellsForEntity(item, target.id)
-		if (attackCells == null || count(attackCells!) == 0) return null
-
-		Cell targetCell = target.cell
-		boolean isAOE = item.area != AREA_POINT && item.area != AREA_LASER_LINE
+		if (attackCells == null || mapSize(attackCells!) == 0) return null
 
 		// Find closest reachable cell for base score calculation
 		Cell? bestReachableCell = null
@@ -135,31 +132,16 @@ class PTS {
 
 		if (bestReachableCell == null) return null
 
-		// Get aim cell (for AOE, use MapAction's stored aimCell)
-		Cell aimCell
-		if (isAOE) {
-			Cell? storedAim = MapAction.getAimCellForEntity(item, target.id, bestReachableCell!)
-			aimCell = storedAim != null ? storedAim! : targetCell
-		} else {
-			aimCell = targetCell
-		}
+		// Get aim cell from map, fallback to target's cell if not found
+		Cell? aimLookup = attackCells![bestReachableCell!]
+		Cell aimCell = aimLookup != null ? aimLookup! : target.cell
 
 		// Compute base score
 		Action tempAction = Action(item, bestReachableCell!, aimCell)
 		if (tempAction.score! <= 0) return null
 
-		// Build cellToAim map for AOE (Opportunity needs this for getAimCell)
-		if (isAOE) {
-			Map<Cell, Cell> cellToAim = [:]
-			for (Cell c in attackCells!) {
-				Cell? aim = MapAction.getAimCellForEntity(item, target.id, c)
-				if (aim != null) cellToAim[c] = aim!
-				else cellToAim[c] = targetCell
-			}
-			return Opportunity(target, item, attackCells!, targetCell, tempAction.score!, cellToAim)
-		} else {
-			return Opportunity(target, item, attackCells!, targetCell, tempAction.score!)
-		}
+		// Return opportunity with unified attackCells map (attackCell → aimCell)
+		return Opportunity(target, item, attackCells!, tempAction.score!)
 	}
 
 	/*
