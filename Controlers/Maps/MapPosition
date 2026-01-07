@@ -111,8 +111,7 @@ class MapPosition {
 		}
 
 		var enemies = Fight.getEnemiesLeeksAlive()
-		integer enemyCount = 0
-		for (var x in enemies) enemyCount++  // Manual count - count() on Map<int,Entity> returns wrong value
+		integer enemyCount = mapSize(enemies)
 		if (enemyCount == 0) enemyCount = 1
 
 		real enemyCoef

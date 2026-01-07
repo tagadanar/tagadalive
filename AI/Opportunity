@@ -10,37 +10,20 @@
 class Opportunity {
 	Entity target              // The entity we want to affect
 	Item item                  // The item to use
-	Array<Cell> attackCells    // Cells from which we can hit target with item
-	Cell? targetCell           // Cell to aim at (entity cell for point, may differ for AOE)
+	Map<Cell, Cell> attackCells // attackCell → aimCell mapping (unified index)
 	real baseScore             // Quick estimate score (no consequence chaining)
 	boolean isSelfCast         // True if self-cast action (buff/heal on self)
-	Map<Cell, Cell>? aimCells  // For AOE: attackCell → best aimCell (null for non-AOE)
 
 	/*
 	 * Constructor for a standard opportunity (target + item + cells)
-	 * For non-AOE items, aimCells is null (all attackCells aim at targetCell)
+	 * attackCells maps each attack cell to its corresponding aim cell
 	 */
-	constructor(Entity target, Item item, Array<Cell> attackCells, Cell targetCell, real baseScore) {
+	constructor(Entity target, Item item, Map<Cell, Cell> attackCells, real baseScore) {
 		this.target = target
 		this.item = item
 		this.attackCells = attackCells
-		this.targetCell = targetCell
 		this.baseScore = baseScore
 		this.isSelfCast = (target == Fight.self && item.minRange == 0)
-		this.aimCells = null
-	}
-
-	/*
-	 * Constructor for AOE opportunity with per-cell aim mapping
-	 */
-	constructor(Entity target, Item item, Array<Cell> attackCells, Cell targetCell, real baseScore, Map<Cell, Cell> aimCells) {
-		this.target = target
-		this.item = item
-		this.attackCells = attackCells
-		this.targetCell = targetCell
-		this.baseScore = baseScore
-		this.isSelfCast = false
-		this.aimCells = aimCells
 	}
 
 	/*
@@ -49,23 +32,18 @@ class Opportunity {
 	constructor(Entity target, Item item, real baseScore) {
 		this.target = target
 		this.item = item
-		this.attackCells = [Fight.selfCell]
-		this.targetCell = Fight.selfCell
+		this.attackCells = [Fight.selfCell: Fight.selfCell]
 		this.baseScore = baseScore
 		this.isSelfCast = true
-		this.aimCells = null
 	}
 
 	/*
 	 * Get the aim cell for a given attack cell.
-	 * For non-AOE: returns targetCell
-	 * For AOE: returns the mapped aimCell for optimal damage
+	 * Falls back to target's cell if not found (same as old targetCell behavior).
 	 */
 	Cell getAimCell(Cell attackCell) {
-		if (this.aimCells != null && this.aimCells![attackCell] != null) {
-			return this.aimCells![attackCell]!
-		}
-		return this.targetCell!
+		Cell? aim = this.attackCells[attackCell]
+		return aim != null ? aim! : this.target.cell
 	}
 
 	/*
@@ -149,6 +127,6 @@ class Opportunity {
 	}
 
 	string string() {
-		return "<Opp " + this.item.name + "→" + this.target.name + " score:" + round(this.baseScore) + " cells:" + count(this.attackCells) + ">"
+		return "<Opp " + this.item.name + "→" + this.target.name + " score:" + round(this.baseScore) + " cells:" + mapSize(this.attackCells) + ">"
 	}
 }
