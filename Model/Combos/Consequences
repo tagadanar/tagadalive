@@ -158,15 +158,10 @@ class Consequences {
 		}
 		// Chest power gain (all fight types): 50% pwr + type bonus (wood +10, iron +50, diamond +100)
 		if(entity.entityType == ENTITY_CHEST) {
-			integer chestBonus = 0
-			if(entity.name == "wood_chest") chestBonus = 10
-			else if(entity.name == "iron_chest") chestBonus = 50
-			else if(entity.name == "diamond_chest") chestBonus = 100
-			integer pwrGain = chestBonus + round(entity.pwr * 0.5)
-			this.add(Fight.self, Stats.PWR, pwrGain)
+			this.add(Fight.self, Stats.PWR, Fight.chestPwrGained[entity.name])
 		}
 		// BR power gain (leek = 10 + 50% pwr, bulb = 2 + 50% pwr)
-		else if(Fight.isBattleRoyale) {
+		if(Fight.isBattleRoyale) {
 			integer basePwr = entity.isBulb ? 2 : 10
 			integer pwrGain = basePwr + round(entity.pwr * 0.5)
 			this.add(Fight.self, Stats.PWR, pwrGain)
