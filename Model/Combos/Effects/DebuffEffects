@@ -58,6 +58,10 @@ Consequences.registerHandlers([
 		// First, process simulated effects (buffs/debuffs added earlier in this combo)
 		// Must iterate BEFORE adding counter-effects to avoid reducing our own counters
 		if(conseq._altEffects[entityTarget]) {
+			// Pre-create entry for this item to avoid ConcurrentModificationException when adding counter-effects
+			if(!conseq._altEffects[entityTarget]![effect.item]) {
+				conseq._altEffects[entityTarget]![effect.item] = []
+			}
 			for(Item item : Array<EffectOverTime> effects in conseq._altEffects[entityTarget]!) {
 				for(EffectOverTime simEffect in effects) {
 					integer absValue = abs(simEffect.value)
