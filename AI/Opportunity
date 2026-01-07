@@ -57,11 +57,11 @@ class Opportunity {
 		Cell? bestCell = null
 		integer bestCost = 99999
 
-		for (Cell cell in this.attackCells) {
-			integer? cost = reachableCells[cell]
+		for (Cell attackCell : Cell aimCell in this.attackCells) {
+			integer? cost = reachableCells[attackCell]
 			if (cost != null && cost <= availableMP && cost < bestCost) {
 				bestCost = cost!
-				bestCell = cell
+				bestCell = attackCell
 			}
 		}
 
@@ -79,22 +79,22 @@ class Opportunity {
 		integer bestCost = 99999
 		real bestPositionScore = -999999.0
 
-		for (Cell cell in this.attackCells) {
-			integer? cost = reachableCells[cell]
+		for (Cell attackCell : Cell aimCell in this.attackCells) {
+			integer? cost = reachableCells[attackCell]
 			if (cost != null && cost <= availableMP) {
 				// Among cells with same cost, prefer better position score
 				if (cost < bestCost) {
 					bestCost = cost!
-					bestCell = cell
+					bestCell = attackCell
 					// Only compute position score if we found a new best cost
-					Danger d = MapDanger.getCellDanger(cell, csq)
+					Danger d = MapDanger.getCellDanger(attackCell, csq)
 					bestPositionScore = d.score
 				} else if (cost == bestCost) {
 					// Same cost: compare position scores
-					Danger d = MapDanger.getCellDanger(cell, csq)
+					Danger d = MapDanger.getCellDanger(attackCell, csq)
 					if (d.score > bestPositionScore) {
 						bestPositionScore = d.score
-						bestCell = cell
+						bestCell = attackCell
 					}
 				}
 			}
