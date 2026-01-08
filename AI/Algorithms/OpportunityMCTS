@@ -1,0 +1,532 @@
+/*
+ * OpportunityMCTS - Opportunity-centric MCTS
+ *
+ * Tree structure:
+ * Root
+ * +-- OppNode(sword->enemy1, cell=A)
+ * |   +-- OppNode(heal->self, cell=A)
+ * |   |   +-- OppNode(bow->enemy2, cell=C)  <- implicit movement
+ * |   +-- OppNode(bow->enemy2, cell=B)
+ * +-- OppNode(heal->self, cell=current)
+ *     +-- ...
+ *
+ * Movement is implicit - pursuing an opportunity from a different cell
+ * automatically accounts for MP cost.
+ *
+ * Key features:
+ * - Expands by opportunity (item + target), not by cell
+ * - Supports top-K cell variants per opportunity
+ * - Uses calibration for position estimation
+ */
+
+// ================================================================
+// NODE CLASS
+// ================================================================
+
+class OppNode {
+	OppNode? parent
+	Array<OppNode> children = []
+
+	// What we pursued
+	Opportunity? opp              // null for root
+	Cell execCell                 // Cell we executed from
+	integer moveCost              // MP spent to reach execCell
+	Action? action                // The actual action taken
+
+	// Resulting state
+	Cell currentCell
+	integer remainingTP
+	integer remainingMP
+	Item? weaponInHand
+	Consequences state
+
+	// Tracking what's been used
+	Map<string, boolean> usedKeys    // "itemId_targetId" -> true
+
+	// MCTS
+	integer visits = 0
+	real totalValue = 0.0
+	boolean isTerminal = false
+	Array<OppExpansion> untriedOpps = []   // Opportunities with their cell options
+
+	/*
+	 * Root constructor
+	 */
+	constructor() {
+		this.currentCell = Fight.self.cell
+		this.execCell = this.currentCell
+		this.moveCost = 0
+		this.remainingTP = Fight.self.tp
+		this.remainingMP = max(0, Fight.self.mp)
+		this.weaponInHand = Fight.self.getWeaponInHand()
+		this.state = Consequences()
+		this.state.currentCell = this.currentCell
+		this.state.currentMP = this.remainingMP
+		this.usedKeys = [:]
+	}
+
+	/*
+	 * Child constructor - after pursuing an opportunity
+	 */
+	constructor(OppNode parent, Opportunity opp, Cell execCell, integer moveCost) {
+		this.parent = parent
+		this.opp = opp
+		this.execCell = execCell
+		this.moveCost = moveCost
+		this.currentCell = execCell
+
+		// Compute remaining MP after movement
+		integer mpAfterMove = max(0, parent.remainingMP - moveCost)
+
+		// Build state at new position
+		Consequences moveState = Consequences()
+		moveState.currentCell = execCell
+		moveState.currentMP = mpAfterMove
+		moveState.currentTP = parent.state.currentTP
+		if (parent.state.score != null) {
+			moveState.score = parent.state.score
+		}
+		for (Entity e : Entity _ in parent.state._killed) {
+			moveState._killed[e] = e
+		}
+
+		// Create and chain action
+		Cell aimCell = opp.getAimCell(execCell)
+		Action baseAction = Action(opp.item, execCell, aimCell)
+		this.action = Action(baseAction, moveState)
+		this.state = this.action!.consequences
+
+		// Sync currentCell with actual position after chaining
+		this.currentCell = this.state.currentCell
+
+		// Update resources
+		integer switchCost = opp.item.isWeap && opp.item != parent.weaponInHand ? 1 : 0
+		this.state.currentTP -= switchCost
+		this.remainingTP = this.state.currentTP
+		this.remainingMP = max(0, this.state.currentMP)
+		this.weaponInHand = opp.item.isWeap ? opp.item : parent.weaponInHand
+
+		// Copy used keys and add this one
+		this.usedKeys = [:]
+		for (string k : boolean v in parent.usedKeys) {
+			this.usedKeys[k] = v
+		}
+		this.usedKeys[opp.item.id + "_" + opp.target.id] = true
+	}
+
+	real getUCBScore(real explorationConstant) {
+		if (this.visits == 0) return 999999.0
+		real exploitation = this.totalValue / this.visits
+		real exploration = explorationConstant * sqrt(log(this.parent!.visits) / this.visits)
+		return exploitation + exploration
+	}
+
+	boolean isFullyExpanded() {
+		return count(this.untriedOpps) == 0
+	}
+
+	OppNode? getBestChild() {
+		OppNode? best = null
+		integer bestVisits = -1
+		for (OppNode child in this.children) {
+			if (child.visits > bestVisits) {
+				bestVisits = child.visits
+				best = child
+			}
+		}
+		return best
+	}
+}
+
+
+/*
+ * Represents an opportunity expansion option (opportunity + cell choice)
+ */
+class OppExpansion {
+	Opportunity opp
+	Cell execCell
+	integer moveCost
+	real netValue
+
+	constructor(Opportunity o, Cell c, integer mc, real nv) {
+		this.opp = o
+		this.execCell = c
+		this.moveCost = mc
+		this.netValue = nv
+	}
+}
+
+
+// ================================================================
+// MAIN ALGORITHM
+// ================================================================
+
+class OpportunityMCTS {
+	static real EXPLORATION = 1.414
+	static integer MAX_ITERATIONS = 100000
+	static integer MAX_EXPANSIONS_PER_NODE = 10
+	static integer MAX_CELLS_PER_OPP = 2          // Top-K cells per opportunity
+	static integer SAFETY_BUFFER = 250000
+
+	static integer lastIterations = 0
+	static integer lastNodesCreated = 0
+
+	static boolean shouldStop() {
+		return getOperations() > getMaxOperations() - SAFETY_BUFFER
+	}
+
+	/*
+	 * Main entry point
+	 */
+	static Combo run() {
+		Benchmark.start("OpportunityMCTS.run")
+
+		// 1. Calibration
+		CalibratedPTS.calibrate()
+		Combo ptsCombo = CalibratedPTS.getBestCombo()
+		real ptsScore = CalibratedPTS.bestScore
+
+		if (OpportunityMCTS.shouldStop()) {
+			Benchmark.setAlgo("OPP_MCTS", "PTS_ONLY")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
+			Benchmark.stop("OpportunityMCTS.run")
+			return ptsCombo
+		}
+
+		// 2. Build tree
+		OppNode root = OppNode()
+		OpportunityMCTS.initUntriedOpps(root)
+
+		// 3. Seed with calibration combos
+		Array<Combo> seedCombos = CalibratedPTS.getSeedingCombos()
+		OpportunityMCTS.seedWithCombos(root, seedCombos)
+
+		// 4. MCTS iterations
+		integer iterations = 0
+		integer nodesCreated = 1
+
+		while (!OpportunityMCTS.shouldStop() && iterations < MAX_ITERATIONS) {
+			iterations++
+
+			OppNode node = OpportunityMCTS.select(root)
+
+			if (!node.isTerminal && !node.isFullyExpanded()) {
+				OppNode expanded = OpportunityMCTS.expand(node)
+				if (expanded != node) {
+					node = expanded
+					nodesCreated++
+				}
+			}
+
+			real value = OpportunityMCTS.rollout(node)
+			OpportunityMCTS.backpropagate(node, value)
+		}
+
+		OpportunityMCTS.lastIterations = iterations
+		OpportunityMCTS.lastNodesCreated = nodesCreated
+
+		// 5. Extract best
+		Combo mctsCombo = OpportunityMCTS.extractBestCombo(root)
+		real mctsScore = mctsCombo.getScore()!
+
+		Benchmark.setMCTS(iterations, nodesCreated, 0, mctsScore)
+		Benchmark.stop("OpportunityMCTS.run")
+
+		// Return better of PTS vs MCTS
+		if (mctsScore > ptsScore) {
+			Benchmark.setAlgo("OPP_MCTS", "MCTS")
+			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), OpportunityMCTS.buildComboDesc(mctsCombo))
+			return mctsCombo
+		} else {
+			Benchmark.setAlgo("OPP_MCTS", "PTS")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
+			return ptsCombo
+		}
+	}
+
+	// ----------------------------------------------------------------
+	// INITIALIZATION
+	// ----------------------------------------------------------------
+
+	/*
+	 * Initialize untried opportunities with top-K cell variants
+	 */
+	static void initUntriedOpps(OppNode node) {
+		node.untriedOpps = []
+
+		Array<Opportunity> sorted = MapOpportunity.getSortedOpportunities()
+
+		for (Opportunity opp in sorted) {
+			// Skip if already used
+			string key = opp.item.id + "_" + opp.target.id
+			if (node.usedKeys[key]) continue
+
+			// Skip if target dead
+			if (node.state.isKilled(opp.target)) continue
+
+			// Skip if can't afford TP
+			integer switchCost = opp.item.isWeap && opp.item != node.weaponInHand ? 1 : 0
+			if (opp.item.cost + switchCost > node.remainingTP) continue
+
+			// Build ignoreCells: allies (from Fight.self) + killed entities (from simulation)
+			Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+			for (Entity e : Entity _ in node.state._killed) {
+				push(ignoreCells, e.cell)
+			}
+
+			// Get top-K cells for this opportunity
+			Array<OppExpansion> cellOptions = OpportunityMCTS.getCellOptions(
+				opp, node.currentCell, node.remainingMP, ignoreCells
+			)
+
+			for (OppExpansion opt in cellOptions) {
+				push(node.untriedOpps, opt)
+			}
+		}
+
+		// Sort all expansions by net value
+		node.untriedOpps = arraySort(node.untriedOpps, (OppExpansion a, OppExpansion b) => integer|real {
+			return Sort.desc(a.netValue, b.netValue)
+		}) as Array<OppExpansion>
+
+		// Limit total expansions
+		if (count(node.untriedOpps) > MAX_EXPANSIONS_PER_NODE) {
+			Array<OppExpansion> limited = []
+			for (integer i = 0; i < MAX_EXPANSIONS_PER_NODE; i++) {
+				push(limited, node.untriedOpps[i])
+			}
+			node.untriedOpps = limited
+		}
+
+		node.isTerminal = count(node.untriedOpps) == 0
+	}
+
+	/*
+	 * Get top-K cell options for an opportunity
+	 */
+	static Array<OppExpansion> getCellOptions(Opportunity opp, Cell from, integer mp, Array<Cell> ignoreCells) {
+		Array<OppExpansion> options = []
+
+		if (opp.isSelfCast) {
+			// Self-cast: only one option
+			push(options, OppExpansion(opp, from, 0, opp.baseScore))
+			return options
+		}
+
+		// Get reachable cells with proper ignoreCells (killed entities)
+		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(from, mp, ignoreCells)
+
+		// Collect all reachable cells with their net values
+		for (Cell cell : real score in opp.attackScores) {
+			integer? dist = reachable[cell]
+			if (dist == null && cell != from) continue  // Not reachable (allow current cell)
+			integer actualDist = dist != null ? dist! : 0
+
+			real positionCost = actualDist * CalibratedPTS.mpValue
+			real netValue = score - positionCost
+
+			if (netValue <= 0) continue
+
+			push(options, OppExpansion(opp, cell, actualDist, netValue))
+		}
+
+		// Sort by net value
+		options = arraySort(options, (OppExpansion a, OppExpansion b) => integer|real {
+			return Sort.desc(a.netValue, b.netValue)
+		}) as Array<OppExpansion>
+
+		// Take top-K
+		Array<OppExpansion> result = []
+		for (integer i = 0; i < min(MAX_CELLS_PER_OPP, count(options)); i++) {
+			push(result, options[i])
+		}
+
+		return result
+	}
+
+	// ----------------------------------------------------------------
+	// SEEDING
+	// ----------------------------------------------------------------
+
+	static void seedWithCombos(OppNode root, Array<Combo> combos) {
+		for (Combo combo in combos) {
+			if (count(combo.actions) == 0) continue
+
+			OppNode node = root
+
+			for (Action action in combo.actions) {
+				// Find the opportunity for this action
+				Opportunity? opp = OpportunityMCTS.findOpportunityForAction(action)
+				if (opp == null) continue
+
+				// Find or create child node
+				node = OpportunityMCTS.findOrCreateChild(node, opp!, action.from)
+			}
+
+			// Give virtual visits
+			real score = combo.getScore()!
+			OpportunityMCTS.backpropagateVirtual(node, score, 3)
+		}
+	}
+
+	static Opportunity? findOpportunityForAction(Action action) {
+		// Try to find matching opportunity in MapOpportunity
+		Entity? target = Board.entityCells[action.to]
+		if (target == null && action.to == Fight.selfCell) {
+			target = Fight.self
+		}
+		if (target == null) return null
+
+		string key = action.item.id + "_" + target!.id
+		return MapOpportunity.opportunities[key]
+	}
+
+	static OppNode findOrCreateChild(OppNode parent, Opportunity opp, Cell execCell) {
+		// For self-cast, use parent's position (action.from is just a sentinel)
+		if (opp.isSelfCast) {
+			execCell = parent.currentCell
+		}
+
+		// Check existing children
+		for (OppNode child in parent.children) {
+			if (child.opp != null &&
+				child.opp!.item == opp.item &&
+				child.opp!.target == opp.target &&
+				child.execCell == execCell) {
+				return child
+			}
+		}
+
+		// Get actual path cost with killed entities as ignoreCells
+		integer moveCost = 0
+		if (execCell != parent.currentCell) {
+			// Build ignoreCells: allies + killed entities
+			Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+			for (Entity e : Entity _ in parent.state._killed) {
+				push(ignoreCells, e.cell)
+			}
+			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(parent.currentCell, parent.remainingMP, ignoreCells)
+			integer? cost = reachable[execCell]
+			moveCost = cost != null ? cost! : parent.remainingMP  // Fallback to max if not found
+		}
+
+		OppNode child = OppNode(parent, opp, execCell, moveCost)
+		OpportunityMCTS.initUntriedOpps(child)
+		push(parent.children, child)
+
+		return child
+	}
+
+	static void backpropagateVirtual(OppNode node, real value, integer virtualVisits) {
+		OppNode? current = node
+		while (current != null) {
+			current!.visits += virtualVisits
+			current!.totalValue += value * virtualVisits
+			current = current!.parent
+		}
+	}
+
+	// ----------------------------------------------------------------
+	// MCTS PHASES
+	// ----------------------------------------------------------------
+
+	static OppNode select(OppNode root) {
+		OppNode node = root
+
+		while (!node.isTerminal && node.isFullyExpanded() && count(node.children) > 0) {
+			OppNode? best = null
+			real bestUCB = -999999.0
+
+			for (OppNode child in node.children) {
+				real ucb = child.getUCBScore(EXPLORATION)
+				if (ucb > bestUCB) {
+					bestUCB = ucb
+					best = child
+				}
+			}
+
+			if (best == null) break
+			node = best!
+		}
+
+		return node
+	}
+
+	static OppNode expand(OppNode node) {
+		if (count(node.untriedOpps) == 0) return node
+
+		OppExpansion expansion = shift(node.untriedOpps)
+
+		OppNode child = OppNode(node, expansion.opp, expansion.execCell, expansion.moveCost)
+		OpportunityMCTS.initUntriedOpps(child)
+		push(node.children, child)
+
+		return child
+	}
+
+	static real rollout(OppNode node) {
+		real actionScore = node.state.score != null ? node.state.score! : 0.0
+		real positionEstimate = CalibratedPTS.estimatePositionValue(node.remainingMP)
+
+		return actionScore + positionEstimate
+	}
+
+	static void backpropagate(OppNode node, real value) {
+		OppNode? current = node
+		while (current != null) {
+			current!.visits++
+			current!.totalValue += value
+			current = current!.parent
+		}
+	}
+
+	// ----------------------------------------------------------------
+	// EXTRACTION
+	// ----------------------------------------------------------------
+
+	static Combo extractBestCombo(OppNode root) {
+		Combo combo = Combo()
+
+		OppNode? node = root
+		while (node != null) {
+			OppNode? best = node!.getBestChild()
+			if (best == null) break
+
+			if (best!.action != null) {
+				if (!combo.add(best!.action!)) break
+			}
+
+			node = best
+		}
+
+		// Final position
+		if (node != null) {
+			Position pos = MapPosition.findBestPosition(
+				node!.currentCell,
+				node!.remainingMP,
+				node!.state
+			)
+			combo.addFinalPosition(pos)
+		} else {
+			combo.addFinalPosition(MapPosition.findBestPosition(
+				Fight.self.cell, Fight.self.mp, Consequences()))
+		}
+
+		return combo
+	}
+
+	static string buildComboDesc(Combo combo) {
+		string desc = ""
+		for (Action a in combo.actions) {
+			if (desc != "") desc += "->"
+			desc += a.item.name + "(" + round(a.score!) + ")"
+		}
+		if (combo.finalPosition) {
+			if (desc != "") desc += "->"
+			Position p = combo.finalPosition!
+			desc += "mv(" + p.cell.id + ":" + round(p.score) + ")"
+		}
+		if (desc == "") desc = "stay"
+		return desc
+	}
+}
