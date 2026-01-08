@@ -6,34 +6,54 @@
  *   TARGET -> ITEM -> find valid CELLS
  *
  * This naturally filters irrelevant positions and scales with targets, not cells.
+ *
+ * Stores both closestCell (min MP) and bestScoreCell (max damage) to allow
+ * algorithms to test both approaches and compare final combo scores.
  */
 class Opportunity {
 	Entity target              // The entity we want to affect
 	Item item                  // The item to use
 	Map<Cell, Cell> attackCells // attackCell → aimCell mapping (unified index)
-	real baseScore             // Quick estimate score (no consequence chaining)
+	Map<Cell, real> attackScores // attackCell → score (for cell selection)
+	real baseScore             // Best achievable score (from bestScoreCell)
+	real closestScore          // Score from closestCell (conservative estimate)
+	Cell? closestCell          // Cell with minimum MP cost
+	Cell? bestScoreCell        // Cell with maximum score
 	boolean isSelfCast         // True if self-cast action (buff/heal on self)
 
+	// Cell selection modes for PTS dual-testing
+	static integer MODE_CLOSEST = 0    // Minimize MP (more MP for retreat)
+	static integer MODE_BEST_SCORE = 1 // Maximize damage
+
 	/*
-	 * Constructor for a standard opportunity (target + item + cells)
+	 * Constructor for a standard opportunity (target + item + cells + scores)
 	 * attackCells maps each attack cell to its corresponding aim cell
+	 * attackScores maps each attack cell to its action score
 	 */
-	constructor(Entity target, Item item, Map<Cell, Cell> attackCells, real baseScore) {
+	constructor(Entity target, Item item, Map<Cell, Cell> attackCells, Map<Cell, real> attackScores, Cell closestCell, Cell bestScoreCell) {
 		this.target = target
 		this.item = item
 		this.attackCells = attackCells
-		this.baseScore = baseScore
-		this.isSelfCast = (target == Fight.self && item.minRange == 0)
+		this.attackScores = attackScores
+		this.closestCell = closestCell
+		this.bestScoreCell = bestScoreCell
+		this.closestScore = attackScores[closestCell]!
+		this.baseScore = attackScores[bestScoreCell]!
+		this.isSelfCast = false
 	}
 
 	/*
 	 * Constructor for self-cast opportunity
 	 */
-	constructor(Entity target, Item item, real baseScore) {
+	constructor(Entity target, Item item, real score) {
 		this.target = target
 		this.item = item
 		this.attackCells = [Fight.selfCell: Fight.selfCell]
-		this.baseScore = baseScore
+		this.attackScores = [Fight.selfCell: score]
+		this.closestCell = Fight.selfCell
+		this.bestScoreCell = Fight.selfCell
+		this.closestScore = score
+		this.baseScore = score
 		this.isSelfCast = true
 	}
 
@@ -44,6 +64,45 @@ class Opportunity {
 	Cell getAimCell(Cell attackCell) {
 		Cell? aim = this.attackCells[attackCell]
 		return aim != null ? aim! : this.target.cell
+	}
+
+	/*
+	 * Get preferred cell based on selection mode.
+	 * MODE_CLOSEST: returns closestCell (minimize MP)
+	 * MODE_BEST_SCORE: returns bestScoreCell (maximize damage)
+	 */
+	Cell? getCellByMode(integer mode) {
+		if (this.isSelfCast) return Fight.selfCell
+		return mode == MODE_CLOSEST ? this.closestCell : this.bestScoreCell
+	}
+
+	/*
+	 * Find reachable cell based on mode preference.
+	 * If preferred cell is not reachable, falls back to any reachable cell.
+	 */
+	Cell? findCellByMode(integer mode, integer availableMP, Map<Cell, integer> reachableCells) {
+		if (this.isSelfCast) return Fight.selfCell
+
+		// Try preferred cell first
+		Cell? preferred = this.getCellByMode(mode)
+		if (preferred != null) {
+			integer? cost = reachableCells[preferred!]
+			if (cost != null && cost! <= availableMP) {
+				return preferred
+			}
+		}
+
+		// Fallback: find any reachable cell (use opposite mode's cell or search)
+		Cell? fallback = this.getCellByMode(mode == MODE_CLOSEST ? MODE_BEST_SCORE : MODE_CLOSEST)
+		if (fallback != null) {
+			integer? cost = reachableCells[fallback!]
+			if (cost != null && cost! <= availableMP) {
+				return fallback
+			}
+		}
+
+		// Last resort: search all cells
+		return this.findBestReachableCell(Fight.self.cell, availableMP, reachableCells)
 	}
 
 	/*
@@ -127,6 +186,6 @@ class Opportunity {
 	}
 
 	string string() {
-		return "<Opp " + this.item.name + "→" + this.target.name + " score:" + round(this.baseScore) + " cells:" + mapSize(this.attackCells) + ">"
+		return "<Opp " + this.item.name + "→" + this.target.name + " best:" + round(this.baseScore) + " close:" + round(this.closestScore) + " cells:" + mapSize(this.attackCells) + ">"
 	}
 }

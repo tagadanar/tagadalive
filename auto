@@ -17,6 +17,7 @@ include('Controlers/Maps/MapPath')
 include('Controlers/Maps/MapDanger')
 include('Controlers/Maps/MapPosition')
 include('Controlers/Maps/MapAction')
+include('Controlers/Maps/MapOpportunity')
 
 //include('Model/Combos/Jump')
 include('Model/Combos/Danger')
@@ -103,6 +104,10 @@ function init() {
 	Benchmark.start('MapAction.refresh')
 	MapAction.refresh()
 	Benchmark.stop('MapAction.refresh')
+
+	Benchmark.start('MapOpportunity.refresh')
+	MapOpportunity.refresh()
+	Benchmark.stop('MapOpportunity.refresh')
 
 	Benchmark.stop('init')
 }
