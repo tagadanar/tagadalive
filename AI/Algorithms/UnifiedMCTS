@@ -367,7 +367,7 @@ class UnifiedMCTS {
 
 				if (actionNode == null) {
 					actionNode = UnifiedMCTSNode(node, action)
-					Array<Action> nextActions = UnifiedMCTS.getActionsForCell(node.currentCell, mapBestAction)
+					Array<Action> nextActions = UnifiedMCTS.getActionsForCell(actionNode!.currentCell, mapBestAction)
 					actionNode!.initUntriedActions(nextActions)
 					push(node.children, actionNode!)
 				}
@@ -450,8 +450,8 @@ class UnifiedMCTS {
 		Action baseAction = shift(node.untriedActions)
 		UnifiedMCTSNode actionNode = UnifiedMCTSNode(node, baseAction)
 
-		// Initialize child's available actions
-		Array<Action> nextActions = UnifiedMCTS.getActionsForCell(node.currentCell, mapBestAction)
+		// Initialize child's available actions (use child's position, not parent's)
+		Array<Action> nextActions = UnifiedMCTS.getActionsForCell(actionNode.currentCell, mapBestAction)
 		actionNode.initUntriedActions(nextActions)
 
 		push(node.children, actionNode)
