@@ -11,6 +11,7 @@ class Fight {
 	private static Map<integer, Entity> _aliveEnemiesBulbs
 	private static Map<integer, Entity> _aliveAlliesLeeks
 	private static Map<integer, Entity> _aliveAlliesBulbs
+	static Map<string, integer> chestPwrGained = ["wood_chest":10, "iron_chest":50, "diamond_chest":100]
 	static Array<integer> allEntitiesId
 	static Entity self
 	static Cell selfCell = Cell(Cell.SELF_CAST_ID)
