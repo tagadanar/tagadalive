@@ -1,0 +1,300 @@
+/*
+ * CalibratedPTS - PTS with MP budget exploration
+ *
+ * Builds combos for each movement budget level (0, 1, 2, ..., maxMP)
+ * Provides:
+ * - Calibration curve: MP spent -> (actionScore, positionScore)
+ * - Seeding combos for MCTS algorithms
+ * - Estimated position value per MP
+ *
+ * This replaces the single PTS.buildCombo() call with a full exploration
+ * of the action vs position tradeoff.
+ */
+
+/*
+ * Calibration data point
+ */
+class CalibrationPoint {
+	integer budgetRequested    // MP budget we asked for
+	integer movementUsed       // Actual MP used for movement
+	real actionScore           // Sum of action scores
+	real positionScore         // Final position score
+	real totalScore            // actionScore + positionScore
+	Cell endCell               // Where combo ends
+	Combo combo                // The actual combo
+
+	constructor(integer budget, integer used, real actions, real position, Cell endCell, Combo combo) {
+		this.budgetRequested = budget
+		this.movementUsed = used
+		this.actionScore = actions
+		this.positionScore = position
+		this.totalScore = actions + position
+		this.endCell = endCell
+		this.combo = combo
+	}
+}
+
+
+class CalibratedPTS {
+	// Calibration results
+	static Array<CalibrationPoint> curve = []
+	static real mpValue = 0.0  // Position value per MP saved
+	static Combo? bestCombo = null
+	static real bestScore = 0.0
+
+	// Statistics
+	static integer lastCalibrationPoints = 0
+	static string lastBestBudget = ""
+
+	/*
+	 * Run full calibration: test each MP budget, find optimal tradeoff
+	 */
+	static void calibrate() {
+		Benchmark.start("CalibratedPTS.calibrate")
+
+		CalibratedPTS.curve = []
+		CalibratedPTS.bestCombo = null
+		CalibratedPTS.bestScore = -999999.0
+
+		integer maxMP = Fight.self.mp
+
+		for (integer budget = 0; budget <= maxMP; budget++) {
+			CalibrationPoint? point = CalibratedPTS.buildWithBudget(budget)
+			if (point != null) {
+				push(CalibratedPTS.curve, point!)
+
+				if (point!.totalScore > CalibratedPTS.bestScore) {
+					CalibratedPTS.bestScore = point!.totalScore
+					CalibratedPTS.bestCombo = point!.combo
+					CalibratedPTS.lastBestBudget = "MP" + budget
+				}
+			}
+		}
+
+		CalibratedPTS.lastCalibrationPoints = count(CalibratedPTS.curve)
+		CalibratedPTS.computeMPValue()
+
+		// Log calibration results
+		Benchmark.setPTS(CalibratedPTS.lastCalibrationPoints,
+			CalibratedPTS.bestCombo != null ? count(CalibratedPTS.bestCombo!.actions) : 0,
+			CalibratedPTS.bestScore)
+
+		Benchmark.stop("CalibratedPTS.calibrate")
+	}
+
+	/*
+	 * Build best combo with given movement budget
+	 */
+	static CalibrationPoint? buildWithBudget(integer maxMovementMP) {
+		Combo combo = Combo()
+		Item? weaponInHand = Fight.self.getWeaponInHand()
+		Map<Item, integer> usesThisTurn = [:]
+		Map<Item, integer> cooldowns = [:]
+
+		// MP to reserve for final positioning
+		integer reserveMP = max(0, Fight.self.mp - maxMovementMP)
+
+		Array<Opportunity> sorted = MapOpportunity.getSortedOpportunities()
+
+		// Greedy combo building with movement constraint
+		boolean foundAction = true
+		while (foundAction) {
+			foundAction = false
+
+			// Get current state from combo's consequences (this is the source of truth)
+			Consequences currentCsq = combo.getCurrentConsequences()
+			Cell currentCell = currentCsq.currentCell
+			integer currentTP = currentCsq.currentTP
+
+			// MP available for movement = actual MP minus reserve for positioning
+			integer budgetForMove = max(0, currentCsq.currentMP - reserveMP)
+
+			// Build ignoreCells: allies (from Fight.self) + killed entities (from simulation)
+			Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+			for (Entity e : Entity _ in currentCsq._killed) {
+				push(ignoreCells, e.cell)
+			}
+
+			// Compute reachable cells with actual budget and proper ignoreCells
+			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(currentCell, budgetForMove, ignoreCells)
+
+			for (Opportunity opp in sorted) {
+				// Standard checks
+				if (!opp.canExecute(currentTP, usesThisTurn, cooldowns, currentCsq, weaponInHand)) {
+					continue
+				}
+
+				// Find cell within remaining movement budget
+				Cell? execCell = CalibratedPTS.findCellWithinBudget(opp, reachable, currentCell)
+				if (execCell == null) continue
+
+				// Build action
+				Cell aimCell = opp.getAimCell(execCell!)
+				Action action = Action(opp.item, execCell!, aimCell)
+
+				if (count(combo.actions) == 0) {
+					if (action.score! <= 0) continue
+					push(combo.actions, action)
+				} else {
+					if (!combo.add(action)) continue
+				}
+
+				// Handle weapon switch cost (not tracked by Consequences)
+				if (opp.item.isWeap && opp.item != weaponInHand) {
+					Action lastAction = combo.actions[count(combo.actions) - 1]
+					lastAction.consequences.currentTP -= 1
+					weaponInHand = opp.item
+				}
+
+				usesThisTurn[opp.item] = (usesThisTurn[opp.item] != null ? usesThisTurn[opp.item]! : 0) + 1
+				if (opp.item.haveCD) {
+					cooldowns[opp.item] = opp.item.cdDuration
+				}
+
+				foundAction = true
+				break
+			}
+		}
+
+		// Get final state from consequences
+		Consequences finalCsq = combo.getCurrentConsequences()
+		Cell endCell = finalCsq.currentCell
+		integer remainingMP = finalCsq.currentMP
+		integer movementUsed = Fight.self.mp - remainingMP
+
+		// Evaluate final position with actual remaining MP
+		Position pos = MapPosition.findBestPosition(endCell, remainingMP, finalCsq)
+		combo.addFinalPosition(pos)
+
+		// Build calibration point
+		real actionScore = 0
+		for (Action a in combo.actions) {
+			actionScore += a.score!
+		}
+
+		return CalibrationPoint(
+			maxMovementMP,
+			movementUsed,
+			actionScore,
+			pos.score,
+			endCell,
+			combo
+		)
+	}
+
+	/*
+	 * Find best cell for opportunity within reachable cells
+	 * @param opp - the opportunity to check
+	 * @param reachable - map of reachable cells with their MP costs
+	 * @param currentCell - current position (for self-cast check)
+	 */
+	static Cell? findCellWithinBudget(Opportunity opp, Map<Cell, integer> reachable, Cell currentCell) {
+		if (opp.isSelfCast) return Fight.selfCell
+
+		Cell? best = null
+		real bestScore = -999999
+
+		for (Cell cell : real score in opp.attackScores) {
+			// Check if cell is reachable (in the map means reachable)
+			if (cell != currentCell && reachable[cell] == null) continue
+
+			if (score > bestScore) {
+				bestScore = score
+				best = cell
+			}
+		}
+
+		return best
+	}
+
+	/*
+	 * Compute estimated position value per MP from calibration curve
+	 */
+	static void computeMPValue() {
+		if (count(CalibratedPTS.curve) < 2) {
+			CalibratedPTS.mpValue = 0
+			return
+		}
+
+		// Compare endpoints: low movement vs high movement
+		CalibrationPoint first = CalibratedPTS.curve[0]  // 0 movement budget
+		CalibrationPoint last = CalibratedPTS.curve[count(CalibratedPTS.curve) - 1]  // max movement
+
+		real positionDelta = first.positionScore - last.positionScore
+		real mpDelta = last.movementUsed - first.movementUsed
+
+		if (mpDelta > 0) {
+			CalibratedPTS.mpValue = positionDelta / mpDelta
+		} else {
+			CalibratedPTS.mpValue = 0
+		}
+	}
+
+	/*
+	 * Estimate position value for given remaining MP
+	 * Used by MCTS algorithms to evaluate nodes without full position search
+	 */
+	static real estimatePositionValue(integer remainingMP) {
+		integer mpUsed = Fight.self.mp - remainingMP
+
+		// Find closest calibration point
+		for (CalibrationPoint p in CalibratedPTS.curve) {
+			if (p.movementUsed >= mpUsed) {
+				return p.positionScore
+			}
+		}
+
+		// Fallback: extrapolate using mpValue
+		if (count(CalibratedPTS.curve) > 0) {
+			CalibrationPoint last = CalibratedPTS.curve[count(CalibratedPTS.curve) - 1]
+			integer extraMP = mpUsed - last.movementUsed
+			return max(0, last.positionScore - extraMP * CalibratedPTS.mpValue)
+		}
+
+		return 0.0
+	}
+
+	/*
+	 * Get all calibration combos for seeding MCTS
+	 */
+	static Array<Combo> getSeedingCombos() {
+		Array<Combo> combos = []
+		for (CalibrationPoint p in CalibratedPTS.curve) {
+			if (count(p.combo.actions) > 0) {
+				push(combos, p.combo)
+			}
+		}
+		return combos
+	}
+
+	/*
+	 * Get the best combo found during calibration
+	 */
+	static Combo getBestCombo() {
+		if (CalibratedPTS.bestCombo != null) {
+			return CalibratedPTS.bestCombo!
+		}
+		// Fallback: empty combo with position
+		Combo fallback = Combo()
+		fallback.addFinalPosition(MapPosition.findBestPosition(
+			Fight.self.cell, Fight.self.mp, Consequences()))
+		return fallback
+	}
+
+	/*
+	 * Build description for debugging
+	 */
+	static string buildComboDesc(Combo combo) {
+		string desc = ""
+		for (Action a in combo.actions) {
+			if (desc != "") desc += "->"
+			desc += a.item.name + "(" + round(a.score!) + ")"
+		}
+		if (combo.finalPosition) {
+			if (desc != "") desc += "->"
+			desc += "mv(" + combo.finalPosition!.cell.id + ")"
+		}
+		if (desc == "") desc = "stay"
+		return desc
+	}
+}

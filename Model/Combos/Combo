@@ -32,6 +32,29 @@ class Combo {
 	}
 
 	/*
+	 * Add action from specification (item, from, to) without creating intermediate template.
+	 * Creates the Action directly with chained Consequences from current combo state.
+	 * This avoids spurious warnings from template Actions using Fight.self state.
+	 * @return true if action was added (improves score), false otherwise
+	 */
+	boolean addFromSpec(Item item, Cell from, Cell to) {
+		// Validate usage limit
+		if(this.getUsageCount(item) >= item.maxUse) return false
+
+		Consequences currentCsq = this.getCurrentConsequences()
+		real prevScore = currentCsq.score != null ? currentCsq.score! : 0.0
+
+		// Create action directly with chained consequences
+		Action chainedAction = Action(item, from, to, currentCsq)
+
+		// Check DELTA (score improvement), not cumulative
+		if(chainedAction.score! > prevScore) push(this.actions, chainedAction)
+		else return false
+
+		return true
+	}
+
+	/*
 	 * Count how many times an item is used in this combo
 	 */
 	integer getUsageCount(Item item) {
