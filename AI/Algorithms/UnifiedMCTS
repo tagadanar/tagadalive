@@ -78,12 +78,14 @@ class UnifiedMCTSNode {
 	 */
 	constructor(UnifiedMCTSNode parent, Action baseAction) {
 		this.parent = parent
-		this.currentCell = parent.currentCell
 
 		// Create action with properly chained consequences
 		Action chainedAction = Action(baseAction, parent.state)
 		this.action = chainedAction
 		this.state = chainedAction.consequences
+
+		// Sync currentCell with actual position after chaining (action may have moved us)
+		this.currentCell = this.state.currentCell
 
 		// Update resources - IMPORTANT: switchCost must be reflected in BOTH
 		// remainingTP (for TP checks) AND state.currentTP (for chaining next action)
@@ -197,19 +199,20 @@ class UnifiedMCTS {
 	}
 
 	/*
-	 * Main entry point - runs unified MCTS with PTS baseline
+	 * Main entry point - runs unified MCTS with CalibratedPTS baseline
 	 */
 	static Combo run() {
 		Benchmark.start("UnifiedMCTS.run")
 
-		// 1. Get PTS combo as baseline (also populates PTS.lastCellScores)
-		Combo ptsCombo = PTS.buildCombo()
-		real ptsScore = ptsCombo.getScore()!
+		// 1. Run calibration (tests all MP budgets, finds best tradeoff)
+		CalibratedPTS.calibrate()
+		Combo ptsCombo = CalibratedPTS.getBestCombo()
+		real ptsScore = CalibratedPTS.bestScore
 
-		// 2. Check budget after PTS
+		// 2. Check budget after calibration
 		if (UnifiedMCTS.shouldStop()) {
 			Benchmark.setAlgo("UNIFIED_MCTS", "PTS_ONLY")
-			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + PTS.buildComboDesc(ptsCombo))
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
 			Benchmark.stop("UnifiedMCTS.run")
 			return ptsCombo
 		}
@@ -218,10 +221,11 @@ class UnifiedMCTS {
 		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
 		UnifiedMCTSNode root = UnifiedMCTS.buildTree(mapBestAction)
 
-		// 4. Seed with PTS priors (optional)
+		// 4. Seed with calibration combos (all MP budget variants)
 		UnifiedMCTS._seededCells = [:]  // Reset
 		if (UnifiedMCTS.USE_PTS_SEEDING) {
-			UnifiedMCTS._seededCells = UnifiedMCTS.seedWithPTS(root, PTS.lastCellScores, mapBestAction)
+			Array<Combo> seedCombos = CalibratedPTS.getSeedingCombos()
+			UnifiedMCTS._seededCells = UnifiedMCTS.seedWithCombos(root, seedCombos, mapBestAction)
 		}
 
 		// 5. Run MCTS iterations
@@ -276,7 +280,7 @@ class UnifiedMCTS {
 			return mctsCombo
 		} else {
 			Benchmark.setAlgo("UNIFIED_MCTS", "PTS")
-			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + PTS.buildComboDesc(ptsCombo))
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
 			return ptsCombo
 		}
 	}
@@ -302,35 +306,83 @@ class UnifiedMCTS {
 	}
 
 	/*
-	 * Seed cell nodes with PTS priors (virtual visits)
-	 * Creates child nodes for cells with PTS scores and gives them virtual visits.
-	 * Uses a Map to track seeded cells (checked during expand to avoid duplicates).
+	 * Seed with calibration combos - traces each combo path through tree
+	 * This seeds with actual action paths, not just cell scores.
+	 * Returns map of seeded cells (to skip during regular expansion).
 	 */
-	static Map<Cell, boolean> seedWithPTS(UnifiedMCTSNode root, Map<Cell, real> cellScores, Map<Cell, Map<Item, Action>> mapBestAction) {
+	static Map<Cell, boolean> seedWithCombos(UnifiedMCTSNode root, Array<Combo> combos, Map<Cell, Map<Item, Action>> mapBestAction) {
 		Map<Cell, boolean> seededCells = [:]
 
-		for (Cell cell in root.untriedCells) {
-			real? score = cellScores[cell]
-			if (score == null || score! <= 0) continue
+		for (Combo combo in combos) {
+			if (count(combo.actions) == 0) continue
 
-			integer? mpCost = Fight.self.reachableCells[cell]
-			if (mpCost == null) continue
+			// Find the starting cell of this combo
+			Cell startCell = Fight.self.cell
+			for (Action a in combo.actions) {
+				if (a.from != Fight.selfCell) {
+					startCell = a.from
+					break
+				}
+			}
 
-			// Create cell node
-			UnifiedMCTSNode cellNode = UnifiedMCTSNode(root, cell, mpCost!)
+			// Find or create cell node
+			UnifiedMCTSNode? cellNode = null
+			for (UnifiedMCTSNode child in root.children) {
+				if (child.isCellNode && child.cell == startCell) {
+					cellNode = child
+					break
+				}
+			}
 
-			// Initialize actions for this cell
-			Array<Action> cellActions = UnifiedMCTS.getActionsForCell(cell, mapBestAction)
-			cellNode.initUntriedActions(cellActions)
+			if (cellNode == null) {
+				integer? mpCost = Fight.self.reachableCells[startCell]
+				if (mpCost == null) continue
 
-			push(root.children, cellNode)
-			seededCells[cell] = true
+				cellNode = UnifiedMCTSNode(root, startCell, mpCost!)
+				Array<Action> cellActions = UnifiedMCTS.getActionsForCell(startCell, mapBestAction)
+				cellNode!.initUntriedActions(cellActions)
+				push(root.children, cellNode!)
+			}
 
-			// Seed with PTS prior (virtual visits)
-			cellNode.visits = 3
-			cellNode.totalValue = score! * 3
-			root.visits += 3
-			root.totalValue += score! * 3
+			seededCells[startCell] = true
+
+			// Trace action path and give virtual visits
+			real comboScore = combo.getScore()!
+			UnifiedMCTSNode node = cellNode!
+
+			for (Action action in combo.actions) {
+				// Skip self-cast for cell tracing (they don't change position)
+				if (action.from == Fight.selfCell) continue
+
+				// Find or create action node
+				UnifiedMCTSNode? actionNode = null
+				for (UnifiedMCTSNode child in node.children) {
+					if (child.action != null &&
+						child.action!.item == action.item &&
+						child.action!.to == action.to) {
+						actionNode = child
+						break
+					}
+				}
+
+				if (actionNode == null) {
+					actionNode = UnifiedMCTSNode(node, action)
+					Array<Action> nextActions = UnifiedMCTS.getActionsForCell(node.currentCell, mapBestAction)
+					actionNode!.initUntriedActions(nextActions)
+					push(node.children, actionNode!)
+				}
+
+				node = actionNode!
+			}
+
+			// Backpropagate virtual visits for this combo
+			integer virtualVisits = 3
+			UnifiedMCTSNode? current = node
+			while (current != null) {
+				current!.visits += virtualVisits
+				current!.totalValue += comboScore * virtualVisits
+				current = current!.parent
+			}
 		}
 
 		return seededCells
@@ -539,10 +591,11 @@ class UnifiedMCTS {
 			rolloutSteps++
 		}
 
-		// Final score = action score + danger at final position
+		// Final score = action score + estimated position value
+		// Uses calibration data to estimate position value based on remaining MP
 		real totalScore = currentState.score == null ? 0.0 : currentState.score!
-		Danger finalDanger = MapDanger.getCellDanger(currentState.currentCell, currentState)
-		totalScore += finalDanger.score
+		real positionEstimate = CalibratedPTS.estimatePositionValue(node.remainingMP)
+		totalScore += positionEstimate
 
 		return totalScore
 	}
