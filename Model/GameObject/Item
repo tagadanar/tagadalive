@@ -185,18 +185,18 @@ class Item {
 		CHIP_GRAPPLE: 22,
 		CHIP_BOXING_GLOVE: 22,
 		CHIP_TELEPORTATION: 22,
-		CHIP_RESURRECTION: 22
+		CHIP_RESURRECTION: 22,
+		CHIP_APOCALYPSE: 23, // boss chips
+		CHIP_KILL: 23,
+		CHIP_DIVINE_PROTECTION: 23,
+		415: 23, // CHIP_AWAKENING
+		425: 23, // CHIP_EXASPERATION
+		411: 23, // unknown shuriken
+		412: 23, // unknown kemuridama
+		413: 23, // unknown fire_ball
+		414: 23, // unknown trebuchet
+		416: 23, // unknown thunder
 	]
-// Unknown item priority: 411 (shuriken)
-// Unknown item priority: 412 (kemuridama)
-// Unknown item priority: 413 (fire_ball)
-// Unknown item priority: 414 (trebuchet)
-// Unknown item priority: 415 (awakening)
-// Unknown item priority: 416 (thunder)
-// Unknown item priority: 417 (kill)
-// Unknown item priority: 418 (apocalypse)
-// Unknown item priority: 419 (divine_protection)
-// Unknown item priority: 425 (exasperation)
 			
 	constructor(integer id) {
 		this.id = id

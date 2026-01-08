@@ -50,7 +50,12 @@ class Consequences {
 	
 	construct(Action action){
 		// actualisation du placement virtuel :
-		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
+		// Build ignoreCells: our starting cell + cells of killed entities (can path through kills)
+		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+		for (Entity e : Entity _ in this._killed) {
+			push(ignoreCells, e.cell)
+		}
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, ignoreCells)
 		// déplacement jusqu'à la case de l'action
 		if(action.from != Fight.selfCell){
 			if(reachableCells[action.from] != null) {
