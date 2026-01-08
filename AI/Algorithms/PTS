@@ -4,7 +4,7 @@
  * Alternative to MCTS that iterates TARGET-first instead of CELL-first.
  *
  * Algorithm:
- * 1. OPPORTUNITY GENERATION: For each (target, item) pair, compute attack cells and base score
+ * 1. OPPORTUNITY GENERATION: Uses MapOpportunity (pre-built during init)
  * 2. COMBO BUILDING: Greedy selection with proper consequence chaining
  * 3. FINAL POSITIONING: Find best end-of-turn position
  *
@@ -15,190 +15,83 @@
  * - Much faster: O(targets × items) vs O(cells × items × MCTS_iterations)
  *
  * Can be used standalone or to SEED other algorithms with cell priorities.
+ *
+ * DUAL-MODE TESTING: Builds combo twice (MODE_CLOSEST + MODE_BEST_SCORE)
+ * and returns the one with better final score (including position).
+ * - MODE_CLOSEST: Minimize MP usage → more MP for retreat → better position
+ * - MODE_BEST_SCORE: Maximize action score → more damage → less MP for position
  */
 class PTS {
 	// Statistics for debugging
 	static integer lastOpportunities = 0
 	static integer lastActionsBuilt = 0
 	static real lastScore = 0.0
+	static string lastWinningMode = ""  // "CLOSEST" or "BEST_SCORE"
 
-	// Cell priority scores from last opportunity generation
+	// Cell priority scores - references MapOpportunity.cellScores
 	// Used by Hybrid modes to prioritize MCTS/Beam cell exploration order
 	// Maps Cell → weighted sum of top-3 opportunity scores (1.0, 0.7, 0.4 weights)
 	// Cells with multiple good opportunities rank higher than single-opportunity cells
 	static Map<Cell, real> lastCellScores = [:]
 
 	/*
-	 * Generate all opportunities: (target, item) pairs with valid attack cells.
-	 * Considers ALL targets: enemies, allies, and self.
-	 * Also populates lastCellScores for prioritization.
-	 */
-	static Array<Opportunity> generateOpportunities() {
-		Benchmark.start("PTS.generateOpportunities")
-		Array<Opportunity> opportunities = []
-		PTS.lastCellScores = [:]  // Reset cell scores
-
-		// Temporary storage: collect all opportunity scores per cell
-		Map<Cell, Array<real>> cellScoresCollector = [:]
-
-		// Iterate all items
-		for (Item item in Fight.self.items) {
-			// Skip items on cooldown
-			if (getCooldown(item.id, Fight.self.id) > 0) continue
-
-			// Get valid targets for this item
-			Map<integer, Entity> targets = item.targetSet()
-
-			// For each target
-			for (Entity target in targets) {
-				// Skip invincible enemies
-				if (target.isInvincible && !target.isFriend) continue
-
-				// Generate opportunity based on item type
-				Opportunity? opp = PTS.createOpportunity(item, target)
-				if (opp != null) {
-					push(opportunities, opp!)
-
-					// Collect scores per cell for priority calculation
-					// Skip self-cast opportunities (Fight.selfCell is a sentinel, not a real cell)
-					if (!opp!.isSelfCast) {
-						for (Cell attackCell : Cell aimCell in opp!.attackCells) {
-							if (cellScoresCollector[attackCell] == null) {
-								cellScoresCollector[attackCell] = []
-							}
-							push(cellScoresCollector[attackCell]!, opp!.baseScore)
-						}
-					}
-				}
-			}
-		}
-
-		// Compute weighted top-K sum for each cell
-		// Cells with multiple high-scoring opportunities rank higher
-		// Weights: 1.0 (best), 0.7 (2nd), 0.4 (3rd) - diminishing returns
-		for (Cell cell : Array<real> scores in cellScoresCollector) {
-			// Sort descending
-			Array<real> sorted = arraySort(scores, (real a, real b) => integer|real {
-				return Sort.desc(a, b)
-			}) as Array<real>
-
-			// Weighted sum of top 3
-			real priority = 0.0
-			integer k = min(3, count(sorted))
-			for (integer i = 0; i < k; i++) {
-				real weight = 1.0 - i * 0.3  // 1.0, 0.7, 0.4
-				priority += sorted[i] * weight
-			}
-			PTS.lastCellScores[cell] = priority
-		}
-
-		PTS.lastOpportunities = count(opportunities)
-		Benchmark.stop("PTS.generateOpportunities")
-		return opportunities
-	}
-
-	/*
-	 * Create an opportunity for a (item, target) pair.
-	 * Uses MapAction's pre-validated attack cells (already checked for range, LOS, reachability).
-	 */
-	static Opportunity? createOpportunity(Item item, Entity target) {
-		// Self-cast case: item targets self with minRange 0
-		if (target == Fight.self && item.minRange == 0) {
-			// Create a temporary action to get base score
-			Action tempAction = Action(item, Fight.selfCell, Fight.selfCell)
-			if (tempAction.score! <= 0) return null
-			return Opportunity(target, item, tempAction.score!)
-		}
-
-		// Can't target self with minRange > 0
-		if (target == Fight.self) return null
-
-		// Get validated attack cells from MapAction index (O(1) lookup)
-		// These cells are already validated for range, LOS, and reachability
-		Map<Cell, Cell>? attackCells = MapAction.getAttackCellsForEntity(item, target.id)
-		if (attackCells == null || mapSize(attackCells!) == 0) return null
-
-		// Find closest reachable cell for base score calculation
-		Cell? bestReachableCell = null
-		integer bestDist = 99999
-		for (Cell attackCell : Cell aimCell in attackCells!) {
-			// All cells in the index are reachable, find closest
-			integer? dist = Fight.self.reachableCells[attackCell]
-			if (dist != null && dist < bestDist) {
-				bestDist = dist!
-				bestReachableCell = attackCell
-			}
-		}
-
-		if (bestReachableCell == null) return null
-
-		// Get aim cell from map, fallback to target's cell if not found
-		Cell? aimLookup = attackCells![bestReachableCell!]
-		Cell aimCell = aimLookup != null ? aimLookup! : target.cell
-
-		// Compute base score
-		Action tempAction = Action(item, bestReachableCell!, aimCell)
-		if (tempAction.score! <= 0) return null
-
-		// Return opportunity with unified attackCells map (attackCell → aimCell)
-		return Opportunity(target, item, attackCells!, tempAction.score!)
-	}
-
-	/*
-	 * Build a combo from opportunities using greedy selection with consequence chaining.
-	 * This is the core PTS algorithm.
-	 *
-	 * Features:
-	 * - Outer loop allows multiple uses of same item (e.g., firing weapon 3x)
-	 * - Greedy selection: always picks first valid opportunity in priority order
+	 * Build the best combo by testing both cell selection modes.
+	 * Returns the combo with higher final score (actions + position).
 	 */
 	static Combo buildCombo() {
 		Benchmark.start("PTS.buildCombo")
 
-		// Phase 1: Generate opportunities
-		Array<Opportunity> opportunities = PTS.generateOpportunities()
+		// Build combo with MODE_CLOSEST (save MP for retreat)
+		Combo comboClosest = PTS.buildComboWithMode(Opportunity.MODE_CLOSEST)
+		real scoreClosest = comboClosest.getScore()!
+
+		// Build combo with MODE_BEST_SCORE (maximize damage)
+		Combo comboBest = PTS.buildComboWithMode(Opportunity.MODE_BEST_SCORE)
+		real scoreBest = comboBest.getScore()!
+
+		// Pick winner
+		Combo winner
+		if (scoreBest > scoreClosest) {
+			winner = comboBest
+			PTS.lastWinningMode = "BEST"
+		} else {
+			winner = comboClosest
+			PTS.lastWinningMode = "CLOSE"
+		}
+
+		PTS.lastActionsBuilt = count(winner.actions)
+		PTS.lastScore = winner.getScore()!
+
+		// Log both scores for analysis
+		Benchmark.setPTS(PTS.lastOpportunities, PTS.lastActionsBuilt, PTS.lastScore)
+		string comboDesc = PTS.buildComboDesc(winner) + "[" + PTS.lastWinningMode + " C:" + round(scoreClosest) + " B:" + round(scoreBest) + "]"
+		real posScore = winner.finalPosition != null ? winner.finalPosition!.score : 0
+		Benchmark.addCombo(winner.getScore()!, PTS.lastActionsBuilt, "PTS:" + comboDesc, posScore, PTS.lastScore - posScore)
+
+		Benchmark.stop("PTS.buildCombo")
+		return winner
+	}
+
+	/*
+	 * Build a combo using specified cell selection mode.
+	 * @param cellMode: Opportunity.MODE_CLOSEST or Opportunity.MODE_BEST_SCORE
+	 */
+	static Combo buildComboWithMode(integer cellMode) {
+
+		// Phase 1: Get pre-built opportunities from MapOpportunity
+		Array<Opportunity> sorted = MapOpportunity.getSortedOpportunities()
+		PTS.lastCellScores = MapOpportunity.cellScores  // Reference shared cell scores
+		PTS.lastOpportunities = MapOpportunity.totalOpportunities
 
 		// If no opportunities, return movement-only combo
-		if (count(opportunities) == 0) {
+		if (count(sorted) == 0) {
 			Combo combo = Combo()
 			combo.addFinalPosition(MapPosition.findBestPosition(Fight.self.cell, Fight.self.mp, Consequences()))
-			PTS.lastActionsBuilt = 0
-			PTS.lastScore = combo.getScore()!
-			Benchmark.stop("PTS.buildCombo")
 			return combo
 		}
 
-		// Phase 2: Sort opportunities (self-cast first, then by score descending)
-		Array<Opportunity> selfCast = []
-		Array<Opportunity> other = []
-		for (Opportunity opp in opportunities) {
-			if (opp.isSelfCast) push(selfCast, opp)
-			else push(other, opp)
-		}
-
-		// TODO: Future improvement - test priority-ordered sequences explicitly
-		// Instead of pure greedy, could try:
-		// 1. Build "template sequences" like [Liberation → buff → damage]
-		// 2. For each template, greedily fill with best items at each priority level
-		// 3. Compare final scores of template-built combos vs pure greedy
-		// This would guarantee Liberation→Rifle ordering without sacrificing score optimization
-
-		// Sort by score first, priority as tiebreaker (PTS stays greedy/score-focused)
-		Array<Opportunity> sortedOther = arraySort(other, (Opportunity a, Opportunity b) => integer|real {
-			if (a.baseScore != b.baseScore) return Sort.desc(a.baseScore, b.baseScore)
-			return Sort.asc(a.item.priority, b.item.priority)  // Lower priority first as tiebreaker
-		}) as Array<Opportunity>
-
-		Array<Opportunity> selfCastSorted = arraySort(selfCast, (Opportunity a, Opportunity b) => integer|real {
-			if (a.baseScore != b.baseScore) return Sort.desc(a.baseScore, b.baseScore)
-			return Sort.asc(a.item.priority, b.item.priority)
-		}) as Array<Opportunity>
-
-		Array<Opportunity> sorted = []
-		for (Opportunity o in selfCastSorted) push(sorted, o)
-		for (Opportunity o in sortedOther) push(sorted, o)
-
-		// Phase 3: Greedy combo building with consequence chaining
+		// Phase 2: Greedy combo building with consequence chaining
+		// NOTE: Sorting is now done in MapOpportunity.refresh() (self-cast first, then by score)
 		Combo combo = Combo()
 		Cell currentCell = Fight.self.cell
 		integer currentTP = Fight.self.tp
@@ -224,7 +117,8 @@ class PTS {
 					continue
 				}
 
-				Cell? attackCell = opp.findBestReachableCell(currentCell, currentMP, reachableCells)
+				// Use cell selection mode to pick attack cell
+				Cell? attackCell = opp.findCellByMode(cellMode, currentMP, reachableCells)
 				if (attackCell == null) continue
 
 				integer moveCost = 0
@@ -278,16 +172,6 @@ class PTS {
 		Consequences finalCsq = combo.getCurrentConsequences()
 		combo.addFinalPosition(MapPosition.findBestPosition(currentCell, currentMP, finalCsq))
 
-		PTS.lastActionsBuilt = actionsBuilt
-		PTS.lastScore = combo.getScore()!
-
-		Benchmark.setPTS(PTS.lastOpportunities, actionsBuilt, PTS.lastScore)
-
-		string comboDesc = PTS.buildComboDesc(combo)
-		real posScore = combo.finalPosition != null ? combo.finalPosition!.score : 0
-		Benchmark.addCombo(combo.getScore()!, actionsBuilt, "PTS:" + comboDesc, posScore, PTS.lastScore - posScore)
-
-		Benchmark.stop("PTS.buildCombo")
 		return combo
 	}
 

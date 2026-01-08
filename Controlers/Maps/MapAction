@@ -5,6 +5,8 @@ class MapAction {
 	// PTS index: [item][entityId][attackCell] = aimCell for O(1) lookup
 	// Unified index - attackCell maps directly to its aimCell (no separate aimCells map)
 	static Map<Item, Map<integer, Map<Cell, Cell>>> _item_entityId_attackCells
+	// Score index: stores best score per (item, entityId, attackCell) - keeps best aimCell
+	static Map<Item, Map<integer, Map<Cell, real>>> _item_entityId_scores
 
 	static void refresh() {
 		// remise à zéro des maps
@@ -12,6 +14,7 @@ class MapAction {
 		_cell_item_actions = [:]
 		_cell_item_bestAction = [:]
 		_item_entityId_attackCells = [:]
+		_item_entityId_scores = [:]
 		// pour chaque item
 		for(Item item in Fight.self.items){
 			// si j'ai le cooldown
@@ -24,16 +27,18 @@ class MapAction {
 					if(entity==Fight.self){
 						// si c'est moi la cible, je peux le lancer sur moi même que si la minrange le permet
 						if(item.minRange == 0){
-							if(MapAction.addAction(item, Fight.selfCell, Fight.selfCell)) {
-								MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell)
+							Action? action = MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
+							if(action != null) {
+								MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell, action!.score!)
 							}
 						}
 					} else {
 						// sinon je liste toutes les cases depuis lesquelles je peux tirer sur la cible
 						Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, entity.cell, [Fight.self.id])
 						for(Cell c in cells) {
-							if(MapAction.addAction(item, c, entity.cell)) {
-								MapAction.addEntityIndex(item, entity.id, c, entity.cell)
+							Action? action = MapAction.addAction(item, c, entity.cell)
+							if(action != null) {
+								MapAction.addEntityIndex(item, entity.id, c, entity.cell, action!.score!)
 							}
 						}
 					}
@@ -44,8 +49,9 @@ class MapAction {
 					if(entity==Fight.self) continue; // on peut jamais se tirer dessus au lazer
 					Array<Cell> cellsFrom = Targets.getLazerCellsToUseItemOnCell(item, entity.cell)
 					for(Cell cell in cellsFrom){
-						if(MapAction.addAction(item, cell, entity.cell)) {
-							MapAction.addEntityIndex(item, entity.id, cell, entity.cell)
+						Action? action = MapAction.addAction(item, cell, entity.cell)
+						if(action != null) {
+							MapAction.addEntityIndex(item, entity.id, cell, entity.cell, action!.score!)
 						}
 					}
 				}
@@ -60,8 +66,9 @@ class MapAction {
 					for(Cell aimCell in entity.cell.getAreaCells(item.area)){
 						Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, aimCell, [Fight.self.id])
 						for(Cell c in cells) {
-							if(MapAction.addAction(item, c, aimCell)) {
-								MapAction.addEntityIndex(item, entity.id, c, aimCell)
+							Action? action = MapAction.addAction(item, c, aimCell)
+							if(action != null) {
+								MapAction.addEntityIndex(item, entity.id, c, aimCell, action!.score!)
 							}
 						}
 					}
@@ -80,16 +87,20 @@ class MapAction {
 	 * @param entityId The target entity's ID
 	 * @param fromCell The cell from which the action can be performed
 	 * @param aimCell The cell to aim at (entity.cell for point/laser, specific cell for AOE)
+	 * @param score The action score - keeps aimCell with best score per (item, entity, attackCell)
 	 */
-	static void addEntityIndex(Item item, integer entityId, Cell fromCell, Cell aimCell) {
+	static void addEntityIndex(Item item, integer entityId, Cell fromCell, Cell aimCell, real score) {
 		// Initialize nested maps if needed
 		if (!_item_entityId_attackCells[item]) _item_entityId_attackCells[item] = [:]
 		if (!_item_entityId_attackCells[item]![entityId]) _item_entityId_attackCells[item]![entityId] = [:]
+		if (!_item_entityId_scores[item]) _item_entityId_scores[item] = [:]
+		if (!_item_entityId_scores[item]![entityId]) _item_entityId_scores[item]![entityId] = [:]
 
-		// Store attackCell → aimCell mapping (Map auto-deduplicates, O(1))
-		// For AOE: only set if not already set (first aimCell found is used)
-		if (_item_entityId_attackCells[item]![entityId]![fromCell] == null) {
+		// Keep aimCell with best score (fixes AOE: best aimCell instead of first)
+		real? existingScore = _item_entityId_scores[item]![entityId]![fromCell]
+		if (existingScore == null || score > existingScore!) {
 			_item_entityId_attackCells[item]![entityId]![fromCell] = aimCell
+			_item_entityId_scores[item]![entityId]![fromCell] = score
 		}
 	}
 
@@ -103,9 +114,18 @@ class MapAction {
 		return _item_entityId_attackCells[item]![entityId]
 	}
 
-	static boolean addAction(Item item, Cell from, Cell targetCell){
+	/*
+	 * Get scores for a specific (item, entityId) pair - used by MapOpportunity
+	 * Returns Map<Cell, real> where key=attackCell, value=best score from that cell
+	 */
+	static Map<Cell, real>? getScoresForEntity(Item item, integer entityId) {
+		if (_item_entityId_scores[item] == null) return null
+		return _item_entityId_scores[item]![entityId]
+	}
+
+	static Action? addAction(Item item, Cell from, Cell targetCell){
 		if(targetCell != Fight.selfCell &&
-		   (Fight.self.reachableCells[from]==null || Fight.self.reachableCells[from] > Fight.self.mp)) return false
+		   (Fight.self.reachableCells[from]==null || Fight.self.reachableCells[from] > Fight.self.mp)) return null
 		Benchmark.start("addAction")
 		Action action = new Action(item, from, targetCell)
 
@@ -128,6 +148,6 @@ class MapAction {
 		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
 		else if(_cell_item_bestAction[from]![item]!.score < action.score) _cell_item_bestAction[from]![item] = action
 		Benchmark.stop("addAction")
-		return true
+		return action
 	}
 }
