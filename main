@@ -1,16 +1,24 @@
 include('auto');
 
-// ╔══════════════════════════════════════════════════════════════════════════╗
-// ║                         ALGORITHM CONFIGURATION                          ║
-// ╠══════════════════════════════════════════════════════════════════════════╣
-// ║  MODE_PTS           Fast greedy, target-first                            ║
-// ║  MODE_MCTS          Full tree search                                     ║
-// ║  MODE_BEAM          Multi-path beam search                               ║
-// ║  MODE_HYBRID        PTS seeds MCTS on 1 cell                             ║
-// ║  MODE_HYBRID_GUIDED PTS guides MCTS cell order                           ║
-// ║  MODE_HYBRID_BEAM   PTS guides BeamSearch                                ║
-// ║  MODE_UNIFIED_MCTS  Single tree with cells as first-level [RECOMMENDED]  ║
-// ╚══════════════════════════════════════════════════════════════════════════╝
+// ╔═════════════════════════════════════════════════════════════════════╗
+// ║                      ALGORITHM CONFIGURATION                        ║
+// ╠═════════════════════════════════════════════════════════════════════╣
+// ║  MODE_PTS              Fast greedy, target-first                    ║
+// ║  MODE_MCTS             Full tree search (legacy)                    ║
+// ║  MODE_BEAM             Multi-path beam search (legacy)              ║
+// ║  MODE_HYBRID           PTS seeds MCTS on 1 cell (legacy)            ║
+// ║  MODE_HYBRID_GUIDED    PTS guides MCTS cell order (legacy)          ║
+// ║  MODE_HYBRID_BEAM      PTS guides BeamSearch (legacy)               ║
+// ║  MODE_UNIFIED_MCTS     Single tree, cells first-level [RECOMMENDED] ║
+// ║  MODE_CELL_MCTS        Cell-centric with mid-combo MoveNodes        ║
+// ║  MODE_OPPORTUNITY_MCTS Opportunity-centric, implicit movement       ║
+// ╠═════════════════════════════════════════════════════════════════════╣
+// ║  All MCTS variants use CalibratedPTS for:                           ║
+// ║  - MP budget exploration: tests combos at each MP level (0..maxMP)  ║
+// ║  - Seeding: calibration combos pre-populate MCTS tree               ║
+// ║  - Position estimation: mpValue estimates position score per MP     ║
+// ║  - Resource sync: tracks MP/TP from Consequences (source of truth)  ║
+// ╚═════════════════════════════════════════════════════════════════════╝
 AI.mode = AI.MODE_UNIFIED_MCTS
 
 // Initialize game state

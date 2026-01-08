@@ -1,0 +1,739 @@
+/*
+ * CellMCTS - Cell-centric MCTS with mid-combo movement
+ *
+ * Tree structure:
+ * Root
+ * +-- CellNode(A)
+ * |   +-- ActionNode(sword)
+ * |   |   +-- ActionNode(heal)
+ * |   |   +-- MoveNode(B)        <- mid-combo movement
+ * |   |       +-- ActionNode(bow)
+ * |   +-- ActionNode(heal)
+ * +-- CellNode(B)
+ *     +-- ...
+ *
+ * Uses exhaustion-gated movement policy to limit branching:
+ * - Only offers movement when current cell is "exhausted" (few/weak actions left)
+ * - Requires nearby cell to be significantly better to justify MP cost
+ */
+
+// ================================================================
+// NODE CLASS
+// ================================================================
+
+class CellMCTSNode {
+	CellMCTSNode? parent
+	Array<CellMCTSNode> children = []
+
+	// Node type constants
+	static integer TYPE_ROOT = 0
+	static integer TYPE_CELL = 1
+	static integer TYPE_ACTION = 2
+	static integer TYPE_MOVE = 3
+	integer nodeType
+
+	// Identity
+	Cell? cell                    // For CELL/MOVE nodes
+	Action? action                // For ACTION nodes
+
+	// State
+	Cell currentCell
+	integer remainingTP
+	integer remainingMP
+	Item? weaponInHand
+	Consequences state
+
+	// MCTS stats
+	integer visits = 0
+	real totalValue = 0.0
+	boolean isTerminal = false
+
+	// Expansion tracking
+	Array<Cell> untriedCells = []           // For ROOT
+	Array<Action> untriedActions = []       // For CELL/ACTION/MOVE
+	Array<Cell> untriedMoves = []           // For ACTION (movement options)
+	boolean movesInitialized = false
+
+	// ----------------------------------------------------------------
+	// CONSTRUCTORS
+	// ----------------------------------------------------------------
+
+	/*
+	 * Root constructor
+	 */
+	constructor() {
+		this.nodeType = TYPE_ROOT
+		this.currentCell = Fight.self.cell
+		this.remainingTP = Fight.self.tp
+		this.remainingMP = max(0, Fight.self.mp)
+		this.weaponInHand = Fight.self.getWeaponInHand()
+		this.state = Consequences()
+		this.state.currentCell = this.currentCell
+		this.state.currentMP = this.remainingMP
+	}
+
+	/*
+	 * Cell node constructor (first-level, starting position choice)
+	 */
+	constructor(CellMCTSNode parent, Cell cell, integer mpCost) {
+		this.parent = parent
+		this.nodeType = TYPE_CELL
+		this.cell = cell
+		this.currentCell = cell
+		this.remainingTP = parent.remainingTP
+		this.remainingMP = max(0, parent.remainingMP - mpCost)
+		this.weaponInHand = parent.weaponInHand
+		this.state = Consequences()
+		this.state.currentCell = cell
+		this.state.currentMP = this.remainingMP
+	}
+
+	/*
+	 * Action node constructor
+	 */
+	constructor(CellMCTSNode parent, Action baseAction) {
+		this.parent = parent
+		this.nodeType = TYPE_ACTION
+
+		// Chain action with parent's consequences
+		Action chainedAction = Action(baseAction, parent.state)
+		this.action = chainedAction
+		this.state = chainedAction.consequences
+
+		// Sync currentCell with actual position after chaining (action may have moved us)
+		this.currentCell = this.state.currentCell
+
+		// Update resources
+		integer switchCost = baseAction.item.isWeap && baseAction.item != parent.weaponInHand ? 1 : 0
+		this.state.currentTP -= switchCost
+		this.remainingTP = this.state.currentTP
+		this.weaponInHand = baseAction.item.isWeap ? baseAction.item : parent.weaponInHand
+		this.remainingMP = max(0, this.state.currentMP)
+	}
+
+	/*
+	 * Move node constructor (mid-combo movement)
+	 */
+	constructor(CellMCTSNode parent, Cell targetCell, integer mpCost, boolean isMoveNode) {
+		this.parent = parent
+		this.nodeType = TYPE_MOVE
+		this.cell = targetCell
+		this.currentCell = targetCell
+		this.remainingTP = parent.remainingTP
+		this.remainingMP = max(0, parent.remainingMP - mpCost)
+		this.weaponInHand = parent.weaponInHand
+
+		// Clone parent state, update position
+		this.state = Consequences()
+		this.state.currentCell = targetCell
+		this.state.currentMP = this.remainingMP
+		this.state.currentTP = parent.state.currentTP
+		// Carry over score and kills from parent
+		if (parent.state.score != null) {
+			this.state.score = parent.state.score
+		}
+		for (Entity e : Entity _ in parent.state._killed) {
+			this.state._killed[e] = e
+		}
+	}
+
+	// ----------------------------------------------------------------
+	// MCTS HELPERS
+	// ----------------------------------------------------------------
+
+	real getUCBScore(real explorationConstant) {
+		if (this.visits == 0) return 999999.0
+		real exploitation = this.totalValue / this.visits
+		real exploration = explorationConstant * sqrt(log(this.parent!.visits) / this.visits)
+		return exploitation + exploration
+	}
+
+	boolean isFullyExpanded() {
+		if (this.nodeType == TYPE_ROOT) {
+			return count(this.untriedCells) == 0
+		}
+		// For action nodes: fully expanded when no actions AND no moves left
+		if (this.nodeType == TYPE_ACTION) {
+			return count(this.untriedActions) == 0 &&
+				   (this.movesInitialized && count(this.untriedMoves) == 0)
+		}
+		return count(this.untriedActions) == 0
+	}
+
+	CellMCTSNode? getBestChild() {
+		CellMCTSNode? best = null
+		integer bestVisits = -1
+		for (CellMCTSNode child in this.children) {
+			if (child.visits > bestVisits) {
+				bestVisits = child.visits
+				best = child
+			}
+		}
+		return best
+	}
+
+	integer getUsageCount(Item item) {
+		integer cnt = 0
+		CellMCTSNode? node = this
+		while (node != null) {
+			if (node!.action != null && node!.action!.item == item) cnt++
+			node = node!.parent
+		}
+		return cnt
+	}
+}
+
+
+// ================================================================
+// MOVEMENT POLICY
+// ================================================================
+
+class CellMovementPolicy {
+	static real EXHAUSTION_THRESHOLD = 0.6
+	static real IMPROVEMENT_REQUIRED = 1.2
+	static integer MAX_MOVE_CANDIDATES = 3
+
+	/*
+	 * Compute exhaustion factor for current cell
+	 * High = few/weak actions remaining, consider moving
+	 */
+	static real getExhaustion(CellMCTSNode node) {
+		Array<Action> remaining = node.untriedActions
+
+		if (count(remaining) == 0) return 1.0
+
+		real bestScore = 0
+		for (Action a in remaining) {
+			if (a.score! > bestScore) bestScore = a.score!
+		}
+
+		real countFactor = 1.0 / (1.0 + count(remaining))
+		real scoreFactor = 100.0 / (100.0 + bestScore)
+
+		return countFactor * 0.5 + scoreFactor * 0.5
+	}
+
+	/*
+	 * Get movement candidates worth exploring
+	 */
+	static Array<Cell> getMoveCandidates(CellMCTSNode node) {
+		if (node.remainingMP <= 0) return []
+
+		real exhaustion = CellMovementPolicy.getExhaustion(node)
+		if (exhaustion < EXHAUSTION_THRESHOLD) return []
+
+		// Current cell's adjusted value
+		real currentValue = MapOpportunity.getCellScore(node.currentCell)
+		currentValue *= (1.0 - exhaustion * 0.5)
+
+		// Build ignoreCells: allies (from Fight.self) + killed entities (from simulation)
+		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+		for (Entity e : Entity _ in node.state._killed) {
+			push(ignoreCells, e.cell)
+		}
+
+		// Get reachable cells with actual path costs
+		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(node.currentCell, node.remainingMP, ignoreCells)
+
+		// Collect better nearby cells
+		Array<CellCandidate> candidates = []
+
+		for (Cell cell : real cellScore in MapOpportunity.cellScores) {
+			integer? dist = reachable[cell]
+			if (dist == null) continue  // Not reachable
+			if (dist == 0) continue      // Same cell
+
+			real positionCost = dist! * CalibratedPTS.mpValue
+			real netValue = cellScore - positionCost
+
+			if (netValue < currentValue * IMPROVEMENT_REQUIRED) continue
+
+			push(candidates, CellCandidate(cell, dist!, netValue))
+		}
+
+		// Sort by net value
+		candidates = arraySort(candidates, (CellCandidate a, CellCandidate b) => integer|real {
+			return Sort.desc(a.netValue, b.netValue)
+		}) as Array<CellCandidate>
+
+		// Take top N based on exhaustion level
+		integer limit = 1 + floor(exhaustion * (MAX_MOVE_CANDIDATES - 1))
+
+		Array<Cell> result = []
+		for (integer i = 0; i < min(limit, count(candidates)); i++) {
+			push(result, candidates[i].cell)
+		}
+
+		return result
+	}
+}
+
+class CellCandidate {
+	Cell cell
+	integer distance
+	real netValue
+
+	constructor(Cell c, integer d, real v) {
+		this.cell = c
+		this.distance = d
+		this.netValue = v
+	}
+}
+
+
+// ================================================================
+// MAIN ALGORITHM
+// ================================================================
+
+class CellMCTS {
+	static real EXPLORATION = 1.414
+	static integer MAX_ITERATIONS = 100000
+	static integer MAX_ACTIONS_PER_NODE = 8
+	static integer SAFETY_BUFFER = 250000
+
+	static integer lastIterations = 0
+	static integer lastNodesCreated = 0
+	static integer lastMovesExplored = 0
+
+	static boolean shouldStop() {
+		return getOperations() > getMaxOperations() - SAFETY_BUFFER
+	}
+
+	/*
+	 * Main entry point
+	 */
+	static Combo run() {
+		Benchmark.start("CellMCTS.run")
+
+		// 1. Calibration (runs CalibratedPTS)
+		CalibratedPTS.calibrate()
+		Combo ptsCombo = CalibratedPTS.getBestCombo()
+		real ptsScore = CalibratedPTS.bestScore
+
+		if (CellMCTS.shouldStop()) {
+			Benchmark.setAlgo("CELL_MCTS", "PTS_ONLY")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
+			Benchmark.stop("CellMCTS.run")
+			return ptsCombo
+		}
+
+		// 2. Build tree
+		Map<Cell, Map<Item, Action>> mapBestAction = MapAction.getMapBestAction()
+		CellMCTSNode root = CellMCTSNode()
+		CellMCTS.initRootCells(root, mapBestAction)
+
+		// 3. Seed with calibration combos
+		Array<Combo> seedCombos = CalibratedPTS.getSeedingCombos()
+		CellMCTS.seedWithCombos(root, seedCombos, mapBestAction)
+
+		// 4. MCTS iterations
+		integer iterations = 0
+		integer nodesCreated = count(root.children)
+		integer movesExplored = 0
+
+		while (!CellMCTS.shouldStop() && iterations < MAX_ITERATIONS) {
+			iterations++
+
+			CellMCTSNode node = CellMCTS.select(root)
+
+			if (!node.isTerminal && !node.isFullyExpanded()) {
+				CellMCTSNode expanded = CellMCTS.expand(node, mapBestAction)
+				if (expanded != node) {
+					node = expanded
+					nodesCreated++
+					if (expanded.nodeType == CellMCTSNode.TYPE_MOVE) {
+						movesExplored++
+					}
+				}
+			}
+
+			real value = CellMCTS.rollout(node)
+			CellMCTS.backpropagate(node, value)
+		}
+
+		CellMCTS.lastIterations = iterations
+		CellMCTS.lastNodesCreated = nodesCreated
+		CellMCTS.lastMovesExplored = movesExplored
+
+		// 5. Extract best
+		Combo mctsCombo = CellMCTS.extractBestCombo(root)
+		real mctsScore = mctsCombo.getScore()!
+
+		Benchmark.setMCTS(iterations, nodesCreated, movesExplored, mctsScore)
+		Benchmark.stop("CellMCTS.run")
+
+		// Return better of PTS vs MCTS
+		if (mctsScore > ptsScore) {
+			Benchmark.setAlgo("CELL_MCTS", "MCTS")
+			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), CellMCTS.buildComboDesc(mctsCombo))
+			return mctsCombo
+		} else {
+			Benchmark.setAlgo("CELL_MCTS", "PTS")
+			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
+			return ptsCombo
+		}
+	}
+
+	// ----------------------------------------------------------------
+	// INITIALIZATION
+	// ----------------------------------------------------------------
+
+	static void initRootCells(CellMCTSNode root, Map<Cell, Map<Item, Action>> mapBestAction) {
+		for (Cell cell : integer mpCost in Fight.self.reachableCells) {
+			if (mpCost > Fight.self.mp) continue
+			if (mapBestAction[cell] != null || cell == Fight.self.cell) {
+				push(root.untriedCells, cell)
+			}
+		}
+	}
+
+	static void initNodeActions(CellMCTSNode node, Map<Cell, Map<Item, Action>> mapBestAction) {
+		node.untriedActions = []
+
+		// Get actions for current cell
+		if (mapBestAction[node.currentCell] != null) {
+			for (Item item : Action action in mapBestAction[node.currentCell]!) {
+				if (CellMCTS.canExecuteAction(node, action)) {
+					push(node.untriedActions, action)
+				}
+			}
+		}
+
+		// Add self-cast actions
+		if (mapBestAction[Fight.selfCell] != null) {
+			for (Item item : Action action in mapBestAction[Fight.selfCell]!) {
+				if (CellMCTS.canExecuteAction(node, action)) {
+					push(node.untriedActions, action)
+				}
+			}
+		}
+
+		// Prune to top actions
+		node.untriedActions = CellMCTS.pruneActions(node.untriedActions)
+		node.isTerminal = count(node.untriedActions) == 0
+	}
+
+	static void initNodeMoves(CellMCTSNode node) {
+		node.untriedMoves = CellMovementPolicy.getMoveCandidates(node)
+		node.movesInitialized = true
+	}
+
+	static boolean canExecuteAction(CellMCTSNode node, Action action) {
+		if (node.getUsageCount(action.item) >= action.item.maxUse) return false
+
+		if (action.to != Fight.selfCell) {
+			Entity? target = Board.entityCells[action.to]
+			if (target != null && node.state.isKilled(target!)) return false
+		}
+
+		integer switchCost = action.item.isWeap && action.item != node.weaponInHand ? 1 : 0
+		if (action.item.cost + switchCost > node.remainingTP) return false
+
+		if (action.score! <= 0) return false
+
+		return true
+	}
+
+	static Array<Action> pruneActions(Array<Action> actions) {
+		if (count(actions) <= MAX_ACTIONS_PER_NODE) return actions
+
+		Array<Action> sorted = arraySort(actions, (Action a, Action b) => integer|real {
+			return Sort.desc(a.score!, b.score!)
+		}) as Array<Action>
+
+		Array<Action> result = []
+		for (integer i = 0; i < MAX_ACTIONS_PER_NODE; i++) {
+			push(result, sorted[i])
+		}
+		return result
+	}
+
+	// ----------------------------------------------------------------
+	// SEEDING
+	// ----------------------------------------------------------------
+
+	/*
+	 * Seed with calibration combos - traces full action path including mid-combo movement.
+	 * For multi-cell combos, creates MoveNodes when cell changes.
+	 */
+	static void seedWithCombos(CellMCTSNode root, Array<Combo> combos, Map<Cell, Map<Item, Action>> mapBestAction) {
+		for (Combo combo in combos) {
+			if (count(combo.actions) == 0) continue
+
+			// Find starting cell (first non-self-cast action's cell)
+			Cell startCell = Fight.self.cell
+			for (Action a in combo.actions) {
+				if (a.from != Fight.selfCell) {
+					startCell = a.from
+					break
+				}
+			}
+
+			// Find or create cell node
+			CellMCTSNode? cellNode = null
+			for (CellMCTSNode child in root.children) {
+				if (child.nodeType == CellMCTSNode.TYPE_CELL && child.cell == startCell) {
+					cellNode = child
+					break
+				}
+			}
+
+			if (cellNode == null) {
+				integer? mpCost = Fight.self.reachableCells[startCell]
+				if (mpCost == null) continue
+
+				cellNode = CellMCTSNode(root, startCell, mpCost!)
+				CellMCTS.initNodeActions(cellNode!, mapBestAction)
+				push(root.children, cellNode!)
+			}
+
+			// Trace full action path
+			real comboScore = combo.getScore()!
+			CellMCTSNode node = cellNode!
+
+			for (Action action in combo.actions) {
+				// Skip self-cast actions (they don't change position or need movement)
+				if (action.from == Fight.selfCell) continue
+
+				// Check if we need to move to a different cell
+				if (action.from != node.currentCell) {
+					// Need a MoveNode to reach action.from
+					CellMCTSNode? moveNode = CellMCTS.findOrCreateMoveNode(node, action.from, mapBestAction)
+					if (moveNode == null) break  // Can't reach this cell, stop tracing
+					node = moveNode!
+				}
+
+				// Find or create action node
+				CellMCTSNode? actionNode = CellMCTS.findOrCreateActionNode(node, action, mapBestAction)
+				if (actionNode == null) break  // Action not valid, stop tracing
+				node = actionNode!
+			}
+
+			// Backpropagate virtual visits from deepest node
+			integer virtualVisits = 3
+			CellMCTSNode? current = node
+			while (current != null) {
+				current!.visits += virtualVisits
+				current!.totalValue += comboScore * virtualVisits
+				current = current!.parent
+			}
+		}
+	}
+
+	/*
+	 * Find or create a MoveNode to reach targetCell from current node.
+	 * Returns null if targetCell is not reachable.
+	 */
+	static CellMCTSNode? findOrCreateMoveNode(CellMCTSNode node, Cell targetCell, Map<Cell, Map<Item, Action>> mapBestAction) {
+		// Check existing children for matching move node
+		for (CellMCTSNode child in node.children) {
+			if (child.nodeType == CellMCTSNode.TYPE_MOVE && child.cell == targetCell) {
+				return child
+			}
+		}
+
+		// Compute path cost to target cell
+		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+		for (Entity e : Entity _ in node.state._killed) {
+			push(ignoreCells, e.cell)
+		}
+		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(node.currentCell, node.remainingMP, ignoreCells)
+
+		integer? mpCost = reachable[targetCell]
+		if (mpCost == null) return null  // Not reachable
+
+		// Create move node
+		CellMCTSNode moveNode = CellMCTSNode(node, targetCell, mpCost!, true)
+		CellMCTS.initNodeActions(moveNode, mapBestAction)
+		push(node.children, moveNode)
+
+		return moveNode
+	}
+
+	/*
+	 * Find or create an ActionNode for the given action.
+	 * Returns null if action is not valid from current node.
+	 */
+	static CellMCTSNode? findOrCreateActionNode(CellMCTSNode node, Action action, Map<Cell, Map<Item, Action>> mapBestAction) {
+		// Check existing children for matching action node
+		for (CellMCTSNode child in node.children) {
+			if (child.nodeType == CellMCTSNode.TYPE_ACTION &&
+				child.action != null &&
+				child.action!.item == action.item &&
+				child.action!.to == action.to) {
+				return child
+			}
+		}
+
+		// Find matching base action from mapBestAction
+		Action? baseAction = null
+		if (mapBestAction[node.currentCell] != null) {
+			baseAction = mapBestAction[node.currentCell]![action.item]
+		}
+		// Also check self-cast actions
+		if (baseAction == null && mapBestAction[Fight.selfCell] != null) {
+			baseAction = mapBestAction[Fight.selfCell]![action.item]
+		}
+
+		if (baseAction == null) return null  // Action not available from this cell
+
+		// Create action node
+		CellMCTSNode actionNode = CellMCTSNode(node, baseAction!)
+		CellMCTS.initNodeActions(actionNode, mapBestAction)
+		push(node.children, actionNode)
+
+		return actionNode
+	}
+
+	// ----------------------------------------------------------------
+	// MCTS PHASES
+	// ----------------------------------------------------------------
+
+	static CellMCTSNode select(CellMCTSNode root) {
+		CellMCTSNode node = root
+
+		while (!node.isTerminal && node.isFullyExpanded() && count(node.children) > 0) {
+			CellMCTSNode? best = null
+			real bestUCB = -999999.0
+
+			for (CellMCTSNode child in node.children) {
+				real ucb = child.getUCBScore(EXPLORATION)
+				if (ucb > bestUCB) {
+					bestUCB = ucb
+					best = child
+				}
+			}
+
+			if (best == null) break
+			node = best!
+		}
+
+		return node
+	}
+
+	static CellMCTSNode expand(CellMCTSNode node, Map<Cell, Map<Item, Action>> mapBestAction) {
+		// ROOT: expand with cell
+		if (node.nodeType == CellMCTSNode.TYPE_ROOT) {
+			if (count(node.untriedCells) == 0) return node
+
+			Cell cell = shift(node.untriedCells)
+			integer? mpCost = Fight.self.reachableCells[cell]
+			if (mpCost == null) return node
+
+			CellMCTSNode child = CellMCTSNode(node, cell, mpCost!)
+			CellMCTS.initNodeActions(child, mapBestAction)
+			push(node.children, child)
+
+			return child
+		}
+
+		// CELL/ACTION/MOVE: expand with action first
+		if (count(node.untriedActions) > 0) {
+			Action action = shift(node.untriedActions)
+
+			CellMCTSNode child = CellMCTSNode(node, action)
+			CellMCTS.initNodeActions(child, mapBestAction)
+			push(node.children, child)
+
+			return child
+		}
+
+		// Then try movement (for ACTION nodes only, not MOVE nodes to prevent move->move)
+		if (node.nodeType == CellMCTSNode.TYPE_ACTION) {
+			if (!node.movesInitialized) {
+				CellMCTS.initNodeMoves(node)
+			}
+
+			if (count(node.untriedMoves) > 0) {
+				Cell targetCell = shift(node.untriedMoves)
+
+				// Build ignoreCells: allies (from Fight.self) + killed entities (from simulation)
+				Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+				for (Entity e : Entity _ in node.state._killed) {
+					push(ignoreCells, e.cell)
+				}
+
+				// Get actual path cost from reachable cells
+				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(node.currentCell, node.remainingMP, ignoreCells)
+				integer? mpCost = reachable[targetCell]
+				if (mpCost == null) return node  // Not actually reachable
+
+				CellMCTSNode child = CellMCTSNode(node, targetCell, mpCost!, true)
+				CellMCTS.initNodeActions(child, mapBestAction)
+				push(node.children, child)
+
+				return child
+			}
+		}
+
+		return node
+	}
+
+	static real rollout(CellMCTSNode node) {
+		// Simple rollout: current score + estimated position value
+		real actionScore = node.state.score != null ? node.state.score! : 0.0
+		real positionEstimate = CalibratedPTS.estimatePositionValue(node.remainingMP)
+
+		return actionScore + positionEstimate
+	}
+
+	static void backpropagate(CellMCTSNode node, real value) {
+		CellMCTSNode? current = node
+		while (current != null) {
+			current!.visits++
+			current!.totalValue += value
+			current = current!.parent
+		}
+	}
+
+	// ----------------------------------------------------------------
+	// EXTRACTION
+	// ----------------------------------------------------------------
+
+	static Combo extractBestCombo(CellMCTSNode root) {
+		Combo combo = Combo()
+
+		CellMCTSNode? node = root
+		while (node != null) {
+			CellMCTSNode? best = node!.getBestChild()
+			if (best == null) break
+
+			// Add action if this is an action node
+			if (best!.nodeType == CellMCTSNode.TYPE_ACTION && best!.action != null) {
+				if (!combo.add(best!.action!)) break
+			}
+
+			node = best
+		}
+
+		// Final position
+		if (node != null) {
+			Position pos = MapPosition.findBestPosition(
+				node!.currentCell,
+				node!.remainingMP,
+				node!.state
+			)
+			combo.addFinalPosition(pos)
+		} else {
+			combo.addFinalPosition(MapPosition.findBestPosition(
+				Fight.self.cell, Fight.self.mp, Consequences()))
+		}
+
+		return combo
+	}
+
+	static string buildComboDesc(Combo combo) {
+		string desc = ""
+		for (Action a in combo.actions) {
+			if (desc != "") desc += "->"
+			desc += a.item.name + "(" + round(a.score!) + ")"
+		}
+		if (combo.finalPosition) {
+			if (desc != "") desc += "->"
+			Position p = combo.finalPosition!
+			desc += "mv(" + p.cell.id + ":" + round(p.score) + ")"
+		}
+		if (desc == "") desc = "stay"
+		return desc
+	}
+}
