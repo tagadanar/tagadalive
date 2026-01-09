@@ -125,7 +125,7 @@ class CalibratedPTS {
 				}
 
 				// Find cell within remaining movement budget
-				Cell? execCell = CalibratedPTS.findCellWithinBudget(opp, reachable, currentCell)
+				Cell? execCell = CalibratedPTS.findCellWithinBudget(opp, reachable, currentCell, budgetForMove)
 				if (execCell == null) continue
 
 				// Get pre-computed action (avoids spurious warnings from Fight.self)
@@ -187,16 +187,20 @@ class CalibratedPTS {
 	 * @param opp - the opportunity to check
 	 * @param reachable - map of reachable cells with their MP costs
 	 * @param currentCell - current position (for self-cast check)
+	 * @param budget - max MP to spend on movement (cache may return superset)
 	 */
-	static Cell? findCellWithinBudget(Opportunity opp, Map<Cell, integer> reachable, Cell currentCell) {
+	static Cell? findCellWithinBudget(Opportunity opp, Map<Cell, integer> reachable, Cell currentCell, integer budget) {
 		if (opp.isSelfCast) return Fight.selfCell
 
 		Cell? best = null
 		real bestScore = -999999
 
 		for (Cell cell : real score in opp.attackScores) {
-			// Check if cell is reachable (in the map means reachable)
-			if (cell != currentCell && reachable[cell] == null) continue
+			// Check if cell is reachable within budget (cache may return superset)
+			if (cell != currentCell) {
+				integer? dist = reachable[cell]
+				if (dist == null || dist! > budget) continue
+			}
 
 			if (score > bestScore) {
 				bestScore = score

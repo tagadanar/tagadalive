@@ -242,6 +242,7 @@ class CellMovementPolicy {
 			integer? dist = reachable[cell]
 			if (dist == null) continue  // Not reachable
 			if (dist == 0) continue      // Same cell
+			if (dist! > node.remainingMP) continue  // Exceeds MP budget (cache may return superset)
 
 			real positionCost = dist! * CalibratedPTS.mpValue
 			real netValue = cellScore - positionCost
@@ -541,6 +542,7 @@ class CellMCTS {
 
 		integer? mpCost = reachable[targetCell]
 		if (mpCost == null) return null  // Not reachable
+		if (mpCost! > node.remainingMP) return null  // Exceeds MP budget (cache may return superset)
 
 		// Create move node
 		CellMCTSNode moveNode = CellMCTSNode(node, targetCell, mpCost!, true)
@@ -657,6 +659,7 @@ class CellMCTS {
 				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(node.currentCell, node.remainingMP, ignoreCells)
 				integer? mpCost = reachable[targetCell]
 				if (mpCost == null) return node  // Not actually reachable
+				if (mpCost! > node.remainingMP) return node  // Exceeds MP budget (cache may return superset)
 
 				CellMCTSNode child = CellMCTSNode(node, targetCell, mpCost!, true)
 				CellMCTS.initNodeActions(child, mapBestAction)
