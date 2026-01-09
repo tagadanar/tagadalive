@@ -15,6 +15,7 @@ class Opportunity {
 	Item item                  // The item to use
 	Map<Cell, Cell> attackCells // attackCell → aimCell mapping (unified index)
 	Map<Cell, real> attackScores // attackCell → score (for cell selection)
+	Map<Cell, Action> attackActions // attackCell → pre-computed Action (avoids spurious warnings)
 	real baseScore             // Best achievable score (from bestScoreCell)
 	real closestScore          // Score from closestCell (conservative estimate)
 	Cell? closestCell          // Cell with minimum MP cost
@@ -26,15 +27,17 @@ class Opportunity {
 	static integer MODE_BEST_SCORE = 1 // Maximize damage
 
 	/*
-	 * Constructor for a standard opportunity (target + item + cells + scores)
+	 * Constructor for a standard opportunity (target + item + cells + scores + actions)
 	 * attackCells maps each attack cell to its corresponding aim cell
 	 * attackScores maps each attack cell to its action score
+	 * attackActions maps each attack cell to its pre-computed Action
 	 */
-	constructor(Entity target, Item item, Map<Cell, Cell> attackCells, Map<Cell, real> attackScores, Cell closestCell, Cell bestScoreCell) {
+	constructor(Entity target, Item item, Map<Cell, Cell> attackCells, Map<Cell, real> attackScores, Map<Cell, Action> attackActions, Cell closestCell, Cell bestScoreCell) {
 		this.target = target
 		this.item = item
 		this.attackCells = attackCells
 		this.attackScores = attackScores
+		this.attackActions = attackActions
 		this.closestCell = closestCell
 		this.bestScoreCell = bestScoreCell
 		this.closestScore = attackScores[closestCell]!
@@ -44,16 +47,18 @@ class Opportunity {
 
 	/*
 	 * Constructor for self-cast opportunity
+	 * Takes the pre-computed action to avoid recreating it later
 	 */
-	constructor(Entity target, Item item, real score) {
+	constructor(Entity target, Item item, Action action) {
 		this.target = target
 		this.item = item
 		this.attackCells = [Fight.selfCell: Fight.selfCell]
-		this.attackScores = [Fight.selfCell: score]
+		this.attackScores = [Fight.selfCell: action.score!]
+		this.attackActions = [Fight.selfCell: action]
 		this.closestCell = Fight.selfCell
 		this.bestScoreCell = Fight.selfCell
-		this.closestScore = score
-		this.baseScore = score
+		this.closestScore = action.score!
+		this.baseScore = action.score!
 		this.isSelfCast = true
 	}
 

@@ -142,15 +142,16 @@ class MapOpportunity {
 	/*
 	 * Create an opportunity for a (item, target) pair.
 	 * Uses MapAction's pre-validated attack cells and scores.
+	 * Pre-computes Actions for each cell to avoid spurious warnings during exploration.
 	 * Computes both closestCell (min MP) and bestScoreCell (max damage).
 	 */
 	static Opportunity? _createOpportunity(Item item, Entity target) {
 		// Self-cast case: item targets self with minRange 0
 		if (target == Fight.self && item.minRange == 0) {
-			// Create a temporary action to get base score
-			Action tempAction = Action(item, Fight.selfCell, Fight.selfCell)
-			if (tempAction.score! <= 0) return null
-			return Opportunity(target, item, tempAction.score!)
+			// Create action once here (reachable from Fight.self, no warning)
+			Action selfAction = Action(item, Fight.selfCell, Fight.selfCell)
+			if (selfAction.score! <= 0) return null
+			return Opportunity(target, item, selfAction)
 		}
 
 		// Can't target self with minRange > 0
@@ -163,12 +164,17 @@ class MapOpportunity {
 		if (attackScores == null) return null
 
 		// Find closestCell (min MP) and bestScoreCell (max score)
+		// Also pre-compute Actions for each cell (created from Fight.self, always valid)
 		Cell? closestCell = null
 		integer closestDist = 99999
 		Cell? bestScoreCell = null
 		real bestScore = -999999
+		Map<Cell, Action> attackActions = [:]
 
-		for (Cell attackCell : real score in attackScores!) {
+		for (Cell attackCell : Cell aimCell in attackCells!) {
+			real? score = attackScores![attackCell]
+			if (score == null) continue
+
 			// Track closest reachable cell
 			integer? dist = Fight.self.reachableCells[attackCell]
 			if (dist != null && dist! < closestDist) {
@@ -176,17 +182,21 @@ class MapOpportunity {
 				closestCell = attackCell
 			}
 			// Track best score cell
-			if (score > bestScore) {
-				bestScore = score
+			if (score! > bestScore) {
+				bestScore = score!
 				bestScoreCell = attackCell
 			}
+
+			// Pre-compute Action for this cell (created from Fight.self, no warning)
+			Action action = Action(item, attackCell, aimCell)
+			attackActions[attackCell] = action
 		}
 
 		// Need at least one reachable cell with positive score
 		if (closestCell == null || bestScore <= 0) return null
 
-		// Return opportunity with both cells identified
-		return Opportunity(target, item, attackCells!, attackScores!, closestCell!, bestScoreCell!)
+		// Return opportunity with pre-computed actions
+		return Opportunity(target, item, attackCells!, attackScores!, attackActions, closestCell!, bestScoreCell!)
 	}
 
 	// ═══════════════════════════════════════════════════════

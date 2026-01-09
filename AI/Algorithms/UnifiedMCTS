@@ -351,8 +351,7 @@ class UnifiedMCTS {
 			UnifiedMCTSNode node = cellNode!
 
 			for (Action action in combo.actions) {
-				// Skip self-cast for cell tracing (they don't change position)
-				if (action.from == Fight.selfCell) continue
+				// Process all actions including self-cast (they affect state like MP/TP)
 
 				// Find or create action node
 				UnifiedMCTSNode? actionNode = null
