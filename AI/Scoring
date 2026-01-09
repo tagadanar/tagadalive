@@ -18,6 +18,7 @@ class Scoring {
 
 	// === Caches (recomputed each turn) ===
 	static Map<Entity, Map<integer, real>> _cache_coef = [:] // [entity:[stat:coef]]
+	static Map<Entity, Map<integer, real>> _cache_dynamic_coef = [:] // [entity:[stat:dynamicCoef]] (pre-computed when !DYNAMIC_COEFS)
 	static Map<integer, integer> _cache_duration = [:]       // [key:effectiveDuration]
 
 	// === Dynamic Position Weights (computed in refresh) ===
@@ -35,6 +36,7 @@ class Scoring {
 
 		// === Reset local caches ===
 		_cache_coef = [:]
+		_cache_dynamic_coef = [:]
 		_cache_duration = [:]
 
 		// === Compute dynamic position weights ===
@@ -71,26 +73,23 @@ class Scoring {
 			_cache_duration[(raw + 1) * 2 + 1] = max(base - 1, 0)
 		}
 
-		// === Pre-compute base coefficients for all entities ===
+		// === Pre-compute base and dynamic coefficients for all entities ===
 		for (Entity entity in Fight.getAllAlive()) {
 			_cache_coef[entity] = [:]
-			_cache_coef[entity]![Stats.HP] = EntityCoefs.getStatCoef(entity, Stats.HP)
-			_cache_coef[entity]![Stats.HPTIME] = EntityCoefs.getStatCoef(entity, Stats.HPTIME)
-			_cache_coef[entity]![Stats.HPMAX] = EntityCoefs.getStatCoef(entity, Stats.HPMAX)
-			_cache_coef[entity]![Stats.DEBUFF] = EntityCoefs.getStatCoef(entity, Stats.DEBUFF)
-			_cache_coef[entity]![Stats.ANTIDOTE] = EntityCoefs.getStatCoef(entity, Stats.ANTIDOTE)
-			_cache_coef[entity]![Stats.ABSSHIELD] = EntityCoefs.getStatCoef(entity, Stats.ABSSHIELD)
-			_cache_coef[entity]![Stats.RELSHIELD] = EntityCoefs.getStatCoef(entity, Stats.RELSHIELD)
-			_cache_coef[entity]![Stats.DMGRETURN] = EntityCoefs.getStatCoef(entity, Stats.DMGRETURN)
-			_cache_coef[entity]![Stats.STR] = EntityCoefs.getStatCoef(entity, Stats.STR)
-			_cache_coef[entity]![Stats.MGC] = EntityCoefs.getStatCoef(entity, Stats.MGC)
-			_cache_coef[entity]![Stats.RST] = EntityCoefs.getStatCoef(entity, Stats.RST)
-			_cache_coef[entity]![Stats.WSD] = EntityCoefs.getStatCoef(entity, Stats.WSD)
-			_cache_coef[entity]![Stats.AGI] = EntityCoefs.getStatCoef(entity, Stats.AGI)
-			_cache_coef[entity]![Stats.TP] = EntityCoefs.getStatCoef(entity, Stats.TP)
-			_cache_coef[entity]![Stats.MP] = EntityCoefs.getStatCoef(entity, Stats.MP)
-			_cache_coef[entity]![Stats.PWR] = EntityCoefs.getStatCoef(entity, Stats.PWR)
-			_cache_coef[entity]![Stats.KILL] = EntityCoefs.getStatCoef(entity, Stats.KILL)
+			for (integer stat in ScoringConfig.ALL_STATS) {
+				_cache_coef[entity]![stat] = EntityCoefs.getStatCoef(entity, stat)
+			}
+		}
+
+		// Pre-compute dynamic coefficients (when DYNAMIC_COEFS is false)
+		// This saves ~4x operations during MCTS by avoiding repeated modifier calculations
+		if (!ScoringConfig.DYNAMIC_COEFS) {
+			for (Entity entity in Fight.getAllAlive()) {
+				_cache_dynamic_coef[entity] = [:]
+				for (integer stat in ScoringConfig.ALL_STATS) {
+					_cache_dynamic_coef[entity]![stat] = _computeDynamicCoef(entity, stat, null)
+				}
+			}
 		}
 	}
 
@@ -119,37 +118,70 @@ class Scoring {
 	}
 
 	/*
-	 * Returns dynamic coefficient with all modifiers applied
-	 * Uses ScoringModifiers for individual modifier calculations
+	 * Returns dynamic coefficient with all modifiers applied.
+	 *
+	 * When DYNAMIC_COEFS=false (default): Pure cache lookup (includes canDie from turn start).
+	 * When DYNAMIC_COEFS=true: Computes everything dynamically using simulated HP from consequences.
+	 *
 	 * @param entity The entity to get coefficient for
 	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
-	 * @param consequences Optional consequences to check current HP
+	 * @param consequences Optional consequences for simulated state (only used in dynamic mode)
 	 * @return Coefficient with dynamic modifiers applied
 	 */
 	static real getDynamicCoef(Entity entity, integer stat, Consequences? consequences) {
-		real base = getCoef(entity, stat)  // use cached base coefficient
+		if (ScoringConfig.DYNAMIC_COEFS) {
+			// === DYNAMIC MODE: compute with simulated HP ===
+			return _computeDynamicCoef(entity, stat, consequences)
+		} else {
+			// === STATIC MODE: pure cache lookup (canDie evaluated at turn start) ===
+			return _cache_dynamic_coef[entity]![stat]!
+		}
+	}
 
-		// Apply lifeRatio modifier to HP-related stats (both allies and enemies)
+	/*
+	 * Computes dynamic coefficient with all modifiers applied.
+	 * Unified function handling both static (null consequences) and dynamic modes.
+	 *
+	 * @param entity The entity to get coefficient for
+	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
+	 * @param consequences Optional consequences for simulated HP (null = use turn-start state)
+	 * @return Coefficient with all modifiers applied
+	 */
+	static real _computeDynamicCoef(Entity entity, integer stat, Consequences? consequences) {
+		real base = getCoef(entity, stat)
+		boolean isAlly = entity.isFriend
+		boolean isOtherAlly = isAlly && entity != Fight.self
+
+		// === HP-related stats: lifeRatio + winning modifier ===
 		if (stat == Stats.HP || stat == Stats.HPTIME) {
-			base *= ScoringModifiers.getLifeRatioModifier(entity)
-
-			// Apply winning modifier for allies (care less about HP when winning and safe)
-			if (entity.isFriend) {
+			// Use dynamic or static lifeRatio based on consequences
+			if (consequences != null) {
+				base *= ScoringModifiers.getLifeRatioModifierDynamic(entity, consequences!)
+			} else {
+				base *= ScoringModifiers.getLifeRatioModifier(entity)
+			}
+			// Winning modifier for allies
+			if (isAlly) {
 				base *= ScoringModifiers.getWinningModifier()
 			}
 		}
 
-		// Apply modifiers for allies only (not self, not enemies)
-		if (entity.isFriend && entity != Fight.self) {
-			// canDie modifier: massive boost when ally might die
+		// === Shield stats: teamComp + shieldStatus (all entities) ===
+		if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
+			base *= ScoringModifiers.getTeamCompModifier(entity, stat)
+			base *= ScoringModifiers.getShieldStatusModifier(entity, stat)
+		}
+
+		// === Other ally modifiers (not self, not enemies) ===
+		if (isOtherAlly) {
+			// canDie: boost HP/shields when ally might die
 			if (stat == Stats.HP || stat == Stats.HPTIME || stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
 				if (canDie(entity, consequences)) {
 					base *= ScoringConfig.CANDIE_MODIFIER
 				}
 			}
 
-			// levelRatio modifier: more valuable to buff high-level allies
-			// Applies to heals, shields, and stat buffs
+			// levelRatio: scale by relative level
 			if (stat == Stats.HP || stat == Stats.HPMAX || stat == Stats.ANTIDOTE ||
 			    stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD ||
 			    stat == Stats.MGC || stat == Stats.MP || stat == Stats.AGI ||
@@ -157,79 +189,49 @@ class Scoring {
 				base *= ScoringModifiers.getLevelRatioModifier(entity)
 			}
 
-			// maxHP comparison modifier: low maxHP allies benefit more from HPMAX boosts
+			// maxHP comparison for HPMAX stat
 			if (stat == Stats.HPMAX) {
 				base *= ScoringModifiers.getMaxHPComparisonModifier(entity)
 			}
+		}
 
-			// teamComp modifier: adjust shield value based on team synergy (allies)
-			if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
-				base *= ScoringModifiers.getTeamCompModifier(entity, stat)
+		// === Ally-specific stat modifiers (includes self) ===
+		if (isAlly) {
+			// STR/MGC scaling
+			if (stat == Stats.STR || stat == Stats.MGC) {
+				integer currentStat = (stat == Stats.STR) ? entity.str : entity.mgc
+				base *= ScoringModifiers.getStatScalingModifier(currentStat)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
 			}
-		}
 
-		// teamComp modifier for enemies: removing shields more valuable with offensive bulbs
-		if (!entity.isFriend) {
-			if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
-				base *= ScoringModifiers.getTeamCompModifier(entity, stat)
+			// TP modifier
+			if (stat == Stats.TP) {
+				base *= ScoringModifiers.getTPModifier(entity)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
 			}
-		}
 
-		// shieldStatus modifier: adjust based on current shield levels
-		if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
-			base *= ScoringModifiers.getShieldStatusModifier(entity, stat)
-		}
-
-		// STR/MGC modifier for allies: scales with current stat, prefer boosting allies over self
-		if (entity.isFriend && (stat == Stats.STR || stat == Stats.MGC)) {
-			integer currentStat = (stat == Stats.STR) ? entity.str : entity.mgc
-			base *= ScoringModifiers.getStatScalingModifier(currentStat)
-			// Prefer boosting allies over self
-			if (entity != Fight.self) {
-				base *= 1.1
+			// AGI modifier
+			if (stat == Stats.AGI) {
+				base *= ScoringModifiers.getAGIModifier(entity)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
 			}
-		}
 
-		// TP modifier for allies: more valuable for high STR/MGC entities
-		if (entity.isFriend && stat == Stats.TP) {
-			base *= ScoringModifiers.getTPModifier(entity)
-			// Prefer boosting allies over self
-			if (entity != Fight.self) {
-				base *= 1.1
+			// WSD/RST chip readiness
+			if (stat == Stats.WSD || stat == Stats.RST) {
+				base *= ScoringModifiers.getChipReadyModifier(entity, stat)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
 			}
-		}
 
-		// AGI modifier for allies: bell curve with peak at 700
-		if (entity.isFriend && stat == Stats.AGI) {
-			base *= ScoringModifiers.getAGIModifier(entity)
-			// Prefer boosting allies over self
-			if (entity != Fight.self) {
-				base *= 1.1
+			// MP modifier
+			if (stat == Stats.MP) {
+				base *= ScoringModifiers.getMPModifier(entity)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
 			}
-		}
 
-		// WSD/RST modifier for allies: more valuable when relevant chips are ready
-		// Scale: 0.5x at 0 chips, 1.0x at 1, 1.5x at 3+
-		if (entity.isFriend && (stat == Stats.WSD || stat == Stats.RST)) {
-			base *= ScoringModifiers.getChipReadyModifier(entity, stat)
-			// Prefer boosting allies over self
-			if (entity != Fight.self) {
-				base *= 1.1
+			// DMGRETURN modifier
+			if (stat == Stats.DMGRETURN) {
+				base *= ScoringModifiers.getDMGReturnModifier(entity)
 			}
-		}
-
-		// MP modifier for allies: more valuable for high STR/MGC, and when low MP
-		if (entity.isFriend && stat == Stats.MP) {
-			base *= ScoringModifiers.getMPModifier(entity)
-			// Prefer boosting allies over self
-			if (entity != Fight.self) {
-				base *= 1.1
-			}
-		}
-
-		// DMGRETURN modifier for allies: valuable when enemy has STR, scaling with current level
-		if (entity.isFriend && stat == Stats.DMGRETURN) {
-			base *= ScoringModifiers.getDMGReturnModifier(entity)
 		}
 
 		return base

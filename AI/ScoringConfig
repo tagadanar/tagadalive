@@ -8,6 +8,11 @@
  */
 class ScoringConfig {
 
+	// === Performance vs Accuracy Trade-off ===
+	// When false: coefficients pre-computed at turn start (fast, ~4x fewer ops)
+	// When true: coefficients computed dynamically using simulated HP (accurate, slower)
+	static boolean DYNAMIC_COEFS = false
+
 	// === Combat Values ===
 	static integer KILL_VALUE = 5000
 	static integer DEATH_VALUE = -5000
@@ -18,6 +23,18 @@ class ScoringConfig {
 	static real CANDIE_MODIFIER = 5.0   // massive boost when ally might die
 	static real CANDIE_THRESHOLD = 0.8   // ally.hp < danger * threshold → canDie
 	static real IGNORE_DANGER_RATIO = 0.1 // ignore damage < 10% of current life
+
+	// === Ally Modifier ===
+	// Slight boost for buffing allies (not self) - they benefit from our support
+	static real ALLY_BUFF_MODIFIER = 1.1
+
+	// === All Stats (for iteration) ===
+	static Array<integer> ALL_STATS = [
+		Stats.HP, Stats.HPTIME, Stats.HPMAX, Stats.DEBUFF, Stats.ANTIDOTE,
+		Stats.ABSSHIELD, Stats.RELSHIELD, Stats.DMGRETURN,
+		Stats.STR, Stats.MGC, Stats.RST, Stats.WSD, Stats.AGI,
+		Stats.TP, Stats.MP, Stats.PWR, Stats.KILL
+	]
 
 	// === Chip Maps for WSD/RST Modifiers (O(1) lookup) ===
 	static Map<integer, boolean> WSD_CHIPS = [CHIP_ELEVATION: true, CHIP_CURE: true, CHIP_VACCINE: true, CHIP_ARMORING: true, CHIP_REMISSION: true]

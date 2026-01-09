@@ -38,10 +38,27 @@ class ScoringModifiers {
 	 * | 0.00      | 10.0     | dead → capped at 10x             |
 	 */
 	static real getLifeRatioModifier(Entity entity) {
-		real lifeRatio = entity.life / entity.totalLife
+		return _computeLifeRatioModifier(entity.life / entity.totalLife, entity.isFriend)
+	}
+
+	/*
+	 * Dynamic version: uses simulated HP from consequences
+	 * Called when DYNAMIC_COEFS is enabled for accurate mid-combo scoring
+	 */
+	static real getLifeRatioModifierDynamic(Entity entity, Consequences consequences) {
+		integer currentHP = entity.getCurrentHP(consequences)
+		integer maxHP = entity.getCurrentMaxHP(consequences)
+		if (maxHP <= 0) return 10.0
+		return _computeLifeRatioModifier(currentHP * 1.0 / maxHP, entity.isFriend)
+	}
+
+	/*
+	 * Internal: compute modifier from life ratio value
+	 */
+	static real _computeLifeRatioModifier(real lifeRatio, boolean isFriend) {
 		if (lifeRatio <= 0.0) return 10.0 // safety: dead or invalid
 
-		if (entity.isFriend) {
+		if (isFriend) {
 			// Ally: linear curve - prioritize healing low HP allies
 			return 10.0 - 9.0 * lifeRatio
 		} else {
