@@ -596,11 +596,15 @@ class UnifiedMCTS {
 			rolloutSteps++
 		}
 
-		// Final score = action score + estimated position value
-		// Uses calibration data to estimate position value based on remaining MP
+		// Final score = action score + real position value
+		// Uses precomputed position grid for accurate scoring
 		real totalScore = currentState.score == null ? 0.0 : currentState.score!
-		real positionEstimate = CalibratedPTS.estimatePositionValue(node.remainingMP)
-		totalScore += positionEstimate
+		real positionScore = MapPosition.findBestPositionScoreFast(
+			currentState.currentCell,
+			currentState.currentMP,
+			currentState
+		)
+		totalScore += positionScore
 
 		return totalScore
 	}
