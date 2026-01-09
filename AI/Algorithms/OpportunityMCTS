@@ -485,9 +485,13 @@ class OpportunityMCTS {
 
 	static real rollout(OppNode node) {
 		real actionScore = node.state.score != null ? node.state.score! : 0.0
-		real positionEstimate = CalibratedPTS.estimatePositionValue(node.remainingMP)
+		real positionScore = MapPosition.findBestPositionScoreFast(
+			node.state.currentCell,
+			node.state.currentMP,
+			node.state
+		)
 
-		return actionScore + positionEstimate
+		return actionScore + positionScore
 	}
 
 	static void backpropagate(OppNode node, real value) {

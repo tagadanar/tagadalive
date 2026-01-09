@@ -39,6 +39,25 @@ class MapPosition {
 		MapPosition._refreshThreatDetection()
 		MapPosition._refreshGravityCells()
 		MapPosition._refreshCovid()
+
+		// Precompute position grid for fast MCTS lookups
+		MapPosition._precomputeGrid()
+	}
+
+	/*
+	 * Precompute position scores for all walkable cells.
+	 * Pre-fills _position cache for O(1) lookups during MCTS rollout.
+	 * Cost: ~600 cells × ~200 ops = ~120k ops, paid once per turn.
+	 */
+	static void _precomputeGrid() {
+		Benchmark.start("MP.precompute")
+		for (integer id : Cell cell in Board.cells) {
+			if (!Board.obstacles[cell]) {
+				// evaluatePosition caches result in _position[cell]
+				MapPosition.evaluatePosition(cell, null)
+			}
+		}
+		Benchmark.stop("MP.precompute")
 	}
 
 	/*
@@ -406,6 +425,42 @@ class MapPosition {
 
 		Benchmark.stop("MP.findBest")
 		return bestPosition!
+	}
+
+	/*
+	 * Fast position score lookup for MCTS rollout.
+	 * Returns best reachable position SCORE (not Position object).
+	 * Uses precomputed grid when consequences don't alter danger.
+	 *
+	 * @param fromCell - current cell position
+	 * @param mp - remaining movement points
+	 * @param csq - consequences from action chain (may be null)
+	 * @return best achievable position score
+	 */
+	static real findBestPositionScoreFast(Cell fromCell, integer mp, Consequences? csq) {
+		// If consequences alter danger (kills, debuffs), fall back to full evaluation
+		if (csq != null && csq!.isAlteringDanger) {
+			return MapPosition.findBestPosition(fromCell, mp, csq).score
+		}
+
+		// Fast path: use precomputed _position cache
+		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(fromCell, mp, Fight.self.cellsToIgnore)
+
+		real best = -999999.0
+		for (Cell cell : integer cost in reachable) {
+			if (cost > mp) continue
+			Position? pos = _position[cell]
+			if (pos != null && pos!.score > best) {
+				best = pos!.score
+			}
+		}
+
+		// Fallback to current cell if nothing found
+		if (best == -999999.0 && _position[fromCell] != null) {
+			best = _position[fromCell]!.score
+		}
+
+		return best
 	}
 
 	/*

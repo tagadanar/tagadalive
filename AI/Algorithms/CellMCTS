@@ -679,11 +679,15 @@ class CellMCTS {
 	}
 
 	static real rollout(CellMCTSNode node) {
-		// Simple rollout: current score + estimated position value
+		// Simple rollout: current score + real position value
 		real actionScore = node.state.score != null ? node.state.score! : 0.0
-		real positionEstimate = CalibratedPTS.estimatePositionValue(node.remainingMP)
+		real positionScore = MapPosition.findBestPositionScoreFast(
+			node.state.currentCell,
+			node.state.currentMP,
+			node.state
+		)
 
-		return actionScore + positionEstimate
+		return actionScore + positionScore
 	}
 
 	static void backpropagate(CellMCTSNode node, real value) {

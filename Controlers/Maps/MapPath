@@ -1,7 +1,7 @@
 class MapPath{
-	static Map<integer, Map<Cell, integer>> _cache_reachable 
+	static Map<integer, Map<Cell, integer>> _cache_reachable
 	static Map<integer, integer> _cache_reachable_size
-	
+
 	static void refresh(){
 		MapPath._cache_reachable = [:] // [hash:[cell:distance]]
 		MapPath._cache_reachable_size = [:] // [hash:maxmp]
