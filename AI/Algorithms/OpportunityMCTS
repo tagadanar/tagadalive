@@ -327,6 +327,7 @@ class OpportunityMCTS {
 		for (Cell cell : real score in opp.attackScores) {
 			integer? dist = reachable[cell]
 			if (dist == null && cell != from) continue  // Not reachable (allow current cell)
+			if (dist != null && dist! > mp) continue    // Reachable but exceeds MP budget (cache may return superset)
 			integer actualDist = dist != null ? dist! : 0
 
 			real positionCost = actualDist * CalibratedPTS.mpValue
@@ -414,7 +415,12 @@ class OpportunityMCTS {
 			}
 			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(parent.currentCell, parent.remainingMP, ignoreCells)
 			integer? cost = reachable[execCell]
-			moveCost = cost != null ? cost! : parent.remainingMP  // Fallback to max if not found
+			// Check cost is within budget (cache may return superset)
+			if (cost != null && cost! <= parent.remainingMP) {
+				moveCost = cost!
+			} else {
+				moveCost = parent.remainingMP  // Fallback to max if not found or exceeds budget
+			}
 		}
 
 		OppNode child = OppNode(parent, opp, execCell, moveCost)

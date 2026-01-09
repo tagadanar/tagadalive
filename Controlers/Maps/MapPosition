@@ -393,7 +393,7 @@ class MapPosition {
 
 		Position? bestPosition = null
 		for (Cell cell : integer mp in reachableCells) {
-			if (mp > mpLeft) break
+			if (mp > mpLeft) continue  // Skip cells exceeding MP budget (cache may return superset)
 			Position pos = MapPosition.evaluatePosition(cell, consequences)
 			if (bestPosition == null || pos.score > bestPosition!.score) {
 				bestPosition = pos
