@@ -1008,10 +1008,25 @@
         if (algoWinner === 'PTS') winnerClass = 'pts-win';
         else if (algoWinner === 'BEAM') winnerClass = 'beam-win';
 
+        // Count wins per algorithm across all turns
+        let ptsWins = 0, mctsWins = 0, beamWins = 0;
+        for (const turn of LWA.state.turnData) {
+            const w = turn.algo?.winner;
+            if (w === 'PTS') ptsWins++;
+            else if (w === 'MCTS') mctsWins++;
+            else if (w === 'BEAM') beamWins++;
+        }
+        const hasWinData = ptsWins + mctsWins + beamWins > 0;
+        // Order matches visual layout: MCTS (left) - PTS (right)
+        const winScore = beamWins > 0
+            ? `${beamWins}-${ptsWins}`
+            : `${mctsWins}-${ptsWins}`;
+
         return `
             ${hasAlgo ? `
             <div class="lwa-algo-banner ${winnerClass}">
                 <span class="lwa-algo-mode">${algoMode}</span>
+                ${hasWinData ? `<span class="lwa-algo-winscore">${winScore}</span>` : ''}
                 <span class="lwa-algo-arrow">→</span>
                 <span class="lwa-algo-winner">${algoWinner} wins</span>
                 ${algoScores ? `<span class="lwa-algo-scores">${algoScores}</span>` : ''}
@@ -1095,26 +1110,43 @@
                 </div>
                 ` : ''}
 
-                <!-- PTS Section -->
+                <!-- PTS / CalibratedPTS Section -->
                 ${showPTS ? `
                 <div class="lwa-section ${algoWinner === 'PTS' ? 'winner' : ''}">
                     <div class="lwa-section-title">
-                        PTS (Priority Target Simulation)
+                        ${d.calibration?.bestBudget ? 'CalibratedPTS' : 'PTS (Priority Target Simulation)'}
                         ${algoWinner === 'PTS' ? '<span class="lwa-winner-badge">★ Winner</span>' : ''}
                     </div>
                     <div class="lwa-mcts-grid">
+                        ${d.calibration?.bestBudget ? `
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Nombre de budgets MP testés (calibration points)">
+                            <div class="lwa-mcts-val" style="color:${C.cyan}">${d.pts?.opps || 0}</div>
+                            <div class="lwa-mcts-lbl">Budgets</div>
+                        </div>
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Budget MP optimal trouvé">
+                            <div class="lwa-mcts-val" style="color:${C.purple}">${d.calibration.bestBudget}</div>
+                            <div class="lwa-mcts-lbl">Best Budget</div>
+                        </div>
+                        ` : `
                         <div class="lwa-mcts-card lwa-tip" data-tip="Nombre d'opportunités (cible × item) générées">
                             <div class="lwa-mcts-val" style="color:${C.cyan}">${d.pts?.opps || 0}</div>
                             <div class="lwa-mcts-lbl">Opportunities</div>
                         </div>
-                        <div class="lwa-mcts-card lwa-tip" data-tip="Nombre d'actions dans le combo PTS">
+                        `}
+                        <div class="lwa-mcts-card lwa-tip" data-tip="Nombre d'actions dans le combo">
                             <div class="lwa-mcts-val" style="color:${C.blue}">${d.pts?.actions || 0}</div>
                             <div class="lwa-mcts-lbl">Actions</div>
                         </div>
-                        <div class="lwa-mcts-card highlight lwa-tip" data-tip="Meilleur score trouvé par PTS">
+                        <div class="lwa-mcts-card highlight lwa-tip" data-tip="Meilleur score trouvé">
                             <div class="lwa-mcts-val" style="color:${C.orange}">${d.pts?.best || 0}</div>
                             <div class="lwa-mcts-lbl">Best Score</div>
                         </div>
+                        ${d.calibration?.bestBudget ? `
+                        <div class="lwa-mcts-card lwa-tip" data-tip="${d.calibration.mpValue > 0 ? 'Rester sur place est avantageux (+' + d.calibration.mpValue + ' pts/MP économisé)' : d.calibration.mpValue < 0 ? 'Position actuelle mauvaise, bouger est bénéfique' : 'Position neutre ou pas assez de données'}">
+                            <div class="lwa-mcts-val" style="color:${d.calibration.mpValue > 0 ? C.green : d.calibration.mpValue < 0 ? C.red : C.textDim}">${d.calibration.mpValue}</div>
+                            <div class="lwa-mcts-lbl">${d.calibration.mpValue < 0 ? 'Move!' : 'MP Value'}</div>
+                        </div>
+                        ` : ''}
                     </div>
                 </div>
                 ` : ''}
@@ -1131,18 +1163,6 @@
                 </div>
             </div>
             ` : ''}
-
-            <div class="lwa-section" style="margin-top:14px">
-                <div class="lwa-section-title">Operations Used</div>
-                <div class="lwa-ops-container">
-                    <div class="lwa-ops-bar">
-                        <div class="lwa-ops-fill ${opsClass(opsPct)}" style="width:${opsPct}%"></div>
-                        <div class="lwa-ops-text">${fmt(d.ops)} / ${fmt(d.max)}</div>
-                    </div>
-                    <div class="lwa-ops-pct" style="color:${opsPct > 90 ? C.red : opsPct > 70 ? C.orange : C.green}">${opsPct}%</div>
-                </div>
-                ${LWA.state.turnData.length > 1 ? '<div class="lwa-chart-container"><canvas id="ops-chart"></canvas></div>' : ''}
-            </div>
 
             ${(d.cooldownsStart && d.cooldownsStart.length > 0) || (d.cooldownsEnd && d.cooldownsEnd.length > 0) ? `
             <div class="lwa-section lwa-cooldowns-section" style="margin-top:14px">
@@ -1284,21 +1304,47 @@
     LWA.renderCombos = function(d) {
         const chosenDesc = d.chosen.desc || '';
         const winner = d.algo?.winner || '';
-        // Extract source from combo description (PTS: or MCTS: prefix)
+
+        // Extract source from combo description (PTS:, MCTS:, or CAL[MPx]: prefix)
         const getComboSource = (desc) => {
-            if (desc.startsWith('PTS:')) return 'PTS';
-            if (desc.startsWith('MCTS:')) return 'MCTS';
-            return '';
+            if (desc.startsWith('PTS:')) return { type: 'PTS', label: 'PTS', budget: null };
+            if (desc.startsWith('MCTS:')) return { type: 'MCTS', label: 'MCTS', budget: null };
+            const calMatch = desc.match(/^CAL\[MP(\d+)\]:/);
+            if (calMatch) return { type: 'CAL', label: 'MP' + calMatch[1], budget: parseInt(calMatch[1]) };
+            return null;
         };
-        const chosenSource = getComboSource(chosenDesc) || winner;
+
+        // Clean description by removing source prefix
+        const cleanDesc = (desc) => {
+            return desc.replace(/^(PTS:|MCTS:|CAL\[MP\d+\]:)/, '');
+        };
+
+        const chosenSourceInfo = getComboSource(chosenDesc);
+        const chosenSource = chosenSourceInfo?.type || winner;
+        const chosenLabel = chosenSourceInfo?.label || winner;
+
+        // Calibration stats section
+        const cal = d.calibration || {};
+        const hasCalibration = cal.bestBudget && cal.points > 0;
 
         return `
+            ${hasCalibration ? `
+            <div class="lwa-calibration-stats" style="margin-bottom:14px;padding:10px;background:${C.cardBg};border-radius:8px;border-left:3px solid ${C.purple}">
+                <div style="font-weight:600;margin-bottom:6px;color:${C.purple}">Calibration Stats</div>
+                <div style="display:flex;gap:16px;font-size:12px;color:${C.textDim}">
+                    <span class="lwa-tip" data-tip="Budget MP optimal sélectionné (MP réservés au mouvement)">Best Budget: <b style="color:${C.text}">${cal.bestBudget}</b></span>
+                    <span class="lwa-tip" data-tip="${cal.mpValue > 0 ? 'Positif: rester sur place est avantageux (+' + cal.mpValue + ' pts/MP économisé)' : cal.mpValue < 0 ? 'Négatif: position actuelle mauvaise, bouger est bénéfique' : 'Zéro: position neutre ou pas assez de données'}">MP Value: <b style="color:${cal.mpValue > 0 ? C.green : cal.mpValue < 0 ? C.red : C.textDim}">${cal.mpValue}/MP ${cal.mpValue < 0 ? '(Move!)' : cal.mpValue > 0 ? '(Stay)' : ''}</b></span>
+                    <span class="lwa-tip" data-tip="Nombre de budgets MP testés dans la courbe de calibration">Points: <b style="color:${C.text}">${cal.points}</b></span>
+                </div>
+            </div>
+            ` : ''}
+
             ${chosenDesc ? `
             <div class="lwa-chosen" style="margin-bottom:14px">
                 <div class="lwa-chosen-head">
                     <div class="lwa-chosen-icon">★</div>
-                    ${chosenSource ? `<div class="lwa-combo-source ${chosenSource.toLowerCase()}">${chosenSource}</div>` : ''}
-                    <div class="lwa-chosen-desc">${formatComboDesc(chosenDesc.replace(/^(PTS|MCTS):/, ''))}</div>
+                    ${chosenSource ? `<div class="lwa-combo-source ${chosenSource.toLowerCase()}">${chosenLabel}</div>` : ''}
+                    <div class="lwa-chosen-desc">${formatComboDesc(cleanDesc(chosenDesc))}</div>
                 </div>
                 <div class="lwa-chosen-stats">
                     Score: <span>${d.chosen.score}</span> &nbsp;|&nbsp; Actions: <span>${d.chosen.actions}</span>
@@ -1309,14 +1355,15 @@
             <div class="lwa-section">
                 <div class="lwa-section-title">Top ${d.combos.length} Combos</div>
                 ${d.combos.length > 0 ? [...d.combos].sort((a, b) => b.s - a.s).map((c, i) => {
-                    const source = getComboSource(c.d);
-                    const cleanDesc = c.d.replace(/^(PTS|MCTS):/, '');
+                    const sourceInfo = getComboSource(c.d);
+                    const sourceType = sourceInfo?.type || '';
+                    const sourceLabel = sourceInfo?.label || '';
                     return `
                     <div class="lwa-combo">
                         <div class="lwa-combo-head">
                             <div class="lwa-combo-rank">${i + 1}</div>
-                            ${source ? `<div class="lwa-combo-source ${source.toLowerCase()}">${source}</div>` : ''}
-                            <div class="lwa-combo-desc">${formatComboDesc(cleanDesc)}</div>
+                            ${sourceType ? `<div class="lwa-combo-source ${sourceType.toLowerCase()}">${sourceLabel}</div>` : ''}
+                            <div class="lwa-combo-desc">${formatComboDesc(cleanDesc(c.d))}</div>
                         </div>
                         <div class="lwa-combo-stats">
                             Total: <span>${c.s}</span> &nbsp;|&nbsp; Actions: <span>${c.as}</span> &nbsp;|&nbsp; Position: <span>${c.ps}</span>
@@ -1324,6 +1371,21 @@
                     </div>
                 `}).join('') : '<div style="color:' + C.textDim + ';text-align:center;padding:20px">No combos tracked</div>'}
             </div>
+
+            ${d.mctsCombo ? `
+            <div class="lwa-section" style="margin-top:14px;border-left:3px solid ${C.orange}">
+                <div class="lwa-section-title" style="color:${C.orange}">MCTS Best Combo</div>
+                <div class="lwa-combo">
+                    <div class="lwa-combo-head">
+                        <div class="lwa-combo-source mcts">MCTS</div>
+                        <div class="lwa-combo-desc">${formatComboDesc(cleanDesc(d.mctsCombo.d))}</div>
+                    </div>
+                    <div class="lwa-combo-stats">
+                        Total: <span>${d.mctsCombo.s}</span> &nbsp;|&nbsp; Actions: <span>${d.mctsCombo.as}</span> &nbsp;|&nbsp; Position: <span>${d.mctsCombo.ps}</span>
+                    </div>
+                </div>
+            </div>
+            ` : ''}
         `;
     }
 

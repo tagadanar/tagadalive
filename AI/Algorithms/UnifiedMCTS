@@ -270,6 +270,12 @@ class UnifiedMCTS {
 		Combo mctsCombo = UnifiedMCTS.extractBestCombo(root)
 		real mctsScore = mctsCombo.getScore()!
 
+		// Log MCTS combo to alternatives list
+		real mctsActScore = 0
+		for (Action a in mctsCombo.actions) mctsActScore += a.score!
+		real mctsPosScore = mctsCombo.finalPosition != null ? mctsCombo.finalPosition!.score : 0
+		Benchmark.setMCTSCombo(mctsScore, count(mctsCombo.actions), "MCTS:" + UnifiedMCTS.buildComboDesc(mctsCombo), mctsPosScore, mctsActScore)
+
 		Benchmark.setMCTS(iterations, nodesCreated, cellsExplored, mctsScore)
 		Benchmark.stop("UnifiedMCTS.run")
 
