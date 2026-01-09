@@ -949,20 +949,46 @@
                 </div>
             </div>
 
-            ${(stats.ptsWins > 0 || stats.mctsWins > 0) ? `
+            ${(stats.ptsWins > 0 || stats.mctsWins > 0) ? (() => {
+                const totalWins = stats.ptsWins + stats.mctsWins + stats.beamWins;
+                const ptsPct = totalWins > 0 ? Math.round(stats.ptsWins * 100 / totalWins) : 0;
+                const mctsPct = totalWins > 0 ? Math.round(stats.mctsWins * 100 / totalWins) : 0;
+                const beamPct = totalWins > 0 ? Math.round(stats.beamWins * 100 / totalWins) : 0;
+                const leader = stats.ptsWins > stats.mctsWins ? 'PTS' : stats.mctsWins > stats.ptsWins ? 'MCTS' : 'TIE';
+                return `
             <div class="lwa-section">
-                <div class="lwa-section-title">Algorithm Comparison (PTS vs MCTS)</div>
+                <div class="lwa-section-title">Algorithm Wins</div>
+
+                <!-- Ratio Banner -->
+                <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:16px;padding:12px;background:${C.cardBg};border-radius:8px">
+                    <span style="font-size:24px;font-weight:700;color:#2bc491">${stats.ptsWins}</span>
+                    <span style="font-size:14px;color:${C.textDim}">PTS</span>
+                    <span style="font-size:18px;color:${C.textDim}">vs</span>
+                    <span style="font-size:14px;color:${C.textDim}">MCTS</span>
+                    <span style="font-size:24px;font-weight:700;color:${C.orange}">${stats.mctsWins}</span>
+                    ${stats.beamWins > 0 ? `
+                    <span style="font-size:18px;color:${C.textDim}">vs</span>
+                    <span style="font-size:14px;color:${C.textDim}">BEAM</span>
+                    <span style="font-size:24px;font-weight:700;color:${C.purple}">${stats.beamWins}</span>
+                    ` : ''}
+                </div>
+
+                <!-- Visual Comparison Bar -->
+                <div style="margin-bottom:16px">
+                    <div style="display:flex;height:28px;border-radius:6px;overflow:hidden;background:${C.border}">
+                        ${stats.ptsWins > 0 ? `<div style="width:${ptsPct}%;background:#2bc491;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px">${ptsPct}%</div>` : ''}
+                        ${stats.mctsWins > 0 ? `<div style="width:${mctsPct}%;background:${C.orange};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px">${mctsPct}%</div>` : ''}
+                        ${stats.beamWins > 0 ? `<div style="width:${beamPct}%;background:${C.purple};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:600;font-size:12px">${beamPct}%</div>` : ''}
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:${C.textDim}">
+                        <span style="color:#2bc491">PTS ${ptsPct}%</span>
+                        ${stats.beamWins > 0 ? `<span style="color:${C.purple}">BEAM ${beamPct}%</span>` : ''}
+                        <span style="color:${C.orange}">MCTS ${mctsPct}%</span>
+                    </div>
+                </div>
+
+                <!-- Score Comparison -->
                 <div class="lwa-agg-grid">
-                    <div class="lwa-agg-card ${stats.ptsWins > stats.mctsWins ? 'good' : ''}">
-                        <div class="lwa-agg-val" style="color:#2bc491">${stats.ptsWins}</div>
-                        <div class="lwa-agg-lbl">PTS Wins</div>
-                        <div class="lwa-agg-desc">${pct(stats.ptsWins, stats.totalTurns)}%</div>
-                    </div>
-                    <div class="lwa-agg-card ${stats.mctsWins > stats.ptsWins ? 'good' : ''}">
-                        <div class="lwa-agg-val" style="color:${C.orange}">${stats.mctsWins}</div>
-                        <div class="lwa-agg-lbl">MCTS Wins</div>
-                        <div class="lwa-agg-desc">${pct(stats.mctsWins, stats.totalTurns)}%</div>
-                    </div>
                     <div class="lwa-agg-card">
                         <div class="lwa-agg-val" style="color:#2bc491">${stats.avgPtsScore}</div>
                         <div class="lwa-agg-lbl">Avg PTS Score</div>
@@ -971,9 +997,16 @@
                         <div class="lwa-agg-val" style="color:${C.orange}">${stats.avgMctsScore}</div>
                         <div class="lwa-agg-lbl">Avg MCTS Score</div>
                     </div>
+                    ${stats.beamWins > 0 ? `
+                    <div class="lwa-agg-card">
+                        <div class="lwa-agg-val" style="color:${C.purple}">${stats.avgBeamScore || 0}</div>
+                        <div class="lwa-agg-lbl">Avg BEAM Score</div>
+                    </div>
+                    ` : ''}
                 </div>
             </div>
-            ` : ''}
+            `})()
+            : ''}
 
             ${topMethods.length > 0 ? `
             <div class="lwa-section">

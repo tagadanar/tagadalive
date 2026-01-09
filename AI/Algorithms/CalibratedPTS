@@ -79,6 +79,13 @@ class CalibratedPTS {
 			CalibratedPTS.bestCombo != null ? count(CalibratedPTS.bestCombo!.actions) : 0,
 			CalibratedPTS.bestScore)
 
+		// Log calibration-specific stats
+		Benchmark.setCalibration(CalibratedPTS.lastBestBudget, CalibratedPTS.mpValue,
+			CalibratedPTS.lastCalibrationPoints)
+
+		// Log top calibration combos for the Combos tab
+		CalibratedPTS.logCalibrationCombos()
+
 		Benchmark.stop("CalibratedPTS.calibrate")
 	}
 
@@ -300,5 +307,27 @@ class CalibratedPTS {
 		}
 		if (desc == "") desc = "stay"
 		return desc
+	}
+
+	/*
+	 * Log calibration combos to Benchmark for the Combos tab
+	 * Logs up to 5 best combos from different budgets
+	 */
+	static void logCalibrationCombos() {
+		// Sort by total score descending, then by budget ascending (lower MP first when tied)
+		Array<CalibrationPoint> sorted = arraySort(CalibratedPTS.curve, (a, b) -> {
+			if (a.totalScore != b.totalScore) return a.totalScore < b.totalScore ? 1 : -1
+			return a.budgetRequested > b.budgetRequested ? 1 : -1
+		}) as Array<CalibrationPoint>
+
+		integer logged = 0
+		for (CalibrationPoint p in sorted) {
+			if (logged >= 5) break
+			if (count(p.combo.actions) == 0 && p.positionScore <= 0) continue
+
+			string desc = "CAL[MP" + p.budgetRequested + "]:" + CalibratedPTS.buildComboDesc(p.combo)
+			Benchmark.addCombo(p.totalScore, count(p.combo.actions), desc, p.positionScore, p.actionScore)
+			logged++
+		}
 	}
 }
