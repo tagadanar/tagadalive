@@ -10,7 +10,7 @@ class ScoringConfig {
 
 	// === Combat Values ===
 	static integer KILL_VALUE = 5000
-	static integer DEATH_VALUE = -2500
+	static integer DEATH_VALUE = -5000
 	static integer MAX_FIGHT_TURNS = 66
 	static integer MAX_DURATION = 8 // max index in duration_mitigation maps
 
