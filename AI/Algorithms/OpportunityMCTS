@@ -92,7 +92,9 @@ class OppNode {
 
 		// Get pre-computed action and chain with current state
 		// Using pre-computed action avoids spurious warnings from Fight.self
-		Action? baseAction = opp.attackActions[execCell]
+		// For self-cast, lookup by Fight.selfCell (where the action was stored)
+		Cell actionKey = opp.isSelfCast ? Fight.selfCell : execCell
+		Action? baseAction = opp.attackActions[actionKey]
 		if (baseAction == null) {
 			// Fallback: create action if not found (shouldn't happen)
 			Cell aimCell = opp.getAimCell(execCell)
