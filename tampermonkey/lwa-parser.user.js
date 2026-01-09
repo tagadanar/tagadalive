@@ -266,9 +266,11 @@
             pts: { opps: 0, actions: 0, best: 0 },
             beam: { depth: 0, candidates: 0, opsExpand: 0, opsSort: 0, opsPos: 0, opsTotal: 0, best: 0, budgetLow: false },
             algo: { mode: '', winner: '' },
+            calibration: { bestBudget: '', mpValue: 0, points: 0 },
             cells: { seeds: [], explored: [], skipped: [] },
             chosen: { score: 0, actions: 0, desc: '' },
             combos: [],
+            mctsCombo: null,  // Best MCTS combo (separate from top 5)
             methods: [],
             logs: [],
             cooldownsStart: [],
@@ -353,6 +355,13 @@
                 turn.algo.mode = vals[0] || '';
                 turn.algo.winner = vals[1] || '';
             }
+            else if (p.startsWith('cal:')) {
+                // Format: cal:bestBudget,mpValue,points (e.g., cal:MP3,85,6)
+                const vals = p.substring(4).split(',');
+                turn.calibration.bestBudget = vals[0] || '';
+                turn.calibration.mpValue = parseInt(vals[1]) || 0;
+                turn.calibration.points = parseInt(vals[2]) || 0;
+            }
             else if (p.startsWith('cells:')) {
                 // Format: cells:seeds;explored;skipped (each is comma-separated cell IDs)
                 const groups = p.substring(6).split(';');
@@ -378,6 +387,17 @@
                         ps: parseInt(m[3]),
                         d: m[4]
                     });
+                }
+            }
+            else if (p.startsWith('mcb:')) {
+                const m = p.match(/mcb:(-?\d+),(-?\d+),(-?\d+),(.+)/);
+                if (m) {
+                    turn.mctsCombo = {
+                        s: parseInt(m[1]),
+                        as: parseInt(m[2]),
+                        ps: parseInt(m[3]),
+                        d: m[4]
+                    };
                 }
             }
             else if (p.startsWith('cat:')) {
