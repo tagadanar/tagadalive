@@ -128,15 +128,15 @@ class CalibratedPTS {
 				Cell? execCell = CalibratedPTS.findCellWithinBudget(opp, reachable, currentCell)
 				if (execCell == null) continue
 
-				// Build action
-				Cell aimCell = opp.getAimCell(execCell!)
-				Action action = Action(opp.item, execCell!, aimCell)
+				// Get pre-computed action (avoids spurious warnings from Fight.self)
+				Action? action = opp.attackActions[execCell!]
+				if (action == null) continue
 
 				if (count(combo.actions) == 0) {
-					if (action.score! <= 0) continue
-					push(combo.actions, action)
+					if (action!.score! <= 0) continue
+					push(combo.actions, action!)
 				} else {
-					if (!combo.add(action)) continue
+					if (!combo.add(action!)) continue
 				}
 
 				// Handle weapon switch cost (not tracked by Consequences)
