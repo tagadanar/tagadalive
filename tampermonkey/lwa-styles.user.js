@@ -366,6 +366,15 @@
             color: var(--text-color, #333);
         }
 
+        .lwa-algo-winscore {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-color, #333);
+            padding: 2px 8px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 4px;
+        }
+
         .lwa-algo-arrow {
             color: var(--text-color-secondary, #666);
         }
@@ -498,6 +507,10 @@
         .lwa-combo-source.mcts {
             background: rgba(255, 136, 0, 0.2);
             color: #ff8800;
+        }
+        .lwa-combo-source.cal {
+            background: rgba(160, 23, 214, 0.2);
+            color: #a017d6;
         }
 
         /* Ops Progress */

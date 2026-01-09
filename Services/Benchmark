@@ -30,6 +30,10 @@ class Benchmark{
 	// Algorithm comparison
 	static _algoMode = ""
 	static _algoWinner = ""
+	// Calibration stats (CalibratedPTS)
+	static _calBudget = ""
+	static _calMpValue = 0
+	static _calPoints = 0
 	// MCTS cells tracking
 	static Array<integer> _mctsSeeds = []      // Priority cells from PTS
 	static Array<integer> _mctsExplored = []   // Cells actually explored
@@ -55,6 +59,13 @@ class Benchmark{
 	static Array<integer> _comboActions = []
 	static Array<integer> _comboPosScore = []
 	static Array<integer> _comboActScore = []
+
+	// MCTS best combo (separate from top 5 to always show it)
+	static _mctsComboDesc = ""
+	static _mctsComboScore = 0
+	static _mctsComboActions = 0
+	static _mctsComboPosScore = 0
+	static _mctsComboActScore = 0
 
 	static Array<string> _logs = []
 	static _maxLogs = 20
@@ -118,6 +129,9 @@ class Benchmark{
 		_beamBudgetLow = false
 		_algoMode = ""
 		_algoWinner = ""
+		_calBudget = ""
+		_calMpValue = 0
+		_calPoints = 0
 		_mctsSeeds = []
 		_mctsExplored = []
 		_mctsSkipped = []
@@ -129,6 +143,11 @@ class Benchmark{
 		_comboActions = []
 		_comboPosScore = []
 		_comboActScore = []
+		_mctsComboDesc = ""
+		_mctsComboScore = 0
+		_mctsComboActions = 0
+		_mctsComboPosScore = 0
+		_mctsComboActScore = 0
 		_logs = []
 		_cooldownsStart = []
 		_cooldownsEnd = []
@@ -191,6 +210,12 @@ class Benchmark{
 		_algoWinner = winner
 	}
 
+	static void setCalibration(string bestBudget, real mpValue, integer points){
+		_calBudget = bestBudget
+		_calMpValue = round(mpValue)
+		_calPoints = points
+	}
+
 	static void setMCTSCells(Array<Cell> seeds, Array<Cell> explored, Array<Cell> skipped){
 		_mctsSeeds = []
 		_mctsExplored = []
@@ -206,20 +231,44 @@ class Benchmark{
 		_chosenDesc = desc
 	}
 
+	static void setMCTSCombo(real score, integer actions, string desc, real posScore, real actScore){
+		_mctsComboScore = round(score)
+		_mctsComboActions = actions
+		_mctsComboDesc = desc
+		_mctsComboPosScore = round(posScore)
+		_mctsComboActScore = round(actScore)
+	}
+
 	static void addCombo(real score, integer actions, string desc, real posScore, real actScore){
-		var s = round(score)
-		if(count(_comboScore) < _maxCombos){
-			push(_comboDesc, desc)
+		integer s = round(score)
+		integer ps = round(posScore)
+		integer acts = round(actScore)
+
+		if (count(_comboScore) < _maxCombos) {
+			// Room available, just add
 			push(_comboScore, s)
+			push(_comboDesc, desc)
 			push(_comboActions, actions)
-			push(_comboPosScore, round(posScore))
-			push(_comboActScore, round(actScore))
-		} else if(s > _comboScore[_maxCombos - 1]){
-			_comboDesc[_maxCombos - 1] = desc
-			_comboScore[_maxCombos - 1] = s
-			_comboActions[_maxCombos - 1] = actions
-			_comboPosScore[_maxCombos - 1] = round(posScore)
-			_comboActScore[_maxCombos - 1] = round(actScore)
+			push(_comboPosScore, ps)
+			push(_comboActScore, acts)
+		} else {
+			// Find index of minimum score
+			integer minIdx = 0
+			integer minScore = _comboScore[0]
+			for (integer i = 1; i < _maxCombos; i++) {
+				if (_comboScore[i] < minScore) {
+					minScore = _comboScore[i]
+					minIdx = i
+				}
+			}
+			// Replace if new score is better
+			if (s > minScore) {
+				_comboScore[minIdx] = s
+				_comboDesc[minIdx] = desc
+				_comboActions[minIdx] = actions
+				_comboPosScore[minIdx] = ps
+				_comboActScore[minIdx] = acts
+			}
 		}
 	}
 
@@ -268,7 +317,7 @@ class Benchmark{
 	static Array<Array<string>> CATEGORIES = [
 		["INIT", "init", "Map.init", "Items.init"],
 		["REFRESH", "MapPath.refresh", "Fight.refresh", "Map.refresh", "Scoring.refresh", "MapDanger.refresh", "MapPosition.refresh", "MapAction.refresh", "MapOpportunity.refresh"],
-		["PTS", "PTS.buildCombo"],
+		["PTS", "PTS.buildCombo", "CalibratedPTS.calibrate", "CalibratedPTS.buildWithBudget"],
 		["MCTS", "MCTS.iter", "Hybrid.runMCTSFull", "Hybrid.runMCTSPrioritized", "Hybrid.getMCTSSeeded", "Hybrid.getMCTSGuided"],
 		["BEAM", "BeamSearch.search", "Hybrid.runBeamFull", "Hybrid.runBeamPrioritized", "Hybrid.getBeamGuided"],
 		["POSITION", "MP.evalPos", "MP.findBest"],
@@ -308,6 +357,7 @@ class Benchmark{
 		s += "|p:" + _ptsOpps + "," + _ptsActions + "," + _ptsBest
 		s += "|b:" + _beamDepth + "," + _beamCandidates + "," + _beamOpsExpand + "," + _beamOpsSort + "," + _beamOpsPos + "," + _beamOpsTotal + "," + _beamBest + "," + (_beamBudgetLow ? 1 : 0)
 		if(_algoMode != "") s += "|algo:" + _algoMode + "," + _algoWinner
+		if(_calBudget != "") s += "|cal:" + _calBudget + "," + _calMpValue + "," + _calPoints
 		s += "|fc:" + funcCount  // Function count for verification
 
 		// MCTS cells: seeds, explored, skipped
@@ -320,6 +370,9 @@ class Benchmark{
 		for(var i = 0; i < count(_comboScore); i++){
 			s += "|cb:" + _comboScore[i] + "," + _comboActScore[i] + "," + _comboPosScore[i] + "," + _comboDesc[i]
 		}
+
+		// MCTS best combo (always shown separately)
+		if(_mctsComboDesc != "") s += "|mcb:" + _mctsComboScore + "," + _mctsComboActScore + "," + _mctsComboPosScore + "," + _mctsComboDesc
 
 		// Group functions by category
 		Map<string, Array<Array>> catFuncs = [:]

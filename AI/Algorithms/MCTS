@@ -245,7 +245,7 @@ class MCTS {
 		real actScore = 0
 		for (Action a in combo.actions) actScore += a.score!
 		real posScore = combo.finalPosition ? combo.finalPosition!.score : 0
-		Benchmark.addCombo(combo.getScore()!, count(combo.actions), MCTS.buildComboDesc(combo), posScore, actScore)
+		Benchmark.setMCTSCombo(combo.getScore()!, count(combo.actions), "MCTS:" + MCTS.buildComboDesc(combo), posScore, actScore)
 
 		return combo
 	}
