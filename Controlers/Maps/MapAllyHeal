@@ -1,0 +1,334 @@
+/*
+ * Ensemble de méthodes et d'algorithmes permettant de calculer le heal potentiel des alliés sur chaque case
+ * Similaire à MapDanger mais pour les heals alliés (ignore les entités dans la LOS, comme MapDanger)
+ */
+class MapAllyHeal {
+	// === Configuration ===
+	// Nombre max d'items de heal par allié à considérer (0 = illimité/tous les items)
+	static integer HEAL_ITEMS_LIMIT = 4
+
+	// Cache du heal estimé sur la case, reset à chaque tour
+	static Map<Cell, HealPotential> _heal = [:] // [cell:HealPotential]
+	static Map<integer, Map<Cell, HealPotential>> _hash_heal = [:] // [consequences.hash:[cell:HealPotential]]
+
+	// Cache contenant pour chaque allié, pour chaque item, pour chaque case, les cases ciblables
+	// Ignore les entités dans la LOS (comme MapDanger)
+	static Map<Entity, Map<Item, Map<Cell, Array<Cell>>>> _cache_ally_item_targetableCells = [:] // [ally:[item:[fromCell:[targetCells]]]]
+
+	// Cache pour chaque allié des maps des cases où il peut heal
+	// Refresh à chaque tour
+	static Map<Entity, Map<Item, Map<Cell, real>>> _map_ally_item_heal = [:] // [ally:[item:[cell:ratio]]]
+
+	// Items de heal par allié (configuré via ScoringConfig.ALLY_HEAL_ITEMS_LIMIT)
+	static Map<Entity, Array<Item>> _ally_heal_items = [:] // [ally:[items]]
+
+	/*
+	 * Actualise les informations en fonction des alliés encore vivants
+	 * Doit être appelé APRÈS MapDanger.refresh() et Fight.refreshEntities()
+	 */
+	static void refresh() {
+		// Reset des caches
+		_heal = [:]
+		_hash_heal = [:]
+		_cache_ally_item_targetableCells = [:]
+		_map_ally_item_heal = [:]
+		_ally_heal_items = [:]
+
+		// Pour chaque allié (sauf moi-même - on considère les autres alliés qui peuvent me heal)
+		for (Entity ally in Fight.getAlliesAlive()) {
+			if (ally == Fight.self) continue
+
+			_map_ally_item_heal[ally] = [:]
+			// Récupère les items de heal de l'allié (limit via HEAL_ITEMS_LIMIT, 0 = unlimited)
+			Array<Item> healItems = Items.getOrderedHealItems(ally, HEAL_ITEMS_LIMIT)
+			_ally_heal_items[ally] = healItems
+
+			// Pour chaque item de heal
+			for (Item item in healItems) {
+				// On trouve les cases qu'il peut cibler avec son item (avec LOS)
+				_map_ally_item_heal[ally]![item] = MapAllyHeal.getAllyHealMap(ally, item)
+			}
+		}
+	}
+
+	/*
+	 * Pour les cellules accessibles par l'allié, initialise un tableau contenant les cases qu'il peut cibler avec l'item
+	 * @info Ignore les entités dans la LOS (comme MapDanger.getEnemiesDmgMap)
+	 * @param ally Entity allié
+	 * @param item Item de heal
+	 * @return map de Cells ciblables avec ratio (1.0 pour hit direct)
+	 */
+	static Map<Cell, real> getAllyHealMap(Entity ally, Item item) {
+		Map<Cell, real> map = [:]
+
+		for (Cell cell : integer dist in ally.reachableCells) {
+			if (dist > ally.mp) break
+			Array<Cell> targetableCells = MapAllyHeal.getAllyTargetableCells(ally, item, cell)
+			for (Cell c in targetableCells) {
+				if (map[c] == null) {
+					map[c] = 1.0 // ratio
+				}
+			}
+		}
+
+		// Expansion AOE pour les heals de zone
+		if (item.area == AREA_CIRCLE_1 || item.area == AREA_CIRCLE_2 || item.area == AREA_CIRCLE_3) {
+			for (integer distance = 1; distance <= item.area - 2; distance++) {
+				real ratio = 1 - 0.2 * distance
+				if (ratio <= 0) break
+				Array<Cell> circle = []
+				for (Cell c : real value in map) {
+					if (value > 0) {
+						for (Cell neighbor in c.neighborsObstacles) {
+							if (map[neighbor] == null || map[neighbor] == 0) {
+								push(circle, neighbor)
+							}
+						}
+					}
+				}
+				for (Cell cell in circle) {
+					map[cell] = ratio
+				}
+			}
+		}
+
+		return map
+	}
+
+	/*
+	 * Retourne les Cells pouvant être ciblées depuis la @cell avec l'@item (ignore les entités dans la LOS)
+	 * @param ally Entity allié
+	 * @param item Item de heal
+	 * @param cell Cellule depuis laquelle l'allié tire
+	 * @return Array de cellules ciblables
+	 */
+	static Array<Cell> getAllyTargetableCells(Entity ally, Item item, Cell cell) {
+		// Init du cache si nécessaire
+		if (_cache_ally_item_targetableCells[ally] == null) {
+			_cache_ally_item_targetableCells[ally] = [:]
+		}
+		if (_cache_ally_item_targetableCells[ally]![item] == null) {
+			_cache_ally_item_targetableCells[ally]![item] = [:]
+		}
+		if (_cache_ally_item_targetableCells[ally]![item]![cell] == null) {
+			// Ignore toutes les entités dans la LOS (comme MapDanger.getEnemiesTargetableCells)
+			_cache_ally_item_targetableCells[ally]![item]![cell] = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
+		}
+
+		return _cache_ally_item_targetableCells[ally]![item]![cell]!
+	}
+
+	/*
+	 * Calcule le heal potentiel d'une Cell, version sans Conséquences
+	 * @param cell la case sur laquelle on veut le heal potentiel
+	 * @return HealPotential
+	 */
+	static HealPotential getCellHeal(Cell cell) {
+		return MapAllyHeal.getCellHeal(cell, null)
+	}
+
+	/*
+	 * Renvoie le cache du heal potentiel d'une Cell, le calcule si pas déjà calculé
+	 * @param cell Cellule sur laquelle le heal va être calculé
+	 * @param consequences Consequences qui contient les altérations de la série d'action précédente
+	 * @return un objet HealPotential
+	 */
+	static HealPotential getCellHeal(Cell cell, Consequences? consequences) {
+		if (consequences && consequences!.isAlteringDanger) {
+			if (!_hash_heal[consequences!.hashcode]) {
+				_hash_heal[consequences!.hashcode] = [:]
+			}
+			if (!_hash_heal[consequences!.hashcode]![cell]) {
+				_hash_heal[consequences!.hashcode]![cell] = MapAllyHeal.computeHeal(cell, consequences)
+			}
+			return _hash_heal[consequences!.hashcode]![cell]!
+		} else {
+			if (!_heal[cell]) {
+				_heal[cell] = MapAllyHeal.computeHeal(cell, null)
+			}
+			return _heal[cell]!
+		}
+	}
+
+	/*
+	 * Pour chaque allié vivant, somme les heals de leurs items en fonction des TP et cooldowns
+	 * @param cell Cellule sur laquelle le heal va être calculé
+	 * @param consequences Consequences qui contient les altérations
+	 * @return un objet HealPotential
+	 */
+	static HealPotential computeHeal(Cell cell, Consequences? consequences) {
+		real totalHeal = 0.0
+		string str = ""
+
+		for (Entity ally in Fight.getAlliesAlive()) {
+			if (ally == Fight.self) continue
+			if (consequences && consequences!.isKilled(ally)) continue
+
+			Array<Item>? healItems = _ally_heal_items[ally]
+			if (healItems == null) continue
+
+			integer tpLeft = ally.getCurrentTP(consequences)
+
+			for (Item item in healItems!) {
+				Map<Cell, real>? itemMap = _map_ally_item_heal[ally]![item]
+				if (itemMap == null) continue
+
+				real? ratioHeal = itemMap![cell]
+				if (ratioHeal == null || ratioHeal <= 0) continue
+
+				real itemHeal = MapAllyHeal.getHeal(ally, item, ratioHeal!, consequences)
+				if (itemHeal > 0) {
+					integer uses = 0
+					while (item.cost <= tpLeft && uses < item.maxUse) {
+						str += " " + item.name
+						totalHeal += itemHeal
+						tpLeft -= item.cost
+						uses++
+						if (item.haveCD) break
+					}
+				}
+			}
+		}
+
+		return HealPotential(cell, totalHeal, str)
+	}
+
+	/*
+	 * Calcule le heal que peut faire allySource avec une Item
+	 * @param allySource Allié qui heal
+	 * @param item Item de heal
+	 * @param ratioHeal Ratio de distance (1.0 pour adjacent, moins pour AOE)
+	 * @param consequences Consequences optionnelles
+	 * @return heal calculé
+	 */
+	static real getHeal(Entity allySource, Item item, real ratioHeal, Consequences? consequences) {
+		real heal = 0.0
+
+		for (ItemEffect e in item.effects) {
+			if (e.type == EFFECT_HEAL) {
+				real tmp = e.avg * (1 + (allySource.getCurrentWsd(consequences) / 100)) * ratioHeal
+				heal += tmp
+			}
+			else if (e.type == EFFECT_BOOST_MAX_LIFE) {
+				real tmp = e.avg * (1 + (allySource.getCurrentWsd(consequences) / 100)) * ratioHeal
+				heal += tmp
+			}
+		}
+
+		return heal
+	}
+
+	/*
+	 * Debug: affiche la map de heal sur le terrain
+	 * Vert = heal élevé, Bleu = heal faible
+	 */
+	static void showHeal(Cell from, integer mpLeft, Consequences? consequences) {
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpLeft, Fight.self.cellsToIgnore)
+		for (Cell c : integer d in reachableCells) {
+			HealPotential hp = MapAllyHeal.getCellHeal(c, consequences)
+			integer green = ((hp.heal * 255) / Fight.self.totalLife) as integer
+			if (green > 255) green = 255
+			mark(c.id, getColor(0, green, 255 - green))
+			markText(c.id, round(hp.heal))
+		}
+	}
+
+	/*
+	 * Debug: affiche la map de heal sur TOUT le terrain (pas seulement les cases accessibles)
+	 */
+	static void showHealAll() {
+		for (integer id : Cell c in Board.cells) {
+			if (Board.obstacles[c]) continue
+			HealPotential hp = MapAllyHeal.getCellHeal(c, null)
+			if (hp.heal > 0) {
+				integer green = ((hp.heal * 255) / Fight.self.totalLife) as integer
+				if (green > 255) green = 255
+				mark(c.id, getColor(0, green, 255 - green))
+				markText(c.id, round(hp.heal))
+			}
+		}
+	}
+
+	/*
+	 * Debug: affiche les infos des alliés et leurs items de heal
+	 * Utile pour vérifier que les items sont bien détectés
+	 */
+	static void debugAllyHealItems() {
+		debug("=== MapAllyHeal Debug ===")
+		debug("Config: HEAL_ITEMS_LIMIT = " + MapAllyHeal.HEAL_ITEMS_LIMIT)
+		debug("")
+
+		for (Entity ally in Fight.getAlliesAlive()) {
+			if (ally == Fight.self) continue
+
+			Array<Item>? healItems = _ally_heal_items[ally]
+			if (healItems == null || count(healItems!) == 0) {
+				debug(ally.name + " (WSD:" + ally.wsd + ", TP:" + ally.tp + ", MP:" + ally.mp + "): NO HEAL ITEMS")
+				continue
+			}
+
+			string itemsStr = ""
+			for (Item item in healItems!) {
+				// Calcul du heal de l'item
+				real itemHeal = 0.0
+				for (ItemEffect e in item.effects) {
+					if (e.type == EFFECT_HEAL || e.type == EFFECT_BOOST_MAX_LIFE) {
+						itemHeal += e.avg * (1 + (ally.wsd / 100))
+					}
+				}
+				itemsStr += item.name + "(" + round(itemHeal) + "hp/" + item.cost + "tp) "
+			}
+			debug(ally.name + " (WSD:" + ally.wsd + ", TP:" + ally.tp + ", MP:" + ally.mp + "): " + itemsStr)
+
+			// Affiche le nombre de cases couvertes par chaque item
+			for (Item item in healItems!) {
+				Map<Cell, real>? itemMap = _map_ally_item_heal[ally]![item]
+				if (itemMap != null) {
+					debug("  - " + item.name + ": " + mapSize(itemMap!) + " cells couvertes")
+				}
+			}
+		}
+		debug("=========================")
+	}
+
+	/*
+	 * Debug: affiche le heal potentiel sur la case de chaque allié
+	 */
+	static void debugAllyCellHeal() {
+		debug("=== Heal sur positions alliés ===")
+		for (Entity ally in Fight.getAlliesAlive()) {
+			HealPotential hp = MapAllyHeal.getCellHeal(ally.cell, null)
+			debug(ally.name + " @" + ally.cell.id + ": " + round(hp.heal) + " heal potentiel" + (hp.combo != "" ? " (" + hp.combo + ")" : ""))
+		}
+		debug("=================================")
+	}
+
+	/*
+	 * Debug: marque sur la map les cases qu'un allié spécifique peut heal
+	 * @param ally L'allié dont on veut voir la couverture
+	 */
+	static void showAllyHealCoverage(Entity ally) {
+		if (ally == Fight.self) {
+			debug("Cannot show heal coverage for self")
+			return
+		}
+
+		Array<Item>? healItems = _ally_heal_items[ally]
+		if (healItems == null) {
+			debug(ally.name + " has no heal items")
+			return
+		}
+
+		debug("Showing heal coverage for " + ally.name)
+		for (Item item in healItems!) {
+			Map<Cell, real>? itemMap = _map_ally_item_heal[ally]![item]
+			if (itemMap == null) continue
+
+			for (Cell c : real ratio in itemMap!) {
+				integer green = (ratio * 200) as integer + 55
+				mark(c.id, getColor(0, green, 0))
+				markText(c.id, item.name)
+			}
+		}
+	}
+}
