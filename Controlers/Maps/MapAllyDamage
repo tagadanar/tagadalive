@@ -12,9 +12,9 @@ class MapAllyDamage {
 	static Map<Cell, AllyDamagePotential> _dmg = [:] // [cell:AllyDamagePotential]
 	static Map<integer, Map<Cell, AllyDamagePotential>> _hash_dmg = [:] // [consequences.hash:[cell:AllyDamagePotential]]
 
-	// Cache contenant pour chaque arme, pour chaque case, les cases ciblables
-	// Ignore les entites dans la LOS (comme MapDanger) - cache global car le resultat ne depend pas de l'allie
-	static Map<Item, Map<Cell, Array<Cell>>> _cache_item_targetableCells = [:] // [item:[fromCell:[targetCells]]]
+	// Cache contenant pour chaque allie, pour chaque arme, pour chaque case, les cases ciblables
+	// Respecte la LOS (prend en compte les entites comme obstacles)
+	static Map<Entity, Map<Item, Map<Cell, Array<Cell>>>> _cache_ally_item_targetableCells = [:] // [ally:[item:[fromCell:[targetCells]]]]
 
 	// Cache pour chaque allie des maps des cases ou il peut faire des degats
 	// Refresh a chaque tour
@@ -28,9 +28,10 @@ class MapAllyDamage {
 	 * Doit etre appele APRES MapDanger.refresh() et Fight.refreshEntities()
 	 */
 	static void refresh() {
-		// Reset des caches (sauf _cache_item_targetableCells qui reste valide entre les tours)
+		// Reset des caches (tous, car la LOS change chaque tour)
 		_dmg = [:]
 		_hash_dmg = [:]
+		_cache_ally_item_targetableCells = [:]
 		_map_ally_item_dmg = [:]
 		_ally_weapons = [:]
 
@@ -96,23 +97,26 @@ class MapAllyDamage {
 	}
 
 	/*
-	 * Retourne les Cells pouvant etre ciblees depuis la @cell avec l'@item (ignore les entites dans la LOS)
-	 * @param ally Entity allie (non utilise - cache global par item/cell)
+	 * Retourne les Cells pouvant etre ciblees depuis la @cell avec l'@item (respecte la LOS)
+	 * @param ally Entity allie
 	 * @param item Item arme
 	 * @param cell Cellule depuis laquelle l'allie tire
 	 * @return Array de cellules ciblables
 	 */
 	static Array<Cell> getAllyTargetableCells(Entity ally, Item item, Cell cell) {
 		// Init du cache si necessaire
-		if (_cache_item_targetableCells[item] == null) {
-			_cache_item_targetableCells[item] = [:]
+		if (_cache_ally_item_targetableCells[ally] == null) {
+			_cache_ally_item_targetableCells[ally] = [:]
 		}
-		if (_cache_item_targetableCells[item]![cell] == null) {
-			// Ignore toutes les entites dans la LOS (comme MapDanger.getEnemiesTargetableCells)
-			_cache_item_targetableCells[item]![cell] = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
+		if (_cache_ally_item_targetableCells[ally]![item] == null) {
+			_cache_ally_item_targetableCells[ally]![item] = [:]
+		}
+		if (_cache_ally_item_targetableCells[ally]![item]![cell] == null) {
+			// Respecte la LOS (prend en compte les entites comme obstacles)
+			_cache_ally_item_targetableCells[ally]![item]![cell] = Targets.getTargetableCells(item, cell, [])
 		}
 
-		return _cache_item_targetableCells[item]![cell]!
+		return _cache_ally_item_targetableCells[ally]![item]![cell]!
 	}
 
 	/*
