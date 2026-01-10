@@ -62,7 +62,7 @@ class MapAllyHeal {
 
 		for (Cell cell : integer dist in ally.reachableCells) {
 			if (dist > ally.mp) break
-			Array<Cell> targetableCells = MapAllyHeal.getAllyTargetableCells(ally, item, cell)
+			Array<Cell> targetableCells = MapAllyHeal.getAllyTargetableCells(item, cell)
 			for (Cell c in targetableCells) {
 				if (map[c] == null) {
 					map[c] = 1.0 // ratio
@@ -96,12 +96,11 @@ class MapAllyHeal {
 
 	/*
 	 * Retourne les Cells pouvant être ciblées depuis la @cell avec l'@item (ignore les entités dans la LOS)
-	 * @param ally Entity allié (non utilisé - cache global par item/cell)
 	 * @param item Item de heal
 	 * @param cell Cellule depuis laquelle l'allié tire
 	 * @return Array de cellules ciblables
 	 */
-	static Array<Cell> getAllyTargetableCells(Entity ally, Item item, Cell cell) {
+	static Array<Cell> getAllyTargetableCells(Item item, Cell cell) {
 		// Init du cache si nécessaire
 		if (_cache_item_targetableCells[item] == null) {
 			_cache_item_targetableCells[item] = [:]
@@ -202,11 +201,11 @@ class MapAllyHeal {
 
 		for (ItemEffect e in item.effects) {
 			if (e.type == EFFECT_HEAL) {
-				real tmp = e.avg * (1 + (allySource.getCurrentWsd(consequences) / 100)) * ratioHeal
+				real tmp = e.avgmax * (1 + (allySource.getCurrentWsd(consequences) / 100)) * ratioHeal
 				heal += tmp
 			}
 			else if (e.type == EFFECT_BOOST_MAX_LIFE) {
-				real tmp = e.avg * (1 + (allySource.getCurrentWsd(consequences) / 100)) * ratioHeal
+				real tmp = e.avgmax * (1 + (allySource.getCurrentWsd(consequences) / 100)) * ratioHeal
 				heal += tmp
 			}
 		}

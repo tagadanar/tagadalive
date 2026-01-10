@@ -63,7 +63,7 @@ class MapAllyDamage {
 
 		for (Cell cell : integer dist in ally.reachableCells) {
 			if (dist > ally.mp) break
-			Array<Cell> targetableCells = MapAllyDamage.getAllyTargetableCells(ally, item, cell)
+			Array<Cell> targetableCells = MapAllyDamage.getAllyTargetableCells(item, cell)
 			for (Cell c in targetableCells) {
 				if (map[c] == null) {
 					map[c] = 1.0 // ratio
@@ -97,12 +97,11 @@ class MapAllyDamage {
 
 	/*
 	 * Retourne les Cells pouvant etre ciblees depuis la @cell avec l'@item (ignore les entites dans la LOS)
-	 * @param ally Entity allie (non utilise - cache global par item/cell)
 	 * @param item Item arme
 	 * @param cell Cellule depuis laquelle l'allie tire
 	 * @return Array de cellules ciblables
 	 */
-	static Array<Cell> getAllyTargetableCells(Entity ally, Item item, Cell cell) {
+	static Array<Cell> getAllyTargetableCells(Item item, Cell cell) {
 		// Init du cache si necessaire
 		if (_cache_item_targetableCells[item] == null) {
 			_cache_item_targetableCells[item] = [:]
