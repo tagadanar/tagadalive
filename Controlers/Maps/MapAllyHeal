@@ -11,9 +11,9 @@ class MapAllyHeal {
 	static Map<Cell, HealPotential> _heal = [:] // [cell:HealPotential]
 	static Map<integer, Map<Cell, HealPotential>> _hash_heal = [:] // [consequences.hash:[cell:HealPotential]]
 
-	// Cache contenant pour chaque allié, pour chaque item, pour chaque case, les cases ciblables
-	// Ignore les entités dans la LOS (comme MapDanger)
-	static Map<Entity, Map<Item, Map<Cell, Array<Cell>>>> _cache_ally_item_targetableCells = [:] // [ally:[item:[fromCell:[targetCells]]]]
+	// Cache contenant pour chaque item, pour chaque case, les cases ciblables
+	// Ignore les entités dans la LOS (comme MapDanger) - cache global car le résultat ne dépend pas de l'allié
+	static Map<Item, Map<Cell, Array<Cell>>> _cache_item_targetableCells = [:] // [item:[fromCell:[targetCells]]]
 
 	// Cache pour chaque allié des maps des cases où il peut heal
 	// Refresh à chaque tour
@@ -27,10 +27,9 @@ class MapAllyHeal {
 	 * Doit être appelé APRÈS MapDanger.refresh() et Fight.refreshEntities()
 	 */
 	static void refresh() {
-		// Reset des caches
+		// Reset des caches (sauf _cache_item_targetableCells qui reste valide entre les tours)
 		_heal = [:]
 		_hash_heal = [:]
-		_cache_ally_item_targetableCells = [:]
 		_map_ally_item_heal = [:]
 		_ally_heal_items = [:]
 
@@ -97,25 +96,22 @@ class MapAllyHeal {
 
 	/*
 	 * Retourne les Cells pouvant être ciblées depuis la @cell avec l'@item (ignore les entités dans la LOS)
-	 * @param ally Entity allié
+	 * @param ally Entity allié (non utilisé - cache global par item/cell)
 	 * @param item Item de heal
 	 * @param cell Cellule depuis laquelle l'allié tire
 	 * @return Array de cellules ciblables
 	 */
 	static Array<Cell> getAllyTargetableCells(Entity ally, Item item, Cell cell) {
 		// Init du cache si nécessaire
-		if (_cache_ally_item_targetableCells[ally] == null) {
-			_cache_ally_item_targetableCells[ally] = [:]
+		if (_cache_item_targetableCells[item] == null) {
+			_cache_item_targetableCells[item] = [:]
 		}
-		if (_cache_ally_item_targetableCells[ally]![item] == null) {
-			_cache_ally_item_targetableCells[ally]![item] = [:]
-		}
-		if (_cache_ally_item_targetableCells[ally]![item]![cell] == null) {
+		if (_cache_item_targetableCells[item]![cell] == null) {
 			// Ignore toutes les entités dans la LOS (comme MapDanger.getEnemiesTargetableCells)
-			_cache_ally_item_targetableCells[ally]![item]![cell] = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
+			_cache_item_targetableCells[item]![cell] = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
 		}
 
-		return _cache_ally_item_targetableCells[ally]![item]![cell]!
+		return _cache_item_targetableCells[item]![cell]!
 	}
 
 	/*
