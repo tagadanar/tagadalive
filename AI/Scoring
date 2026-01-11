@@ -163,6 +163,7 @@ class Scoring {
 			// Winning modifier for allies
 			if (isAlly) {
 				base *= ScoringModifiers.getWinningModifier()
+				//ScoringConfig.W_DANGER_BASE = ScoringModifiers.getWinningModifier() // testing
 			}
 		}
 

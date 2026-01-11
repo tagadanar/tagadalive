@@ -49,7 +49,7 @@ class ScoringModifiers {
 		integer currentHP = entity.getCurrentHP(consequences)
 		integer maxHP = entity.getCurrentMaxHP(consequences)
 		if (maxHP <= 0) return 10.0
-		return _computeLifeRatioModifier(currentHP * 1.0 / maxHP, entity.isFriend)
+		return _computeLifeRatioModifier(currentHP / maxHP, entity.isFriend)
 	}
 
 	/*
@@ -59,8 +59,8 @@ class ScoringModifiers {
 		if (lifeRatio <= 0.0) return 10.0 // safety: dead or invalid
 
 		if (isFriend) {
-			// Ally: linear curve - prioritize healing low HP allies
-			return 10.0 - 9.0 * lifeRatio
+			// Ally: linear curve from 2 - prioritize healing low HP allies
+			return 10.0 - 8.0 * lifeRatio
 		} else {
 			// Enemy: linear curve from 4 (full HP) to 10 (dead)
 			return 10.0 - 6.0 * lifeRatio

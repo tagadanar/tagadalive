@@ -15,7 +15,7 @@ class EntityCoefs {
 	// Bulb types have individual entries for fine-grained control
 	static Map<integer, Map<integer, real>> baseCoefs = [
 		ENTITY_LEEK: [
-			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 3.0,
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 5.0,
 			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
 			Stats.ABSSHIELD: 3.0, Stats.RELSHIELD: 6.0, Stats.DMGRETURN: 3.0,
 			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 0.8,
@@ -95,15 +95,15 @@ class EntityCoefs {
 			Stats.TP: 1.0, Stats.MP: 2.0, Stats.PWR: 0.1, Stats.KILL: 0.05
 		],
 		ENTITY_TURRET: [
-			Stats.HP: 2.0, Stats.HPTIME: 1.0, Stats.HPMAX: 3.0,
+			Stats.HP: 3.0, Stats.HPTIME: 1.0, Stats.HPMAX: 10.0,
 			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
-			Stats.ABSSHIELD: 4.0, Stats.RELSHIELD: 8.0, Stats.DMGRETURN: 3.0,
+			Stats.ABSSHIELD: 5.0, Stats.RELSHIELD: 10.0, Stats.DMGRETURN: 3.0,
 			Stats.STR: 0.6, Stats.MGC: 0.6, Stats.RST: 0.5,
 			Stats.WSD: 0.5, Stats.AGI: 0.5,
 			Stats.TP: 30.0, Stats.MP: 30.0, Stats.PWR: 1.0, Stats.KILL: 1.0
 		],
 		ENTITY_CHEST: [
-			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 2.0,
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
 			Stats.ABSSHIELD: 3.0, Stats.RELSHIELD: 6.0, Stats.DMGRETURN: 3.0,
 			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 0.5,
@@ -111,7 +111,7 @@ class EntityCoefs {
 			Stats.TP: 40.0, Stats.MP: 40.0, Stats.PWR: 1.0, Stats.KILL: 1.0
 		],
 		ENTITY_MOB: [
-			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 2.0,
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
 			Stats.ABSSHIELD: 3.0, Stats.RELSHIELD: 6.0, Stats.DMGRETURN: 3.0,
 			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 0.5,
