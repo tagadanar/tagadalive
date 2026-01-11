@@ -291,6 +291,7 @@ class CellMCTS {
 	static integer MAX_ITERATIONS = 100000
 	static integer MAX_ACTIONS_PER_NODE = 8
 	static integer SAFETY_BUFFER = 250000
+	static boolean USE_PTS_SEEDING = true       // Set to false for pure MCTS without PTS bias
 
 	static integer lastIterations = 0
 	static integer lastNodesCreated = 0
@@ -306,16 +307,25 @@ class CellMCTS {
 	static Combo run() {
 		Benchmark.start("CellMCTS.run")
 
-		// 1. Calibration (runs CalibratedPTS)
-		CalibratedPTS.calibrate()
-		Combo ptsCombo = CalibratedPTS.getBestCombo()
-		real ptsScore = CalibratedPTS.bestScore
+		Combo? ptsCombo = null
+		real ptsScore = 0
 
-		if (CellMCTS.shouldStop()) {
-			Benchmark.setAlgo("CELL_MCTS", "PTS_ONLY")
-			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
-			Benchmark.stop("CellMCTS.run")
-			return ptsCombo
+		// 1. Calibration (unless skipped)
+		if (AI.SKIP_CALIBRATION) {
+			// Set default mpValue for movement cost estimation
+			CalibratedPTS.mpValue = AI.DEFAULT_MP_VALUE
+		} else {
+			// Run calibration (runs CalibratedPTS)
+			CalibratedPTS.calibrate()
+			ptsCombo = CalibratedPTS.getBestCombo()
+			ptsScore = CalibratedPTS.bestScore
+
+			if (CellMCTS.shouldStop()) {
+				Benchmark.setAlgo("CELL_MCTS", "PTS_ONLY")
+				Benchmark.setChosen(ptsScore, count(ptsCombo!.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo!))
+				Benchmark.stop("CellMCTS.run")
+				return ptsCombo!
+			}
 		}
 
 		// 2. Build tree
@@ -323,9 +333,11 @@ class CellMCTS {
 		CellMCTSNode root = CellMCTSNode()
 		CellMCTS.initRootCells(root, mapBestAction)
 
-		// 3. Seed with calibration combos
-		Array<Combo> seedCombos = CalibratedPTS.getSeedingCombos()
-		CellMCTS.seedWithCombos(root, seedCombos, mapBestAction)
+		// 3. Seed with calibration combos (if enabled)
+		if (CellMCTS.USE_PTS_SEEDING && !AI.SKIP_CALIBRATION) {
+			Array<Combo> seedCombos = CalibratedPTS.getSeedingCombos()
+			CellMCTS.seedWithCombos(root, seedCombos, mapBestAction)
+		}
 
 		// 4. MCTS iterations
 		integer iterations = 0
@@ -369,15 +381,23 @@ class CellMCTS {
 		Benchmark.setMCTS(iterations, nodesCreated, movesExplored, mctsScore)
 		Benchmark.stop("CellMCTS.run")
 
-		// Return better of PTS vs MCTS
+		// Return result
+		if (AI.SKIP_CALIBRATION) {
+			// Pure MCTS mode - return MCTS combo only
+			Benchmark.setAlgo("CELL_MCTS", "MCTS_PURE")
+			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), CellMCTS.buildComboDesc(mctsCombo))
+			return mctsCombo
+		}
+
+		// Compare PTS vs MCTS, return better
 		if (mctsScore > ptsScore) {
 			Benchmark.setAlgo("CELL_MCTS", "MCTS")
 			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), CellMCTS.buildComboDesc(mctsCombo))
 			return mctsCombo
 		} else {
 			Benchmark.setAlgo("CELL_MCTS", "PTS")
-			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
-			return ptsCombo
+			Benchmark.setChosen(ptsScore, count(ptsCombo!.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo!))
+			return ptsCombo!
 		}
 	}
 

@@ -174,6 +174,7 @@ class OpportunityMCTS {
 	static integer MAX_EXPANSIONS_PER_NODE = 10
 	static integer MAX_CELLS_PER_OPP = 2          // Top-K cells per opportunity
 	static integer SAFETY_BUFFER = 250000
+	static boolean USE_PTS_SEEDING = true       // Set to false for pure MCTS without PTS bias
 
 	static integer lastIterations = 0
 	static integer lastNodesCreated = 0
@@ -188,25 +189,36 @@ class OpportunityMCTS {
 	static Combo run() {
 		Benchmark.start("OpportunityMCTS.run")
 
-		// 1. Calibration
-		CalibratedPTS.calibrate()
-		Combo ptsCombo = CalibratedPTS.getBestCombo()
-		real ptsScore = CalibratedPTS.bestScore
+		Combo? ptsCombo = null
+		real ptsScore = 0
 
-		if (OpportunityMCTS.shouldStop()) {
-			Benchmark.setAlgo("OPP_MCTS", "PTS_ONLY")
-			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
-			Benchmark.stop("OpportunityMCTS.run")
-			return ptsCombo
+		// 1. Calibration (unless skipped)
+		if (AI.SKIP_CALIBRATION) {
+			// Set default mpValue for movement cost estimation
+			CalibratedPTS.mpValue = AI.DEFAULT_MP_VALUE
+		} else {
+			// Run calibration
+			CalibratedPTS.calibrate()
+			ptsCombo = CalibratedPTS.getBestCombo()
+			ptsScore = CalibratedPTS.bestScore
+
+			if (OpportunityMCTS.shouldStop()) {
+				Benchmark.setAlgo("OPP_MCTS", "PTS_ONLY")
+				Benchmark.setChosen(ptsScore, count(ptsCombo!.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo!))
+				Benchmark.stop("OpportunityMCTS.run")
+				return ptsCombo!
+			}
 		}
 
 		// 2. Build tree
 		OppNode root = OppNode()
 		OpportunityMCTS.initUntriedOpps(root)
 
-		// 3. Seed with calibration combos
-		Array<Combo> seedCombos = CalibratedPTS.getSeedingCombos()
-		OpportunityMCTS.seedWithCombos(root, seedCombos)
+		// 3. Seed with calibration combos (if enabled)
+		if (OpportunityMCTS.USE_PTS_SEEDING && !AI.SKIP_CALIBRATION) {
+			Array<Combo> seedCombos = CalibratedPTS.getSeedingCombos()
+			OpportunityMCTS.seedWithCombos(root, seedCombos)
+		}
 
 		// 4. MCTS iterations
 		integer iterations = 0
@@ -245,15 +257,23 @@ class OpportunityMCTS {
 		Benchmark.setMCTS(iterations, nodesCreated, 0, mctsScore)
 		Benchmark.stop("OpportunityMCTS.run")
 
-		// Return better of PTS vs MCTS
+		// Return result
+		if (AI.SKIP_CALIBRATION) {
+			// Pure MCTS mode - return MCTS combo only
+			Benchmark.setAlgo("OPP_MCTS", "MCTS_PURE")
+			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), OpportunityMCTS.buildComboDesc(mctsCombo))
+			return mctsCombo
+		}
+
+		// Compare PTS vs MCTS, return better
 		if (mctsScore > ptsScore) {
 			Benchmark.setAlgo("OPP_MCTS", "MCTS")
 			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), OpportunityMCTS.buildComboDesc(mctsCombo))
 			return mctsCombo
 		} else {
 			Benchmark.setAlgo("OPP_MCTS", "PTS")
-			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
-			return ptsCombo
+			Benchmark.setChosen(ptsScore, count(ptsCombo!.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo!))
+			return ptsCombo!
 		}
 	}
 

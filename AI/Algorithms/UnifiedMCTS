@@ -204,17 +204,26 @@ class UnifiedMCTS {
 	static Combo run() {
 		Benchmark.start("UnifiedMCTS.run")
 
-		// 1. Run calibration (tests all MP budgets, finds best tradeoff)
-		CalibratedPTS.calibrate()
-		Combo ptsCombo = CalibratedPTS.getBestCombo()
-		real ptsScore = CalibratedPTS.bestScore
+		Combo? ptsCombo = null
+		real ptsScore = 0
 
-		// 2. Check budget after calibration
-		if (UnifiedMCTS.shouldStop()) {
-			Benchmark.setAlgo("UNIFIED_MCTS", "PTS_ONLY")
-			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
-			Benchmark.stop("UnifiedMCTS.run")
-			return ptsCombo
+		// 1. Run calibration (unless skipped)
+		if (AI.SKIP_CALIBRATION) {
+			// Set default mpValue for position estimation
+			CalibratedPTS.mpValue = AI.DEFAULT_MP_VALUE
+		} else {
+			// Run calibration (tests all MP budgets, finds best tradeoff)
+			CalibratedPTS.calibrate()
+			ptsCombo = CalibratedPTS.getBestCombo()
+			ptsScore = CalibratedPTS.bestScore
+
+			// 2. Check budget after calibration
+			if (UnifiedMCTS.shouldStop()) {
+				Benchmark.setAlgo("UNIFIED_MCTS", "PTS_ONLY")
+				Benchmark.setChosen(ptsScore, count(ptsCombo!.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo!))
+				Benchmark.stop("UnifiedMCTS.run")
+				return ptsCombo!
+			}
 		}
 
 		// 3. Build unified tree
@@ -223,7 +232,7 @@ class UnifiedMCTS {
 
 		// 4. Seed with calibration combos (all MP budget variants)
 		UnifiedMCTS._seededCells = [:]  // Reset
-		if (UnifiedMCTS.USE_PTS_SEEDING) {
+		if (UnifiedMCTS.USE_PTS_SEEDING && !AI.SKIP_CALIBRATION) {
 			Array<Combo> seedCombos = CalibratedPTS.getSeedingCombos()
 			UnifiedMCTS._seededCells = UnifiedMCTS.seedWithCombos(root, seedCombos, mapBestAction)
 		}
@@ -279,15 +288,23 @@ class UnifiedMCTS {
 		Benchmark.setMCTS(iterations, nodesCreated, cellsExplored, mctsScore)
 		Benchmark.stop("UnifiedMCTS.run")
 
-		// 7. Return better of PTS vs MCTS
+		// 7. Return result
+		if (AI.SKIP_CALIBRATION) {
+			// Pure MCTS mode - return MCTS combo only
+			Benchmark.setAlgo("UNIFIED_MCTS", "MCTS_PURE")
+			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), UnifiedMCTS.buildComboDesc(mctsCombo))
+			return mctsCombo
+		}
+
+		// Compare PTS vs MCTS, return better
 		if (mctsScore > ptsScore) {
 			Benchmark.setAlgo("UNIFIED_MCTS", "MCTS")
 			Benchmark.setChosen(mctsScore, count(mctsCombo.actions), UnifiedMCTS.buildComboDesc(mctsCombo))
 			return mctsCombo
 		} else {
 			Benchmark.setAlgo("UNIFIED_MCTS", "PTS")
-			Benchmark.setChosen(ptsScore, count(ptsCombo.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo))
-			return ptsCombo
+			Benchmark.setChosen(ptsScore, count(ptsCombo!.actions), "PTS:" + CalibratedPTS.buildComboDesc(ptsCombo!))
+			return ptsCombo!
 		}
 	}
 
