@@ -30,6 +30,15 @@ class AI {
 	// Current mode (default value, can be overridden in main)
 	static integer mode = AI.MODE_UNIFIED_MCTS
 
+	// === Calibration Control ===
+	// Set to true to skip CalibratedPTS entirely (pure MCTS mode)
+	// When true: no PTS baseline, no seeding, MCTS-only result
+	static boolean SKIP_CALIBRATION = false
+
+	// Default mpValue when calibration is skipped (position score per MP)
+	// Used by CellMCTS/OpportunityMCTS for movement cost estimation
+	static real DEFAULT_MP_VALUE = 50.0
+
 	/*
 	 * Get readable name for a mode (for debugging)
 	 */

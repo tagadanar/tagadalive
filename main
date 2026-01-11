@@ -18,8 +18,22 @@ include('auto');
 // ║  - Seeding: calibration combos pre-populate MCTS tree               ║
 // ║  - Position estimation: mpValue estimates position score per MP     ║
 // ║  - Resource sync: tracks MP/TP from Consequences (source of truth)  ║
+// ╠═════════════════════════════════════════════════════════════════════╣
+// ║  SKIP_CALIBRATION = true disables CalibratedPTS entirely:           ║
+// ║  - No PTS baseline run, no seeding, pure MCTS exploration           ║
+// ║  - Uses DEFAULT_MP_VALUE (50) for movement cost estimation          ║
+// ║  - Returns MCTS result only (no PTS vs MCTS comparison)             ║
 // ╚═════════════════════════════════════════════════════════════════════╝
 AI.mode = AI.MODE_UNIFIED_MCTS
+
+// Pure MCTS mode (skip CalibratedPTS entirely)
+// AI.SKIP_CALIBRATION = true
+// AI.DEFAULT_MP_VALUE = 50.0  // Adjust if needed
+
+// Seeding configuration (set to false for MCTS without PTS seeding, but keeps calibration)
+// UnifiedMCTS.USE_PTS_SEEDING = false
+// OpportunityMCTS.USE_PTS_SEEDING = false
+// CellMCTS.USE_PTS_SEEDING = false
 
 // Initialize game state
 init()
