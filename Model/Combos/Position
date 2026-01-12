@@ -2,6 +2,13 @@
  * Position extends Danger with additional tactical scoring components.
  * Used for end-of-turn positioning decisions.
  * Score breakdown allows debugging and ML tuning of weights.
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ POSITION SCORING ARCHITECTURE (3-file split):                          │
+ * │  • AI/ScoringConfig: Weight constants and thresholds                   │
+ * │  • Model/Combos/Position (this file): Position class with components   │
+ * │  • Controlers/Maps/MapPosition: Search algorithm for best position     │
+ * └─────────────────────────────────────────────────────────────────────────┘
  */
 class Position extends Danger {
 	// Score components (for debugging/tuning)
