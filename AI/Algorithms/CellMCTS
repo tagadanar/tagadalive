@@ -103,11 +103,9 @@ class CellMCTSNode {
 		// Sync currentCell with actual position after chaining (action may have moved us)
 		this.currentCell = this.state.currentCell
 
-		// Update resources
-		integer switchCost = baseAction.item.isWeap && baseAction.item != parent.weaponInHand ? 1 : 0
-		this.state.currentTP -= switchCost
+		// Update resources (switch cost now handled in Consequences)
 		this.remainingTP = this.state.currentTP
-		this.weaponInHand = baseAction.item.isWeap ? baseAction.item : parent.weaponInHand
+		this.weaponInHand = this.state.currentWeapon
 		this.remainingMP = max(0, this.state.currentMP)
 	}
 
@@ -121,13 +119,14 @@ class CellMCTSNode {
 		this.currentCell = targetCell
 		this.remainingTP = parent.remainingTP
 		this.remainingMP = max(0, parent.remainingMP - mpCost)
-		this.weaponInHand = parent.weaponInHand
+		this.weaponInHand = parent.state.currentWeapon
 
 		// Clone parent state, update position
 		this.state = Consequences()
 		this.state.currentCell = targetCell
 		this.state.currentMP = this.remainingMP
 		this.state.currentTP = parent.state.currentTP
+		this.state.currentWeapon = parent.state.currentWeapon
 		// Carry over score and kills from parent
 		if (parent.state.score != null) {
 			this.state.score = parent.state.score
@@ -453,7 +452,8 @@ class CellMCTS {
 			if (target != null && node.state.isKilled(target!)) return false
 		}
 
-		integer switchCost = action.item.isWeap && action.item != node.weaponInHand ? 1 : 0
+		// Use state.currentWeapon for switch cost check
+		integer switchCost = action.item.isWeap && action.item != node.state.currentWeapon ? 1 : 0
 		if (action.item.cost + switchCost > node.remainingTP) return false
 
 		if (action.score! <= 0) return false

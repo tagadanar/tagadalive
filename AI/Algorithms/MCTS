@@ -53,10 +53,9 @@ class MCTSNode {
 		this.action = chainedAction
 		this.state = chainedAction.consequences
 
-		// Update resources
-		integer switchCost = baseAction.item.isWeap && baseAction.item != parent.weaponInHand ? 1 : 0
-		this.remainingTP = this.state.currentTP - switchCost  // TP cost and boosts computed in Consequences
-		this.weaponInHand = baseAction.item.isWeap ? baseAction.item : parent.weaponInHand
+		// Update resources (switch cost now handled in Consequences)
+		this.remainingTP = this.state.currentTP
+		this.weaponInHand = this.state.currentWeapon
 
 		// MP cost for movement (computed in Consequences)
 		this.remainingMP = this.state.currentMP
@@ -77,8 +76,8 @@ class MCTSNode {
 			Entity? target = Board.entityCells[baseAction.to]
 			if (target != null && this.state.isKilled(target!)) continue
 
-			// Check TP cost
-			integer switchCost = baseAction.item.isWeap && baseAction.item != this.weaponInHand ? 1 : 0
+			// Check TP cost (use state.currentWeapon for switch cost check)
+			integer switchCost = baseAction.item.isWeap && baseAction.item != this.state.currentWeapon ? 1 : 0
 			if (baseAction.item.cost + switchCost > this.remainingTP) continue
 
 			push(this.untriedActions, baseAction)
@@ -299,7 +298,7 @@ class MCTS {
 	 */
 	static real rollout(MCTSNode node, Array<Action> prunedActions) {
 		integer simTP = node.remainingTP
-		Item? simWeapon = node.weaponInHand
+		Item? simWeapon = node.state.currentWeapon
 		Consequences currentState = node.state  // Chain from this, no clone needed
 
 		// Track usage counts from tree path
@@ -345,9 +344,6 @@ class MCTS {
 
 			if (bestAction == null) break
 
-			// Track TP before action (to compute delta including boosts)
-			integer prevCurrentTP = currentState.currentTP
-
 			// Create chained action to get proper score with consequences
 			Action chainedAction = Action(bestAction!, currentState)
 
@@ -355,11 +351,10 @@ class MCTS {
 			real prevScore = currentState.score == null ? 0.0 : currentState.score!
 			if (chainedAction.score! <= prevScore) break
 
-			// Apply action: update state and resources
+			// Apply action: update state and resources (switch cost now in Consequences)
 			currentState = chainedAction.consequences
-			integer switchCost = bestAction!.item.isWeap && bestAction!.item != simWeapon ? 1 : 0
-			simTP += (currentState.currentTP - prevCurrentTP) - switchCost  // delta includes -cost +boost
-			if (bestAction!.item.isWeap) simWeapon = bestAction!.item
+			simTP = currentState.currentTP  // Switch cost already deducted by Consequences
+			simWeapon = currentState.currentWeapon
 			usageCounts[bestAction!.item] = (usageCounts[bestAction!.item] ? usageCounts[bestAction!.item]! : 0) + 1
 			rolloutSteps++
 		}

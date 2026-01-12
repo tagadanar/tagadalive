@@ -170,8 +170,9 @@ class Opportunity {
 	/*
 	 * Check if this opportunity can be executed given current state.
 	 * Does NOT check reachability (caller should use findBestReachableCell first).
+	 * Uses csq.currentWeapon for switch cost calculation.
 	 */
-	boolean canExecute(integer availableTP, Map<Item, integer> usesThisTurn, Map<Item, integer> cooldowns, Consequences csq, Item? weaponInHand) {
+	boolean canExecute(integer availableTP, Map<Item, integer> usesThisTurn, Map<Item, integer> cooldowns, Consequences csq) {
 		// Check cooldown
 		integer cd = cooldowns[this.item] != null ? cooldowns[this.item]! : 0
 		if (cd > 0) return false
@@ -183,8 +184,8 @@ class Opportunity {
 		// Check target not dead
 		if (csq.isKilled(this.target)) return false
 
-		// Check TP (including weapon switch cost)
-		integer switchCost = this.item.isWeap && this.item != weaponInHand ? 1 : 0
+		// Check TP (use csq.currentWeapon for switch cost)
+		integer switchCost = this.item.isWeap && this.item != csq.currentWeapon ? 1 : 0
 		if (availableTP < this.item.cost + switchCost) return false
 
 		return true

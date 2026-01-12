@@ -10,6 +10,7 @@ class Consequences {
 	Cell currentCell
 	integer currentMP
 	integer currentTP
+	Item? currentWeapon           // Equipped weapon (for switch cost tracking)
 	private integer _boostMP_before = 0
 
 
@@ -20,6 +21,7 @@ class Consequences {
 		this.currentCell = Fight.self.cell
 		this.currentMP = Fight.self.mp
 		this.currentTP = Fight.self.tp
+		this.currentWeapon = Fight.self.getWeaponInHand()
 		this.score = 0.0
 	}
 
@@ -28,6 +30,7 @@ class Consequences {
 		this.currentCell = Fight.self.cell
 		this.currentMP = Fight.self.mp
 		this.currentTP = Fight.self.tp
+		this.currentWeapon = Fight.self.getWeaponInHand()
 		this.score = 0.0  // Must initialize before construct() modifies it
 		construct(action)
 		Benchmark.stop("Consequences")
@@ -38,6 +41,7 @@ class Consequences {
 		this.currentCell = consequences.currentCell
 		this.currentMP = consequences.currentMP
 		this.currentTP = consequences.currentTP
+		this.currentWeapon = consequences.currentWeapon
 		this._alterations = clone(consequences._alterations, 2) as Map<Entity, Map<integer, integer>>
 		this._altEffects = clone(consequences._altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
 		this._effectTypeAlterations = clone(consequences._effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
@@ -73,6 +77,14 @@ class Consequences {
 		}
 		// déduction du coût TP de l'action
 		this.currentTP -= action.item.cost
+		// Weapon switch cost: +1 TP if switching to a different weapon
+		if (action.item.isWeap && action.item != this.currentWeapon) {
+			this.currentTP -= 1
+		}
+		// Update current weapon if action uses a weapon
+		if (action.item.isWeap) {
+			this.currentWeapon = action.item
+		}
 		// on retient les boosts mp/tp déjà appliquer à soit mm pour après
 		integer? boostMPbefore = this._alterations[Fight.self] != null ? this._alterations[Fight.self]![Stats.MP] : null
 		integer? boostTPbefore = this._alterations[Fight.self] != null ? this._alterations[Fight.self]![Stats.TP] : null
