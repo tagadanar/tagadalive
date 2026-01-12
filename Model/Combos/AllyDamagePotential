@@ -1,0 +1,22 @@
+/*
+ * L'objet AllyDamagePotential contient les dommages potentiels qu'un allié peut infliger sur une cellule.
+ * Similaire à HealPotential mais pour les dommages alliés (armes uniquement).
+ */
+class AllyDamagePotential {
+	Cell cell
+	real dmg
+	string combo
+
+	constructor(Cell cell, real dmg, string str) {
+		this.cell = cell
+		this.dmg = dmg
+		this.combo = str
+	}
+
+	/*
+	 * Format chaine de caracteres utilisee pour des tests / debugs.
+	 */
+	string string() {
+		return '<AllyDamagePotential ' + this.cell + ':' + round(this.dmg) + ':' + this.combo + '>'
+	}
+}
