@@ -25,7 +25,7 @@ include('auto');
 // ║  - Uses DEFAULT_MP_VALUE (50) for movement cost estimation          ║
 // ║  - Returns MCTS result only (no PTS vs MCTS comparison)             ║
 // ╚═════════════════════════════════════════════════════════════════════╝
-AI.mode = AI.MODE_COMBO_EXPLORER
+AI.mode = AI.MODE_UNIFIED_MCTS
 
 // Pure MCTS mode (skip CalibratedPTS entirely)
 // AI.SKIP_CALIBRATION = true
