@@ -94,9 +94,7 @@ class PTS {
 		// NOTE: Sorting is now done in MapOpportunity.refresh() (self-cast first, then by score)
 		Combo combo = Combo()
 		Cell currentCell = Fight.self.cell
-		integer currentTP = Fight.self.tp
 		integer currentMP = Fight.self.mp
-		Item? weaponInHand = Fight.self.getWeaponInHand()
 		Map<Item, integer> usesThisTurn = [:]
 		Map<Item, integer> cooldowns = [:]
 		// Use fresh reachableCells computed from current position/MP (not stale Fight.self.reachableCells)
@@ -113,7 +111,7 @@ class PTS {
 			for (Opportunity opp in sorted) {
 				Consequences currentCsq = combo.getCurrentConsequences()
 
-				if (!opp.canExecute(currentTP, usesThisTurn, cooldowns, currentCsq, weaponInHand)) {
+				if (!opp.canExecute(currentCsq.currentTP, usesThisTurn, cooldowns, currentCsq)) {
 					continue
 				}
 
@@ -143,15 +141,8 @@ class PTS {
 
 				Action lastAction = combo.actions[count(combo.actions) - 1]
 				Consequences newCsq = lastAction.consequences
-				currentTP = newCsq.currentTP
 				currentMP = newCsq.currentMP
 				currentCell = newCsq.currentCell
-
-				if (opp.item.isWeap && opp.item != weaponInHand) {
-					currentTP -= 1
-					newCsq.currentTP -= 1  // Propagate switch cost to consequences for next actualization
-					weaponInHand = opp.item
-				}
 
 				usesThisTurn[opp.item] = (usesThisTurn[opp.item] != null ? usesThisTurn[opp.item]! : 0) + 1
 				if (opp.item.haveCD) {

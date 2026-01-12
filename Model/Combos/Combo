@@ -16,19 +16,16 @@ class Combo {
 		// Validate usage limit
 		if(this.getUsageCount(action.item) >= action.item.maxUse) return false
 
-		if(count(this.actions) == 0) {
-			// Guard first action: must have positive score
-			if(action.score! <= 0) return false
-			push(this.actions, action)
-		} else {
-			Consequences currentCsq = this.getCurrentConsequences()
-			real prevScore = currentCsq.score != null ? currentCsq.score! : 0.0
-			Action actualized = Action(action, currentCsq)
-			// Check DELTA (score improvement), not cumulative
-			if(actualized.score! > prevScore) push(this.actions, actualized)
-			else return false
+		Consequences currentCsq = this.getCurrentConsequences()
+		real prevScore = currentCsq.score != null ? currentCsq.score! : 0.0
+		Action actualized = Action(action, currentCsq)
+
+		// Check score improvement (actualized.score is cumulative)
+		if(actualized.score! > prevScore) {
+			push(this.actions, actualized)
+			return true
 		}
-		return true
+		return false
 	}
 
 	/*

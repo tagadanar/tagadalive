@@ -70,10 +70,10 @@ class BeamState {
 		this.startCell = parent.startCell
 		this.state = chainedAction.consequences
 
-		integer switchCost = chainedAction.item.isWeap && chainedAction.item != parent.weaponInHand ? 1 : 0
-		this.remainingTP = this.state.currentTP - switchCost
+		// Switch cost now handled in Consequences
+		this.remainingTP = this.state.currentTP
 		this.remainingMP = this.state.currentMP
-		this.weaponInHand = chainedAction.item.isWeap ? chainedAction.item : parent.weaponInHand
+		this.weaponInHand = this.state.currentWeapon
 
 		this.usageCounts = [:]
 		for (Item item : integer cnt in parent.usageCounts) {
@@ -96,7 +96,8 @@ class BeamState {
 			if (target != null && this.state.isKilled(target!)) return false
 		}
 
-		integer switchCost = baseAction.item.isWeap && baseAction.item != this.weaponInHand ? 1 : 0
+		// Use state.currentWeapon for switch cost check
+		integer switchCost = baseAction.item.isWeap && baseAction.item != this.state.currentWeapon ? 1 : 0
 		if (baseAction.item.cost + switchCost > this.remainingTP) return false
 
 		return true

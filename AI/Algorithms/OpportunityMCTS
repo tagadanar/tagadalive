@@ -83,6 +83,7 @@ class OppNode {
 		moveState.currentCell = execCell
 		moveState.currentMP = mpAfterMove
 		moveState.currentTP = parent.state.currentTP
+		moveState.currentWeapon = parent.state.currentWeapon
 		if (parent.state.score != null) {
 			moveState.score = parent.state.score
 		}
@@ -106,12 +107,10 @@ class OppNode {
 		// Sync currentCell with actual position after chaining
 		this.currentCell = this.state.currentCell
 
-		// Update resources
-		integer switchCost = opp.item.isWeap && opp.item != parent.weaponInHand ? 1 : 0
-		this.state.currentTP -= switchCost
+		// Update resources (switch cost now handled in Consequences)
 		this.remainingTP = this.state.currentTP
 		this.remainingMP = max(0, this.state.currentMP)
-		this.weaponInHand = opp.item.isWeap ? opp.item : parent.weaponInHand
+		this.weaponInHand = this.state.currentWeapon
 
 		// Copy used keys and add this one
 		this.usedKeys = [:]
@@ -297,8 +296,8 @@ class OpportunityMCTS {
 			// Skip if target dead
 			if (node.state.isKilled(opp.target)) continue
 
-			// Skip if can't afford TP
-			integer switchCost = opp.item.isWeap && opp.item != node.weaponInHand ? 1 : 0
+			// Skip if can't afford TP (use state.currentWeapon for switch cost check)
+			integer switchCost = opp.item.isWeap && opp.item != node.state.currentWeapon ? 1 : 0
 			if (opp.item.cost + switchCost > node.remainingTP) continue
 
 			// Build ignoreCells: allies (from Fight.self) + killed entities (from simulation)

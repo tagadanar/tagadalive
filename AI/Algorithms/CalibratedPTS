@@ -94,7 +94,6 @@ class CalibratedPTS {
 	 */
 	static CalibrationPoint? buildWithBudget(integer maxMovementMP) {
 		Combo combo = Combo()
-		Item? weaponInHand = Fight.self.getWeaponInHand()
 		Map<Item, integer> usesThisTurn = [:]
 		Map<Item, integer> cooldowns = [:]
 
@@ -111,7 +110,6 @@ class CalibratedPTS {
 			// Get current state from combo's consequences (this is the source of truth)
 			Consequences currentCsq = combo.getCurrentConsequences()
 			Cell currentCell = currentCsq.currentCell
-			integer currentTP = currentCsq.currentTP
 
 			// MP available for movement = actual MP minus reserve for positioning
 			integer budgetForMove = max(0, currentCsq.currentMP - reserveMP)
@@ -126,8 +124,8 @@ class CalibratedPTS {
 			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(currentCell, budgetForMove, ignoreCells)
 
 			for (Opportunity opp in sorted) {
-				// Standard checks
-				if (!opp.canExecute(currentTP, usesThisTurn, cooldowns, currentCsq, weaponInHand)) {
+				// Standard checks (uses csq.currentWeapon for switch cost)
+				if (!opp.canExecute(currentCsq.currentTP, usesThisTurn, cooldowns, currentCsq)) {
 					continue
 				}
 
@@ -144,13 +142,6 @@ class CalibratedPTS {
 					push(combo.actions, action!)
 				} else {
 					if (!combo.add(action!)) continue
-				}
-
-				// Handle weapon switch cost (not tracked by Consequences)
-				if (opp.item.isWeap && opp.item != weaponInHand) {
-					Action lastAction = combo.actions[count(combo.actions) - 1]
-					lastAction.consequences.currentTP -= 1
-					weaponInHand = opp.item
 				}
 
 				usesThisTurn[opp.item] = (usesThisTurn[opp.item] != null ? usesThisTurn[opp.item]! : 0) + 1
