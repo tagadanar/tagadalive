@@ -9,9 +9,10 @@ include('auto');
 // ║  MODE_HYBRID           PTS seeds MCTS on 1 cell (legacy)            ║
 // ║  MODE_HYBRID_GUIDED    PTS guides MCTS cell order (legacy)          ║
 // ║  MODE_HYBRID_BEAM      PTS guides BeamSearch (legacy)               ║
-// ║  MODE_UNIFIED_MCTS     Single tree, cells first-level [RECOMMENDED] ║
+// ║  MODE_UNIFIED_MCTS     Single tree, cells first-level               ║
 // ║  MODE_CELL_MCTS        Cell-centric with mid-combo MoveNodes        ║
 // ║  MODE_OPPORTUNITY_MCTS Opportunity-centric, implicit movement       ║
+// ║  MODE_COMBO_EXPLORER   Multi-phase exploration [TESTING]            ║
 // ╠═════════════════════════════════════════════════════════════════════╣
 // ║  All MCTS variants use CalibratedPTS for:                           ║
 // ║  - MP budget exploration: tests combos at each MP level (0..maxMP)  ║
@@ -24,7 +25,7 @@ include('auto');
 // ║  - Uses DEFAULT_MP_VALUE (50) for movement cost estimation          ║
 // ║  - Returns MCTS result only (no PTS vs MCTS comparison)             ║
 // ╚═════════════════════════════════════════════════════════════════════╝
-AI.mode = AI.MODE_UNIFIED_MCTS
+AI.mode = AI.MODE_COMBO_EXPLORER
 
 // Pure MCTS mode (skip CalibratedPTS entirely)
 // AI.SKIP_CALIBRATION = true

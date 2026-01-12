@@ -1,0 +1,203 @@
+/*
+ * ActionKnapsack - Bounded Knapsack for Action Selection
+ *
+ * Optimizes action selection within a TP budget, handling:
+ * - Weapon switch costs (state tracks current weapon)
+ * - Item usage limits (maxUse per item)
+ * - DP-based selection for optimal total score
+ *
+ * Used by ComboExplorer for better TP allocation than greedy selection.
+ */
+
+// ════════════════════════════════════════════════════════════════
+// KNAPSACK ITEM WRAPPER
+// ════════════════════════════════════════════════════════════════
+
+class KnapsackItem {
+	Action action
+	integer baseCost       // Base TP cost (without switch)
+	real score
+	integer weaponIdx      // -1 for chips, 0+ for weapons
+
+	constructor(Action action, integer baseCost, real score, integer weaponIdx) {
+		this.action = action
+		this.baseCost = baseCost
+		this.score = score
+		this.weaponIdx = weaponIdx
+	}
+}
+
+// ════════════════════════════════════════════════════════════════
+// MAIN KNAPSACK SOLVER
+// ════════════════════════════════════════════════════════════════
+
+class ActionKnapsack {
+	// Weapon index mapping
+	static Array<Item> weaponList = []
+	static Map<Item, integer> weaponToIdx = [:]
+	static integer CHIP = -1  // Chips don't change weapon state
+
+	/*
+	 * Select actions maximizing score within TP budget
+	 * Handles weapon switch costs and usage limits
+	 *
+	 * @param pool Available actions to choose from
+	 * @param maxTP Maximum TP to spend
+	 * @param currentWeapon Currently equipped weapon
+	 * @return Array of selected actions (caller should sort by priority for execution)
+	 */
+	static Array<Action> solve(Array<Action> pool, integer maxTP, Item? currentWeapon) {
+		if (count(pool) == 0 || maxTP <= 0) return []
+
+		// Build weapon index map
+		ActionKnapsack.buildWeaponMap(pool, currentWeapon)
+		integer numWeapons = count(ActionKnapsack.weaponList)
+
+		// Expand actions (respecting maxUse)
+		Array<KnapsackItem> items = ActionKnapsack.expandActions(pool)
+		if (count(items) == 0) return []
+
+		// Starting weapon index (-1 if no weapon or chip-only)
+		integer startWeaponIdx = ActionKnapsack.CHIP
+		if (currentWeapon != null && ActionKnapsack.weaponToIdx[currentWeapon!] != null) {
+			startWeaponIdx = ActionKnapsack.weaponToIdx[currentWeapon!]!
+		}
+
+		// DP: dp[tp][w] = max score using exactly tp, with weapon w equipped
+		// w = -1 means no weapon equipped yet (or only chips used)
+		integer wStates = numWeapons + 1  // +1 for "no weapon" state
+		integer wOffset = 1               // Index offset: actual idx = w + wOffset
+
+		// dp[tp * wStates + (w + wOffset)] = score
+		integer stateCount = (maxTP + 1) * wStates
+		Array<real> dp = []
+		Array<integer> parent = []      // Which item got us here
+		Array<integer> parentState = [] // Previous state index
+
+		for (integer i = 0; i < stateCount; i++) {
+			push(dp, -999999.0)
+			push(parent, -1)
+			push(parentState, -1)
+		}
+
+		// Initial state: 0 TP spent, starting weapon
+		integer initState = 0 * wStates + (startWeaponIdx + wOffset)
+		dp[initState] = 0.0
+
+		// Process each item
+		for (integer itemIdx = 0; itemIdx < count(items); itemIdx++) {
+			KnapsackItem ki = items[itemIdx]
+
+			// Process in reverse TP order (0/1 knapsack style)
+			for (integer tp = maxTP; tp >= 0; tp--) {
+				for (integer w = -1; w < numWeapons; w++) {
+					integer fromState = tp * wStates + (w + wOffset)
+					if (dp[fromState] < -999998.0) continue  // Unreachable
+
+					// Calculate actual cost
+					integer cost = ki.baseCost
+					integer newW = w
+
+					if (ki.weaponIdx != ActionKnapsack.CHIP) {
+						// It's a weapon action
+						if (ki.weaponIdx != w) {
+							cost += 1  // Switch cost
+						}
+						newW = ki.weaponIdx
+					}
+					// Chips don't change weapon state
+
+					integer newTP = tp + cost
+					if (newTP > maxTP) continue
+
+					integer toState = newTP * wStates + (newW + wOffset)
+					real newScore = dp[fromState] + ki.score
+
+					if (newScore > dp[toState]) {
+						dp[toState] = newScore
+						parent[toState] = itemIdx
+						parentState[toState] = fromState
+					}
+				}
+			}
+		}
+
+		// Find best final state
+		integer bestState = -1
+		real bestScore = -999999.0
+		for (integer tp = 0; tp <= maxTP; tp++) {
+			for (integer w = -1; w < numWeapons; w++) {
+				integer state = tp * wStates + (w + wOffset)
+				if (dp[state] > bestScore) {
+					bestScore = dp[state]
+					bestState = state
+				}
+			}
+		}
+
+		if (bestState == -1 || bestScore <= 0) return []
+
+		// Backtrack to find selected actions
+		Array<Action> selected = []
+		integer state = bestState
+		while (parent[state] != -1) {
+			push(selected, items[parent[state]].action)
+			state = parentState[state]
+		}
+
+		return selected
+	}
+
+	/*
+	 * Build weapon index mapping from action pool
+	 */
+	static void buildWeaponMap(Array<Action> pool, Item? currentWeapon) {
+		ActionKnapsack.weaponList = []
+		ActionKnapsack.weaponToIdx = [:]
+
+		// Add current weapon first (index 0)
+		if (currentWeapon != null && currentWeapon!.isWeap) {
+			push(ActionKnapsack.weaponList, currentWeapon!)
+			ActionKnapsack.weaponToIdx[currentWeapon!] = 0
+		}
+
+		// Add other weapons from pool
+		for (Action a in pool) {
+			if (a.item.isWeap && ActionKnapsack.weaponToIdx[a.item] == null) {
+				ActionKnapsack.weaponToIdx[a.item] = count(ActionKnapsack.weaponList)
+				push(ActionKnapsack.weaponList, a.item)
+			}
+		}
+	}
+
+	/*
+	 * Expand actions respecting maxUse limits
+	 * Each "virtual item" represents one use of an action
+	 */
+	static Array<KnapsackItem> expandActions(Array<Action> pool) {
+		Array<KnapsackItem> items = []
+		Map<Item, integer> useCounts = [:]
+
+		// Sort by score descending (best uses first)
+		pool = arraySort(pool, (Action a, Action b) => integer|real {
+			return Sort.desc(a.score!, b.score!)
+		}) as Array<Action>
+
+		for (Action a in pool) {
+			if (a.score == null || a.score! <= 0) continue
+
+			integer uses = useCounts[a.item] != null ? useCounts[a.item]! : 0
+			if (uses >= a.item.maxUse) continue
+
+			integer weaponIdx = ActionKnapsack.CHIP
+			if (a.item.isWeap) {
+				weaponIdx = ActionKnapsack.weaponToIdx[a.item]!
+			}
+
+			push(items, KnapsackItem(a, a.item.cost, a.score!, weaponIdx))
+			useCounts[a.item] = uses + 1
+		}
+
+		return items
+	}
+}

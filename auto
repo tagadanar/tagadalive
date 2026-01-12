@@ -59,6 +59,8 @@ include('AI/Algorithms/UnifiedMCTS')
 include('AI/Algorithms/CellMCTS')
 include('AI/Algorithms/OpportunityMCTS')
 include('AI/Algorithms/Hybrid')
+include('AI/Algorithms/ActionKnapsack')
+include('AI/Algorithms/ComboExplorer')
 
 include('AI/AI')
 

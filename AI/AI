@@ -26,6 +26,7 @@ class AI {
 	static integer MODE_UNIFIED_MCTS = 6    // Unified MCTS with cell selection in tree
 	static integer MODE_CELL_MCTS = 7       // Cell-centric MCTS with mid-combo movement
 	static integer MODE_OPPORTUNITY_MCTS = 8 // Opportunity-centric MCTS (recommended)
+	static integer MODE_COMBO_EXPLORER = 9   // Multi-phase combo exploration
 
 	// Current mode (default value, can be overridden in main)
 	static integer mode = AI.MODE_UNIFIED_MCTS
@@ -52,6 +53,7 @@ class AI {
 		if (m == AI.MODE_UNIFIED_MCTS) return "UNIFIED_MCTS"
 		if (m == AI.MODE_CELL_MCTS) return "CELL_MCTS"
 		if (m == AI.MODE_OPPORTUNITY_MCTS) return "OPP_MCTS"
+		if (m == AI.MODE_COMBO_EXPLORER) return "EXPLORER"
 		return "UNKNOWN"
 	}
 
@@ -87,6 +89,12 @@ class AI {
 		}
 		if (AI.mode == AI.MODE_OPPORTUNITY_MCTS) {
 			return OpportunityMCTS.run()
+		}
+		if (AI.mode == AI.MODE_COMBO_EXPLORER) {
+			Benchmark.setAlgo("EXPLORER", "EXPLORER")
+			Combo combo = ComboExplorer.explore()
+			Benchmark.setChosen(combo.getScore()!, count(combo.actions), "EXP:" + ComboExplorer.buildComboDesc(combo))
+			return combo
 		}
 		// MODE_UNIFIED_MCTS (default)
 		return UnifiedMCTS.run()
