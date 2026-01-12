@@ -1,3 +1,13 @@
+// ════════════════════════════════════════════════════════════════════════════
+// AUTO - Include aggregator for TagadAI combat system
+// ════════════════════════════════════════════════════════════════════════════
+// INCLUDE ORDER MATTERS! Dependencies flow top-to-bottom.
+// Do not reorder without understanding the dependency chain.
+// ════════════════════════════════════════════════════════════════════════════
+
+// ────────────────────────────────────────────────────────────────────────────
+// FOUNDATION: API compatibility and game objects
+// ────────────────────────────────────────────────────────────────────────────
 include('API/compatibility')
 
 include('Model/GameObject/Cell')
@@ -9,10 +19,16 @@ include('Model/GameObject/Item')
 
 include('Model/Const/Stats')
 
+// ────────────────────────────────────────────────────────────────────────────
+// CONTROLLERS: Game state management
+// ────────────────────────────────────────────────────────────────────────────
 include('Controlers/Fight')
 include('Controlers/Board')
 include('Controlers/Items')
 
+// ────────────────────────────────────────────────────────────────────────────
+// MAPS: Spatial indexing, pathfinding, danger assessment, targeting
+// ────────────────────────────────────────────────────────────────────────────
 include('Controlers/Maps/MapPath')
 include('Controlers/Maps/MapDanger')
 include('Controlers/Maps/MapPosition')
@@ -20,6 +36,9 @@ include('Controlers/Maps/Targets')
 include('Controlers/Maps/MapAction')
 include('Controlers/Maps/MapOpportunity')
 
+// ────────────────────────────────────────────────────────────────────────────
+// COMBO SYSTEM: Action modeling and consequence simulation
+// ────────────────────────────────────────────────────────────────────────────
 //include('Model/Combos/Jump')
 include('Model/Combos/Danger')
 include('Model/Combos/Position')
@@ -29,7 +48,9 @@ include('Model/Combos/Consequences')
 include('Model/Combos/Combo')
 include('Model/Combos/EffectOverTime')
 
-// Effect handlers - must be included AFTER Consequences (they register handlers)
+// CRITICAL: Effects must be included AFTER Consequences!
+// Each effect file calls Consequences.registerHandlers() at include time.
+// Moving these before Consequences will break handler registration.
 include('Model/Combos/Effects/DamageEffects')
 include('Model/Combos/Effects/HealEffects')
 include('Model/Combos/Effects/ShieldEffects')
@@ -39,10 +60,16 @@ include('Model/Combos/Effects/UtilityEffects')
 include('Model/Combos/Effects/MovementEffects')
 include('Model/Combos/Effects/PassiveEffects')
 
+// ────────────────────────────────────────────────────────────────────────────
+// SERVICES: Utility functions and global services
+// ────────────────────────────────────────────────────────────────────────────
 include('Services/Sort')
 include('Services/Benchmark')
 
-
+// ────────────────────────────────────────────────────────────────────────────
+// SCORING SYSTEM: Coefficient calculation and action evaluation
+// Order: Config → EntityCoefs → BattleState → Modifiers → Scoring facade
+// ────────────────────────────────────────────────────────────────────────────
 include('AI/ScoringConfig')
 include('AI/EntityCoefs')
 include('AI/BattleState')
@@ -51,11 +78,14 @@ include('AI/Scoring')
 
 include('Model/Combos/Opportunity')
 
-// Search algorithms
+// ────────────────────────────────────────────────────────────────────────────
+// ALGORITHMS: Search strategies for combo building
+// Order matters: CalibratedPTS before UnifiedMCTS (seeding dependency)
+// ────────────────────────────────────────────────────────────────────────────
 include('AI/Algorithms/MCTS')
 include('AI/Algorithms/BeamSearch')
 include('AI/Algorithms/PTS')
-include('AI/Algorithms/CalibratedPTS')  // Must be before UnifiedMCTS (dependency)
+include('AI/Algorithms/CalibratedPTS')
 include('AI/Algorithms/UnifiedMCTS')
 include('AI/Algorithms/CellMCTS')
 include('AI/Algorithms/OpportunityMCTS')
@@ -63,9 +93,15 @@ include('AI/Algorithms/Hybrid')
 include('AI/Algorithms/ActionKnapsack')
 include('AI/Algorithms/ComboExplorer')
 
+// ────────────────────────────────────────────────────────────────────────────
+// AI DISPATCHER: Entry point for algorithm selection
+// ────────────────────────────────────────────────────────────────────────────
 include('AI/AI')
 
 
+// ════════════════════════════════════════════════════════════════════════════
+// INIT: Per-turn initialization sequence
+// ════════════════════════════════════════════════════════════════════════════
 
 function init() {
 	Benchmark.initTurn()
@@ -100,7 +136,10 @@ function init() {
 	MapDanger.refresh()
 	Benchmark.stop('MapDanger.refresh')
 
-	// Compute ally danger after MapDanger (depends on danger maps)
+	// IMPORTANT: computeAllAllyDanger() is separate from BattleState.refresh() because:
+	// 1. It depends on MapDanger being refreshed first (uses danger maps)
+	// 2. BattleState.refresh() is called inside Scoring.refresh() (before MapDanger)
+	// If you call Scoring.refresh() alone, you must also call this afterward.
 	BattleState.computeAllAllyDanger()
 
 	Benchmark.start('MapPosition.refresh')
