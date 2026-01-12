@@ -1,6 +1,13 @@
 /*
  * Controller for position evaluation and end-of-turn positioning decisions.
  * Handles gravity cells, threat detection, and comprehensive position scoring.
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ POSITION SCORING ARCHITECTURE (3-file split):                          │
+ * │  • AI/ScoringConfig: Weight constants and thresholds                   │
+ * │  • Model/Combos/Position: Position class with score components         │
+ * │  • Controlers/Maps/MapPosition (this file): Search for best position   │
+ * └─────────────────────────────────────────────────────────────────────────┘
  */
 class MapPosition {
 	// === Gravity configuration ===

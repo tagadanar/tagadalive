@@ -5,6 +5,13 @@
  * Centralizes configuration for easy tuning and experimentation.
  *
  * Used by: Scoring, ScoringModifiers, MapPosition, Position
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ POSITION SCORING ARCHITECTURE (3-file split):                          │
+ * │  • AI/ScoringConfig (this file): Weight constants and thresholds       │
+ * │  • Model/Combos/Position: Position class with score components         │
+ * │  • Controlers/Maps/MapPosition: Search algorithm for best position     │
+ * └─────────────────────────────────────────────────────────────────────────┘
  */
 class ScoringConfig {
 
