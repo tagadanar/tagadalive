@@ -15,12 +15,16 @@ include('Controlers/Items')
 
 include('Controlers/Maps/MapPath')
 include('Controlers/Maps/MapDanger')
+include('Controlers/Maps/MapAllyHeal')
+include('Controlers/Maps/MapAllyDamage')
 include('Controlers/Maps/MapPosition')
 include('Controlers/Maps/MapAction')
 include('Controlers/Maps/MapOpportunity')
 
 //include('Model/Combos/Jump')
 include('Model/Combos/Danger')
+include('Model/Combos/HealPotential')
+include('Model/Combos/AllyDamagePotential')
 include('Model/Combos/Position')
 include('Model/Combos/Action')
 include('Model/Combos/Consequences')
@@ -100,6 +104,14 @@ function init() {
 	// Compute ally danger after MapDanger (depends on danger maps)
 	BattleState.computeAllAllyDanger()
 
+	/*Benchmark.start('MapAllyHeal.refresh')
+	MapAllyHeal.refresh()
+	Benchmark.stop('MapAllyHeal.refresh')
+
+	Benchmark.start('MapAllyDamage.refresh')
+	MapAllyDamage.refresh()
+	Benchmark.stop('MapAllyDamage.refresh')*/
+
 	Benchmark.start('MapPosition.refresh')
 	MapPosition.refresh()
 	Benchmark.stop('MapPosition.refresh')
@@ -113,4 +125,10 @@ function init() {
 	Benchmark.stop('MapOpportunity.refresh')
 
 	Benchmark.stop('init')
+
+	// Debug ally maps (uncomment to test)
+	/*MapAllyHeal.debugAllyHealItems()
+	MapAllyHeal.showHealAll()
+	MapAllyDamage.debugAllyWeapons()
+	MapAllyDamage.showDamageAll()*/
 }

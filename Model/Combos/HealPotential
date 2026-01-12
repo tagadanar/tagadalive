@@ -1,0 +1,22 @@
+/*
+ * L'objet HealPotential contient le heal potentiel qu'un allié peut recevoir sur une cellule.
+ * Similaire à Danger mais pour les heals alliés.
+ */
+class HealPotential {
+	Cell cell
+	real heal
+	string combo
+
+	constructor(Cell cell, real heal, string str) {
+		this.cell = cell
+		this.heal = heal
+		this.combo = str
+	}
+
+	/*
+	 * Format chaîne de caracteres utilisée pour des tests / debugs.
+	 */
+	string string() {
+		return '<HealPotential ' + this.cell + ':' + round(this.heal) + ':' + this.combo + '>'
+	}
+}
