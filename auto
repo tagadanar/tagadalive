@@ -16,12 +16,14 @@ include('Controlers/Items')
 include('Controlers/Maps/MapPath')
 include('Controlers/Maps/MapDanger')
 include('Controlers/Maps/MapPosition')
+include('Controlers/Maps/Targets')
 include('Controlers/Maps/MapAction')
 include('Controlers/Maps/MapOpportunity')
 
 //include('Model/Combos/Jump')
 include('Model/Combos/Danger')
 include('Model/Combos/Position')
+include('Model/Combos/Damages')
 include('Model/Combos/Action')
 include('Model/Combos/Consequences')
 include('Model/Combos/Combo')
@@ -37,8 +39,6 @@ include('Model/Combos/Effects/UtilityEffects')
 include('Model/Combos/Effects/MovementEffects')
 include('Model/Combos/Effects/PassiveEffects')
 
-include('Services/Damages')
-include('Services/Targets')
 include('Services/Sort')
 include('Services/Benchmark')
 
@@ -48,7 +48,8 @@ include('AI/EntityCoefs')
 include('AI/BattleState')
 include('AI/ScoringModifiers')
 include('AI/Scoring')
-include('AI/Opportunity')
+
+include('Model/Combos/Opportunity')
 
 // Search algorithms
 include('AI/Algorithms/MCTS')
