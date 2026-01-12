@@ -1,0 +1,1081 @@
+/*
+ * ComboExplorer - Multi-phase combo exploration algorithm
+ *
+ * Explores action combinations across multiple cells to find optimal combos.
+ * Uses precomputed actions from MapAction (no duplication).
+ *
+ * Phases:
+ * - Phase T: Target focus (kill each enemy, with/without Liberation)
+ * - Phase T: Ally focus (support each ally)
+ * - Phase 0: Stay in place (0 MP offense)
+ * - Phase 1: Single-cell MP sampling (1..maxMP)
+ * - Phase 2: Multi-cell pairs (top K cells, both orderings)
+ * - Phase 3+: Deeper exploration if budget allows
+ *
+ * Key principles:
+ * - Action SELECTION by knapsack (optimal TP allocation)
+ * - Action ORDERING by priority (for execution)
+ * - Greedy FALLBACK after kills (fill remaining TP)
+ * - Proper consequence chaining
+ * - Weapon switch costs handled in Consequences
+ * - Operation budget checked after each combo
+ */
+
+// ════════════════════════════════════════════════════════════════
+// CONFIGURATION
+// ════════════════════════════════════════════════════════════════
+
+class ExplorerConfig {
+	static integer INTERESTING_CELLS_K = 10
+	static integer OPERATION_BUFFER = 250000
+	static integer MAX_RESULTS_KEPT = 10
+	static integer MAX_RESULTS_LOGGED = 5
+}
+
+// ════════════════════════════════════════════════════════════════
+// RESULT WRAPPER
+// ════════════════════════════════════════════════════════════════
+
+class ExplorerResult {
+	Combo combo
+	string name      // e.g., "T:Kill_Goblin", "P0:Stay", "P2:A→B"
+	string phase     // "T", "0", "1", "2", "3"
+	real score
+
+	constructor(Combo combo, string name, string phase) {
+		this.combo = combo
+		this.name = name
+		this.phase = phase
+		this.score = combo.getScore()!
+	}
+
+	string string() {
+		return "<ExplorerResult " + this.name + " score:" + round(this.score) + ">"
+	}
+}
+
+// ════════════════════════════════════════════════════════════════
+// STATISTICS
+// ════════════════════════════════════════════════════════════════
+
+class ExplorerStats {
+	// Order comparison for Phase 2
+	static integer orderFirstWins = 0    // First cell in pair won
+	static integer orderSecondWins = 0   // Second cell in pair won
+
+	// Phase effectiveness
+	static Map<string, integer> phaseBestCount = [:]
+
+	// Target focus stats
+	static integer killFocusWins = 0
+	static integer liberationWins = 0
+	static integer allyFocusWins = 0
+
+	static void reset() {
+		orderFirstWins = 0
+		orderSecondWins = 0
+		phaseBestCount = [:]
+		killFocusWins = 0
+		liberationWins = 0
+		allyFocusWins = 0
+	}
+
+	static void recordOrderWin(boolean firstWon) {
+		if (firstWon) orderFirstWins++ else orderSecondWins++
+	}
+
+	static void recordPhaseBest(string phase) {
+		integer current = phaseBestCount[phase] != null ? phaseBestCount[phase]! : 0
+		phaseBestCount[phase] = current + 1
+	}
+}
+
+// ════════════════════════════════════════════════════════════════
+// CELL SCORING (No duplication)
+// ════════════════════════════════════════════════════════════════
+
+class MapCellScore {
+	// Cell → total action score (sum of best actions per item)
+	static Map<Cell, real> cellScores = [:]
+
+	// Cell → actions sorted by (priority ASC, score DESC)
+	static Map<Cell, Array<Action>> cellActions = [:]
+
+	// Self-cast actions (available from any cell)
+	static Array<Action> selfCastActions = []
+
+	// Top K interesting cells (sorted by score DESC)
+	static Array<Cell> interestingCells = []
+
+	/*
+	 * Refresh cell scoring from MapAction (no duplication)
+	 */
+	static void refresh() {
+		MapCellScore.cellScores = [:]
+		MapCellScore.cellActions = [:]
+		MapCellScore.selfCastActions = []
+
+		Map<Cell, Map<Item, Action>> bestActions = MapAction.getMapBestAction()
+
+		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
+			real totalScore = 0.0
+			Array<Action> actions = []
+
+			for (Item item : Action action in itemActions) {
+				if (action.score == null || action.score! <= 0) continue
+				totalScore += action.score!
+				push(actions, action)
+			}
+
+			if (count(actions) == 0) continue
+
+			// Sort by priority ASC, score DESC (for execution order)
+			actions = MapCellScore.sortByPriority(actions)
+
+			// Handle self-cast separately
+			if (cell == Fight.selfCell) {
+				MapCellScore.selfCastActions = actions
+			} else {
+				MapCellScore.cellScores[cell] = totalScore
+				MapCellScore.cellActions[cell] = actions
+			}
+		}
+
+		// Build interesting cells list (top K by score)
+		MapCellScore.interestingCells = []
+		Array<Cell> allCells = []
+		for (Cell cell : real score in MapCellScore.cellScores) {
+			push(allCells, cell)
+		}
+
+		allCells = arraySort(allCells, (Cell a, Cell b) => integer|real {
+			return Sort.desc(MapCellScore.cellScores[a]!, MapCellScore.cellScores[b]!)
+		}) as Array<Cell>
+
+		integer k = min(ExplorerConfig.INTERESTING_CELLS_K, count(allCells))
+		for (integer i = 0; i < k; i++) {
+			push(MapCellScore.interestingCells, allCells[i])
+		}
+	}
+
+	/*
+	 * Sort actions by priority ASC, then score DESC
+	 */
+	static Array<Action> sortByPriority(Array<Action> actions) {
+		return arraySort(actions, (Action a, Action b) => integer|real {
+			if (a.item.priority != b.item.priority) {
+				return Sort.asc(a.item.priority, b.item.priority)
+			}
+			return Sort.desc(a.score!, b.score!)
+		}) as Array<Action>
+	}
+
+	/*
+	 * Sort actions by score DESC (for selection)
+	 */
+	static Array<Action> sortByScore(Array<Action> actions) {
+		return arraySort(actions, (Action a, Action b) => integer|real {
+			return Sort.desc(a.score!, b.score!)
+		}) as Array<Action>
+	}
+
+	/*
+	 * Get actions for a cell (including self-cast merged in)
+	 */
+	static Array<Action> getActionsForCell(Cell cell) {
+		Array<Action> result = []
+
+		// Add cell-specific actions
+		if (MapCellScore.cellActions[cell] != null) {
+			for (Action a in MapCellScore.cellActions[cell]!) {
+				push(result, a)
+			}
+		}
+
+		// Add self-cast actions
+		for (Action a in MapCellScore.selfCastActions) {
+			push(result, a)
+		}
+
+		return result
+	}
+
+	/*
+	 * Get all actions that damage a specific target
+	 */
+	static Array<Action> getActionsDamagingTarget(Entity target) {
+		Array<Action> result = []
+		Map<Cell, Map<Item, Action>> bestActions = MapAction.getMapBestAction()
+
+		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
+			for (Item item : Action action in itemActions) {
+				if (action.score == null || action.score! <= 0) continue
+				// Check if this action targets the enemy
+				if (action.to == target.cell || (action.item.isAOE && MapCellScore.actionHitsTarget(action, target))) {
+					push(result, action)
+				}
+			}
+		}
+
+		return result
+	}
+
+	/*
+	 * Get all actions that help a specific ally (heals/buffs)
+	 */
+	static Array<Action> getActionsHelpingAlly(Entity ally) {
+		Array<Action> result = []
+		Map<Cell, Map<Item, Action>> bestActions = MapAction.getMapBestAction()
+
+		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
+			for (Item item : Action action in itemActions) {
+				if (action.score == null || action.score! <= 0) continue
+				// Check if this action targets the ally (heal/buff)
+				if (action.to == ally.cell || action.to == Fight.selfCell) {
+					// Only include if it's a helpful action (check item effects)
+					if (MapCellScore.isHelpfulAction(action, ally)) {
+						push(result, action)
+					}
+				}
+			}
+		}
+
+		return result
+	}
+
+	/*
+	 * Check if an AOE action hits a specific target
+	 */
+	static boolean actionHitsTarget(Action action, Entity target) {
+		// Get cells affected by this AOE
+		Array<Cell> affectedCells = action.to.getAreaCells(action.item.area)
+		for (Cell c in affectedCells) {
+			if (c == target.cell) return true
+		}
+		return false
+	}
+
+	/*
+	 * Check if action is helpful (heal/buff) for an ally
+	 */
+	static boolean isHelpfulAction(Action action, Entity ally) {
+		for (ItemEffect effect in action.item.effects) {
+			// Check for healing or buff effects
+			if (effect.type == EFFECT_HEAL ||
+				effect.type == EFFECT_BUFF_STRENGTH ||
+				effect.type == EFFECT_BUFF_AGILITY ||
+				effect.type == EFFECT_BUFF_WISDOM ||
+				effect.type == EFFECT_BUFF_RESISTANCE ||
+				effect.type == EFFECT_BUFF_MP ||
+				effect.type == EFFECT_BUFF_TP ||
+				effect.type == EFFECT_ABSOLUTE_SHIELD ||
+				effect.type == EFFECT_RELATIVE_SHIELD) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// ════════════════════════════════════════════════════════════════
+// COMBO BUILDER HELPERS
+// ════════════════════════════════════════════════════════════════
+
+class ComboBuilder {
+	/*
+	 * Build ignoreCells array for pathfinding: base cells + killed entities
+	 */
+	static Array<Cell> buildIgnoreCells(Consequences csq) {
+		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+		for (Entity e : Entity _ in csq._killed) {
+			push(ignoreCells, e.cell)
+		}
+		return ignoreCells
+	}
+	/*
+	 * Build a combo executing actions across multiple cells in order
+	 * cellSequence: array of cells to visit in order
+	 * cellActionMap: cell → actions to execute there (already priority-sorted)
+	 */
+	static Combo buildMultiCell(Array<Cell> cellSequence, Map<Cell, Array<Action>> cellActionMap) {
+		Combo combo = Combo()
+		Map<Item, integer> usesThisTurn = [:]
+
+		for (Cell cell in cellSequence) {
+			Array<Action>? actions = cellActionMap[cell]
+			if (actions == null) continue
+
+			for (Action action in actions!) {
+				// Check usage limit
+				integer uses = (usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0)
+				if (uses >= action.item.maxUse) continue
+
+				// Get current state
+				Consequences currentCsq = combo.getCurrentConsequences()
+
+				// Check weapon switch cost (use state.currentWeapon)
+				integer switchCost = (action.item.isWeap && action.item != currentCsq.currentWeapon) ? 1 : 0
+
+				// Check TP
+				if (currentCsq.currentTP < action.item.cost + switchCost) continue
+
+				// Check reachability
+				if (action.from != Fight.selfCell) {
+					Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(currentCsq)
+					Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
+						currentCsq.currentCell, currentCsq.currentMP, ignoreCells)
+
+					if (reachable[action.from] == null || reachable[action.from]! > currentCsq.currentMP) continue
+				}
+
+				// Try to add action (switch cost handled in Consequences)
+				boolean added = combo.add(action)
+				if (added) {
+					usesThisTurn[action.item] = uses + 1
+				}
+			}
+		}
+
+		// Find best final position
+		Consequences finalCsq = combo.getCurrentConsequences()
+		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
+		combo.addFinalPosition(pos)
+
+		return combo
+	}
+
+	/*
+	 * Build combo using knapsack for optimal TP allocation + greedy fallback for kills
+	 *
+	 * Strategy:
+	 * 1. Use ActionKnapsack to select optimal set of actions within TP budget
+	 * 2. Try to add selected actions in priority order
+	 * 3. When an action fails (target dead), skip and continue
+	 * 4. After processing selected actions, greedy-fill remaining TP from pool
+	 *
+	 * This handles the case where knapsack over-allocates to a target that gets killed.
+	 *
+	 * @param pool All available actions
+	 * @param availableTP Maximum TP to spend
+	 * @param currentWeapon Currently equipped weapon
+	 * @param restrictToCurrentCell If true, only use actions from current cell for fallback
+	 * @param reserveMP MP to reserve for defense (default 0)
+	 * @return Built combo with final position
+	 */
+	static Combo buildWithKnapsack(Array<Action> pool, integer availableTP, Item? currentWeapon, boolean restrictToCurrentCell, integer reserveMP) {
+		Combo combo = Combo()
+		Map<Item, integer> usesThisTurn = [:]
+
+		// Step 1: Use knapsack to select optimal actions
+		Array<Action> selected = ActionKnapsack.solve(pool, availableTP, currentWeapon)
+
+		// Step 2: Sort selected by priority for execution order
+		selected = MapCellScore.sortByPriority(selected)
+
+		// Step 3: Build set of selected action keys for tracking
+		Map<integer, boolean> selectedKeys = [:]
+		for (Action a in selected) {
+			selectedKeys[ComboBuilder.actionKey(a)] = true
+		}
+
+		// Step 4: Try to add selected actions
+		for (Action action in selected) {
+			Consequences currentCsq = combo.getCurrentConsequences()
+
+			// Check usage limit
+			integer uses = usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0
+			if (uses >= action.item.maxUse) continue
+
+			// Check TP (use state.currentWeapon for switch cost)
+			integer switchCost = (action.item.isWeap && action.item != currentCsq.currentWeapon) ? 1 : 0
+			if (currentCsq.currentTP < action.item.cost + switchCost) continue
+
+			// Check reachability (use effective MP = current - reserve)
+			if (action.from != Fight.selfCell) {
+				Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(currentCsq)
+				integer effectiveMP = max(0, currentCsq.currentMP - reserveMP)
+				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
+					currentCsq.currentCell, effectiveMP, ignoreCells)
+				if (reachable[action.from] == null || reachable[action.from]! > effectiveMP) continue
+			}
+
+			// Try to add (combo.add returns false if score doesn't improve, e.g., target dead)
+			boolean added = combo.add(action)
+			if (added) {
+				usesThisTurn[action.item] = uses + 1
+			}
+		}
+
+		// Step 5: Greedy fallback - fill remaining TP from unselected pool
+		Consequences currentCsq = combo.getCurrentConsequences()
+		if (currentCsq.currentTP > 0) {
+			// Get remaining actions not in selected set
+			Array<Action> remaining = []
+			for (Action a in pool) {
+				if (selectedKeys[ComboBuilder.actionKey(a)]) continue
+				if (a.score == null || a.score! <= 0) continue
+
+				// If restricting to current cell, skip actions from other cells
+				if (restrictToCurrentCell) {
+					if (a.from != Fight.selfCell && a.from != currentCsq.currentCell) continue
+				}
+
+				push(remaining, a)
+			}
+
+			// Sort by score for greedy fill
+			remaining = MapCellScore.sortByScore(remaining)
+
+			// Try to fill
+			for (Action action in remaining) {
+				Consequences csq = combo.getCurrentConsequences()
+
+				// Check usage limit
+				integer uses = usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0
+				if (uses >= action.item.maxUse) continue
+
+				// Check TP
+				integer switchCost = (action.item.isWeap && action.item != csq.currentWeapon) ? 1 : 0
+				if (csq.currentTP < action.item.cost + switchCost) continue
+
+				// Check reachability (use effective MP = current - reserve)
+				if (action.from != Fight.selfCell) {
+					Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(csq)
+					integer effectiveMP = max(0, csq.currentMP - reserveMP)
+					Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
+						csq.currentCell, effectiveMP, ignoreCells)
+					if (reachable[action.from] == null || reachable[action.from]! > effectiveMP) continue
+				}
+
+				// Try to add
+				boolean added = combo.add(action)
+				if (added) {
+					usesThisTurn[action.item] = uses + 1
+				}
+			}
+		}
+
+		// Step 6: Final position
+		Consequences finalCsq = combo.getCurrentConsequences()
+		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
+		combo.addFinalPosition(pos)
+
+		return combo
+	}
+
+	/*
+	 * Unique key for action (for deduplication)
+	 */
+	static integer actionKey(Action a) {
+		return a.item.id * 10000000 + a.from.id * 10000 + a.to.id
+	}
+}
+
+// ════════════════════════════════════════════════════════════════
+// MAIN EXPLORER
+// ════════════════════════════════════════════════════════════════
+
+class ComboExplorer {
+	// Best results tracking
+	static Array<ExplorerResult> topResults = []
+	static ExplorerResult? bestResult = null
+
+	// Statistics
+	static integer combosEvaluated = 0
+	static string bestPhase = ""
+
+	/*
+	 * Check if we should stop (operation budget exhausted)
+	 */
+	static boolean shouldStop() {
+		return getOperations() > getMaxOperations() - ExplorerConfig.OPERATION_BUFFER
+	}
+
+	/*
+	 * Main entry point
+	 */
+	static Combo explore() {
+		Benchmark.start("ComboExplorer.explore")
+
+		// Initialize
+		ComboExplorer.topResults = []
+		ComboExplorer.bestResult = null
+		ComboExplorer.combosEvaluated = 0
+		ExplorerStats.reset()
+
+		// Refresh cell scoring
+		MapCellScore.refresh()
+
+		// Phase T: Target Focus
+		if (!ComboExplorer.shouldStop()) {
+			ComboExplorer.phaseTargetFocus()
+		}
+
+		// Phase 0: Stay in place
+		if (!ComboExplorer.shouldStop()) {
+			ComboExplorer.phaseStay()
+		}
+
+		// Phase 1: Single-cell MP sampling
+		if (!ComboExplorer.shouldStop()) {
+			ComboExplorer.phaseSingleCell()
+		}
+
+		// Phase 2: Multi-cell pairs
+		if (!ComboExplorer.shouldStop()) {
+			ComboExplorer.phaseMultiCell()
+		}
+
+		// Log results
+		ComboExplorer.logResults()
+
+		Benchmark.stop("ComboExplorer.explore")
+
+		// Return best combo
+		if (ComboExplorer.bestResult != null) {
+			return ComboExplorer.bestResult!.combo
+		}
+
+		// Fallback: empty combo with position
+		Combo fallback = Combo()
+		fallback.addFinalPosition(MapPosition.findBestPosition(Fight.self.cell, Fight.self.mp, Consequences()))
+		return fallback
+	}
+
+	/*
+	 * Record a result and update best if needed
+	 */
+	static void recordResult(ExplorerResult result) {
+		ComboExplorer.combosEvaluated++
+
+		// Update best
+		if (ComboExplorer.bestResult == null || result.score > ComboExplorer.bestResult!.score) {
+			ComboExplorer.bestResult = result
+			ComboExplorer.bestPhase = result.phase
+			ExplorerStats.recordPhaseBest(result.phase)
+		}
+
+		// Keep top N results
+		push(ComboExplorer.topResults, result)
+		if (count(ComboExplorer.topResults) > ExplorerConfig.MAX_RESULTS_KEPT) {
+			// Sort and trim
+			ComboExplorer.topResults = arraySort(ComboExplorer.topResults, (ExplorerResult a, ExplorerResult b) => integer|real {
+				return Sort.desc(a.score, b.score)
+			}) as Array<ExplorerResult>
+			ComboExplorer.topResults = arraySlice(ComboExplorer.topResults, 0, ExplorerConfig.MAX_RESULTS_KEPT) as Array<ExplorerResult>
+		}
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE T: TARGET FOCUS
+	// ════════════════════════════════════════════════════════════
+
+	static void phaseTargetFocus() {
+		Benchmark.start("ComboExplorer.phaseTargetFocus")
+
+		// Check if we have Liberation available
+		boolean hasLiberation = false
+		Item? liberationItem = null
+		for (Item item in Fight.self.items) {
+			if (item.id == CHIP_LIBERATION && getCooldown(item.id, Fight.self.id) == 0) {
+				hasLiberation = true
+				liberationItem = item
+				break
+			}
+		}
+
+		// For each enemy: try kill focus (with and without Liberation)
+		for (Entity enemy in Fight.getEnemiesAlive()) {
+			if (ComboExplorer.shouldStop()) break
+			if (enemy.isInvincible) continue
+
+			// Variant A: Max damage on this enemy
+			ComboExplorer.tryKillTarget(enemy, null, "T:Kill_" + enemy.name)
+
+			// Variant B: Liberation first, then max damage
+			if (hasLiberation && liberationItem != null) {
+				if (ComboExplorer.shouldStop()) break
+				ComboExplorer.tryKillTarget(enemy, liberationItem, "T:Lib+" + enemy.name)
+			}
+		}
+
+		// For each ally (not self): try support focus
+		for (Entity ally in Fight.getAlliesAlive()) {
+			if (ComboExplorer.shouldStop()) break
+			if (ally == Fight.self) continue
+
+			ComboExplorer.trySupportAlly(ally, "T:Help_" + ally.name)
+		}
+
+		Benchmark.stop("ComboExplorer.phaseTargetFocus")
+	}
+
+	/*
+	 * Try to kill a specific target
+	 * If liberationItem is provided, use it first
+	 * Uses knapsack for optimal damage allocation
+	 */
+	static void tryKillTarget(Entity target, Item? liberationItem, string name) {
+		Combo combo = Combo()
+		Map<Item, integer> usesThisTurn = [:]
+		integer remainingTP = Fight.self.tp
+		Item? currentWeapon = Fight.self.getWeaponInHand()
+
+		// If Liberation first, find and execute it
+		if (liberationItem != null) {
+			Consequences csq = Consequences()
+			// Find Liberation action targeting this enemy
+			Action? libAction = ComboExplorer.findLiberationAction(liberationItem!, target, csq)
+			if (libAction != null) {
+				// Check TP (Liberation is a chip, no weapon switch cost)
+				if (csq.currentTP >= liberationItem!.cost) {
+					if (libAction!.score! > 0) {
+						push(combo.actions, libAction!)
+						usesThisTurn[liberationItem!] = 1
+						remainingTP -= liberationItem!.cost
+					}
+				}
+			}
+		}
+
+		// Get all actions that can damage this target
+		Array<Action> damageActions = MapCellScore.getActionsDamagingTarget(target)
+
+		// Use knapsack to select optimal set of damage actions
+		Array<Action> selected = ActionKnapsack.solve(damageActions, remainingTP, currentWeapon)
+
+		// Sort by priority for execution
+		selected = MapCellScore.sortByPriority(selected)
+
+		// Build set of selected keys for greedy fallback
+		Map<integer, boolean> selectedKeys = [:]
+		for (Action a in selected) {
+			selectedKeys[ComboBuilder.actionKey(a)] = true
+		}
+
+		// Try to add selected actions (stop if target dies)
+		Consequences csq = combo.getCurrentConsequences()
+		for (Action action in selected) {
+			if (csq.isKilled(target)) break
+
+			// Check usage
+			integer uses = (usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0)
+			if (uses >= action.item.maxUse) continue
+
+			// Check TP (use csq.currentWeapon for switch cost)
+			integer switchCost = (action.item.isWeap && action.item != csq.currentWeapon) ? 1 : 0
+			if (csq.currentTP < action.item.cost + switchCost) continue
+
+			// Check reachability
+			if (action.from != Fight.selfCell) {
+				Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(csq)
+				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(csq.currentCell, csq.currentMP, ignoreCells)
+				if (reachable[action.from] == null || reachable[action.from]! > csq.currentMP) continue
+			}
+
+			// Try to add action
+			boolean added = combo.add(action)
+			if (added) {
+				usesThisTurn[action.item] = uses + 1
+				csq = combo.getCurrentConsequences()
+			}
+		}
+
+		// Greedy fallback: if target not dead and TP remaining, try unselected actions
+		csq = combo.getCurrentConsequences()
+		if (!csq.isKilled(target) && csq.currentTP > 0) {
+			// Sort remaining by score for greedy fill
+			Array<Action> remaining = []
+			for (Action a in damageActions) {
+				if (selectedKeys[ComboBuilder.actionKey(a)]) continue
+				if (a.score == null || a.score! <= 0) continue
+				push(remaining, a)
+			}
+			remaining = MapCellScore.sortByScore(remaining)
+
+			for (Action action in remaining) {
+				csq = combo.getCurrentConsequences()
+				if (csq.isKilled(target)) break
+
+				// Check usage
+				integer uses = (usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0)
+				if (uses >= action.item.maxUse) continue
+
+				// Check TP
+				integer switchCost = (action.item.isWeap && action.item != csq.currentWeapon) ? 1 : 0
+				if (csq.currentTP < action.item.cost + switchCost) continue
+
+				// Check reachability
+				if (action.from != Fight.selfCell) {
+					Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(csq)
+					Map<Cell, integer> reachable = MapPath.getCachedReachableCells(csq.currentCell, csq.currentMP, ignoreCells)
+					if (reachable[action.from] == null || reachable[action.from]! > csq.currentMP) continue
+				}
+
+				// Try to add
+				boolean added = combo.add(action)
+				if (added) {
+					usesThisTurn[action.item] = uses + 1
+				}
+			}
+		}
+
+		// Final position
+		Consequences finalCsq = combo.getCurrentConsequences()
+		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
+		combo.addFinalPosition(pos)
+
+		// Record result
+		if (count(combo.actions) > 0 || pos.score > 0) {
+			ComboExplorer.recordResult(ExplorerResult(combo, name, "T"))
+		}
+	}
+
+	/*
+	 * Try to support a specific ally
+	 * Uses knapsack for optimal support allocation
+	 */
+	static void trySupportAlly(Entity ally, string name) {
+		Combo combo = Combo()
+		Map<Item, integer> usesThisTurn = [:]
+
+		// Get all actions that help this ally (may include healing weapons)
+		Array<Action> helpActions = MapCellScore.getActionsHelpingAlly(ally)
+
+		// Use knapsack to select optimal set of help actions
+		Array<Action> selected = ActionKnapsack.solve(helpActions, Fight.self.tp, Fight.self.getWeaponInHand())
+
+		// Sort by priority for execution
+		selected = MapCellScore.sortByPriority(selected)
+
+		// Build set of selected keys for greedy fallback
+		Map<integer, boolean> selectedKeys = [:]
+		for (Action a in selected) {
+			selectedKeys[ComboBuilder.actionKey(a)] = true
+		}
+
+		// Try to add selected actions
+		for (Action action in selected) {
+			Consequences csq = combo.getCurrentConsequences()
+
+			// Check usage
+			integer uses = (usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0)
+			if (uses >= action.item.maxUse) continue
+
+			// Check TP (use csq.currentWeapon for switch cost)
+			integer switchCost = (action.item.isWeap && action.item != csq.currentWeapon) ? 1 : 0
+			if (csq.currentTP < action.item.cost + switchCost) continue
+
+			// Check reachability
+			if (action.from != Fight.selfCell) {
+				Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(csq)
+				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(csq.currentCell, csq.currentMP, ignoreCells)
+				if (reachable[action.from] == null || reachable[action.from]! > csq.currentMP) continue
+			}
+
+			// Try to add action
+			boolean added = combo.add(action)
+			if (added) {
+				usesThisTurn[action.item] = uses + 1
+			}
+		}
+
+		// Greedy fallback: if TP remaining, try unselected actions
+		Consequences csq = combo.getCurrentConsequences()
+		if (csq.currentTP > 0) {
+			// Sort remaining by score for greedy fill
+			Array<Action> remaining = []
+			for (Action a in helpActions) {
+				if (selectedKeys[ComboBuilder.actionKey(a)]) continue
+				if (a.score == null || a.score! <= 0) continue
+				push(remaining, a)
+			}
+			remaining = MapCellScore.sortByScore(remaining)
+
+			for (Action action in remaining) {
+				csq = combo.getCurrentConsequences()
+
+				// Check usage
+				integer uses = (usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0)
+				if (uses >= action.item.maxUse) continue
+
+				// Check TP
+				integer switchCost = (action.item.isWeap && action.item != csq.currentWeapon) ? 1 : 0
+				if (csq.currentTP < action.item.cost + switchCost) continue
+
+				// Check reachability
+				if (action.from != Fight.selfCell) {
+					Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(csq)
+					Map<Cell, integer> reachable = MapPath.getCachedReachableCells(csq.currentCell, csq.currentMP, ignoreCells)
+					if (reachable[action.from] == null || reachable[action.from]! > csq.currentMP) continue
+				}
+
+				// Try to add
+				boolean added = combo.add(action)
+				if (added) {
+					usesThisTurn[action.item] = uses + 1
+				}
+			}
+		}
+
+		// Final position
+		Consequences finalCsq = combo.getCurrentConsequences()
+		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
+		combo.addFinalPosition(pos)
+
+		// Record result
+		if (count(combo.actions) > 0 || pos.score > 0) {
+			ComboExplorer.recordResult(ExplorerResult(combo, name, "T"))
+		}
+	}
+
+	/*
+	 * Find a Liberation action targeting a specific entity (Liberation is single-target, not AOE)
+	 */
+	static Action? findLiberationAction(Item liberationItem, Entity target, Consequences csq) {
+		Map<Cell, Map<Item, Action>> bestActions = MapAction.getMapBestAction()
+
+		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
+			Action? action = itemActions[liberationItem]
+			if (action == null) continue
+
+			// Check if this action targets our target
+			if (action!.to == target.cell) {
+				// Check reachability
+				if (action!.from != Fight.selfCell) {
+					Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(csq)
+					Map<Cell, integer> reachable = MapPath.getCachedReachableCells(csq.currentCell, csq.currentMP, ignoreCells)
+					if (reachable[action!.from] == null || reachable[action!.from]! > csq.currentMP) continue
+				}
+				return action
+			}
+		}
+		return null
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE 0: STAY IN PLACE
+	// ════════════════════════════════════════════════════════════
+
+	static void phaseStay() {
+		Benchmark.start("ComboExplorer.phaseStay")
+
+		// Get actions at current cell (including self-cast)
+		Array<Action> actions = MapCellScore.getActionsForCell(Fight.self.cell)
+
+		// Build combo with knapsack - restrict to current cell for fallback
+		Combo combo = ComboBuilder.buildWithKnapsack(
+			actions,
+			Fight.self.tp,
+			Fight.self.getWeaponInHand(),
+			true,  // restrictToCurrentCell
+			0      // reserveMP (0 for stay-in-place)
+		)
+
+		ComboExplorer.recordResult(ExplorerResult(combo, "P0:Stay", "0"))
+
+		Benchmark.stop("ComboExplorer.phaseStay")
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE 1: SINGLE-CELL MP SAMPLING
+	// ════════════════════════════════════════════════════════════
+
+	static void phaseSingleCell() {
+		Benchmark.start("ComboExplorer.phaseSingleCell")
+
+		integer maxMP = Fight.self.mp
+
+		for (integer offenseMP = 1; offenseMP <= maxMP; offenseMP++) {
+			if (ComboExplorer.shouldStop()) break
+
+			// Find best reachable cell within this budget
+			Cell? bestCell = ComboExplorer.findBestCellWithinBudget(offenseMP)
+			if (bestCell == null) continue
+
+			// Get actions for this cell
+			Array<Action> actions = MapCellScore.getActionsForCell(bestCell!)
+
+			// Build combo with knapsack - reserve (maxMP - offenseMP) for defense
+			integer reserveMP = maxMP - offenseMP
+			Combo combo = ComboBuilder.buildWithKnapsack(
+				actions,
+				Fight.self.tp,
+				Fight.self.getWeaponInHand(),
+				true,      // restrictToCurrentCell
+				reserveMP  // reserve MP for defense
+			)
+
+			ComboExplorer.recordResult(ExplorerResult(combo, "P1:MP" + offenseMP, "1"))
+		}
+
+		Benchmark.stop("ComboExplorer.phaseSingleCell")
+	}
+
+	/*
+	 * Find the best cell reachable within MP budget
+	 */
+	static Cell? findBestCellWithinBudget(integer budget) {
+		Cell? best = null
+		real bestScore = -999999.0
+
+		Map<Cell, integer> reachable = Fight.self.reachableCells
+
+		for (Cell cell : real score in MapCellScore.cellScores) {
+			integer? dist = reachable[cell]
+			if (dist == null || dist! > budget) continue
+
+			if (score > bestScore) {
+				bestScore = score
+				best = cell
+			}
+		}
+
+		return best
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE 2: MULTI-CELL PAIRS
+	// ════════════════════════════════════════════════════════════
+
+	static void phaseMultiCell() {
+		Benchmark.start("ComboExplorer.phaseMultiCell")
+
+		Array<Cell> interesting = MapCellScore.interestingCells
+		integer n = count(interesting)
+
+		// Try all pairs
+		for (integer i = 0; i < n; i++) {
+			if (ComboExplorer.shouldStop()) break
+
+			for (integer j = i + 1; j < n; j++) {
+				if (ComboExplorer.shouldStop()) break
+
+				Cell cellA = interesting[i]
+				Cell cellB = interesting[j]
+
+				// Try both orderings
+				ExplorerResult? resultAB = ComboExplorer.tryPairOrder(cellA, cellB)
+				if (ComboExplorer.shouldStop()) break
+				ExplorerResult? resultBA = ComboExplorer.tryPairOrder(cellB, cellA)
+
+				// Record statistics
+				if (resultAB != null && resultBA != null) {
+					ExplorerStats.recordOrderWin(resultAB!.score >= resultBA!.score)
+				}
+			}
+		}
+
+		Benchmark.stop("ComboExplorer.phaseMultiCell")
+	}
+
+	/*
+	 * Try a specific pair ordering: first → second
+	 */
+	static ExplorerResult? tryPairOrder(Cell first, Cell second) {
+		// Pool actions from both cells
+		Array<Action> poolFirst = MapCellScore.getActionsForCell(first)
+		Array<Action> poolSecond = MapCellScore.getActionsForCell(second)
+
+		// Combine pools (avoid duplicates for self-cast)
+		Array<Action> combined = []
+		Map<integer, boolean> seen = [:]
+
+		for (Action a in poolFirst) {
+			// Composite key: item.id * 10M + from.id * 10K + to.id
+			integer key = ComboBuilder.actionKey(a)
+			if (!seen[key]) {
+				push(combined, a)
+				seen[key] = true
+			}
+		}
+		for (Action a in poolSecond) {
+			integer key = ComboBuilder.actionKey(a)
+			if (!seen[key]) {
+				push(combined, a)
+				seen[key] = true
+			}
+		}
+
+		// Use knapsack for optimal action selection within TP budget
+		Array<Action> selected = ActionKnapsack.solve(combined, Fight.self.tp, Fight.self.getWeaponInHand())
+
+		if (count(selected) == 0) return null
+
+		// Partition actions by cell
+		Map<Cell, Array<Action>> cellActionMap = [:]
+		cellActionMap[first] = []
+		cellActionMap[second] = []
+
+		for (Action action in selected) {
+			if (action.from == Fight.selfCell) {
+				// Self-cast: add to first cell (will be executed there)
+				push(cellActionMap[first]!, action)
+			} else if (action.from == first) {
+				push(cellActionMap[first]!, action)
+			} else if (action.from == second) {
+				push(cellActionMap[second]!, action)
+			}
+			// Actions from other cells are skipped (shouldn't happen with proper filtering)
+		}
+
+		// Sort each cell's actions by priority
+		cellActionMap[first] = MapCellScore.sortByPriority(cellActionMap[first]!)
+		cellActionMap[second] = MapCellScore.sortByPriority(cellActionMap[second]!)
+
+		// Build combo with cell sequence
+		Array<Cell> sequence = [first, second]
+		Combo combo = ComboBuilder.buildMultiCell(sequence, cellActionMap)
+
+		string name = "P2:" + first.id + "→" + second.id
+		ExplorerResult result = ExplorerResult(combo, name, "2")
+		ComboExplorer.recordResult(result)
+
+		return result
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// LOGGING
+	// ════════════════════════════════════════════════════════════
+
+	static void logResults() {
+		// Sort top results
+		ComboExplorer.topResults = arraySort(ComboExplorer.topResults, (ExplorerResult a, ExplorerResult b) => integer|real {
+			return Sort.desc(a.score, b.score)
+		}) as Array<ExplorerResult>
+
+		// Log top 5 to Benchmark
+		integer logged = 0
+		for (ExplorerResult r in ComboExplorer.topResults) {
+			if (logged >= ExplorerConfig.MAX_RESULTS_LOGGED) break
+
+			string desc = "EXP[" + r.name + "]:" + ComboExplorer.buildComboDesc(r.combo)
+			real posScore = r.combo.finalPosition != null ? r.combo.finalPosition!.score : 0.0
+			real actionScore = r.score - posScore
+			Benchmark.addCombo(r.score, count(r.combo.actions), desc, posScore, actionScore)
+			logged++
+		}
+
+		// Log summary
+		debug("ComboExplorer: " + ComboExplorer.combosEvaluated + " combos, best=" +
+			(ComboExplorer.bestResult != null ? ComboExplorer.bestResult!.name : "none") +
+			" score=" + (ComboExplorer.bestResult != null ? round(ComboExplorer.bestResult!.score) : 0))
+	}
+
+	/*
+	 * Build description string for a combo
+	 */
+	static string buildComboDesc(Combo combo) {
+		string desc = ""
+		for (Action a in combo.actions) {
+			if (desc != "") desc += "→"
+			desc += a.item.name + "(" + round(a.score!) + ")"
+		}
+		if (combo.finalPosition != null) {
+			if (desc != "") desc += "→"
+			desc += "mv(" + combo.finalPosition!.cell.id + ")"
+		}
+		if (desc == "") desc = "stay"
+		return desc
+	}
+}
