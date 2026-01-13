@@ -25,7 +25,7 @@ include('auto');
 // ║  - Uses DEFAULT_MP_VALUE (50) for movement cost estimation          ║
 // ║  - Returns MCTS result only (no PTS vs MCTS comparison)             ║
 // ╚═════════════════════════════════════════════════════════════════════╝
-AI.mode = AI.MODE_UNIFIED_MCTS
+AI.mode = AI.MODE_COMBO_EXPLORER
 
 // Pure MCTS mode (skip CalibratedPTS entirely)
 // AI.SKIP_CALIBRATION = true
@@ -56,3 +56,7 @@ Benchmark.collectCooldownsEnd(Fight.self.items, Fight.self.id)
 // - displayText() : Human-readable format
 // - displayAll()  : Both formats
 Benchmark.display()
+
+// MapDanger.showDanger(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
+// MapPosition.showPosition(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
+MapCellScore.showCellScores()
