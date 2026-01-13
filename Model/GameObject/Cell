@@ -196,8 +196,8 @@ class Cell {
 		c = getCellFromXY(x+2, y+2);
 		if(c!=null) push(result, Board.getCell(c));
 		_AREAS[AREA_SQUARE_2] = result
-		
-		result = []
+
+		result = [this]
 		// AREA_X_1
 		c = getCellFromXY(x-1, y-1);
 		if(c!=null) push(result, Board.getCell(c));
