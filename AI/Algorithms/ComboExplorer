@@ -180,6 +180,44 @@ class MapCellScore {
 	}
 
 	/*
+	 * Display cell scores on the map (for debugging)
+	 * Color: black = reachable but no useful action
+	 *        red (low) to green (high) gradient = has actions
+	 *        blue = top K selected cells
+	 * Text: rounded score value
+	 */
+	static void showCellScores() {
+		// Find max for normalization
+		real maxScore = 1.0
+		for (Cell c : real s in MapCellScore.cellScores) {
+			if (s > maxScore) maxScore = s
+		}
+
+		// Build set of interesting cells for O(1) lookup
+		Map<Cell, boolean> isInteresting = [:]
+		for (Cell c in MapCellScore.interestingCells) {
+			isInteresting[c] = true
+		}
+
+		// Color all reachable cells
+		for (Cell c : integer dist in Fight.self.reachableCells) {
+			real? score = MapCellScore.cellScores[c]
+			if (isInteresting[c]) {
+				mark(c.id, getColor(0, 0, 255))
+				markText(c.id, round(score!) + "")
+			} else if (score != null && score! > 0) {
+				integer green = ((score! * 255) / maxScore) as integer
+				integer red = 255 - green
+				mark(c.id, getColor(red, green, 0))
+				markText(c.id, round(score!) + "")
+			} else {
+				// Reachable but no useful action
+				mark(c.id, getColor(0, 0, 0))
+			}
+		}
+	}
+
+	/*
 	 * Get actions for a cell (including self-cast merged in)
 	 */
 	static Array<Action> getActionsForCell(Cell cell) {
