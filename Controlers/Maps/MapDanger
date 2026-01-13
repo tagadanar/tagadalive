@@ -20,7 +20,7 @@ class MapDanger {
 	static Map<Entity, Map<Item, Map<Cell, real>>> _map_entity_item_danger = [:] // [e:[item:[cell:ratio]]]
 	
 	/*
-	 * Actualise les informations en fonctions des enemies et alliés encore vivant 
+	 * Actualise les informations en fonctions des enemies et alliés encore vivant
 	 */
 	static void refresh(){
 		// reset du cache
@@ -37,27 +37,6 @@ class MapDanger {
 				_map_entity_item_danger[e]![item] = MapDanger.getEnemiesDmgMap(e, item)
 			}
 		}
-		// DEAD CODE - Ally damage maps are not used by active MCTS path
-		// Only consumer was @unused getSimpleOffensiveCombo()
-		// Keeping commented for potential future use
-		/*
-		_cache_allies_item_targetableCells = [:]
-		// pour chaque ally
-		for(Entity a in Fight.getAlliesAlive()){
-			_map_entity_item_danger[a] = [:];//reset de la map
-			for(Entity e in Fight.getEnemiesAlive()){
-				// on récup les items offensif pour chaque adv
-				a.offensiveItemsByTargets[e] = Items.getOrderedOffensiveItems(a, e)
-			}
-			// pour chaque set d'items, chaque item, on récup la map des cases touchables
-			for(Array<Item> offensiveItems in a.offensiveItemsByTargets){
-				for(Item item in offensiveItems){
-					_map_entity_item_danger[a]![item] = MapDanger.getAlliesDmgMap(a, item)
-				}
-				break  // Optimization: only processes first enemy's items to reduce complexity
-			}
-		}
-		*/
 	}
 	
 	/*
@@ -155,28 +134,44 @@ class MapDanger {
 				}
 			}
 		}
-		
-		//aoe TODO AREA_PLUS_, AREA_X_, AREA_SQUARE_
-		if(item.area==AREA_CIRCLE_1 || item.area==AREA_CIRCLE_2 || item.area==AREA_CIRCLE_3){
-			for(integer distance = 1; distance<=item.area-2; distance++){ // ici trick pour réduire les opé, par du principe que AREA_CIRCLE_1 = 3 et AREA_CIRCLE_3 = 5
-				real ratio = 1 - 0.2 * distance
-				if(ratio ==0) break;
-				Array<Cell> circle = [];
-				for(Cell c:real value in map){
-					if(value>0)
-						for(Cell cell in c.neighborsObstacles)
-							if(map[cell]==null || map[cell]==0) push(circle, cell);
-				}
-				for(Cell cell in circle){
-					map[cell] = ratio;
-					//map_mp[cell] = eMp;
+
+		// AOE expansion (handles CIRCLE, PLUS, X, SQUARE)
+		MapDanger.expandAOE(map, item)
+
+		return map // TODO add map_mp
+	}
+
+	/*
+	 * Expand AOE danger using pre-computed area cells
+	 * Handles all AOE types: CIRCLE, PLUS, X, SQUARE
+	 * @param map Map of cells with danger ratios (1.0 = direct hit)
+	 * @param item Item with AOE area type
+	 */
+	static void expandAOE(Map<Cell, real> map, Item item){
+		if(!item.isAOE) return;
+
+		// Collect direct-hit cells
+		Array<Cell> directHits = []
+		for(Cell c:real value in map){
+			if(value == 1.0) push(directHits, c)
+		}
+
+		// For each direct-hit, mark all cells in its AOE with decayed ratio
+		for(Cell hit in directHits){
+			Array<Cell> aoeCells = hit.getAreaCells(item.area)
+			for(Cell c in aoeCells){
+				if(c == hit) continue  // center already has 1.0
+				// Chebyshev distance for ratio decay
+				integer dist = max(abs(hit.x - c.x), abs(hit.y - c.y))
+				real ratio = max(0.2, 1.0 - 0.2 * dist)
+				// Keep higher ratio (protects direct hits and overlapping AOEs)
+				if(map[c] == null || map[c] < ratio){
+					map[c] = ratio
 				}
 			}
 		}
-		
-		return map // TODO add map_mp
 	}
-	
+
 	/*
 	 * Retourne les Cells pouvant être touché avec le parametre item par les ennemis, ignore la los
 	 * ce qui permet de garder en cache le résultat pour des bonnes perfs

@@ -97,19 +97,6 @@ class Combo {
 	}
 	
 	/*
-	 * retourne les reachableCells atteignable depuis l'emplacement actuel du combo
-	 */
-	Map<Cell, integer> getCurrentReachableCells(){
-		Cell currentCell = this.getCurrentCell()
-		integer currentMP = this.getCurrentMP()
-		Array<Cell> ignoreCells = Fight.self.cellsToIgnore
-		for(Entity e in this.getCurrentConsequences()._killed){
-			push(ignoreCells, e.cell)
-		}
-		return MapPath.getCachedReachableCells(currentCell, currentMP, Fight.self.cellsToIgnore)
-	}
-	
-	/*
 	 * pour chaque action dans l'ensemble d'actions
 	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
 	 */
