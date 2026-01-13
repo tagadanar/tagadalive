@@ -1098,6 +1098,7 @@ class ComboExplorer {
 		debug("ComboExplorer: " + ComboExplorer.combosEvaluated + " combos, best=" +
 			(ComboExplorer.bestResult != null ? ComboExplorer.bestResult!.name : "none") +
 			" score=" + (ComboExplorer.bestResult != null ? round(ComboExplorer.bestResult!.score) : 0))
+		debug("  P2 order: first=" + ExplorerStats.orderFirstWins + " second=" + ExplorerStats.orderSecondWins)
 	}
 
 	/*

@@ -151,8 +151,6 @@ class Combo {
 		}
 		// étape 2: je vais me planquer
 		if(this.finalPosition){
-			//MapDanger.showDanger(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
-			MapPosition.showPosition(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
 			moveTowardCell(this.finalPosition!.cell.id)
 			if(getCell() != startCell){
 				Benchmark.logMove(startCell, getCell())
