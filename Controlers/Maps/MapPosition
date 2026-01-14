@@ -52,17 +52,20 @@ class MapPosition {
 	}
 
 	/*
-	 * Precompute position scores for all walkable cells.
+	 * Precompute position scores for reachable cells.
 	 * Pre-fills _position cache for O(1) lookups during MCTS rollout.
-	 * Cost: ~600 cells × ~200 ops = ~120k ops, paid once per turn.
+	 * Uses Fight.self.extendedReachableCells (computed in Entity.init).
+	 * Cells outside this range are lazy-evaluated on demand.
+	 *
+	 * Cost: ~100-150 cells × ~500 ops = ~50k-75k ops (down from ~310k)
 	 */
 	static void _precomputeGrid() {
 		Benchmark.start("MP.precompute")
-		for (integer id : Cell cell in Board.cells) {
-			if (!Board.obstacles[cell]) {
-				// evaluatePosition caches result in _position[cell]
-				MapPosition.evaluatePosition(cell, null)
-			}
+		// Use extendedReachableCells (includes MP buff potential)
+		// Lazy evaluation handles edge cases
+		for (Cell cell : integer dist in Fight.self.extendedReachableCells) {
+			// evaluatePosition caches result in _position[cell]
+			MapPosition.evaluatePosition(cell, null)
 		}
 		Benchmark.stop("MP.precompute")
 	}
@@ -229,6 +232,12 @@ class MapPosition {
 	/*
 	 * Main position evaluation function.
 	 * Uses cache (like MapDanger.getCellDanger) to avoid recomputation.
+	 *
+	 * OPTIMIZATION: When consequences alter danger (kills, debuffs), we reuse
+	 * precomputed proximity/gravity/tactical scores from _position[cell] since
+	 * these don't depend on consequences (they use Board.entityCells which is
+	 * real state, not simulated). Only danger, life scaling, and shields are
+	 * recomputed. Saves ~550 ops per call with altering consequences.
 	 */
 	static Position evaluatePosition(Cell cell, Consequences? consequences) {
 		Benchmark.start("MP.evalPos")
@@ -254,9 +263,20 @@ class MapPosition {
 		real lifePercent = Fight.self.getCurrentHP(consequences) / Fight.self.totalLife
 		pos.applyLifeScaling(lifePercent)
 
-		pos.addProximityScore(MapPosition._computeProximityPenalty(cell, _nearest_enemy))
-		pos.addGravityScore(MapPosition._computeGravityScore(cell))
-		pos.addTacticalScore(MapPosition._computeTacticalScore(cell, consequences))
+		// OPTIMIZATION: Reuse precomputed tactical scores for altering consequences
+		// These scores don't depend on consequences (use real board state, not simulated)
+		if (consequences != null && consequences!.isAlteringDanger && _position[cell] != null) {
+			Position base = _position[cell]!
+			pos.proximityScore = base.proximityScore
+			pos.gravityScore = base.gravityScore
+			pos.tacticalScore = base.tacticalScore
+			pos.score += base.proximityScore + base.gravityScore + base.tacticalScore
+		} else {
+			// Full computation for base case (or when no precomputed cache available)
+			pos.addProximityScore(MapPosition._computeProximityPenalty(cell, _nearest_enemy))
+			pos.addGravityScore(MapPosition._computeGravityScore(cell))
+			pos.addTacticalScore(MapPosition._computeTacticalScore(cell))
+		}
 
 		if (BattleState.enemyHasStr || _enemies_have_snc) {
 			real shieldValue = Fight.self.getCurrentAbs(consequences) * ScoringConfig.W_SHIELD_ABS +
@@ -369,8 +389,10 @@ class MapPosition {
 
 	/*
 	 * Compute tactical bonuses (lock, COVID, etc.)
+	 * Note: Uses real board state (Board.entityCells, _nearest_enemy, etc.)
+	 * which doesn't depend on consequences - positions are fixed until turn executes.
 	 */
-	static real _computeTacticalScore(Cell cell, Consequences? consequences) {
+	static real _computeTacticalScore(Cell cell) {
 		real bonus = 0
 
 		// Lock bonus
@@ -438,6 +460,7 @@ class MapPosition {
 	 * Fast position score lookup for MCTS rollout.
 	 * Returns best reachable position SCORE (not Position object).
 	 * Uses precomputed grid when consequences don't alter danger.
+	 * Lazy-evaluates cells outside precomputed range (rare edge cases).
 	 *
 	 * @param fromCell - current cell position
 	 * @param mp - remaining movement points
@@ -450,21 +473,29 @@ class MapPosition {
 			return MapPosition.findBestPosition(fromCell, mp, csq).score
 		}
 
-		// Fast path: use precomputed _position cache
+		// Fast path: use precomputed _position cache with lazy evaluation fallback
 		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(fromCell, mp, Fight.self.cellsToIgnore)
 
 		real best = -999999.0
 		for (Cell cell : integer cost in reachable) {
 			if (cost > mp) continue
 			Position? pos = _position[cell]
-			if (pos != null && pos!.score > best) {
+			// Lazy evaluation for cells outside precomputed range
+			if (pos == null) {
+				pos = MapPosition.evaluatePosition(cell, null)
+			}
+			if (pos!.score > best) {
 				best = pos!.score
 			}
 		}
 
 		// Fallback to current cell if nothing found
-		if (best == -999999.0 && _position[fromCell] != null) {
-			best = _position[fromCell]!.score
+		if (best == -999999.0) {
+			Position? fromPos = _position[fromCell]
+			if (fromPos == null) {
+				fromPos = MapPosition.evaluatePosition(fromCell, null)
+			}
+			best = fromPos!.score
 		}
 
 		return best

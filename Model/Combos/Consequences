@@ -32,10 +32,10 @@ class Consequences {
 		this.currentTP = Fight.self.tp
 		this.currentWeapon = Fight.self.getWeaponInHand()
 		this.score = 0.0  // Must initialize before construct() modifies it
-		construct(action)
+		construct(action, false)  // Don't warn during pool creation (extended cells are valid)
 		Benchmark.stop("Consequences")
 	}
-	
+
 	constructor(Action action, Consequences consequences){
 		Benchmark.start("Consequences.fromConseq")
 		this.currentCell = consequences.currentCell
@@ -48,11 +48,11 @@ class Consequences {
 		this._killed = clone(consequences._killed) as Map<Entity, Entity>
 		this.hashcode = consequences.hashcode
 		this.score = consequences.score != null ? consequences.score : 0.0  // Inherit parent score
-		construct(action)
+		construct(action, true)  // Warn during combo building (catches actual bugs)
 		Benchmark.stop("Consequences.fromConseq")
 	}
 	
-	construct(Action action){
+	construct(Action action, boolean warnOnUnreachable){
 		// actualisation du placement virtuel :
 		// Build ignoreCells: our starting cell + cells of killed entities (can path through kills)
 		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
@@ -64,12 +64,12 @@ class Consequences {
 		if(action.from != Fight.selfCell){
 			if(reachableCells[action.from] != null) {
 				integer moveCost = reachableCells[action.from]!
-				// Only warn if movement cost exceeds effective MP (treating negative as 0)
-				if(moveCost > 0 && moveCost > max(0, this.currentMP)) {
+				// Only warn during combo building (not pool creation where extended cells are valid)
+				if(warnOnUnreachable && moveCost > 0 && moveCost > max(0, this.currentMP)) {
 					debugW('Impossible action: move cost ' + moveCost + ' > effective MP ' + max(0, this.currentMP) + '\n' + action + '\n' + this)
 				}
 				this.currentMP = this.currentMP - moveCost  // Keep actual tracking for boost calculations
-			} else {
+			} else if(warnOnUnreachable) {
 				debugW('Impossible action: unreachable cell !!\n'+action+'\n'+this)
 			}
 			// actualisation de la case actuelle

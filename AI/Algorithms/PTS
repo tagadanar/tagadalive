@@ -128,15 +128,15 @@ class PTS {
 
 				if (moveCost > currentMP) continue
 
-				// Use first valid opportunity (greedy selection)
-				Cell aimCell = opp.getAimCell(attackCell!)
-				Action action = Action(opp.item, attackCell!, aimCell)
+				// Get pre-computed action (avoids spurious warnings)
+				Action? action = opp.attackActions[attackCell!]
+				if (action == null) continue
 
 				if (actionsBuilt == 0) {
-					if (action.score! <= 0) continue
-					push(combo.actions, action)
+					if (action!.score! <= 0) continue
+					push(combo.actions, action!)
 				} else {
-					if (!combo.add(action)) continue
+					if (!combo.add(action!)) continue
 				}
 
 				Action lastAction = combo.actions[count(combo.actions) - 1]
