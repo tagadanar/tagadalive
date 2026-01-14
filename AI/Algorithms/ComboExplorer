@@ -63,38 +63,6 @@ class ExplorerResult {
 }
 
 // ════════════════════════════════════════════════════════════════
-// STATISTICS
-// ════════════════════════════════════════════════════════════════
-
-class ExplorerStats {
-	// Order comparison for Phase 2
-	static integer orderFirstWins = 0    // First cell in pair won
-	static integer orderDraws = 0        // Tie (same score)
-	static integer orderSecondWins = 0   // Second cell in pair won
-
-	// Phase effectiveness
-	static Map<string, integer> phaseBestCount = [:]
-
-	static void reset() {
-		orderFirstWins = 0
-		orderDraws = 0
-		orderSecondWins = 0
-		phaseBestCount = [:]
-	}
-
-	static void recordOrderComparison(real scoreFirst, real scoreSecond) {
-		if (scoreFirst > scoreSecond) orderFirstWins++
-		else if (scoreFirst < scoreSecond) orderSecondWins++
-		else orderDraws++
-	}
-
-	static void recordPhaseBest(string phase) {
-		integer current = phaseBestCount[phase] != null ? phaseBestCount[phase]! : 0
-		phaseBestCount[phase] = current + 1
-	}
-}
-
-// ════════════════════════════════════════════════════════════════
 // CELL SCORING (No duplication)
 // ════════════════════════════════════════════════════════════════
 
@@ -504,7 +472,6 @@ class ComboExplorer {
 		ComboExplorer.topResults = []
 		ComboExplorer.bestResult = null
 		ComboExplorer.combosEvaluated = 0
-		ExplorerStats.reset()
 
 		// Refresh cell scoring
 		MapCellScore.refresh()
@@ -562,7 +529,6 @@ class ComboExplorer {
 		if (ComboExplorer.bestResult == null || result.score > ComboExplorer.bestResult!.score) {
 			ComboExplorer.bestResult = result
 			ComboExplorer.bestPhase = result.phase
-			ExplorerStats.recordPhaseBest(result.phase)
 		}
 
 		// Keep top N results
@@ -1127,14 +1093,9 @@ class ComboExplorer {
 				Cell cellB = interesting[j]
 
 				// Try both orderings
-				ExplorerResult? resultAB = ComboExplorer.tryPairOrder(cellA, cellB)
+				ComboExplorer.tryPairOrder(cellA, cellB)
 				if (ComboExplorer.shouldStop()) break
-				ExplorerResult? resultBA = ComboExplorer.tryPairOrder(cellB, cellA)
-
-				// Record statistics
-				if (resultAB != null && resultBA != null) {
-					ExplorerStats.recordOrderComparison(resultAB!.score, resultBA!.score)
-				}
+				ComboExplorer.tryPairOrder(cellB, cellA)
 			}
 		}
 
@@ -1339,10 +1300,21 @@ class ComboExplorer {
 
 		integer baseMP = Fight.self.mp
 
+		// Build set of MP buff chips already active on self
+		Map<integer, boolean> activeBuffChips = [:]
+		for (EntityEffect e in Fight.self.effects) {
+			if (e.type == EFFECT_BUFF_MP || e.type == EFFECT_RAW_BUFF_MP) {
+				activeBuffChips[e.item.id] = true
+			}
+		}
+
 		// Collect all affordable MP buff actions with their gains
 		Array<Action> allBuffs = []
 		for (Action a in MapCellScore.selfCastActions) {
 			if (a.item.cost > availableTP) continue
+
+			// Skip if buff already active (would just refresh, not stack)
+			if (activeBuffChips[a.item.id]) continue
 
 			// Check for MP buff effect
 			boolean hasMPBuff = false
@@ -1534,7 +1506,6 @@ class ComboExplorer {
 		debug("ComboExplorer: " + ComboExplorer.combosEvaluated + " combos, best=" +
 			(ComboExplorer.bestResult != null ? ComboExplorer.bestResult!.name : "none") +
 			" score=" + (ComboExplorer.bestResult != null ? round(ComboExplorer.bestResult!.score) : 0))
-		debug("  P2 order: " + ExplorerStats.orderFirstWins + "W-" + ExplorerStats.orderDraws + "D-" + ExplorerStats.orderSecondWins + "L")
 	}
 
 	/*
