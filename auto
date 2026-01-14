@@ -162,9 +162,12 @@ function init() {
 	MapAction.refresh()
 	Benchmark.stop('MapAction.refresh')
 
-	Benchmark.start('MapOpportunity.refresh')
-	MapOpportunity.refresh()
-	Benchmark.stop('MapOpportunity.refresh')
+	// Skip MapOpportunity for ComboExplorer (uses MapCellScore instead)
+	if (AI.mode != AI.MODE_COMBO_EXPLORER) {
+		Benchmark.start('MapOpportunity.refresh')
+		MapOpportunity.refresh()
+		Benchmark.stop('MapOpportunity.refresh')
+	}
 
 	Benchmark.stop('init')
 
