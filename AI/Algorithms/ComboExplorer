@@ -35,7 +35,7 @@ class ExplorerConfig {
 	// Top K cells for Phase 3 three-cell exploration
 	// Complexity is O(K³ × 6): K=7 → 210 combos, K=10 → 720 combos
 	static integer INTERESTING_CELLS_K_PHASE3 = 7
-	static integer OPERATION_BUFFER = 150000
+	static integer OPERATION_BUFFER = 200000
 	static integer MAX_RESULTS_KEPT = 10
 	static integer MAX_RESULTS_LOGGED = 5
 }
