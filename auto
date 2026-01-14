@@ -31,6 +31,8 @@ include('Controlers/Items')
 // ────────────────────────────────────────────────────────────────────────────
 include('Controlers/Maps/MapPath')
 include('Controlers/Maps/MapDanger')
+include('Controlers/Maps/MapAllyHeal')
+include('Controlers/Maps/MapAllyDamage')
 include('Controlers/Maps/MapPosition')
 include('Controlers/Maps/Targets')
 include('Controlers/Maps/MapAction')
@@ -41,6 +43,8 @@ include('Controlers/Maps/MapOpportunity')
 // ────────────────────────────────────────────────────────────────────────────
 //include('Model/Combos/Jump')
 include('Model/Combos/Danger')
+include('Model/Combos/HealPotential')
+include('Model/Combos/AllyDamagePotential')
 include('Model/Combos/Position')
 include('Model/Combos/Damages')
 include('Model/Combos/Action')
@@ -142,6 +146,14 @@ function init() {
 	// If you call Scoring.refresh() alone, you must also call this afterward.
 	BattleState.computeAllAllyDanger()
 
+	/*Benchmark.start('MapAllyHeal.refresh')
+	MapAllyHeal.refresh()
+	Benchmark.stop('MapAllyHeal.refresh')
+
+	Benchmark.start('MapAllyDamage.refresh')
+	MapAllyDamage.refresh()
+	Benchmark.stop('MapAllyDamage.refresh')*/
+
 	Benchmark.start('MapPosition.refresh')
 	MapPosition.refresh()
 	Benchmark.stop('MapPosition.refresh')
@@ -155,4 +167,10 @@ function init() {
 	Benchmark.stop('MapOpportunity.refresh')
 
 	Benchmark.stop('init')
+
+	// Debug ally maps (uncomment to test)
+	/*MapAllyHeal.debugAllyHealItems()
+	MapAllyHeal.showHealAll()
+	MapAllyDamage.debugAllyWeapons()
+	MapAllyDamage.showDamageAll()*/
 }
