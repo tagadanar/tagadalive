@@ -35,7 +35,7 @@ class ExplorerConfig {
 	// Top K cells for Phase 3 three-cell exploration
 	// Complexity is O(K³ × 6): K=7 → 210 combos, K=10 → 720 combos
 	static integer INTERESTING_CELLS_K_PHASE3 = 7
-	static integer OPERATION_BUFFER = 250000
+	static integer OPERATION_BUFFER = 150000
 	static integer MAX_RESULTS_KEPT = 10
 	static integer MAX_RESULTS_LOGGED = 5
 }
@@ -476,10 +476,8 @@ class ComboExplorer {
 		// Refresh cell scoring
 		MapCellScore.refresh()
 
-		// Phase 0: Stay in place (cheap baseline)
-		if (!ComboExplorer.shouldStop()) {
-			ComboExplorer.phaseStay()
-		}
+		// Phase 0: Stay in place - ALWAYS runs (cheap baseline, guaranteed result)
+		ComboExplorer.phaseStay()
 
 		// Phase T: Target Focus
 		if (!ComboExplorer.shouldStop()) {
@@ -506,17 +504,8 @@ class ComboExplorer {
 
 		Benchmark.stop("ComboExplorer.explore")
 
-		// Return best combo
-		if (ComboExplorer.bestResult != null) {
-			return ComboExplorer.bestResult!.combo
-		}
-
-		// Fallback: empty combo with position (should rarely be reached)
-		debugW("ComboExplorer fallback reached! ops=" + getOperations() + "/" + getMaxOperations() +
-			" buffer=" + ExplorerConfig.OPERATION_BUFFER + " combosEval=" + ComboExplorer.combosEvaluated)
-		Combo fallback = Combo()
-		fallback.addFinalPosition(MapPosition.findBestPosition(Fight.self.cell, Fight.self.mp, Consequences()))
-		return fallback
+		// Return best combo (guaranteed from Phase 0)
+		return ComboExplorer.bestResult!.combo
 	}
 
 	/*
