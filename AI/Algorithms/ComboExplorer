@@ -36,8 +36,7 @@ class ExplorerConfig {
 	// Complexity is O(K³ × 6): K=7 → 210 combos, K=10 → 720 combos
 	static integer INTERESTING_CELLS_K_PHASE3 = 7
 	static integer OPERATION_BUFFER = 200000
-	static integer MAX_RESULTS_KEPT = 10
-	static integer MAX_RESULTS_LOGGED = 5
+	static integer MAX_RESULTS_KEPT = 5
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1482,7 +1481,7 @@ class ComboExplorer {
 		// Log top 5 to Benchmark
 		integer logged = 0
 		for (ExplorerResult r in ComboExplorer.topResults) {
-			if (logged >= ExplorerConfig.MAX_RESULTS_LOGGED) break
+			if (logged >= ExplorerConfig.MAX_RESULTS_KEPT) break
 
 			string desc = "EXP[" + r.name + "]:" + ComboExplorer.buildComboDesc(r.combo)
 			real posScore = r.combo.finalPosition != null ? r.combo.finalPosition!.score : 0.0
