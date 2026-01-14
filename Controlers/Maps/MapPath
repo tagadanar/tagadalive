@@ -42,7 +42,12 @@ class MapPath{
 		}
 		return hash
 	}
-		
+
+	/*
+	 * Returns cached reachable cells from a position.
+	 * WARNING: Cache may contain cells beyond requested mp if previously expanded.
+	 * Callers MUST check distance <= mp when iterating results!
+	 */
 	static Map<Cell, integer> getCachedReachableCells(Cell from, integer mp, Array<Cell> ignoreCells){
 		integer hash = MapPath.getHashcode(from, ignoreCells)
 		Map<Cell, integer>? result = MapPath._cache_reachable[hash]

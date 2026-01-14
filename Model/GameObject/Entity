@@ -37,6 +37,8 @@ class Entity {
 	integer dmgReturn
 	// déplacement
 	Map<Cell, integer> reachableCells
+	Map<Cell, integer> extendedReachableCells  // reachable with MP buffs (self only)
+	integer maxMPBuff = 0                       // max MP gain from self-cast buffs (self only)
 	// inventaire organisé en fonction des cibles
 	Array<Item> items
 	Array<Item> offensiveItems // will have a value on enemy leeks only
@@ -185,8 +187,59 @@ class Entity {
 			this.mp,
 			this.cellsToIgnore
 		)
+
+		// Compute extended reach for self only (used by MapAction, MapPosition)
+		if (this == Fight.self) {
+			this.maxMPBuff = this.computeMaxMPBuff()
+			if (this.maxMPBuff > 0) {
+				this.extendedReachableCells = MapPath.getCachedReachableCells(
+					this.cell,
+					this.mp + this.maxMPBuff,
+					this.cellsToIgnore
+				)
+			} else {
+				this.extendedReachableCells = this.reachableCells
+			}
+		}
 	}
-	
+
+	/*
+	 * Calculate total potential MP buff from all self-cast items.
+	 * Scans this entity's items for MP buff effects and sums all gains.
+	 * MP buffs stack (Leather Boots + Motivation + Wings = total gain).
+	 */
+	integer computeMaxMPBuff() {
+		integer totalGain = 0
+		integer tpBudget = this.tp
+		real sncMultiplier = 1 + this.snc / 100.0
+
+		for (Item item in this.items) {
+			// Skip if not self-castable (minRange > 0 means can't target self)
+			if (item.minRange > 0) continue
+			// Skip if on cooldown
+			if (item.haveCD && getCooldown(item.id) > 0) continue
+			// Skip if can't afford (track TP budget across items)
+			if (item.cost > tpBudget) continue
+
+			for (ItemEffect effect in item.effects) {
+				integer gain = 0
+				if (effect.type == EFFECT_RAW_BUFF_MP) {
+					gain = round(effect.avg)
+				} else if (effect.type == EFFECT_BUFF_MP) {
+					// Science-scaled buff
+					gain = round(effect.avg * sncMultiplier)
+				}
+				if (gain > 0) {
+					totalGain += gain
+					tpBudget -= item.cost  // Deduct TP for this item
+					break  // Move to next item (don't double-count effects from same item)
+				}
+			}
+		}
+
+		return totalGain
+	}
+
 	/*
 	 * Retourne l'objet Item correspondant à l'arme dans les mains de l'entité
 	 * @return une Item

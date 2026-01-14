@@ -124,8 +124,9 @@ class MapAction {
 	}
 
 	static Action? addAction(Item item, Cell from, Cell targetCell){
+		// Accept cells reachable with current MP OR with MP buffs (extendedReachableCells)
 		if(targetCell != Fight.selfCell &&
-		   (Fight.self.reachableCells[from]==null || Fight.self.reachableCells[from] > Fight.self.mp)) return null
+		   Fight.self.extendedReachableCells[from] == null) return null
 		Benchmark.start("addAction")
 		Action action = new Action(item, from, targetCell)
 
