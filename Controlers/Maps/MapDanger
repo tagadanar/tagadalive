@@ -27,14 +27,37 @@ class MapDanger {
 		_danger = [:]
 		_hash_danger = [:]
 		_map_entity_item_danger = [:]
-		// pour chaque adv
+
+		// Phase 1: Collect enemies and prepare their offensive items
+		Array<Entity> enemies = []
+		integer maxItems = 0
 		for(Entity e in Fight.getEnemiesAlive()){
-			_map_entity_item_danger[e] = [:];//reset de la map
+			_map_entity_item_danger[e] = [:]
 			e.offensiveItems = Items.getOrderedOffensiveItems(e)
-			// pour chaque item offensif
-			for(Item item in e.offensiveItems){
-				// on trouve les cases qu'il peut toucher avec son item
-				_map_entity_item_danger[e]![item] = MapDanger.getEnemiesDmgMap(e, item)
+			push(enemies, e)
+			integer itemCount = count(e.offensiveItems)
+			if(itemCount > maxItems) maxItems = itemCount
+		}
+
+		// Phase 2: Round-robin - process item i for all enemies before item i+1
+		integer halfBudget = (getMaxOperations() * 0.5) as integer
+		for(integer i = 0; i < maxItems; i++){
+			for(Entity e in enemies){
+				if(i < count(e.offensiveItems)){
+					Item item = e.offensiveItems[i]
+					_map_entity_item_danger[e]![item] = MapDanger.getEnemiesDmgMap(e, item)
+				}
+			}
+			// Early exit if we've used more than half the operation budget
+			if(getOperations() > halfBudget){
+				string stats = ""
+				for(Entity e in enemies){
+					integer done = min(i + 1, count(e.offensiveItems))
+					if(stats != "") stats += " "
+					stats += e.name + ":" + done + "/" + count(e.offensiveItems)
+				}
+				debugW("MapDanger early exit: round " + (i + 1) + "/" + maxItems + " @" + Benchmark.format(getOperations()) + " | " + stats)
+				break
 			}
 		}
 	}

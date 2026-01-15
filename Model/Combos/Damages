@@ -13,6 +13,7 @@ class Damages{
 			if(consequences && consequences!.isKilled(e)) continue
 			integer tpleft = e.getCurrentTP(consequences)
 			for(Item item in e.offensiveItems){
+				if(MapDanger._map_entity_item_danger[e]![item] == null) continue // Item not processed (early exit)
 				real ratioDmg = MapDanger._map_entity_item_danger[e]![item]![cell]!
 				real tmpdmg = Damages.getDamage(e, Fight.self, item, ratioDmg, consequences)
 				if(tmpdmg>0){
