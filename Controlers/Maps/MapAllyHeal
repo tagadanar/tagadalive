@@ -233,7 +233,7 @@ class MapAllyHeal {
 	 */
 	static void showHealAll() {
 		for (integer id : Cell c in Board.cells) {
-			if (Board.obstacles[c]) continue
+			if (c.isWall) continue
 			HealPotential hp = MapAllyHeal.getCellHeal(c, null)
 			if (hp.heal > 0) {
 				integer green = ((hp.heal * 255) / Fight.self.totalLife) as integer

@@ -165,7 +165,7 @@ class CalibratedPTS {
 		combo.addFinalPosition(pos)
 
 		// Build calibration point
-		real actionScore = 0
+		real actionScore = 0.0
 		for (Action a in combo.actions) {
 			actionScore += a.score!
 		}
@@ -191,7 +191,7 @@ class CalibratedPTS {
 		if (opp.isSelfCast) return Fight.selfCell
 
 		Cell? best = null
-		real bestScore = -999999
+		real bestScore = -999999.0
 
 		for (Cell cell : real score in opp.attackScores) {
 			// Check if cell is reachable within budget (cache may return superset)
@@ -214,7 +214,7 @@ class CalibratedPTS {
 	 */
 	static void computeMPValue() {
 		if (count(CalibratedPTS.curve) < 2) {
-			CalibratedPTS.mpValue = 0
+			CalibratedPTS.mpValue = 0.0
 			return
 		}
 
@@ -223,12 +223,12 @@ class CalibratedPTS {
 		CalibrationPoint last = CalibratedPTS.curve[count(CalibratedPTS.curve) - 1]  // max movement
 
 		real positionDelta = first.positionScore - last.positionScore
-		real mpDelta = last.movementUsed - first.movementUsed
+		integer mpDelta = last.movementUsed - first.movementUsed
 
 		if (mpDelta > 0) {
 			CalibratedPTS.mpValue = positionDelta / mpDelta
 		} else {
-			CalibratedPTS.mpValue = 0
+			CalibratedPTS.mpValue = 0.0
 		}
 	}
 
@@ -250,7 +250,7 @@ class CalibratedPTS {
 		if (count(CalibratedPTS.curve) > 0) {
 			CalibrationPoint last = CalibratedPTS.curve[count(CalibratedPTS.curve) - 1]
 			integer extraMP = mpUsed - last.movementUsed
-			return max(0, last.positionScore - extraMP * CalibratedPTS.mpValue)
+			return max(0.0, last.positionScore - extraMP * CalibratedPTS.mpValue)
 		}
 
 		return 0.0
@@ -306,9 +306,9 @@ class CalibratedPTS {
 	 */
 	static void logCalibrationCombos() {
 		// Sort by total score descending, then by budget ascending (lower MP first when tied)
-		Array<CalibrationPoint> sorted = arraySort(CalibratedPTS.curve, (a, b) -> {
-			if (a.totalScore != b.totalScore) return a.totalScore < b.totalScore ? 1 : -1
-			return a.budgetRequested > b.budgetRequested ? 1 : -1
+		Array<CalibrationPoint> sorted = arraySort(CalibratedPTS.curve, (CalibrationPoint a, CalibrationPoint b) => integer|real {
+			if (a.totalScore != b.totalScore) return b.totalScore - a.totalScore
+			return b.budgetRequested - a.budgetRequested
 		}) as Array<CalibrationPoint>
 
 		integer logged = 0

@@ -1,3 +1,31 @@
+class TrackCooldown {
+	public string itemName
+	public integer curentCD
+	public integer maxCD
+
+	constructor(string itemName, integer curentCD, integer maxCD) {
+		this.itemName = itemName 
+		this.curentCD = curentCD
+		this.maxCD = maxCD
+	}
+}
+
+class TrackOperations {
+	public string functionName
+	public integer nbCall
+	public integer totalOps
+	public integer pct
+	public string parent
+
+	constructor(string functionName, integer nbCall, integer totalOps, integer pct, string parent = "") {
+		this.functionName = functionName 
+		this.nbCall = nbCall
+		this.totalOps = totalOps
+		this.pct = pct
+		this.parent = parent
+	}
+}
+
 class Benchmark{
 	static Map<string, integer> _count_func = [:]
 	static Map<string, integer> _cumul_func = [:]
@@ -6,54 +34,54 @@ class Benchmark{
 	static Map<string, string> _parent_func = [:]
 
 	static string MARKER = "##MARKER##"
-	static _turn = 0
-	static _startOps = 0
-	static _name = ""
-	static _mctsIter = 0
-	static _mctsNodes = 0
-	static _mctsPos = 0
-	static _mctsBest = 0
+	static integer _turn = 0
+	static integer _startOps = 0
+	static string _name = ""
+	static integer _mctsIter = 0
+	static integer _mctsNodes = 0
+	static integer _mctsPos = 0
+	static integer _mctsBest = 0
 	// PTS stats
-	static _ptsOpps = 0
-	static _ptsActions = 0
-	static _ptsBest = 0
+	static integer _ptsOpps = 0
+	static integer _ptsActions = 0
+	static integer _ptsBest = 0
 	// Beam Search stats
-	static _beamDepth = 0
-	static _beamCandidates = 0
-	static _beamPos = 0
-	static _beamBest = 0
-	static _beamOpsExpand = 0
-	static _beamOpsSort = 0
-	static _beamOpsPos = 0
-	static _beamOpsTotal = 0
-	static _beamBudgetLow = false
+	static integer _beamDepth = 0
+	static integer _beamCandidates = 0
+	static integer _beamPos = 0
+	static integer _beamBest = 0
+	static integer _beamOpsExpand = 0
+	static integer _beamOpsSort = 0
+	static integer _beamOpsPos = 0
+	static integer _beamOpsTotal = 0
+	static boolean _beamBudgetLow = false
 	// Algorithm comparison
-	static _algoMode = ""
-	static _algoWinner = ""
+	static string _algoMode = ""
+	static string _algoWinner = ""
 	// Calibration stats (CalibratedPTS)
-	static _calBudget = ""
-	static _calMpValue = 0
-	static _calPoints = 0
+	static string _calBudget = ""
+	static integer _calMpValue = 0
+	static integer _calPoints = 0
 	// MCTS cells tracking
 	static Array<integer> _mctsSeeds = []      // Priority cells from PTS
 	static Array<integer> _mctsExplored = []   // Cells actually explored
 	static Array<integer> _mctsSkipped = []    // Cells skipped (budget)
-	static _chosenDesc = ""
-	static _chosenScore = 0
-	static _chosenActions = 0
-	static _selfLife = 0
-	static _selfMaxLife = 0
-	static _selfTP = 0
-	static _selfMaxTP = 0
-	static _selfMP = 0
-	static _selfMaxMP = 0
-	static _selfUsedRAM = 0
-	static _selfMaxRAM = 0
-	static _selfCell = 0
-	static _enemies = 0
-	static _allies = 0
+	static string _chosenDesc = ""
+	static integer _chosenScore = 0
+	static integer _chosenActions = 0
+	static integer _selfLife = 0
+	static integer _selfMaxLife = 0
+	static integer _selfTP = 0
+	static integer _selfMaxTP = 0
+	static integer _selfMP = 0
+	static integer _selfMaxMP = 0
+	static integer _selfUsedRAM = 0
+	static integer _selfMaxRAM = 0
+	static integer _selfCell = 0
+	static integer _enemies = 0
+	static integer _allies = 0
 
-	static _maxCombos = 5
+	static integer _maxCombos = 5
 	static Array<string> _comboDesc = []
 	static Array<integer> _comboScore = []
 	static Array<integer> _comboActions = []
@@ -61,14 +89,14 @@ class Benchmark{
 	static Array<integer> _comboActScore = []
 
 	// MCTS best combo (separate from top 5 to always show it)
-	static _mctsComboDesc = ""
-	static _mctsComboScore = 0
-	static _mctsComboActions = 0
-	static _mctsComboPosScore = 0
-	static _mctsComboActScore = 0
+	static string _mctsComboDesc = ""
+	static integer _mctsComboScore = 0
+	static integer _mctsComboActions = 0
+	static integer _mctsComboPosScore = 0
+	static integer _mctsComboActScore = 0
 
 	static Array<string> _logs = []
-	static _maxLogs = 20
+	static integer _maxLogs = 20
 
 	// Cooldowns tracking: array of [itemName, currentCD, maxCD]
 	static Array<Array> _cooldownsStart = []
@@ -98,7 +126,7 @@ class Benchmark{
 		if(count(_callStack) > 0) pop(_callStack)
 	}
 
-	static string format(real num){
+	static string format(integer|real num){
 		num = num | 0
 		if(num >= 1000000) return round(num / 1000000) + "M"
 		if(num >= 1000) return round(num / 1000) + "k"
@@ -152,14 +180,14 @@ class Benchmark{
 		_cooldownsStart = []
 		_cooldownsEnd = []
 		_selfLife = getLife()
-		_selfMaxLife = getTotalLife(getEntity())
+		_selfMaxLife = getTotalLife(getEntity())!
 		_selfTP = getTP()
-		_selfMaxTP = getTotalTP(getEntity())
+		_selfMaxTP = getTotalTP(getEntity())!
 		_selfMP = getMP()
-		_selfMaxMP = getTotalMP(getEntity())
+		_selfMaxMP = getTotalMP(getEntity())!
 		_selfUsedRAM = getUsedRAM()
 		_selfMaxRAM = getMaxRAM()
-		_selfCell = getCell()
+		_selfCell = getCell()!
 		_enemies = count(getAliveEnemies())
 		_allies = count(getAliveAllies())
 		reset()
@@ -167,14 +195,14 @@ class Benchmark{
 
 	static void updateContext(){
 		_selfLife = getLife()
-		_selfMaxLife = getTotalLife(getEntity())
+		_selfMaxLife = getTotalLife(getEntity())!
 		_selfTP = getTP()
-		_selfMaxTP = getTotalTP(getEntity())
+		_selfMaxTP = getTotalTP(getEntity())!
 		_selfMP = getMP()
-		_selfMaxMP = getTotalMP(getEntity())
+		_selfMaxMP = getTotalMP(getEntity())!
 		_selfUsedRAM = getUsedRAM()
 		_selfMaxRAM = getMaxRAM()
-		_selfCell = getCell()
+		_selfCell = getCell()!
 		_enemies = count(getAliveEnemies())
 		_allies = count(getAliveAllies())
 	}
@@ -297,7 +325,7 @@ class Benchmark{
 		_cooldownsStart = []
 		for (Item item in items) {
 			if (!item.haveCD) continue
-			integer cd = getCooldown(item.id, entityId)
+			integer cd = getCooldown(item.id, entityId)!
 			push(_cooldownsStart, [item.name, cd, item.cdDuration])
 		}
 	}
@@ -306,7 +334,7 @@ class Benchmark{
 		_cooldownsEnd = []
 		for (Item item in items) {
 			if (!item.haveCD) continue
-			integer cd = getCooldown(item.id, entityId)
+			integer cd = getCooldown(item.id, entityId)!
 			push(_cooldownsEnd, [item.name, cd, item.cdDuration])
 		}
 	}
@@ -375,35 +403,35 @@ class Benchmark{
 		if(_mctsComboDesc != "") s += "|mcb:" + _mctsComboScore + "," + _mctsComboActScore + "," + _mctsComboPosScore + "," + _mctsComboDesc
 
 		// Group functions by category
-		Map<string, Array<Array>> catFuncs = [:]
+		Map<string, Array<TrackOperations>> catFuncs = [:]
 		for (string name : integer nbCall in _count_func) {
 			if (nbCall == 0) continue
-			var cat = getCategoryForFunc(name)
+			string cat = getCategoryForFunc(name)
 			if (!catFuncs[cat]) catFuncs[cat] = []
-			var pct = round(_cumul_func[name]! * 100 / totalOps)
-			var parent = _parent_func[name] ? _parent_func[name]! : ""
-			push(catFuncs[cat]!, [name, nbCall, _cumul_func[name]!, pct, parent])
+			integer pct = round(_cumul_func[name]! * 100 / totalOps)
+			string parent = _parent_func[name] ? _parent_func[name]! : ""
+			push(catFuncs[cat]!, new TrackOperations(name, nbCall, _cumul_func[name]!, pct, parent))
 		}
 
 		// Output by category in defined order, then OTHER
-		for (var cat in CATEGORIES) {
-			var catName = cat[0] as string
+		for (Array<string> cat in CATEGORIES) {
+			string catName = cat[0]
 			if (catFuncs[catName] && count(catFuncs[catName]!) > 0) {
 				// Sort by total ops descending within category
-				var funcs = arraySort(catFuncs[catName]!, (a, b) -> a[2] < b[2] ? 1 : -1) as Array<Array>
+				Array<TrackOperations> funcs = arraySort(catFuncs[catName]!, (TrackOperations a, TrackOperations b) => integer { return b.totalOps - a.totalOps; }) as Array<TrackOperations>
 				s += "|cat:" + catName
-				for (var m in funcs) {
-					s += "|f:" + m[0] + "," + m[1] + "," + m[2] + "," + m[3] + "," + m[4]
+				for (TrackOperations m in funcs) {
+					s += "|f:" + m.functionName + "," + m.nbCall + "," + m.totalOps + "," + m.pct + "," + m.parent
 				}
 			}
 		}
 
 		// OTHER category last
 		if (catFuncs["OTHER"] && count(catFuncs["OTHER"]!) > 0) {
-			var funcs = arraySort(catFuncs["OTHER"]!, (a, b) -> a[2] < b[2] ? 1 : -1) as Array<Array>
+			Array<TrackOperations> funcs = arraySort(catFuncs["OTHER"]!, (TrackOperations a, TrackOperations b) => integer { return b.totalOps - a.totalOps; }) as Array<TrackOperations>
 			s += "|cat:OTHER"
-			for (var m in funcs) {
-				s += "|f:" + m[0] + "," + m[1] + "," + m[2] + "," + m[3] + "," + m[4]
+			for (TrackOperations m in funcs) {
+				s += "|f:" + m.functionName + "," + m.nbCall + "," + m.totalOps + "," + m.pct + "," + m.parent
 			}
 		}
 
@@ -428,7 +456,7 @@ class Benchmark{
 		}
 
 		// Display ops and final total
-		var displayOps = getOperations() - displayStart
+		integer displayOps = getOperations() - displayStart
 		s += "|dops:" + displayOps
 		s += "|end:" + (getOperations() - _startOps)
 
@@ -436,9 +464,9 @@ class Benchmark{
 	}
 
 	static void displayText(){
-		var totalOps = getOperations() - _startOps
-		var maxOps = getMaxOperations()
-		var pctOps = round(totalOps * 100 / maxOps)
+		integer totalOps = getOperations() - _startOps
+		integer maxOps = getMaxOperations()
+		integer pctOps = round(totalOps * 100 / maxOps)
 
 		debug("═══════════════════════════════════════")
 		debug("Turn " + _turn + " | " + _name + " | " + pctOps + "% ops")
@@ -481,37 +509,37 @@ class Benchmark{
 		debug("───────────────────────────────────────")
 		debug("Profiler (" + format(totalOps) + "/" + format(maxOps) + " ops):")
 
-		Map<string, Array<Array>> catFuncs = [:]
+		Map<string, Array<TrackOperations>> catFuncs = [:]
 		for (string name : integer nbCall in _count_func) {
 			if (nbCall == 0) continue
 			var cat = getCategoryForFunc(name)
 			if (!catFuncs[cat]) catFuncs[cat] = []
 			var pct = round(_cumul_func[name]! * 100 / totalOps)
-			push(catFuncs[cat]!, [name, nbCall, _cumul_func[name]!, pct])
+			push(catFuncs[cat]!, new TrackOperations(name, nbCall, _cumul_func[name]!, pct))
 		}
 
-		for (var cat in CATEGORIES) {
-			var catName = cat[0] as string
+		for (Array<string> cat in CATEGORIES) {
+			string catName = cat[0]
 			if (catFuncs[catName] && count(catFuncs[catName]!) > 0) {
-				var catTotal = 0
-				for (var m in catFuncs[catName]!) catTotal += m[2] as integer
-				var catPct = round(catTotal * 100 / totalOps)
+				integer catTotal = 0
+				for (var m in catFuncs[catName]!) catTotal += m.totalOps
+				integer catPct = round(catTotal * 100 / totalOps)
 				debug("  [" + catName + "] " + catPct + "% (" + format(catTotal) + " ops)")
-				var funcs = arraySort(catFuncs[catName]!, (a, b) -> a[2] < b[2] ? 1 : -1) as Array<Array>
-				for (var m in funcs) {
-					debug("    " + m[0] + ": " + m[1] + "x " + format(m[2]) + " (" + m[3] + "%)")
+				Array<TrackOperations> funcs = arraySort(catFuncs[catName]!, (TrackOperations a, TrackOperations b) => integer { return b.totalOps - a.totalOps; }) as Array<TrackOperations>
+				for (TrackOperations m in funcs) {
+					debug("    " + m.functionName + ": " + m.nbCall + "x " + format(m.totalOps) + " (" + m.pct + "%)")
 				}
 			}
 		}
 
 		if (catFuncs["OTHER"] && count(catFuncs["OTHER"]!) > 0) {
-			var catTotal = 0
-			for (var m in catFuncs["OTHER"]!) catTotal += m[2] as integer
-			var catPct = round(catTotal * 100 / totalOps)
+			integer catTotal = 0
+			for (var m in catFuncs["OTHER"]!) catTotal += m.totalOps
+			integer catPct = round(catTotal * 100 / totalOps)
 			debug("  [OTHER] " + catPct + "% (" + format(catTotal) + " ops)")
-			var funcs = arraySort(catFuncs["OTHER"]!, (a, b) -> a[2] < b[2] ? 1 : -1) as Array<Array>
-			for (var m in funcs) {
-				debug("    " + m[0] + ": " + m[1] + "x " + format(m[2]) + " (" + m[3] + "%)")
+			Array<TrackOperations> funcs = arraySort(catFuncs["OTHER"]!, (TrackOperations a, TrackOperations b) => integer { return b.totalOps - a.totalOps; }) as Array<TrackOperations>
+			for (TrackOperations m in funcs) {
+				debug("    " + m.functionName + ": " + m.nbCall + "x " + format(m.totalOps) + " (" + m.pct + "%)")
 			}
 		}
 
