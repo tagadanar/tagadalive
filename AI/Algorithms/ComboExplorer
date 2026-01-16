@@ -69,7 +69,7 @@ class MapCellScore {
 	// Cell → total action score (sum of best actions per item)
 	static Map<Cell, real> cellScores = [:]
 
-	// Cell → actions sorted by (priority ASC, score DESC)
+	// Cell → actions (unsorted, sorted lazily in buildWithKnapsack)
 	static Map<Cell, Array<Action>> cellActions = [:]
 
 	// Self-cast actions (available from any cell)
@@ -99,9 +99,6 @@ class MapCellScore {
 			}
 
 			if (count(actions) == 0) continue
-
-			// Sort by priority ASC, score DESC (for execution order)
-			actions = MapCellScore.sortByPriority(actions)
 
 			// Handle self-cast separately
 			if (cell == Fight.selfCell) {
