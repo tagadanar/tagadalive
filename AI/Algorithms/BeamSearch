@@ -151,7 +151,7 @@ class BeamSearch {
 	static Combo search(Cell startCell, Map<Item, Action> actionsAtCell, integer tp, integer mp, Item? weapon) {
 		Benchmark.start("BeamSearch.search")
 
-		Array<Action> prunedActions = BeamSearch.pruneActions(mapValues(actionsAtCell))
+		Array<Action> prunedActions = BeamSearch.pruneActions(mapValues(actionsAtCell) as Array<Action>)
 
 		if (count(prunedActions) == 0) {
 			Combo moveOnlyCombo = Combo()
@@ -254,9 +254,9 @@ class BeamSearch {
 			BeamSearch.lastScore = 0.0
 		}
 
-		real actScore = 0
+		real actScore = 0.0
 		for (Action a in bestCombo.actions) actScore += a.score!
-		real posScore = bestCombo.finalPosition ? bestCombo.finalPosition!.score : 0
+		real posScore = bestCombo.finalPosition ? bestCombo.finalPosition!.score : 0.0
 		Benchmark.addCombo(bestCombo.getScore()!, count(bestCombo.actions), BeamSearch.buildComboDesc(bestCombo), posScore, actScore)
 
 		Benchmark.stop("BeamSearch.search")

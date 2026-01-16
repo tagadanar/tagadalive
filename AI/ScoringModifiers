@@ -160,9 +160,9 @@ class ScoringModifiers {
 	static real getChipReadyModifier(Entity entity, integer stat) {
 		real readyCount = 0.0
 		if (stat == Stats.WSD) {
-			readyCount = BattleState.wsdReadyChips[entity.id]  // null coerces to 0
+			readyCount = BattleState.wsdReadyChips[entity.id]!  // null coerces to 0
 		} else if (stat == Stats.RST) {
-			readyCount = BattleState.rstReadyChips[entity.id]  // null coerces to 0
+			readyCount = BattleState.rstReadyChips[entity.id]!  // null coerces to 0
 		}
 
 		if (readyCount <= 0) return 0.5

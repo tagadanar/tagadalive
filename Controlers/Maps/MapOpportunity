@@ -168,7 +168,7 @@ class MapOpportunity {
 		Cell? closestCell = null
 		integer closestDist = 99999
 		Cell? bestScoreCell = null
-		real bestScore = -999999
+		real bestScore = -999999.0
 		Map<Cell, Action> attackActions = [:]
 
 		for (Cell attackCell : Cell aimCell in attackCells!) {

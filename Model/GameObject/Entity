@@ -92,8 +92,8 @@ class Entity {
 		this.items = Items.getItems(id)
 		// Load passive effects from entity
 		for(Array e in getPassiveEffects(this.id)!) {
-			integer type = e[0]
-			real value = e[1]
+			integer type = e[0] as integer
+			real value = e[1] as real
 			// Percentage-based passives (convert damage/poison/erosion/cells to stat)
 			if(type == EFFECT_DAMAGE_TO_STRENGTH
 				|| type == EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD

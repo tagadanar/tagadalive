@@ -89,12 +89,12 @@ class BattleState {
 				integer chipId = item.id
 
 				if (ScoringConfig.WSD_CHIPS[chipId]) {
-					integer cd = getCooldown(chipId, entityId)
+					integer cd = getCooldown(chipId, entityId)!
 					if (cd == 0) wsdCount += 1.0
 					else if (cd == 1) wsdCount += 0.5
 				}
 				if (ScoringConfig.RST_CHIPS[chipId]) {
-					integer cd = getCooldown(chipId, entityId)
+					integer cd = getCooldown(chipId, entityId)!
 					if (cd == 0) rstCount += 1.0
 					else if (cd == 1) rstCount += 0.5
 				}
