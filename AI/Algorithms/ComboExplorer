@@ -1318,8 +1318,8 @@ class ComboExplorer {
 
 		// Sort by efficiency (MP gain / TP cost) descending - minimizes TP spent
 		allBuffs = arraySort(allBuffs, (Action a, Action b) => integer|real {
-			real gainA = a.consequences.currentMP - baseMP
-			real gainB = b.consequences.currentMP - baseMP
+			integer gainA = a.consequences.currentMP - baseMP
+			integer gainB = b.consequences.currentMP - baseMP
 			real effA = gainA / a.item.cost
 			real effB = gainB / b.item.cost
 			return Sort.desc(effA, effB)

@@ -156,7 +156,7 @@ class Consequences {
 		}
 
 		// Cooldown opportunity cost: penalize using CD items for marginal gains
-		this.score -= action.item.cdDuration
+		this.score -= action.item.cdDuration as real
 	}
 
 	/*
@@ -252,7 +252,7 @@ class Consequences {
 		}
 		// Chest power gain (all fight types): wood +10, iron +50, diamond +100
 		if(entity.entityType == ENTITY_CHEST) {
-			this.add(Fight.self, Stats.PWR, Fight.chestPwrGained[entity.name])
+			this.add(Fight.self, Stats.PWR, Fight.chestPwrGained[entity.name]!)
 		}
 		// BR power gain (leek/chest = 10 + 50% pwr, bulb = 2 + 50% pwr)
 		if(Fight.isBattleRoyale) {
@@ -326,7 +326,7 @@ class Consequences {
 	integer getEffectTypeAlteration(Entity entity, integer effectType){
 		if (_shared != null) return _shared!.getEffectTypeAlteration(entity, effectType)
 		if(!_effectTypeAlterations[entity]) return 0
-		return _effectTypeAlterations[entity]![effectType]  // null coerces to 0
+		return _effectTypeAlterations[entity]![effectType]!  // null coerces to 0
 	}
 
 	/**

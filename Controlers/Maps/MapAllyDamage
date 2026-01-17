@@ -261,7 +261,7 @@ class MapAllyDamage {
 		integer maxLife = enemy != null ? enemy!.totalLife : 1000
 
 		for (integer id : Cell c in Board.cells) {
-			if (Board.obstacles[c]) continue
+			if (c.isWall) continue
 			AllyDamagePotential adp = MapAllyDamage.getCellDamage(c, null)
 			if (adp.dmg > 0) {
 				integer red = ((adp.dmg * 255) / maxLife) as integer
