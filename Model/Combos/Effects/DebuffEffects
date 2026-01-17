@@ -1,6 +1,9 @@
 /**
  * DebuffEffects - Handlers for debuff-related effects
- * 
+ *
+ * Uses EffectCalc for calculations, sharing formulas with SnapshotEffects.
+ * Key difference: uses simulated stats via entity.getCurrentX(conseq).
+ *
  * Handles: EFFECT_SHACKLE_* (all shackles), EFFECT_DEBUFF (Liberation),
  *          EFFECT_ANTIDOTE, EFFECT_TOTAL_DEBUFF
  */
@@ -10,39 +13,39 @@ Consequences.registerHandlers([
 	// ============================================
 	// SHACKLES (all stackable currently)
 	// ============================================
-	
+
 	EFFECT_SHACKLE_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.STR, eot)
 	},
 
 	EFFECT_SHACKLE_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MGC, eot)
 	},
 
 	EFFECT_SHACKLE_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.AGI, eot)
 	},
 
 	EFFECT_SHACKLE_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.WSD, eot)
 	},
 
 	EFFECT_SHACKLE_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.TP, eot)
 	},
 
 	EFFECT_SHACKLE_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		integer value = round(effect.avg *(1+(entitySource.getCurrentMgc(conseq)/100)) *ratioDmg)
+		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MP, eot)
 	},
@@ -50,26 +53,26 @@ Consequences.registerHandlers([
 	// ============================================
 	// DEBUFF / LIBERATION
 	// ============================================
-	
+
 	EFFECT_DEBUFF: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Liberation reduces all effects on target by a percentage
 		// Checks what's already been altered to handle combos like Antidote→Liberation or Liberation→Liberation
 
 		// First, process simulated effects (buffs/debuffs added earlier in this combo)
 		// Must iterate BEFORE adding counter-effects to avoid reducing our own counters
-		if(conseq._altEffects[entityTarget]) {
+		if (conseq._altEffects[entityTarget]) {
 			// Pre-create entry for this item to avoid ConcurrentModificationException when adding counter-effects
-			if(!conseq._altEffects[entityTarget]![effect.item]) {
+			if (!conseq._altEffects[entityTarget]![effect.item]) {
 				conseq._altEffects[entityTarget]![effect.item] = []
 			}
-			for(Item item : Array<EffectOverTime> effects in conseq._altEffects[entityTarget]!) {
-				for(EffectOverTime simEffect in effects) {
+			for (Item item : Array<EffectOverTime> effects in conseq._altEffects[entityTarget]!) {
+				for (EffectOverTime simEffect in effects) {
 					integer absValue = abs(simEffect.value)
-					integer reduction = round(absValue * (effect.avg/100))
-					if(reduction <= 0) continue
+					integer reduction = round(absValue * (effect.avg/100.0))
+					if (reduction <= 0) continue
 
 					integer? stat = Stats.entityEffectType_to_stats[simEffect.effectType]
-					if(stat == null) continue
+					if (stat == null) continue
 
 					// Counter-effect has opposite sign of original
 					integer counterValue = simEffect.value > 0 ? -reduction : reduction
@@ -80,23 +83,23 @@ Consequences.registerHandlers([
 		}
 
 		// Then process real effects (from start of turn)
-		for(EntityEffect entityEffect in entityTarget.effects){
+		for (EntityEffect entityEffect in entityTarget.effects) {
 			// Skip irreducible effects - Liberation can't reduce them
-			if(entityEffect.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) continue
+			if (entityEffect.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) continue
 
 			// Check how much of this effect type has already been altered
 			integer alreadyAltered = conseq.getEffectTypeAlteration(entityTarget, entityEffect.type)
 			integer remaining = entityEffect.value - alreadyAltered
-			if(remaining <= 0) continue  // Already fully countered by previous action
+			if (remaining <= 0) continue  // Already fully countered by previous action
 
 			// CONVERTER converts value to negative if it's a malus (e.g., poison deals damage in HPTIME)
 			// EntityEffect always has positive value, EffectOverTime has +/- based on Stats
 			// FIXME: for !stackable effects, should do -100% then + remaining after reduction
-			integer reduction = round(remaining * (effect.avg/100))
+			integer reduction = round(remaining * (effect.avg/100.0))
 			integer value = reduction * TargetType.CONVERTER[entityEffect.type]
 			EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.turns, entityEffect.type)
 			integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
-			if(stat==null) debugE("LIBERATION effect to stat unhandled: "+entityEffect)
+			if (stat == null) debugE("LIBERATION effect to stat unhandled: " + entityEffect)
 			conseq.add(entityTarget, stat!, eot)
 			conseq.addEffectTypeAlteration(entityTarget, entityEffect.type, reduction)
 		}
@@ -104,11 +107,11 @@ Consequences.registerHandlers([
 
 	EFFECT_ANTIDOTE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Removes poison effects (checks what's already been altered to avoid double-counting)
-		for(EntityEffect entityEffect in entityTarget.effects){
-			if(entityEffect.type == EFFECT_POISON){
+		for (EntityEffect entityEffect in entityTarget.effects) {
+			if (entityEffect.type == EFFECT_POISON) {
 				integer alreadyAltered = conseq.getEffectTypeAlteration(entityTarget, EFFECT_POISON)
 				integer remaining = entityEffect.value - alreadyAltered
-				if(remaining <= 0) continue  // Already fully countered by previous action
+				if (remaining <= 0) continue  // Already fully countered by previous action
 
 				EffectOverTime eot = EffectOverTime(effect.item, remaining, entityEffect.turns, entityEffect.type)
 				conseq.add(entityTarget, Stats.HPTIME, eot)

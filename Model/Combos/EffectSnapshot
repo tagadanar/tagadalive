@@ -1,0 +1,207 @@
+/*
+ * EffectSnapshot - Immutable snapshot of effects for a given (item, aimCell) or (item, targetSet).
+ * Shared across multiple Actions that have identical effect outcomes.
+ *
+ * This optimization reduces operation count by computing effect consequences once per unique
+ * combination instead of once per (item, fromCell, aimCell) combination.
+ *
+ * Used by: EffectCache, Consequences (shared mode), Action
+ */
+class EffectSnapshot {
+	// Effect state - computed once, shared by many Actions
+	Map<Entity, Map<integer, integer>> alterations
+	Map<Entity, Map<Item, Array<EffectOverTime>>> altEffects
+	Map<Entity, Map<integer, integer>> effectTypeAlterations
+	Map<Entity, Entity> killed
+	Array<Entity> targets
+
+	// Precomputed metadata
+	real effectScore          // Score from effects only (no CD penalty, no movement)
+	integer hashcode
+	boolean isAlteringDanger
+
+	// Item reference for CD penalty calculation
+	integer cdDuration
+
+	constructor() {
+		this.alterations = [:]
+		this.altEffects = [:]
+		this.effectTypeAlterations = [:]
+		this.killed = [:]
+		this.targets = []
+		this.effectScore = 0.0
+		this.hashcode = 17
+		this.isAlteringDanger = false
+		this.cdDuration = 0
+	}
+
+	/*
+	 * Check if an entity is killed in this snapshot
+	 */
+	boolean isKilled(Entity entity) {
+		return this.killed[entity] != null
+	}
+
+	/*
+	 * Get alteration for a specific entity and stat
+	 */
+	integer? getAlteration(Entity entity, integer key) {
+		if (this.alterations[entity] == null) return null
+		return this.alterations[entity]![key]
+	}
+
+	/*
+	 * Get effect type alteration amount
+	 */
+	integer getEffectTypeAlteration(Entity entity, integer effectType) {
+		if (!this.effectTypeAlterations[entity]) return 0
+		return this.effectTypeAlterations[entity]![effectType]  // null coerces to 0
+	}
+
+	/*
+	 * Internal: Add an alteration during snapshot construction.
+	 * Computes score inline to avoid separate scoring loop.
+	 */
+	void addAlteration(Entity entity, integer key, EffectOverTime|integer effect) {
+		if (!this.alterations[entity]) this.alterations[entity] = [:]
+		boolean isOverTime = effect instanceof EffectOverTime
+		integer value = isOverTime ? (effect as EffectOverTime).value : effect as integer
+
+		if (isOverTime) {
+			if (!this.altEffects[entity]) this.altEffects[entity] = [:]
+			Item item = (effect as EffectOverTime).item
+			if (!this.altEffects[entity]![item]) this.altEffects[entity]![item] = []
+			push(this.altEffects[entity]![item]!, (effect as EffectOverTime))
+		}
+
+		this.alterations[entity]![key] += value
+
+		// ─────────────────────────────────────────────────────────────────────
+		// INLINE SCORING (eliminates separate computeSnapshotScore loop)
+		// ─────────────────────────────────────────────────────────────────────
+		real coef = Scoring.getDynamicCoef(entity, key, null)
+		if (isOverTime) {
+			// Over-time effects use duration mitigation
+			integer duration = (effect as EffectOverTime).duration
+			real mitigation = ScoringConfig.offensive_duration_mitigation[duration]!
+			this.effectScore += value * coef * mitigation
+		} else {
+			// Immediate effects scored at full value
+			this.effectScore += value * coef
+		}
+
+		// Update danger flags
+		if (entity == Fight.self && (
+			   key == Stats.HP
+			|| key == Stats.ABSSHIELD
+			|| key == Stats.RELSHIELD
+			|| key == Stats.DEBUFF)) {
+			this.isAlteringDanger = true
+			this.hashcode = 31 * this.hashcode + (value|0)
+		} else if (!entity.isFriend && (
+			   key == Stats.DEBUFF
+			|| key == Stats.STR
+			|| key == Stats.TP
+			|| key == Stats.MP)) {
+			this.isAlteringDanger = true
+			this.hashcode = 31 * this.hashcode + entity.id
+			this.hashcode = 31 * this.hashcode + (value|0)
+		}
+	}
+
+	/*
+	 * Internal: Add a kill during snapshot construction.
+	 * Computes kill score inline.
+	 */
+	void addKill(Entity entity) {
+		this.isAlteringDanger = true
+		this.hashcode = 31 * this.hashcode + entity.id
+		this.killed[entity] = entity
+
+		// ─────────────────────────────────────────────────────────────────────
+		// INLINE KILL SCORING
+		// ─────────────────────────────────────────────────────────────────────
+		this.effectScore += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, null)
+
+		// Inline passive for kill
+		Map<integer, real> passives = Fight.self.passives
+		if (passives[EFFECT_KILL_TO_TP]) {
+			integer tpGain = round(passives[EFFECT_KILL_TO_TP]!)
+			if (tpGain > 0) this.addAlteration(Fight.self, Stats.TP, tpGain)
+		}
+
+		// Chest power gain
+		if (entity.entityType == ENTITY_CHEST) {
+			this.addAlteration(Fight.self, Stats.PWR, Fight.chestPwrGained[entity.name])
+		}
+
+		// BR power gain
+		if (Fight.isBattleRoyale) {
+			integer basePwr = entity.isBulb ? 2 : 10
+			integer pwrGain = basePwr + round(entity.pwr * 0.5)
+			this.addAlteration(Fight.self, Stats.PWR, pwrGain)
+		}
+	}
+
+	/*
+	 * Internal: Track effect type alteration
+	 */
+	void addEffectTypeAlteration(Entity entity, integer effectType, integer value) {
+		if (!this.effectTypeAlterations[entity]) this.effectTypeAlterations[entity] = [:]
+		this.effectTypeAlterations[entity]![effectType] += value
+	}
+
+	/*
+	 * Unified interface: Add alteration (alias for addAlteration).
+	 * Used by EffectHandlers for duck-typed context.
+	 */
+	void add(Entity entity, integer key, EffectOverTime|integer effect) {
+		this.addAlteration(entity, key, effect)
+	}
+
+	/*
+	 * Unified interface: Get current HP considering snapshot alterations.
+	 * Used by EffectHandlers for duck-typed context.
+	 */
+	integer getHP(Entity entity) {
+		integer? hpDelta = this.getAlteration(entity, Stats.HP)
+		return entity.life + (hpDelta != null ? hpDelta! : 0)
+	}
+
+	/*
+	 * Unified interface: Get current HP missing considering snapshot alterations.
+	 * Used by EffectHandlers for duck-typed context.
+	 */
+	integer getHPMissing(Entity entity) {
+		integer? hpMaxDelta = this.getAlteration(entity, Stats.HPMAX)
+		integer currentMax = entity.totalLife + (hpMaxDelta != null ? hpMaxDelta! : 0)
+		return currentMax - this.getHP(entity)
+	}
+
+	/*
+	 * Unified interface: Get existing effect from same item on entity.
+	 * Used by EffectHandlers for non-stackable de-dupe.
+	 * Checks snapshot effects first (most recent), then turn-start effects.
+	 */
+	EffectOverTime? getExistingItemEffect(Entity entity, Item item) {
+		// Check snapshot effects first
+		if (this.altEffects[entity] && this.altEffects[entity]![item]) {
+			Array<EffectOverTime> effects = this.altEffects[entity]![item]!
+			return effects[count(effects) - 1]
+		}
+		// Then check turn-start effects
+		return entity.items_effectOverTime[item] ? entity.items_effectOverTime[item]![0] : null
+	}
+
+	// Legacy aliases for backward compatibility
+	integer getCurrentHP(Entity entity) { return this.getHP(entity) }
+	integer getCurrentHPMissing(Entity entity) { return this.getHPMissing(entity) }
+
+	/*
+	 * Get current stat value considering snapshot alterations
+	 */
+	integer getCurrentStat(Entity entity, integer stat, integer baseValue) {
+		integer? delta = this.getAlteration(entity, stat)
+		return baseValue + (delta != null ? delta! : 0)
+	}
+}

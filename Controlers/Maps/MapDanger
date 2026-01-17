@@ -56,7 +56,7 @@ class MapDanger {
 					if(stats != "") stats += " "
 					stats += e.name + ":" + done + "/" + count(e.offensiveItems)
 				}
-				debugW("MapDanger early exit: round " + (i + 1) + "/" + maxItems + " @" + Benchmark.format(getOperations()) + " | " + stats)
+				debugW("T" + getTurn() + " MapDanger early exit: round " + (i + 1) + "/" + maxItems + " @" + Benchmark.format(getOperations()) + " | " + stats)
 				break
 			}
 		}

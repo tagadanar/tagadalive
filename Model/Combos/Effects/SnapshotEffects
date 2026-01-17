@@ -1,0 +1,369 @@
+/**
+ * SnapshotEffects - Thin wrappers for EffectSnapshot that delegate to EffectHandlers.
+ *
+ * These wrappers fetch base stats and pass them to the shared handlers.
+ * The actual logic lives in EffectHandlers (single source of truth).
+ *
+ * IMPORTANT: These handlers are used ONLY for initial pool scoring (no prior combo effects).
+ * Combo building always uses real Consequences with cloned/chained state.
+ */
+
+// Helper: check if entity has an effect from a specific item (for notReplaceable)
+function snapshotHasItemEffect(Entity target, Item item) {
+	for (EntityEffect ee in target.effects) {
+		if (ee.item.id == item.id) return true;
+	}
+	return false
+}
+
+// ============================================================================
+// DAMAGE EFFECTS
+// ============================================================================
+
+EffectCache.registerHandlers([
+	EFFECT_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.damage(effect, entitySource, entityTarget, ratioDmg, entitySource.str, entitySource.pwr, entitySource.wsd, entityTarget.relShield, entityTarget.absShield, entityTarget.dmgReturn, snap)
+	},
+
+	EFFECT_POISON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.poison(effect, entitySource, entityTarget, ratioDmg, entitySource.mgc, entitySource.pwr, snapshotHasItemEffect(entityTarget, effect.item), snap)
+	},
+
+	EFFECT_LIFE_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.lifeDamage(effect, entitySource, entityTarget, ratioDmg, entitySource.life, entitySource.pwr, entityTarget.relShield, entityTarget.absShield, entityTarget.dmgReturn, snap)
+	},
+
+	EFFECT_NOVA_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.novaDamage(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, entitySource.pwr, snap.getHPMissing(entityTarget), snap)
+	},
+
+	EFFECT_AFTEREFFECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.aftereffect(effect, entitySource, entityTarget, ratioDmg, entitySource.mgc, snap)
+	}
+])
+
+// ============================================================================
+// HEAL EFFECTS
+// ============================================================================
+
+EffectCache.registerHandlers([
+	EFFECT_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.heal(effect, entitySource, entityTarget, ratioDmg, entitySource.wsd, snap.getHPMissing(entityTarget), snap)
+	},
+
+	EFFECT_BOOST_MAX_LIFE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.boostMaxLife(effect, entitySource, entityTarget, ratioDmg, entitySource.wsd, snap)
+	},
+
+	EFFECT_NOVA_VITALITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.novaVitality(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, snap)
+	},
+
+	EFFECT_RAW_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawHeal(effect, entitySource, entityTarget, ratioDmg, snap.getHPMissing(entityTarget), snap)
+	}
+])
+
+// ============================================================================
+// SHIELD EFFECTS
+// ============================================================================
+
+EffectCache.registerHandlers([
+	EFFECT_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.absoluteShield(effect, entitySource, entityTarget, ratioDmg, entitySource.rst, snap)
+	},
+
+	EFFECT_RELATIVE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.relativeShield(effect, entitySource, entityTarget, ratioDmg, entitySource.rst, snap)
+	},
+
+	EFFECT_ABSOLUTE_VULNERABILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.absoluteVulnerability(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_VULNERABILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.vulnerability(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_STEAL_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.stealAbsoluteShield(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawAbsoluteShield(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_RELATIVE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawRelativeShield(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_DAMAGE_RETURN: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.damageReturn(effect, entitySource, entityTarget, ratioDmg, entitySource.agi, snap)
+	}
+])
+
+// ============================================================================
+// BUFF EFFECTS (RAW and SCALED)
+// De-dupe handled centrally in EffectHandlers
+// ============================================================================
+
+EffectCache.registerHandlers([
+	// RAW BUFFS (no science scaling)
+	EFFECT_RAW_BUFF_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawBuffStrength(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_BUFF_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawBuffMagic(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_BUFF_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawBuffAgility(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_BUFF_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawBuffWisdom(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_BUFF_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawBuffResistance(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_BUFF_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawBuffTP(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_BUFF_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawBuffMP(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_BUFF_POWER: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawBuffPower(effect, entitySource, entityTarget, ratioDmg, snap)
+	},
+
+	EFFECT_RAW_BUFF_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Placeholder - not implemented
+	},
+
+	// SCALED BUFFS (scaled by science)
+	EFFECT_BUFF_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.buffStrength(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, snap)
+	},
+
+	EFFECT_BUFF_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.buffAgility(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, snap)
+	},
+
+	EFFECT_BUFF_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.buffWisdom(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, snap)
+	},
+
+	EFFECT_BUFF_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.buffResistance(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, snap)
+	},
+
+	EFFECT_BUFF_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.buffTP(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, snap)
+	},
+
+	EFFECT_BUFF_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.buffMP(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, snap)
+	}
+])
+
+// ============================================================================
+// DEBUFF / SHACKLE EFFECTS
+// ============================================================================
+
+EffectCache.registerHandlers([
+	EFFECT_SHACKLE_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		snap.addAlteration(entityTarget, Stats.STR, eot)
+	},
+
+	EFFECT_SHACKLE_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		snap.addAlteration(entityTarget, Stats.MGC, eot)
+	},
+
+	EFFECT_SHACKLE_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		snap.addAlteration(entityTarget, Stats.AGI, eot)
+	},
+
+	EFFECT_SHACKLE_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		snap.addAlteration(entityTarget, Stats.WSD, eot)
+	},
+
+	EFFECT_SHACKLE_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		snap.addAlteration(entityTarget, Stats.TP, eot)
+	},
+
+	EFFECT_SHACKLE_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		snap.addAlteration(entityTarget, Stats.MP, eot)
+	},
+
+	// Liberation - simplified for initial pool (only processes existing effects, no combo effects)
+	EFFECT_DEBUFF: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		// Process real effects from start of turn
+		for (EntityEffect entityEffect in entityTarget.effects) {
+			if (entityEffect.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) continue
+			integer reduction = round(entityEffect.value * (effect.avg/100.0))
+			if (reduction <= 0) continue
+
+			integer value = reduction * TargetType.CONVERTER[entityEffect.type]
+			EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.turns, entityEffect.type)
+			integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
+			if (stat != null) snap.addAlteration(entityTarget, stat!, eot)
+		}
+	},
+
+	EFFECT_ANTIDOTE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		// Remove poison effects from start of turn
+		for (EntityEffect entityEffect in entityTarget.effects) {
+			if (entityEffect.type == EFFECT_POISON) {
+				EffectOverTime eot = EffectOverTime(effect.item, entityEffect.value, entityEffect.turns, entityEffect.type)
+				snap.addAlteration(entityTarget, Stats.HPTIME, eot)
+			}
+		}
+	},
+
+	EFFECT_TOTAL_DEBUFF: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// TODO: implement if needed
+	}
+])
+
+// ============================================================================
+// MOVEMENT / UTILITY EFFECTS (mostly no-op for snapshot scoring)
+// ============================================================================
+
+EffectCache.registerHandlers([
+	EFFECT_TELEPORT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// No stat change - movement handled elsewhere
+	},
+
+	EFFECT_INVERT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// No stat change - position swap
+	},
+
+	EFFECT_PUSH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// No stat change in snapshot
+	},
+
+	EFFECT_ATTRACT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// No stat change in snapshot
+	},
+
+	EFFECT_REPEL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// No stat change in snapshot
+	},
+
+	EFFECT_SUMMON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Summons are complex - skip in snapshot
+	},
+
+	EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Resurrection is complex - skip in snapshot
+	},
+
+	EFFECT_KILL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (!snap.isKilled(entityTarget)) {
+			snap.addKill(entityTarget)
+		}
+	},
+
+	EFFECT_PROPAGATION: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// No direct stat change
+	},
+
+	EFFECT_REMOVE_SHACKLES: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// TODO: estimate value from existing shackles
+	},
+
+	EFFECT_STEAL_LIFE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Placeholder
+	},
+
+	EFFECT_ADD_STATE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// State changes don't affect stats directly
+	}
+])
+
+// ============================================================================
+// PASSIVE EFFECTS (mostly handled inline in damage/heal)
+// ============================================================================
+
+EffectCache.registerHandlers([
+	EFFECT_POISON_TO_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Handled inline in poison
+	},
+	EFFECT_MOVED_TO_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Movement-based - not tracked in snapshot
+	},
+	EFFECT_NOVA_DAMAGE_TO_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Handled inline in damage
+	},
+	EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Handled inline in damage
+	},
+	EFFECT_DAMAGE_TO_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Handled inline in damage
+	},
+	EFFECT_ALLY_KILLED_TO_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Complex - not tracked in snapshot
+	},
+	EFFECT_KILL_TO_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Handled in addKill
+	},
+	EFFECT_CRITICAL_TO_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Crit-based - not tracked in snapshot
+	}
+])
