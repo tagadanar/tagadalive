@@ -1,0 +1,244 @@
+/*
+ * EffectCache - Caches EffectSnapshots for reuse across Actions.
+ *
+ * Cache strategies by item type:
+ * - AREA_POINT: keyed by (item, aimCell) since aimCell = target.cell
+ * - AREA_LASER_LINE: keyed by (item, targetsHash) since same targets = same effects
+ * - Other AOE (!onCaster): keyed by (item, aimCell) since aimCell determines targets + damage ratios
+ * - AOE with onCaster: NOT cached (self inclusion depends on fromCell)
+ * - Self-cast: NOT cached (single action anyway)
+ *
+ * This cache is rebuilt each turn during MapAction.refresh().
+ */
+class EffectCache {
+	// Standard cache: [itemId][aimCellId] -> EffectSnapshot
+	static Map<integer, Map<integer, EffectSnapshot>> _cellCache = [:]
+
+	// Laser cache: [itemId][targetsHash] -> EffectSnapshot
+	static Map<integer, Map<integer, EffectSnapshot>> _laserCache = [:]
+
+	// Stats for debugging
+	static integer _hits = 0
+	static integer _misses = 0
+
+	/*
+	 * Clear the cache (called at start of each turn)
+	 */
+	static void clear() {
+		_cellCache = [:]
+		_laserCache = [:]
+		_hits = 0
+		_misses = 0
+	}
+
+	/*
+	 * Get or compute EffectSnapshot for non-laser items.
+	 * Returns null if this combination should not be cached.
+	 *
+	 * @param item The item being used
+	 * @param aimCell The cell being aimed at
+	 * @param fromCell The cell casting from (used to check cache eligibility)
+	 * @return Cached or newly computed EffectSnapshot, or null if not cacheable
+	 */
+	static EffectSnapshot? getOrCompute(Item item, Cell aimCell, Cell fromCell) {
+		// Laser handled separately via getOrComputeLaser
+		if (item.area == AREA_LASER_LINE) return null
+
+		// Skip caching for self-cast - single action anyway
+		if (aimCell == Fight.selfCell) return null
+
+		// Skip caching for onCaster AOE - self might be added depending on fromCell
+		if (item.isAOE && item.onCaster) return null
+
+		integer itemId = item.id
+		integer cellId = aimCell.id
+
+		// Check cache
+		if (_cellCache[itemId] != null && _cellCache[itemId]![cellId] != null) {
+			_hits++
+			return _cellCache[itemId]![cellId]
+		}
+
+		// Compute new snapshot
+		_misses++
+		EffectSnapshot snapshot = EffectCache.computeSnapshot(item, aimCell)
+
+		// Store in cache
+		if (!_cellCache[itemId]) _cellCache[itemId] = [:]
+		_cellCache[itemId]![cellId] = snapshot
+
+		return snapshot
+	}
+
+	/*
+	 * Get or compute EffectSnapshot for laser items.
+	 * Caches by target set hash since same targets = same effects.
+	 *
+	 * @param item The laser item
+	 * @param fromCell Cell casting from
+	 * @param toCell Cell aimed at (determines laser direction)
+	 * @return Cached or newly computed EffectSnapshot, or null if no targets
+	 */
+	static EffectSnapshot? getOrComputeLaser(Item item, Cell fromCell, Cell toCell) {
+		if (item.area != AREA_LASER_LINE) return null
+
+		// Get targets for this laser shot
+		Array<Entity> targets = Targets.getLazerTargetsFromCell(item, fromCell, toCell)
+
+		// Empty target set - no point caching
+		if (count(targets) == 0) return null
+
+		// Compute hash of target set
+		integer targetsHash = EffectCache.computeTargetsHash(targets)
+		integer itemId = item.id
+
+		// Check cache
+		if (_laserCache[itemId] != null && _laserCache[itemId]![targetsHash] != null) {
+			_hits++
+			return _laserCache[itemId]![targetsHash]
+		}
+
+		// Compute new snapshot with pre-computed targets
+		_misses++
+		EffectSnapshot snapshot = EffectCache.computeSnapshotWithTargets(item, targets, null)
+
+		// Store in cache
+		if (!_laserCache[itemId]) _laserCache[itemId] = [:]
+		_laserCache[itemId]![targetsHash] = snapshot
+
+		return snapshot
+	}
+
+	/*
+	 * Compute a hash from a set of target entities.
+	 * Order-independent: sorts by entity ID first.
+	 */
+	static integer computeTargetsHash(Array<Entity> targets) {
+		// Sort by entity ID for order-independence
+		Array<integer> ids = []
+		for (Entity e in targets) {
+			push(ids, e.id)
+		}
+		sort(ids)
+
+		// Simple hash combining
+		integer hash = 17
+		for (integer id in ids) {
+			hash = 31 * hash + id
+		}
+		return hash
+	}
+
+	/*
+	 * Compute EffectSnapshot for a given item and aimCell (non-laser).
+	 */
+	static EffectSnapshot computeSnapshot(Item item, Cell aimCell) {
+		// Get targets for this (item, aimCell)
+		Array<Entity> targets = EffectCache.getTargetsForAimCell(item, aimCell)
+		return EffectCache.computeSnapshotWithTargets(item, targets, aimCell)
+	}
+
+	/*
+	 * Compute EffectSnapshot with pre-computed targets.
+	 *
+	 * @param item The item being used
+	 * @param targets Pre-computed target list
+	 * @param aimCell The aim cell (null for laser - no AOE ratio)
+	 */
+	static EffectSnapshot computeSnapshotWithTargets(Item item, Array<Entity> targets, Cell? aimCell) {
+		Benchmark.start("EffectCache.compute")
+		EffectSnapshot snap = EffectSnapshot()
+		snap.cdDuration = item.cdDuration
+		snap.targets = targets
+
+		// Apply effects to each target
+		// Score is computed inline in EffectSnapshot.addAlteration() and addKill()
+		for (Entity target in targets) {
+			if (snap.isKilled(target)) continue
+
+			// Calculate damage ratio for AOE (laser has no ratio)
+			real ratioDmg = 1.0
+			if (item.isAOE && aimCell != null) {
+				ratioDmg = 1 - (0.2 * getCellDistance(aimCell!.id, target.cell.id))
+				if (ratioDmg <= 0) continue  // Target too far from AOE center
+			}
+
+			// Apply each effect
+			for (ItemEffect effect in item.effects) {
+				EffectCache.applyEffect(snap, effect, Fight.self, target, ratioDmg)
+			}
+		}
+
+		Benchmark.stop("EffectCache.compute")
+		return snap
+	}
+
+	/*
+	 * Get targets for item aimed at aimCell (non-laser)
+	 */
+	static Array<Entity> getTargetsForAimCell(Item item, Cell aimCell) {
+		// For AREA_POINT, target is entity on aimCell
+		if (item.area == AREA_POINT) {
+			Entity? entityOnCell = Board.entityCells[aimCell]
+			if (entityOnCell != null) return [entityOnCell!]
+			return []
+		}
+
+		// For other AOE types, get all entities in area
+		return getItemTargets(item, aimCell)
+	}
+
+	/*
+	 * Apply a single effect to the snapshot.
+	 * Dispatches to registered handler based on effect type.
+	 */
+	static void applyEffect(EffectSnapshot snap, ItemEffect effect, Entity source, Entity target, real ratioDmg) {
+		var handler = EffectCache.snapshotHandlers[effect.type]
+		if (handler == null) {
+			// Unhandled effect - skip silently for snapshot
+			return
+		}
+
+		Entity effectTarget = target
+		real effectRatio = ratioDmg
+		if (effect.modifCaster) {
+			effectTarget = source
+			effectRatio = 1.0
+		}
+
+		handler(effect, source, effectTarget, effectRatio, snap)
+	}
+
+	/*
+	 * Effect handlers for snapshot building.
+	 * These mirror the handlers in Consequences but update EffectSnapshot.
+	 * Registered by SnapshotEffects module during include.
+	 */
+	static Map<integer, Function<ItemEffect, Entity, Entity, real, EffectSnapshot => void>> snapshotHandlers = [:]
+
+	/*
+	 * Register a snapshot effect handler
+	 */
+	static void registerHandler(integer effectType, Function<ItemEffect, Entity, Entity, real, EffectSnapshot => void> handler) {
+		snapshotHandlers[effectType] = handler
+	}
+
+	/*
+	 * Register multiple handlers at once
+	 */
+	static void registerHandlers(Map<integer, Function<ItemEffect, Entity, Entity, real, EffectSnapshot => void>> handlers) {
+		for (integer effectType : Function<ItemEffect, Entity, Entity, real, EffectSnapshot => void> handler in handlers) {
+			snapshotHandlers[effectType] = handler
+		}
+	}
+
+	/*
+	 * Log cache statistics (for performance tuning)
+	 */
+	static void logStats() {
+		integer total = _hits + _misses
+		if (total > 0) {
+			debug("EffectCache: " + _hits + "/" + total + " hits (" + round(100.0*_hits/total) + "%)")
+		}
+	}
+}

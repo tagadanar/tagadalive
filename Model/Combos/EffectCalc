@@ -1,0 +1,218 @@
+/*
+ * EffectCalc - Pure calculation functions shared by Consequences and EffectSnapshot handlers.
+ *
+ * These functions contain the math for effect calculations. Handlers pass in stats
+ * (either base or simulated) and receive computed values.
+ *
+ * Benefits:
+ * - Single source of truth for damage/heal formulas
+ * - Changes to formulas only need updating in one place
+ * - Both SnapshotEffects and DamageEffects/HealEffects use same math
+ */
+class EffectCalc {
+
+	// ════════════════════════════════════════════════════════════════════════
+	// DAMAGE CALCULATIONS
+	// ════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Raw damage before shields (EFFECT_DAMAGE)
+	 * @param avg         Effect average value
+	 * @param str         Source strength (base or simulated)
+	 * @param pwr         Source power (base or simulated)
+	 * @param ratio       AOE distance ratio (1.0 for non-AOE)
+	 * @param targetCount Number of targets (for multiplyByTarget effects)
+	 */
+	static real rawDamage(real avg, integer str, integer pwr, real ratio, integer targetCount) {
+		return avg * targetCount * ratio * (1 + str/100.0) * (1 + pwr/100.0)
+	}
+
+	/*
+	 * Apply shields to raw damage
+	 * @param raw       Raw damage before shields
+	 * @param relShield Target's relative shield % (base or simulated)
+	 * @param absShield Target's absolute shield (base or simulated)
+	 * @return Damage after shields (minimum 0)
+	 */
+	static real applyShields(real raw, integer relShield, integer absShield) {
+		real value = raw * (1 - relShield/100.0) - absShield
+		return value < 0 ? 0.0 : value
+	}
+
+	/*
+	 * Erosion from damage
+	 */
+	static integer erosion(real damage) {
+		return round(damage / Stats.DMG_EROSION_DIVISOR)
+	}
+
+	/*
+	 * Life steal amount
+	 * @param damage    Damage dealt
+	 * @param wsd       Source wisdom (base or simulated)
+	 * @param hpMissing Source HP missing (base or simulated)
+	 */
+	static integer lifeSteal(real damage, integer wsd, integer hpMissing) {
+		integer steal = round(damage * (wsd / 1000.0))
+		return steal > hpMissing ? hpMissing : steal
+	}
+
+	/*
+	 * Damage return amount
+	 * @param rawDamage Damage before shields
+	 * @param rst       Target's damage return % (base or simulated)
+	 */
+	static real damageReturn(real rawDamage, integer rst) {
+		return rawDamage * (rst / 100.0)
+	}
+
+	/*
+	 * Poison total damage (EFFECT_POISON)
+	 * @param avg      Effect average value
+	 * @param mgc      Source magic (base or simulated)
+	 * @param pwr      Source power (base or simulated)
+	 * @param ratio    AOE distance ratio
+	 * @param duration Effect duration
+	 */
+	static integer poisonDamage(real avg, integer mgc, integer pwr, real ratio, integer duration) {
+		return round(avg * (1 + mgc/100.0) * ratio * (1 + pwr/100.0) * duration)
+	}
+
+	/*
+	 * Poison erosion (conservative - 1 turn only)
+	 */
+	static integer poisonErosion(integer totalDamage, integer duration) {
+		return round((totalDamage / duration) / Stats.PSN_EROSION_DIVISOR)
+	}
+
+	/*
+	 * Life damage raw (EFFECT_LIFE_DAMAGE)
+	 * @param sourceLife Source current HP
+	 * @param avgPercent Effect percentage (e.g., 8 for 8%)
+	 * @param pwr        Source power
+	 */
+	static real lifeDamageRaw(integer sourceLife, real avgPercent, integer pwr) {
+		return sourceLife * (avgPercent/100.0) * (1 + pwr/100.0)
+	}
+
+	/*
+	 * Nova damage (EFFECT_NOVA_DAMAGE)
+	 * @param avg       Effect average value
+	 * @param snc       Source science (base or simulated)
+	 * @param pwr       Source power (base or simulated)
+	 * @param ratio     AOE distance ratio
+	 * @param hpMissing Target HP missing (for cap)
+	 */
+	static integer novaDamage(real avg, integer snc, integer pwr, real ratio, integer hpMissing) {
+		integer value = round(avg * (1 + snc/100.0) * (1 + pwr/100.0) * ratio)
+		return value > hpMissing ? hpMissing : value
+	}
+
+	/*
+	 * Aftereffect damage (EFFECT_AFTEREFFECT)
+	 */
+	static integer aftereffectDamage(real avg, integer mgc, real ratio) {
+		return round(avg * (1 + mgc/100.0) * ratio)
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// HEAL CALCULATIONS
+	// ════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Heal value (EFFECT_HEAL) - scaled by wisdom
+	 * @param avg       Effect average value
+	 * @param wsd       Source wisdom (base or simulated)
+	 * @param ratio     AOE distance ratio
+	 */
+	static integer healValue(real avg, integer wsd, real ratio) {
+		return round(avg * (1 + wsd/100.0) * ratio)
+	}
+
+	/*
+	 * Capped instant heal (respects HP missing)
+	 */
+	static integer healCapped(real avg, integer wsd, real ratio, integer hpMissing) {
+		integer value = EffectCalc.healValue(avg, wsd, ratio)
+		return value > hpMissing ? hpMissing : value
+	}
+
+	/*
+	 * Raw heal (EFFECT_RAW_HEAL) - no stat scaling
+	 */
+	static integer rawHealCapped(real avg, real ratio, integer hpMissing) {
+		integer value = round(avg * ratio)
+		return value > hpMissing ? hpMissing : value
+	}
+
+	/*
+	 * Max life boost (EFFECT_BOOST_MAX_LIFE) - wisdom scaled
+	 */
+	static integer boostMaxLife(real avg, integer wsd, real ratio) {
+		return round(avg * (1 + wsd/100.0) * ratio)
+	}
+
+	/*
+	 * Nova vitality (EFFECT_NOVA_VITALITY) - science scaled
+	 */
+	static integer novaVitality(real avg, integer snc, real ratio) {
+		return round(avg * (1 + snc/100.0) * ratio)
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// BUFF/DEBUFF CALCULATIONS
+	// ════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Science-scaled buff (EFFECT_BUFF_*)
+	 */
+	static integer scaledBuff(real avg, integer snc, real ratio) {
+		return round(avg * (1 + snc/100.0) * ratio)
+	}
+
+	/*
+	 * Raw buff (EFFECT_RAW_BUFF_*) - no scaling
+	 */
+	static integer rawBuff(real avg, real ratio) {
+		return round(avg * ratio)
+	}
+
+	/*
+	 * Magic-scaled shackle (EFFECT_SHACKLE_*)
+	 */
+	static integer shackle(real avg, integer mgc, real ratio) {
+		return round(avg * (1 + mgc/100.0) * ratio)
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// SHIELD CALCULATIONS
+	// ════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Resistance-scaled shield (EFFECT_ABSOLUTE_SHIELD, EFFECT_RELATIVE_SHIELD)
+	 */
+	static integer scaledShield(real avg, integer rst, real ratio) {
+		return round(avg * (1 + rst/100.0) * ratio)
+	}
+
+	/*
+	 * Agility-scaled damage return (EFFECT_DAMAGE_RETURN)
+	 */
+	static integer scaledDamageReturn(real avg, integer agi, real ratio) {
+		return round(avg * (1 + agi/100.0) * ratio)
+	}
+
+	/*
+	 * Raw shield value (EFFECT_RAW_*_SHIELD) - no scaling
+	 */
+	static integer rawShield(real avg) {
+		return round(avg)
+	}
+
+	/*
+	 * Vulnerability value (EFFECT_*_VULNERABILITY) - no scaling, just ratio
+	 */
+	static integer vulnerability(real avg, real ratio) {
+		return round(avg * ratio)
+	}
+}

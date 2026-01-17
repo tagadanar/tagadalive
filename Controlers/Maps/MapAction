@@ -15,6 +15,8 @@ class MapAction {
 		_cell_item_bestAction = [:]
 		_item_entityId_attackCells = [:]
 		_item_entityId_scores = [:]
+		// Clear effect cache for new turn
+		EffectCache.clear()
 		// pour chaque item
 		for(Item item in Fight.self.items){
 			// si j'ai le cooldown
@@ -75,8 +77,10 @@ class MapAction {
 				}
 			}
 		}
+		// Log cache stats at end of action pool creation
+		EffectCache.logStats()
 	}
-	
+
 	static Map<Cell, Map<Item, Action>> getMapBestAction(){
 		return _cell_item_bestAction
 	}
@@ -128,7 +132,28 @@ class MapAction {
 		if(targetCell != Fight.selfCell &&
 		   Fight.self.extendedReachableCells[from] == null) return null
 		Benchmark.start("addAction")
-		Action action = new Action(item, from, targetCell)
+
+		// Try to use cached EffectSnapshot for efficiency
+		Action action
+		if (item.area == AREA_LASER_LINE) {
+			// Laser: cache by target set hash
+			EffectSnapshot? snapshot = EffectCache.getOrComputeLaser(item, from, targetCell)
+			if (snapshot != null) {
+				action = new Action(item, from, targetCell, snapshot!)
+			} else {
+				// No targets or not cacheable - create without cache
+				action = new Action(item, from, targetCell)
+			}
+		} else {
+			// Non-laser: cache by (item, aimCell)
+			EffectSnapshot? snapshot = EffectCache.getOrCompute(item, targetCell, from)
+			if (snapshot != null) {
+				action = new Action(item, from, targetCell, snapshot!)
+			} else {
+				// Not cacheable (self-cast, onCaster AOE) - create without cache
+				action = new Action(item, from, targetCell)
+			}
+		}
 
 		// ajout dans la map par item puis cells
 		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]

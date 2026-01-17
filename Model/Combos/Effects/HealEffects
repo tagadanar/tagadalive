@@ -1,45 +1,26 @@
 /**
- * HealEffects - Handlers for healing-related effects
- * 
+ * HealEffects - Thin wrappers for Consequences that delegate to EffectHandlers.
+ *
+ * De-dupe for non-stackable effects is handled centrally in EffectHandlers.
+ *
  * Handles: EFFECT_HEAL, EFFECT_BOOST_MAX_LIFE, EFFECT_NOVA_VITALITY, EFFECT_RAW_HEAL
  */
 
 // Register all heal effect handlers
 Consequences.registerHandlers([
 	EFFECT_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(effect.duration>1){ // HPTIME (heal over time)
-			if(!effect.stackable){
-				EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-				if(itemEffect){
-					EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-					conseq.add(entityTarget, Stats.HPTIME, eot)
-				}
-			}
-			integer value = round(effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg)
-			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-			conseq.add(entityTarget, Stats.HPTIME, eot)
-		} else { // HP (instant heal)
-			integer value = round(effect.avg*(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg)
-			value = min(value, entityTarget.getCurrentHPMissing(conseq))
-			conseq.add(entityTarget, Stats.HP, value)
-		}
+		EffectHandlers.heal(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentWsd(conseq), entityTarget.getCurrentHPMissing(conseq), conseq)
 	},
 
 	EFFECT_BOOST_MAX_LIFE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		integer value = round(effect.avg *(1+(entitySource.getCurrentWsd(conseq)/100)) *ratioDmg)
-		conseq.add(entityTarget, Stats.HPMAX, value)
-		conseq.add(entityTarget, Stats.HP, value)
+		EffectHandlers.boostMaxLife(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentWsd(conseq), conseq)
 	},
 
 	EFFECT_NOVA_VITALITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		conseq.add(entityTarget, Stats.HPMAX, value)
+		EffectHandlers.novaVitality(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentSnc(conseq), conseq)
 	},
 
 	EFFECT_RAW_HEAL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		// Instant heal without wisdom scaling
-		integer value = round(effect.avg * ratioDmg)
-		value = min(value, entityTarget.getCurrentHPMissing(conseq))
-		conseq.add(entityTarget, Stats.HP, value)
+		EffectHandlers.rawHeal(effect, entitySource, entityTarget, ratioDmg, entityTarget.getCurrentHPMissing(conseq), conseq)
 	}
 ])

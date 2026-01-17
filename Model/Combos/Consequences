@@ -13,6 +13,10 @@ class Consequences {
 	Item? currentWeapon           // Equipped weapon (for switch cost tracking)
 	private integer _boostMP_before = 0
 
+	// Shared effect snapshot (null = local mode, set = shared mode)
+	// In shared mode, effect data comes from _shared, local maps are empty
+	EffectSnapshot? _shared = null
+
 
 	/*
 	 * Empty constructor for MCTS root node (no previous actions)
@@ -42,14 +46,45 @@ class Consequences {
 		this.currentMP = consequences.currentMP
 		this.currentTP = consequences.currentTP
 		this.currentWeapon = consequences.currentWeapon
-		this._alterations = clone(consequences._alterations, 2) as Map<Entity, Map<integer, integer>>
-		this._altEffects = clone(consequences._altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
-		this._effectTypeAlterations = clone(consequences._effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
-		this._killed = clone(consequences._killed) as Map<Entity, Entity>
+		// Materialize shared data if parent was in shared mode
+		if (consequences._shared != null) {
+			this._alterations = clone(consequences._shared!.alterations, 2) as Map<Entity, Map<integer, integer>>
+			this._altEffects = clone(consequences._shared!.altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
+			this._effectTypeAlterations = clone(consequences._shared!.effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
+			this._killed = clone(consequences._shared!.killed) as Map<Entity, Entity>
+		} else {
+			this._alterations = clone(consequences._alterations, 2) as Map<Entity, Map<integer, integer>>
+			this._altEffects = clone(consequences._altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
+			this._effectTypeAlterations = clone(consequences._effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
+			this._killed = clone(consequences._killed) as Map<Entity, Entity>
+		}
 		this.hashcode = consequences.hashcode
 		this.score = consequences.score != null ? consequences.score : 0.0  // Inherit parent score
 		construct(action, true)  // Warn during combo building (catches actual bugs)
 		Benchmark.stop("Consequences.fromConseq")
+	}
+
+	/*
+	 * Static factory: creates Consequences from pre-computed EffectSnapshot.
+	 * Only applies movement costs; effects come from the shared snapshot.
+	 * Used for initial action pool creation where many actions share identical effects.
+	 */
+	static Consequences fromSnapshot(EffectSnapshot snapshot, Action action) {
+		Benchmark.start("Consequences.shared")
+		Consequences c = new Consequences()
+		c._shared = snapshot
+		c.targets = snapshot.targets
+		c.score = snapshot.effectScore
+		c.isAlteringDanger = snapshot.isAlteringDanger
+		c.hashcode = snapshot.hashcode
+
+		// Apply movement cost only (effects already computed in snapshot)
+		c.constructMovementOnly(action)
+
+		// Cooldown penalty
+		c.score -= snapshot.cdDuration
+		Benchmark.stop("Consequences.shared")
+		return c
 	}
 	
 	construct(Action action, boolean warnOnUnreachable){
@@ -124,6 +159,48 @@ class Consequences {
 		this.score -= action.item.cdDuration
 	}
 
+	/*
+	 * Movement-only construction for shared snapshot mode.
+	 * Applies movement cost and weapon switch cost, but no effect computation.
+	 * Effects are pre-computed in the shared EffectSnapshot.
+	 */
+	void constructMovementOnly(Action action) {
+		// Movement cost calculation (same as construct, but no kills to ignore in initial pool)
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
+
+		if (action.from != Fight.selfCell) {
+			if (reachableCells[action.from] != null) {
+				integer moveCost = reachableCells[action.from]!
+				this.currentMP = this.currentMP - moveCost
+			}
+			this.currentCell = action.from
+		}
+
+		// TP cost
+		this.currentTP -= action.item.cost
+
+		// Weapon switch cost
+		if (action.item.isWeap && action.item != this.currentWeapon) {
+			this.currentTP -= 1
+		}
+
+		// Update current weapon
+		if (action.item.isWeap) {
+			this.currentWeapon = action.item
+		}
+
+		// Handle MP/TP boosts from shared snapshot
+		integer? boostMP = this._shared!.getAlteration(Fight.self, Stats.MP)
+		if (boostMP != null && boostMP != 0) {
+			this.currentMP += boostMP!
+		}
+
+		integer? boostTP = this._shared!.getAlteration(Fight.self, Stats.TP)
+		if (boostTP != null && boostTP != 0) {
+			this.currentTP += boostTP!
+		}
+	}
+
 	void add(Entity entity, integer key, EffectOverTime|integer effect){
 		if(!_alterations[entity]) _alterations[entity] = [:]
 		boolean isOverTime = effect instanceof EffectOverTime
@@ -186,16 +263,60 @@ class Consequences {
 	}
 	
 	Map<Entity, Map<integer, integer>> getAlterations(){
+		if (_shared != null) return _shared!.alterations
 		return _alterations
 	}
-		
+
 	boolean isKilled(Entity entity){
+		if (_shared != null) return _shared!.isKilled(entity)
 		return _killed[entity] != null
 	}
-	
+
 	integer? getAlteration(Entity entity, integer key){
+		if (_shared != null) return _shared!.getAlteration(entity, key)
 		if(_alterations[entity] == null) return null
 		return _alterations[entity]![key]
+	}
+
+	/*
+	 * Unified interface: Get current HP considering alterations.
+	 * Used by EffectHandlers for duck-typed context.
+	 */
+	integer getHP(Entity entity) {
+		integer? hpDelta = this.getAlteration(entity, Stats.HP)
+		return entity.life + (hpDelta != null ? hpDelta! : 0)
+	}
+
+	/*
+	 * Unified interface: Get current HP missing considering alterations.
+	 * Used by EffectHandlers for duck-typed context.
+	 */
+	integer getHPMissing(Entity entity) {
+		integer? hpMaxDelta = this.getAlteration(entity, Stats.HPMAX)
+		integer currentMax = entity.totalLife + (hpMaxDelta != null ? hpMaxDelta! : 0)
+		return currentMax - this.getHP(entity)
+	}
+
+	/*
+	 * Unified interface: Get existing effect from same item on entity.
+	 * Used by EffectHandlers for non-stackable de-dupe.
+	 * Checks combo effects first (most recent), then turn-start effects.
+	 */
+	EffectOverTime? getExistingItemEffect(Entity entity, Item item) {
+		// Check combo effects first
+		if (_shared != null) {
+			if (_shared!.altEffects[entity] && _shared!.altEffects[entity]![item]) {
+				Array<EffectOverTime> effects = _shared!.altEffects[entity]![item]!
+				return effects[count(effects) - 1]
+			}
+		} else {
+			if (_altEffects[entity] && _altEffects[entity]![item]) {
+				Array<EffectOverTime> effects = _altEffects[entity]![item]!
+				return effects[count(effects) - 1]
+			}
+		}
+		// Then check turn-start effects
+		return entity.items_effectOverTime[item] ? entity.items_effectOverTime[item]![0] : null
 	}
 
 	/**
@@ -203,6 +324,7 @@ class Consequences {
 	 * Used by removal/reduction effects (Antidote, Liberation, Manumission) to avoid double-counting.
 	 */
 	integer getEffectTypeAlteration(Entity entity, integer effectType){
+		if (_shared != null) return _shared!.getEffectTypeAlteration(entity, effectType)
 		if(!_effectTypeAlterations[entity]) return 0
 		return _effectTypeAlterations[entity]![effectType]  // null coerces to 0
 	}

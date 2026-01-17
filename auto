@@ -47,14 +47,18 @@ include('Model/Combos/HealPotential')
 include('Model/Combos/AllyDamagePotential')
 include('Model/Combos/Position')
 include('Model/Combos/Damages')
+include('Model/Combos/EffectCalc')       // Pure calculation helpers (no dependencies beyond Stats)
+include('Model/Combos/EffectOverTime')
 include('Model/Combos/Action')
 include('Model/Combos/Consequences')
 include('Model/Combos/Combo')
-include('Model/Combos/EffectOverTime')
 
-// CRITICAL: Effects must be included AFTER Consequences!
-// Each effect file calls Consequences.registerHandlers() at include time.
-// Moving these before Consequences will break handler registration.
+// EffectHandlers: Single source of truth for effect logic (duck-typed context)
+// Must be AFTER EffectCalc, BEFORE effect files that use it.
+include('Model/Combos/Effects/EffectHandlers')
+
+// CRITICAL: Effects must be included AFTER Consequences, EffectCalc, AND EffectHandlers!
+// Each effect file calls Consequences.registerHandlers() and uses EffectCalc/EffectHandlers.
 include('Model/Combos/Effects/DamageEffects')
 include('Model/Combos/Effects/HealEffects')
 include('Model/Combos/Effects/ShieldEffects')
@@ -73,12 +77,21 @@ include('Services/Benchmark')
 // ────────────────────────────────────────────────────────────────────────────
 // SCORING SYSTEM: Coefficient calculation and action evaluation
 // Order: Config → EntityCoefs → BattleState → Modifiers → Scoring facade
+// Must be AFTER Consequences (Scoring uses Consequences? parameter type)
 // ────────────────────────────────────────────────────────────────────────────
 include('AI/ScoringConfig')
 include('AI/EntityCoefs')
 include('AI/BattleState')
 include('AI/ScoringModifiers')
 include('AI/Scoring')
+
+// ────────────────────────────────────────────────────────────────────────────
+// EFFECT CACHE: Caches EffectSnapshots for action pool creation
+// EffectSnapshot must be AFTER Scoring (addAlteration uses Scoring.getDynamicCoef)
+// ────────────────────────────────────────────────────────────────────────────
+include('Model/Combos/EffectSnapshot')   // Inline scoring in addAlteration() needs Scoring
+include('Controlers/Maps/EffectCache')
+include('Model/Combos/Effects/SnapshotEffects')
 
 include('Model/Combos/Opportunity')
 

@@ -1,0 +1,358 @@
+/**
+ * EffectHandlers - Single source of truth for effect logic.
+ *
+ * These static methods contain all effect computation logic, used by both:
+ * - Consequences handlers (combo building with simulated stats)
+ * - SnapshotEffects handlers (initial pool with base stats)
+ *
+ * The context parameter is duck-typed: works with both Consequences and EffectSnapshot
+ * since both implement the unified interface (add, addKill, isKilled, getHP, getHPMissing,
+ * getExistingItemEffect, targets).
+ *
+ * Stats are passed explicitly to avoid branching inside handlers.
+ * Non-stackable de-dupe is centralized here via dedupeIfNeeded().
+ */
+class EffectHandlers {
+
+	/*
+	 * Helper: Handle non-stackable effect de-duplication.
+	 * If effect is non-stackable and target already has this effect, adds counter-effect.
+	 * Returns true if de-dupe was applied.
+	 */
+	static boolean dedupeIfNeeded(ItemEffect effect, Entity target, integer stat, ctx) {
+		if (effect.stackable) return false
+		EffectOverTime? existing = ctx.getExistingItemEffect(target, effect.item)
+		if (existing != null) {
+			EffectOverTime counter = EffectOverTime(effect.item, -existing!.value, existing!.duration, effect.type)
+			ctx.add(target, stat, counter)
+			return true
+		}
+		return false
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// DAMAGE EFFECTS
+	// ════════════════════════════════════════════════════════════════════════
+
+	static void damage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcStr, integer srcPwr, integer srcWsd, integer tgtRel, integer tgtAbs, integer tgtDmgRet, ctx) {
+		integer targetsCount = effect.multiplyByTarget ? count(ctx.targets) : 1
+		real beforeShield = EffectCalc.rawDamage(effect.avg, srcStr, srcPwr, ratio, targetsCount)
+		real value = EffectCalc.applyShields(beforeShield, tgtRel, tgtAbs)
+
+		ctx.add(target, Stats.HP, -round(value))
+
+		// Inline passives for damage taken (target's passives)
+		Map<integer, real> passives = target.passives
+		if (passives[EFFECT_DAMAGE_TO_STRENGTH]) {
+			integer strGain = round(value * passives[EFFECT_DAMAGE_TO_STRENGTH]!)
+			if (strGain > 0) ctx.add(target, Stats.STR, strGain)
+		}
+		if (passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]) {
+			integer shieldGain = round(value * passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]!)
+			if (shieldGain > 0) ctx.add(target, Stats.ABSSHIELD, shieldGain)
+		}
+
+		if (ctx.getHP(target) <= 0) {
+			ctx.addKill(target)
+		}
+
+		// Erosion
+		ctx.add(target, Stats.HPMAX, -EffectCalc.erosion(value))
+		// Inline passive for nova/erosion
+		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(EffectCalc.erosion(value) * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
+		}
+
+		// Life steal
+		integer lifeSteal = EffectCalc.lifeSteal(value, srcWsd, ctx.getHPMissing(source))
+		if (lifeSteal > 0) ctx.add(source, Stats.HP, lifeSteal)
+
+		// Damage return
+		real dmgReturn = EffectCalc.damageReturn(beforeShield, tgtDmgRet)
+		if (dmgReturn > 0) {
+			ctx.add(source, Stats.HP, -round(dmgReturn))
+			ctx.add(source, Stats.HPMAX, -EffectCalc.erosion(dmgReturn))
+			if (dmgReturn >= ctx.getHP(source)) {
+				ctx.addKill(source)
+			}
+		}
+	}
+
+	static void poison(ItemEffect effect, Entity source, Entity target, real ratio, integer srcMgc, integer srcPwr, boolean hasEffect, ctx) {
+		// Check notReplaceable (e.g., COVID) - skip if target already has this effect
+		if (effect.notReplaceable && hasEffect) return;
+
+		integer value = EffectCalc.poisonDamage(effect.avg, srcMgc, srcPwr, ratio, effect.duration)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		ctx.add(target, Stats.HPTIME, eot)
+
+		// Inline passive for poison taken (target's passives)
+		Map<integer, real> passives = target.passives
+		if (passives[EFFECT_POISON_TO_SCIENCE]) {
+			integer sciGain = round(effect.avg * passives[EFFECT_POISON_TO_SCIENCE]!)
+			if (sciGain > 0) ctx.add(target, Stats.SNC, sciGain)
+		}
+
+		// Erosion (only 1 turn - often antidoted/liberated)
+		integer erosion = EffectCalc.poisonErosion(value, effect.duration)
+		ctx.add(target, Stats.HPMAX, -erosion)
+		// Inline passive for nova/erosion
+		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
+		}
+	}
+
+	static void lifeDamage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcLife, integer srcPwr, integer tgtRel, integer tgtAbs, integer tgtDmgRet, ctx) {
+		real beforeShield = EffectCalc.lifeDamageRaw(srcLife, effect.avg, srcPwr)
+		real value = EffectCalc.applyShields(beforeShield, tgtRel, tgtAbs)
+
+		ctx.add(target, Stats.HP, -round(value))
+
+		if (ctx.getHP(target) <= 0) {
+			ctx.addKill(target)
+		}
+
+		// Erosion
+		ctx.add(target, Stats.HPMAX, -EffectCalc.erosion(value))
+		// Inline passive for nova/erosion (target's passives)
+		Map<integer, real> passives = target.passives
+		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(EffectCalc.erosion(value) * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
+		}
+
+		if (target != source) {
+			// Damage return
+			real dmgReturn = EffectCalc.damageReturn(beforeShield, tgtDmgRet)
+			if (dmgReturn > 0) {
+				ctx.add(source, Stats.HP, -round(dmgReturn))
+				ctx.add(source, Stats.HPMAX, -EffectCalc.erosion(dmgReturn))
+				if (dmgReturn >= ctx.getHP(source)) {
+					ctx.addKill(source)
+				}
+			}
+		}
+	}
+
+	static void novaDamage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, integer srcPwr, integer tgtHPMiss, ctx) {
+		integer value = EffectCalc.novaDamage(effect.avg, srcSnc, srcPwr, ratio, tgtHPMiss)
+		ctx.add(target, Stats.HPMAX, -value)
+
+		// Inline passive for nova (target's passives)
+		Map<integer, real> passives = target.passives
+		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(value * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
+		}
+	}
+
+	static void aftereffect(ItemEffect effect, Entity source, Entity target, real ratio, integer srcMgc, ctx) {
+		integer value = EffectCalc.aftereffectDamage(effect.avg, srcMgc, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		ctx.add(target, Stats.HP, -value)
+		ctx.add(target, Stats.HPTIME, eot)
+
+		// Erosion
+		ctx.add(target, Stats.HPMAX, -EffectCalc.erosion(value))
+		// Inline passive for nova/erosion (target's passives)
+		Map<integer, real> passives = target.passives
+		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(EffectCalc.erosion(value) * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
+		}
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// HEAL EFFECTS
+	// ════════════════════════════════════════════════════════════════════════
+
+	static void heal(ItemEffect effect, Entity source, Entity target, real ratio, integer srcWsd, integer tgtHPMiss, ctx) {
+		if (effect.duration > 1) {
+			// Heal over time - de-dupe if non-stackable
+			EffectHandlers.dedupeIfNeeded(effect, target, Stats.HPTIME, ctx)
+			integer value = EffectCalc.healValue(effect.avg, srcWsd, ratio)
+			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+			ctx.add(target, Stats.HPTIME, eot)
+		} else {
+			// Instant heal - no de-dupe needed
+			integer value = EffectCalc.healCapped(effect.avg, srcWsd, ratio, tgtHPMiss)
+			if (value > 0) ctx.add(target, Stats.HP, value)
+		}
+	}
+
+	static void boostMaxLife(ItemEffect effect, Entity source, Entity target, real ratio, integer srcWsd, ctx) {
+		integer value = EffectCalc.boostMaxLife(effect.avg, srcWsd, ratio)
+		ctx.add(target, Stats.HPMAX, value)
+		ctx.add(target, Stats.HP, value)
+	}
+
+	static void novaVitality(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, ctx) {
+		integer value = EffectCalc.novaVitality(effect.avg, srcSnc, ratio)
+		ctx.add(target, Stats.HPMAX, value)
+	}
+
+	static void rawHeal(ItemEffect effect, Entity source, Entity target, real ratio, integer tgtHPMiss, ctx) {
+		integer value = EffectCalc.rawHealCapped(effect.avg, ratio, tgtHPMiss)
+		if (value > 0) ctx.add(target, Stats.HP, value)
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// SHIELD EFFECTS
+	// ════════════════════════════════════════════════════════════════════════
+
+	static void absoluteShield(ItemEffect effect, Entity source, Entity target, real ratio, integer srcRst, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.ABSSHIELD, ctx)
+		integer value = EffectCalc.scaledShield(effect.avg, srcRst, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.ABSSHIELD, eot)
+	}
+
+	static void relativeShield(ItemEffect effect, Entity source, Entity target, real ratio, integer srcRst, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.RELSHIELD, ctx)
+		integer value = EffectCalc.scaledShield(effect.avg, srcRst, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.RELSHIELD, eot)
+	}
+
+	static void absoluteVulnerability(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		integer value = EffectCalc.vulnerability(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		ctx.add(target, Stats.ABSSHIELD, eot)
+	}
+
+	static void vulnerability(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		integer value = EffectCalc.vulnerability(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		ctx.add(target, Stats.RELSHIELD, eot)
+	}
+
+	static void stealAbsoluteShield(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		integer value = EffectCalc.vulnerability(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.ABSSHIELD, eot)
+	}
+
+	static void rawAbsoluteShield(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectOverTime eot = EffectOverTime(effect.item, EffectCalc.rawShield(effect.avg), effect.duration, effect.type)
+		ctx.add(target, Stats.ABSSHIELD, eot)
+	}
+
+	static void rawRelativeShield(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectOverTime eot = EffectOverTime(effect.item, EffectCalc.rawShield(effect.avg), effect.duration, effect.type)
+		ctx.add(target, Stats.RELSHIELD, eot)
+	}
+
+	static void damageReturn(ItemEffect effect, Entity source, Entity target, real ratio, integer srcAgi, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.DMGRETURN, ctx)
+		integer value = EffectCalc.scaledDamageReturn(effect.avg, srcAgi, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.DMGRETURN, eot)
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// BUFF EFFECTS
+	// ════════════════════════════════════════════════════════════════════════
+
+	// --- RAW BUFFS (no science scaling) ---
+
+	static void rawBuffStrength(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.STR, ctx)
+		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.STR, eot)
+	}
+
+	static void rawBuffMagic(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.MGC, ctx)
+		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.MGC, eot)
+	}
+
+	static void rawBuffAgility(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.AGI, ctx)
+		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.AGI, eot)
+	}
+
+	static void rawBuffWisdom(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.WSD, ctx)
+		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.WSD, eot)
+	}
+
+	static void rawBuffResistance(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.RST, ctx)
+		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.RST, eot)
+	}
+
+	static void rawBuffTP(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.TP, ctx)
+		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.TP, eot)
+	}
+
+	static void rawBuffMP(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.MP, ctx)
+		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.MP, eot)
+	}
+
+	static void rawBuffPower(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		// Power buffs are always stackable (no de-dupe)
+		EffectOverTime eot = EffectOverTime(effect.item, EffectCalc.rawShield(effect.avg), effect.duration, effect.type)
+		ctx.add(target, Stats.PWR, eot)
+	}
+
+	// --- SCALED BUFFS (scaled by caster's science) ---
+
+	static void buffStrength(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.STR, ctx)
+		integer value = EffectCalc.scaledBuff(effect.avg, srcSnc, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.STR, eot)
+	}
+
+	static void buffAgility(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.AGI, ctx)
+		integer value = EffectCalc.scaledBuff(effect.avg, srcSnc, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.AGI, eot)
+	}
+
+	static void buffWisdom(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.WSD, ctx)
+		integer value = EffectCalc.scaledBuff(effect.avg, srcSnc, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.WSD, eot)
+	}
+
+	static void buffResistance(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.RST, ctx)
+		integer value = EffectCalc.scaledBuff(effect.avg, srcSnc, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.RST, eot)
+	}
+
+	static void buffTP(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.TP, ctx)
+		integer value = EffectCalc.scaledBuff(effect.avg, srcSnc, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.TP, eot)
+	}
+
+	static void buffMP(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.MP, ctx)
+		integer value = EffectCalc.scaledBuff(effect.avg, srcSnc, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.MP, eot)
+	}
+}

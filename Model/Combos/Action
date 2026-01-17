@@ -16,6 +16,18 @@ class Action {
 		this.score = this.consequences.getScore()
 	}
 
+	/*
+	 * Shared snapshot constructor - uses pre-computed EffectSnapshot for effect data.
+	 * More efficient when many actions share identical effects (same item + aimCell).
+	 */
+	constructor(Item item, Cell from, Cell to, EffectSnapshot snapshot){
+		this.item = item
+		this.from = from
+		this.to = to
+		this.consequences = Consequences.fromSnapshot(snapshot, this)
+		this.score = this.consequences.getScore()
+	}
+
 	constructor(Action action, Consequences consequences){
 		this.item = action.item
 		this.from = action.from

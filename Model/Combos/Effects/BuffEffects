@@ -1,6 +1,8 @@
 /**
- * BuffEffects - Handlers for buff-related effects
- * 
+ * BuffEffects - Thin wrappers for Consequences that delegate to EffectHandlers.
+ *
+ * De-dupe for non-stackable effects is handled centrally in EffectHandlers.
+ *
  * Handles: EFFECT_RAW_BUFF_* (flat buffs), EFFECT_BUFF_* (scaled by science)
  */
 
@@ -9,101 +11,37 @@ Consequences.registerHandlers([
 	// ============================================
 	// RAW BUFFS (flat value, no science scaling)
 	// ============================================
-	
+
 	EFFECT_RAW_BUFF_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.STR, eot)
-			}
-		}
-		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.STR, eot)
+		EffectHandlers.rawBuffStrength(effect, entitySource, entityTarget, ratioDmg, conseq)
 	},
 
 	EFFECT_RAW_BUFF_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.MGC, eot)
-			}
-		}
-		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.MGC, eot)
+		EffectHandlers.rawBuffMagic(effect, entitySource, entityTarget, ratioDmg, conseq)
 	},
 
 	EFFECT_RAW_BUFF_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.AGI, eot)
-			}
-		}
-		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.AGI, eot)
+		EffectHandlers.rawBuffAgility(effect, entitySource, entityTarget, ratioDmg, conseq)
 	},
 
 	EFFECT_RAW_BUFF_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.WSD, eot)
-			}
-		}
-		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.WSD, eot)
+		EffectHandlers.rawBuffWisdom(effect, entitySource, entityTarget, ratioDmg, conseq)
 	},
 
 	EFFECT_RAW_BUFF_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.RST, eot)
-			}
-		}
-		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.RST, eot)
+		EffectHandlers.rawBuffResistance(effect, entitySource, entityTarget, ratioDmg, conseq)
 	},
 
 	EFFECT_RAW_BUFF_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.TP, eot)
-			}
-		}
-		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.TP, eot)
+		EffectHandlers.rawBuffTP(effect, entitySource, entityTarget, ratioDmg, conseq)
 	},
 
 	EFFECT_RAW_BUFF_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.MP, eot)
-			}
-		}
-		integer value = round(effect.avg *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.MP, eot)
+		EffectHandlers.rawBuffMP(effect, entitySource, entityTarget, ratioDmg, conseq)
 	},
 
 	EFFECT_RAW_BUFF_POWER: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		EffectOverTime eot = EffectOverTime(effect.item, round(effect.avg), effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.PWR, eot)
+		EffectHandlers.rawBuffPower(effect, entitySource, entityTarget, ratioDmg, conseq)
 	},
 
 	EFFECT_RAW_BUFF_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
@@ -113,82 +51,28 @@ Consequences.registerHandlers([
 	// ============================================
 	// SCALED BUFFS (scaled by caster's science)
 	// ============================================
-	
+
 	EFFECT_BUFF_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.STR, eot)
-			}
-		}
-		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.STR, eot)
+		EffectHandlers.buffStrength(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentSnc(conseq), conseq)
 	},
 
 	EFFECT_BUFF_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.AGI, eot)
-			}
-		}
-		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.AGI, eot)
+		EffectHandlers.buffAgility(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentSnc(conseq), conseq)
 	},
 
 	EFFECT_BUFF_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.WSD, eot)
-			}
-		}
-		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.WSD, eot)
+		EffectHandlers.buffWisdom(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentSnc(conseq), conseq)
 	},
 
 	EFFECT_BUFF_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.RST, eot)
-			}
-		}
-		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.RST, eot)
+		EffectHandlers.buffResistance(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentSnc(conseq), conseq)
 	},
 
 	EFFECT_BUFF_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.TP, eot)
-			}
-		}
-		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.TP, eot)
+		EffectHandlers.buffTP(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentSnc(conseq), conseq)
 	},
 
 	EFFECT_BUFF_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if(!effect.stackable){
-			EffectOverTime? itemEffect = entityTarget.getCurrentItemEffect(effect.item, conseq)
-			if(itemEffect){
-				EffectOverTime eot = EffectOverTime(effect.item, -itemEffect!.value, itemEffect!.duration, effect.type)
-				conseq.add(entityTarget, Stats.MP, eot)
-			}
-		}
-		integer value = round(effect.avg *(1+(entitySource.getCurrentSnc(conseq)/100)) *ratioDmg)
-		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
-		conseq.add(entityTarget, Stats.MP, eot)
+		EffectHandlers.buffMP(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentSnc(conseq), conseq)
 	}
 ])
