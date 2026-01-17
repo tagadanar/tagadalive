@@ -77,7 +77,7 @@ class MapPosition {
 	static void _refreshNearestEnemyPathDist() {
 		if (_nearest_enemy != null) {
 			// Ignore all entities to get pure terrain path distance
-			_nearest_enemy_path_dist = MapPath.getCachedReachableCells(_nearest_enemy!.cell, 100, mapKeys(Board.entityCells))
+			_nearest_enemy_path_dist = MapPath.getCachedReachableCells(_nearest_enemy!.cell, 100, mapKeys(Board.entityCells) as Array<Cell>)
 		} else {
 			_nearest_enemy_path_dist = null
 		}
@@ -147,11 +147,11 @@ class MapPosition {
 		real enemyCoef
 		real lifeRatio2 = Fight.self.life / Fight.self.totalLife
 		if (!isSummon && lifeRatio2 > 0.8 && !_need_shields) {
-			enemyCoef = ceil(_total_ally_coef / enemyCount)
+			enemyCoef = ceil(_total_ally_coef / enemyCount) as real
 		} else {
-			enemyCoef = floor(_total_ally_coef / enemyCount)
+			enemyCoef = floor(_total_ally_coef / enemyCount) as real
 		}
-		if (enemyCoef < 1) enemyCoef = 1
+		if (enemyCoef < 1) enemyCoef = 1.0
 
 		integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
 		for (Entity enemy in enemies) {
@@ -306,7 +306,7 @@ class MapPosition {
 	 * Saves ~380 ops per call × ~50-100 positions = ~19k-38k ops per turn.
 	 */
 	static real _computeProximityPenalty(Cell cell, Entity? primaryTarget) {
-		real penalty = 0
+		real penalty = 0.0
 		Cell? primaryCell = primaryTarget != null ? primaryTarget!.cell : null
 
 		// Pre-compute area cells ONCE (instead of recalculating each iteration)
@@ -356,7 +356,7 @@ class MapPosition {
 	 * Uses path distance for nearest enemy (accounts for walls), cell distance for others
 	 */
 	static real _computeGravityScore(Cell cell) {
-		real score = 0
+		real score = 0.0
 		boolean hasGravity = false
 		for (var x in _gravity_distance) { hasGravity = true; break; }
 		if (!hasGravity) return score;
@@ -393,7 +393,7 @@ class MapPosition {
 	 * which doesn't depend on consequences - positions are fixed until turn executes.
 	 */
 	static real _computeTacticalScore(Cell cell) {
-		real bonus = 0
+		real bonus = 0.0
 
 		// Lock bonus
 		if (_nearest_enemy != null) {

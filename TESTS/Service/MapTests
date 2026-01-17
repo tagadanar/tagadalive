@@ -1,38 +1,11 @@
 include('../includesTests')
 
-function testEmptyObstacles() {
-	assertEquals("MapTests::testEmptyObstacles", false , mapIsEmpty(Board.obstacles))
-}
-
 function testEmptyCells() {
 	assertEquals("MapTests::testEmptyCells", false , mapIsEmpty(Board.cells))
 }
 
 function testNbCells() {
 	assertEquals("MapTests::testNbCells", 613 , mapSize(Board.cells))
-}
-
-function testMapObstacles() {
-	var result = 0;
-	for (var i in getObstacles()) {
-		if (Board.obstacles[Board.cells[i]] == false) {
-			result += 1;
-		}
-	}
-	
-	assertEquals("MapTests::testMapObstacles", 0, result)
-}
-
-function testCompareObstaclesAttributeWithCellsAttribute() {
-	var nbErrors = 0;
-	
-	for (var i in getObstacles()) {
-		if (Board.obstacles[Board.cells[i]] != Board.cells[i].isWall) {
-			nbErrors += 1;
-		}
-	}
-	assertEquals("MapTests::compareObstaclesAttributeWithCellsAttribute", 0, nbErrors)
-	
 }
 
 function testCellInMapWith1Neighbors() {
@@ -128,11 +101,8 @@ function testEntityInMapEntityCells() {
 }
 
 function checkMap() {
-	testEmptyObstacles()
 	testEmptyCells()
 	testNbCells()
-	testMapObstacles()
-	testCompareObstaclesAttributeWithCellsAttribute()
 	testCellInMapWith1Neighbors()
 	testCellInMapWith2Neighbors()
 	testCellInMapWith4Neighbors()

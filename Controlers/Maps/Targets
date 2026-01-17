@@ -36,33 +36,36 @@ class Targets{
 	 */
 	static Array<Cell> getLazerCellsToUseItemOnCell(Item item, Cell cell){
 		Array<Cell> result = []
-		Cell? c = Board.getCell(getCellFromXY(cell.x+item.minRange, cell.y))
+		Cell? c = Board.cellsXY[cell.x+item.minRange]![cell.y]
 		integer inc = 1
-		if(c!=null && !Board.obstacles[c!] && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
-			while(c!=null && !Board.obstacles[c!] && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
+		if(c!=null && c!.isNotWall && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
+			while(c!=null && c!.isNotWall && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
 				push(result, c)
-				c = Board.getCell(getCellFromXY(cell.x+item.minRange+inc++, cell.y))
+				c = Board.cellsXY[cell.x+item.minRange+inc++]![cell.y]
 			}
 		}
-		c = Board.getCell(getCellFromXY(cell.x-item.minRange, cell.y)); inc = 1
-		if(c!=null && !Board.obstacles[c!] && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
-			while(c!=null && !Board.obstacles[c!] && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
+		c = Board.cellsXY[cell.x-item.minRange]![cell.y]
+		inc = 1
+		if(c!=null && c!.isNotWall && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
+			while(c!=null && c!.isNotWall && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
 				push(result, c)
-				c = Board.getCell(getCellFromXY(cell.x-item.minRange-inc++, cell.y))
+				c = Board.cellsXY[cell.x-item.minRange-inc++]![cell.y]
 			}
 		}
-		c = Board.getCell(getCellFromXY(cell.x, cell.y+item.minRange)); inc = 1
-		if(c!=null && !Board.obstacles[c!] && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
-			while(c!=null && !Board.obstacles[c!] && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
+		c = Board.cellsXY[cell.x]![cell.y+item.minRange]
+		inc = 1
+		if(c!=null && c!.isNotWall && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
+			while(c!=null && c!.isNotWall && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
 				push(result, c);
-				c = Board.getCell(getCellFromXY(cell.x, cell.y+item.minRange+inc++))
+				c = Board.cellsXY[cell.x]![cell.y+item.minRange+inc++]
 			}
 		}
-		c = Board.getCell(getCellFromXY(cell.x, cell.y-item.minRange)); inc = 1
-		if(c!=null && !Board.obstacles[c!] && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
-			while(c!=null && !Board.obstacles[c!] && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
+		c = Board.cellsXY[cell.x]![cell.y-item.minRange]
+		inc = 1
+		if(c!=null && c!.isNotWall && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
+			while(c!=null && c!.isNotWall && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
 				push(result, c);
-				c = Board.getCell(getCellFromXY(cell.x, cell.y-item.minRange-inc++))
+				c = Board.cellsXY[cell.x]![cell.y-item.minRange-inc++]
 			}
 		}
 		return result;
@@ -79,16 +82,16 @@ class Targets{
 		if(from.x==to.x){
 			if(from.y<to.y){ // y++
 				while(true){
-					tmpCell = Board.getCell(getCellFromXY(to.x, to.y+inc))
-					if(tmpCell == null || Board.obstacles[tmpCell!] || inc > maxInc) break;
+					tmpCell = Board.cellsXY[to.x]![to.y+inc]
+					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
 					if(entityOnCell != null) push(result, entityOnCell)
 					inc++
 				}
 			}else{ // y--
 				while(true){
-					tmpCell = Board.getCell(getCellFromXY(to.x, to.y-inc))
-					if(tmpCell == null || Board.obstacles[tmpCell!] || inc > maxInc) break;
+					tmpCell = Board.cellsXY[to.x]![to.y-inc]
+					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
 					if(entityOnCell != null) push(result, entityOnCell)
 					inc++
@@ -97,16 +100,16 @@ class Targets{
 		}else if(from.y==to.y){
 			if(from.x<to.x){ // x++
 				while(true){
-					tmpCell = Board.getCell(getCellFromXY(to.x+inc, to.y))
-					if(tmpCell == null || Board.obstacles[tmpCell!] || inc > maxInc) break;
+					tmpCell = Board.cellsXY[to.x+inc]![to.y]
+					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
 					if(entityOnCell != null) push(result, entityOnCell)
 					inc++
 				}
 			}else{ // x--
 				while(true){
-					tmpCell = Board.getCell(getCellFromXY(to.x-inc, to.y))
-					if(tmpCell == null || Board.obstacles[tmpCell!] || inc > maxInc) break;
+					tmpCell = Board.cellsXY[to.x-inc]![to.y]
+					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
 					if(entityOnCell!= null) push(result, entityOnCell)
 					inc++
@@ -165,9 +168,9 @@ class Targets{
 			Array<Cell> result = []
 			for(integer x in [cell.x-item.maxRange..cell.x+item.maxRange]) {
 				if (abs(cell.x-x) < item.minRange) continue;
-				Cell? fromCell = Board.getCell(getCellFromXY(x, cell.y))
+				Cell? fromCell = Board.cellsXY[x]![cell.y]
 				if(fromCell!=null 
-				&& Board.obstacles[fromCell!]==null 
+				&& fromCell!.isNotWall
 				&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
 				&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))) {
 					push(result, fromCell)
@@ -175,9 +178,9 @@ class Targets{
 			}
 			for(integer y in [cell.y-item.maxRange..cell.y+item.maxRange]) {
 				if(abs(cell.y-y) < item.minRange) continue;
-				Cell? fromCell = Board.getCell(getCellFromXY(cell.x, y))
+				Cell? fromCell = Board.cellsXY[cell.x]![y]
 				if(fromCell!=null
-				&& Board.obstacles[fromCell!]==null 
+				&& fromCell!.isNotWall
 				&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
 				&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
 					push(result, fromCell)
@@ -192,9 +195,9 @@ class Targets{
 					if( abs(cell.x-x) != abs(cell.y-y) ) continue; // si je suis pas sur une diagonale, skip
 					integer dist = abs(cell.x-x) + abs(cell.y-y)
 					if(dist > item.maxRange || dist < item.minRange) continue;
-					Cell? fromCell = Board.getCell(getCellFromXY(x, y))
+					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& Board.obstacles[fromCell!]==null 
+					&& fromCell!.isNotWall
 					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
 					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
@@ -213,9 +216,9 @@ class Targets{
 					   ) continue; // skip
 					integer dist = abs(cell.x-x) + abs(cell.y-y)
 					if(dist > item.maxRange || dist < item.minRange) continue;
-					Cell? fromCell = Board.getCell(getCellFromXY(x, y))
+					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& Board.obstacles[fromCell!]==null 
+					&& fromCell!.isNotWall
 					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
 					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
@@ -234,9 +237,9 @@ class Targets{
 					   ) continue; // skip
 					integer dist = abs(cell.x-x) + abs(cell.y-y)
 					if(dist > item.maxRange || dist < item.minRange) continue;
-					Cell? fromCell = Board.getCell(getCellFromXY(x, y))
+					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& Board.obstacles[fromCell!]==null 
+					&& fromCell!.isNotWall
 					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
 					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
@@ -252,9 +255,9 @@ class Targets{
 					if( abs(cell.x-x) == abs(cell.y-y) ) continue; // si je suis sur une diagonale, skip
 					integer dist = abs(cell.x-x) + abs(cell.y-y)
 					if(dist > item.maxRange || dist < item.minRange) continue;
-					Cell? fromCell = Board.getCell(getCellFromXY(x, y))
+					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& Board.obstacles[fromCell!]==null 
+					&& fromCell!.isNotWall
 					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
 					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
@@ -272,9 +275,9 @@ class Targets{
 					   ) continue // skip
 					integer dist = abs(cell.x-x) + abs(cell.y-y)
 					if(dist > item.maxRange || dist < item.minRange) continue;
-					Cell? fromCell = Board.getCell(getCellFromXY(x, y))
+					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& Board.obstacles[fromCell!]==null 
+					&& fromCell!.isNotWall
 					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
 					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
@@ -289,9 +292,9 @@ class Targets{
 				for(integer y in [cell.y-item.maxRange..cell.y+item.maxRange]){
 					integer dist = abs(cell.x-x) + abs(cell.y-y)
 					if(dist > item.maxRange || dist < item.minRange) continue;
-					Cell? fromCell = Board.getCell(getCellFromXY(x, y))
+					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& Board.obstacles[fromCell!]==null 
+					&& fromCell!.isNotWall
 					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
 					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)

@@ -105,7 +105,7 @@ class MCTSNode {
 	real getUCBScore(real explorationConstant) {
 		if (this.visits == 0) return 999999.0  // Unvisited nodes have priority
 		real exploitation = this.totalValue / this.visits
-		real exploration = explorationConstant * sqrt(log(this.parent!.visits) / this.visits)
+		real exploration = explorationConstant * sqrt(log(this.parent!.visits as real) / this.visits)
 		return exploitation + exploration
 	}
 
@@ -187,7 +187,7 @@ class MCTS {
 
 		// Prune and prepare initial actions - computed ONCE and reused
 		// This saves ~300 calls to pruneActions() over 150 iterations
-		Array<Action> prunedActions = MCTS.pruneActions(mapValues(actionsAtCell))
+		Array<Action> prunedActions = MCTS.pruneActions(mapValues(actionsAtCell) as Array<Action>)
 
 		// If no actions available, return movement-only combo
 		if (count(prunedActions) == 0) {
@@ -241,9 +241,9 @@ class MCTS {
 		Combo combo = MCTS.extractBestCombo(root, startCell)
 
 		// Track combo for debugging
-		real actScore = 0
+		real actScore = 0.0
 		for (Action a in combo.actions) actScore += a.score!
-		real posScore = combo.finalPosition ? combo.finalPosition!.score : 0
+		real posScore = combo.finalPosition ? combo.finalPosition!.score : 0.0
 		Benchmark.setMCTSCombo(combo.getScore()!, count(combo.actions), "MCTS:" + MCTS.buildComboDesc(combo), posScore, actScore)
 
 		return combo
@@ -279,7 +279,7 @@ class MCTS {
 		if (count(node.untriedActions) == 0) return node
 
 		// Pick first untried action (deterministic)
-		Action action = shift(node.untriedActions)
+		Action action = shift(node.untriedActions) as Action
 
 		// Create child node
 		MCTSNode child = MCTSNode(node, action)

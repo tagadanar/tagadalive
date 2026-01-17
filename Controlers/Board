@@ -2,16 +2,28 @@
  * Contient les informations de la map (obstacles, cells, placement des Entity)
  */
 class Board {
-	static Map<Cell, boolean> obstacles = [:]
-	static Map<integer, Cell> cells = [:]
-	static Map<Cell, Entity> entityCells
+	//tatic Map<Cell, boolean> obstacles = [:]
+	public static integer MAX_CELL_ID = 612;
+	public static Map<integer, Cell> cells = [:]
+	public static Map<integer, Map<integer, Cell>> cellsXY = [:]
+	public static Map<Cell, Entity> entityCells
 	
 	/*
 	 * Fonction d'initialisation, initialise les Cellules Cell, et pour chaque Cell, les obstacles et leurs voisins.
 	 */
 	static void init(){
-		for(integer i = 0; i < 613; i++) Board.cells[i] = new Cell(i)
-		for(integer i in getObstacles()) Board.obstacles[Board.cells[i]!]=true
+		//je crée plus grand volontairement pour que les coordonnées en dehors de [-17..17] 
+		//soient initilisées à une map vide pour éviter une erreur si je l'appelle avec une coordonnée x en dehors de ces bornes
+		//A priori je peux sortir d'une distance max de 14 cellules (portée max des items sans aoe)
+		for (integer i in [-31..31]) {
+			cellsXY[i]=[:]
+		}
+		for(integer i in [0..MAX_CELL_ID]) {
+			Cell cell = new Cell(i)
+			Board.cells[i] = cell
+			Board.cellsXY[cell.x]![cell.y] = cell
+		}
+		//for(integer i in getObstacles()) Board.obstacles[Board.cells[i]!]=true
 		for(Cell cell in Board.cells) cell.init()
 	}
 	

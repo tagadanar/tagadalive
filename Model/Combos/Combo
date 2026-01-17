@@ -101,28 +101,26 @@ class Combo {
 	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
 	 */
 	void play(){
-		var startCell = getCell()
-
 		// étape 1: je fais mes actions
 		for(Action action in this.actions){
 			if(action.from != Fight.selfCell){
-				moveTowardCell(action.from.id)
-				Benchmark.logMove(startCell, getCell())
-				startCell = getCell()
+				moveTowardCell(action.from.id)				
+				Benchmark.logMove(Fight.self.cell.id, action.from.id)
+				Fight.self.cell = Board.cells[getCell()!]!
 				// Skip action if we didn't reach the attack cell
-				if(getCell() != action.from.id) {
+				if(Fight.self.cell.id != action.from.id) {
 					debugW("Skipping " + action.item.name + ": didn't reach c" + action.from.id + ", at c" + getCell())
 					continue
 				}
 			}
 			if(action.to == Fight.selfCell){
-				action.item.useItemOnCell(Board.getCell(getCell())!)
+				action.item.useItemOnCell(Fight.self.cell)
 				Benchmark.logBuff(action.item.name)
 			} else {
 				integer result = action.item.useItemOnCellWithResult(action.to)
-				if(result != USE_SUCCESS && result != USE_CRITICAL) {
-					integer dist = getCellDistance(getCell(), action.to.id)
-					boolean los = lineOfSight(getCell(), action.to.id, [])
+				if(result < 0) {
+					integer dist = getCellDistance(getCell()!, action.to.id)
+					boolean los = lineOfSight(getCell()!, action.to.id, [])!
 					debugW("Action failed: " + action.item.name + " from c" + getCell() + " to c" + action.to.id +
 						" result=" + result + " dist=" + dist + " range=[" + action.item.minRange + "-" + action.item.maxRange +
 						"] LOS=" + los + " TP=" + getTP())
@@ -139,8 +137,8 @@ class Combo {
 		// étape 2: je vais me planquer
 		if(this.finalPosition){
 			moveTowardCell(this.finalPosition!.cell.id)
-			if(getCell() != startCell){
-				Benchmark.logMove(startCell, getCell())
+			if(Fight.self.cell.id != getCell()){
+				Benchmark.logMove(Fight.self.cell.id, getCell()!)
 			}
 		}
 		// étape 3: si il reste des TP, je prend en main une arme aléatoire
