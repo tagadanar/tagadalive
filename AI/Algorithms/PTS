@@ -65,7 +65,7 @@ class PTS {
 		// Log both scores for analysis
 		Benchmark.setPTS(PTS.lastOpportunities, PTS.lastActionsBuilt, PTS.lastScore)
 		string comboDesc = PTS.buildComboDesc(winner) + "[" + PTS.lastWinningMode + " C:" + round(scoreClosest) + " B:" + round(scoreBest) + "]"
-		real posScore = winner.finalPosition != null ? winner.finalPosition!.score : 0
+		real posScore = winner.finalPosition != null ? winner.finalPosition!.score : 0.0
 		Benchmark.addCombo(winner.getScore()!, PTS.lastActionsBuilt, "PTS:" + comboDesc, posScore, PTS.lastScore - posScore)
 
 		Benchmark.stop("PTS.buildCombo")

@@ -146,7 +146,7 @@ class UnifiedMCTSNode {
 	real getUCBScore(real explorationConstant) {
 		if (this.visits == 0) return 999999.0
 		real exploitation = this.totalValue / this.visits
-		real exploration = explorationConstant * sqrt(log(this.parent!.visits) / this.visits)
+		real exploration = explorationConstant * sqrt(log(this.parent!.visits as real) / this.visits)
 		return exploitation + exploration
 	}
 
@@ -202,7 +202,7 @@ class UnifiedMCTS {
 		Benchmark.start("UnifiedMCTS.run")
 
 		Combo? ptsCombo = null
-		real ptsScore = 0
+		real ptsScore = 0.0
 
 		// 1. Run calibration (unless skipped)
 		if (AI.SKIP_CALIBRATION) {
@@ -277,9 +277,9 @@ class UnifiedMCTS {
 		real mctsScore = mctsCombo.getScore()!
 
 		// Log MCTS combo to alternatives list
-		real mctsActScore = 0
+		real mctsActScore = 0.0
 		for (Action a in mctsCombo.actions) mctsActScore += a.score!
-		real mctsPosScore = mctsCombo.finalPosition != null ? mctsCombo.finalPosition!.score : 0
+		real mctsPosScore = mctsCombo.finalPosition != null ? mctsCombo.finalPosition!.score : 0.0
 		Benchmark.setMCTSCombo(mctsScore, count(mctsCombo.actions), "MCTS:" + UnifiedMCTS.buildComboDesc(mctsCombo), mctsPosScore, mctsActScore)
 
 		Benchmark.setMCTS(iterations, nodesCreated, cellsExplored, mctsScore)
@@ -443,7 +443,7 @@ class UnifiedMCTS {
 		if (node.isRoot) {
 			// Find next untried cell that wasn't seeded
 			while (count(node.untriedCells) > 0) {
-				Cell cell = shift(node.untriedCells)
+				Cell cell = shift(node.untriedCells) as Cell
 
 				// Skip if already seeded
 				if (UnifiedMCTS._seededCells[cell]) continue
@@ -466,7 +466,7 @@ class UnifiedMCTS {
 		// Cell/Action node expansion: add an action node
 		if (count(node.untriedActions) == 0) return node
 
-		Action baseAction = shift(node.untriedActions)
+		Action baseAction = shift(node.untriedActions) as Action
 		UnifiedMCTSNode actionNode = UnifiedMCTSNode(node, baseAction)
 
 		// Initialize child's available actions (use child's position, not parent's)

@@ -123,7 +123,7 @@ class OppNode {
 	real getUCBScore(real explorationConstant) {
 		if (this.visits == 0) return 999999.0
 		real exploitation = this.totalValue / this.visits
-		real exploration = explorationConstant * sqrt(log(this.parent!.visits) / this.visits)
+		real exploration = explorationConstant * sqrt(log(this.parent!.visits as real) / this.visits)
 		return exploitation + exploration
 	}
 
@@ -189,7 +189,7 @@ class OpportunityMCTS {
 		Benchmark.start("OpportunityMCTS.run")
 
 		Combo? ptsCombo = null
-		real ptsScore = 0
+		real ptsScore = 0.0
 
 		// 1. Calibration (unless skipped)
 		if (AI.SKIP_CALIBRATION) {
@@ -248,9 +248,9 @@ class OpportunityMCTS {
 		real mctsScore = mctsCombo.getScore()!
 
 		// Log MCTS combo to alternatives list
-		real mctsActScore = 0
+		real mctsActScore = 0.0
 		for (Action a in mctsCombo.actions) mctsActScore += a.score!
-		real mctsPosScore = mctsCombo.finalPosition != null ? mctsCombo.finalPosition!.score : 0
+		real mctsPosScore = mctsCombo.finalPosition != null ? mctsCombo.finalPosition!.score : 0.0
 		Benchmark.setMCTSCombo(mctsScore, count(mctsCombo.actions), "MCTS:" + OpportunityMCTS.buildComboDesc(mctsCombo), mctsPosScore, mctsActScore)
 
 		Benchmark.setMCTS(iterations, nodesCreated, 0, mctsScore)
@@ -493,7 +493,7 @@ class OpportunityMCTS {
 	static OppNode expand(OppNode node) {
 		if (count(node.untriedOpps) == 0) return node
 
-		OppExpansion expansion = shift(node.untriedOpps)
+		OppExpansion expansion = shift(node.untriedOpps) as OppExpansion
 
 		OppNode child = OppNode(node, expansion.opp, expansion.execCell, expansion.moveCost)
 		OpportunityMCTS.initUntriedOpps(child)
