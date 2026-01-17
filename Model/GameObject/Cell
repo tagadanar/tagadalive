@@ -6,6 +6,7 @@ class Cell {
 
 	integer id
 	boolean isWall
+	boolean isNotWall
 	Array<Cell> neighbors
 	Array<Cell> neighborsObstacles
 	integer x
@@ -16,10 +17,12 @@ class Cell {
 		this.id = id
 		if (id == Cell.SELF_CAST_ID) {
 			this.isWall = false
+			this.isNotWall = true
 			this.x = 18
 			this.y = 18
 		} else {
 			this.isWall = isObstacle(id)
+			this.isNotWall = !this.isWall
 			this.x = getCellX(id)!
 			this.y = getCellY(id)!
 		}
@@ -37,14 +40,14 @@ class Cell {
 	void initNeighbors(){
 		Array<Cell> result = []
 
-		integer? c = getCellFromXY(x, y-1);
-		if(c!=null && !Board.obstacles[Board.cells[c!]!]) push(result, Board.getCell(c));
-		c = getCellFromXY(x, y+1);
-		if(c!=null && !Board.obstacles[Board.cells[c!]!]) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y);
-		if(c!=null && !Board.obstacles[Board.cells[c!]!]) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y);
-		if(c!=null && !Board.obstacles[Board.cells[c!]!]) push(result, Board.getCell(c));
+		Cell? c = Board.cellsXY[this.x]![this.y-1];
+		if(c != null && c!.isNotWall) push(result, c);
+		c = Board.cellsXY[this.x]![this.y+1];
+		if(c != null && c!.isNotWall) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y];
+		if(c != null && c!.isNotWall) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y];
+		if(c != null && c!.isNotWall) push(result, c);
 
 		this.neighbors = result
 	}
@@ -52,14 +55,14 @@ class Cell {
 	void initNeighborsObstacles(){
 		Array<Cell> result = []
 
-		integer? c = getCellFromXY(x, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y);
-		if(c!=null) push(result, Board.getCell(c));
+		Cell? c = Board.cellsXY[this.x]![this.y-1];
+		if(c != null) push(result, c);
+		c = Board.cellsXY[this.x]![this.y+1];
+		if(c != null) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y];
+		if(c != null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y];
+		if(c != null) push(result, c);
 
 		this.neighborsObstacles = result
 	}
@@ -77,158 +80,150 @@ class Cell {
 	 * C'est long et pas joli, on pourrait faire plus concis avec des for surement, mais là c'est relativement opti en opération
 	 */
 	void initAreas(){
-		integer? c
 		Array<Cell> result = [this]
 		// AREA_POINT
-		_AREAS[AREA_POINT] = clone(result) as Array<Cell>
+		_AREAS[AREA_POINT] = [this]
 		
 		//AREA_FIRST_INLINE
-		_AREAS[AREA_FIRST_INLINE] = clone(result) as Array<Cell>
+		_AREAS[AREA_FIRST_INLINE] = [this]
 		
 		// AREA_CIRCLE_1
-		c = getCellFromXY(x, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y);
-		if(c!=null) push(result, Board.getCell(c));
+		pushAll(result, this.neighborsObstacles)
 		_AREAS[AREA_CIRCLE_1] = clone(result) as Array<Cell>
 		
 		// AREA_PLUS_2
-		c = getCellFromXY(x, y-2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x, y+2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-2, y);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+2, y);
-		if(c!=null) push(result, Board.getCell(c));
+		Cell? c = Board.cellsXY[this.x]![this.y-2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x]![this.y+2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-2]![this.y];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+2]![this.y];
+		if(c!=null) push(result, c);
 		_AREAS[AREA_PLUS_2] = clone(result) as Array<Cell>
 		
 		// AREA_CIRCLE_2
-		c = getCellFromXY(x+1, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y+1);
-		if(c!=null) push(result, Board.getCell(c));
+		c = Board.cellsXY[this.x+1]![this.y-1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y+1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y-1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y+1];
+		if(c!=null) push(result, c);
 		_AREAS[AREA_CIRCLE_2] = clone(result) as Array<Cell>
 		
 		// AREA_CIRCLE_3
-		c = getCellFromXY(x+2, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+2, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y-2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y+2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y-2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y+2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-2, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-2, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x, y-3);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x, y+3);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-3, y);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+3, y);
-		if(c!=null) push(result, Board.getCell(c));
+		c = Board.cellsXY[this.x+2]![this.y-1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+2]![this.y+1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y-2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y+2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y-2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y+2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-2]![this.y-1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-2]![this.y+1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x]![this.y-3];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x]![this.y+3];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-3]![this.y];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+3]![this.y];
+		if(c!=null) push(result, c);
 		_AREAS[AREA_CIRCLE_3] = clone(result) as Array<Cell>
 		
 		// AREA_PLUS_3
 		result = clone(_AREAS[AREA_PLUS_2]) as Array<Cell>
-		c = getCellFromXY(x, y-3);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x, y+3);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-3, y);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+3, y);
-		if(c!=null) push(result, Board.getCell(c));
+		c = Board.cellsXY[this.x]![this.y-3];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x]![this.y+3];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-3]![this.y];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+3]![this.y];
+		if(c!=null) push(result, c);
 		_AREAS[AREA_PLUS_3] = result
 		
 		// AREA_SQUARE_1
 		result = clone(_AREAS[AREA_CIRCLE_1]) as Array<Cell>
-		c = getCellFromXY(x-1, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y-1);
-		if(c!=null) push(result, Board.getCell(c));
+		c = Board.cellsXY[this.x-1]![this.y+1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y+1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y-1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y-1];
+		if(c!=null) push(result, c);
 		_AREAS[AREA_SQUARE_1] = result
 		
 		// AREA_SQUARE_2
 		result = clone(_AREAS[AREA_CIRCLE_2]) as Array<Cell>
-		c = getCellFromXY(x+2, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+2, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y-2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y+2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y-2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y+2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-2, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-2, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-2, y+2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-2, y-2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+2, y-2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+2, y+2);
-		if(c!=null) push(result, Board.getCell(c));
+		c = Board.cellsXY[this.x+2]![this.y-1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+2]![this.y+1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y-2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y+2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y-2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y+2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-2]![this.y-1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-2]![this.y+1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-2]![this.y+2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-2]![this.y-2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+2]![this.y-2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+2]![this.y+2];
+		if(c!=null) push(result, c);
 		_AREAS[AREA_SQUARE_2] = result
 
 		result = [this]
 		// AREA_X_1
-		c = getCellFromXY(x-1, y-1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-1, y+1);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+1, y-1);
-		if(c!=null) push(result, Board.getCell(c));
+		c = Board.cellsXY[this.x-1]![this.y+1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y+1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+1]![this.y-1];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-1]![this.y-1];
+		if(c!=null) push(result, c);
 		_AREAS[AREA_X_1] = clone(result) as Array<Cell>
 
 		// AREA_X_2
-		c = getCellFromXY(x-2, y-2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+2, y+2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-2, y+2);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+2, y-2);
-		if(c!=null) push(result, Board.getCell(c));
+		c = Board.cellsXY[this.x-2]![this.y+2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-2]![this.y-2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+2]![this.y-2];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+2]![this.y+2];
+		if(c!=null) push(result, c);
 		_AREAS[AREA_X_2] = clone(result) as Array<Cell>
 
 		// AREA_X_3
-		c = getCellFromXY(x-3, y-3);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+3, y+3);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x-3, y+3);
-		if(c!=null) push(result, Board.getCell(c));
-		c = getCellFromXY(x+3, y-3);
-		if(c!=null) push(result, Board.getCell(c));
+		c = Board.cellsXY[this.x-3]![this.y+3];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x-3]![this.y-3];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+3]![this.y-3];
+		if(c!=null) push(result, c);
+		c = Board.cellsXY[this.x+3]![this.y+3];
+		if(c!=null) push(result, c);
 		_AREAS[AREA_X_3] = result
 	}
 

@@ -143,7 +143,7 @@ class CellMCTSNode {
 	real getUCBScore(real explorationConstant) {
 		if (this.visits == 0) return 999999.0
 		real exploitation = this.totalValue / this.visits
-		real exploration = explorationConstant * sqrt(log(this.parent!.visits) / this.visits)
+		real exploration = explorationConstant * sqrt(log(this.parent!.visits as real) / this.visits)
 		return exploitation + exploration
 	}
 
@@ -201,7 +201,7 @@ class CellMovementPolicy {
 
 		if (count(remaining) == 0) return 1.0
 
-		real bestScore = 0
+		real bestScore = 0.0
 		for (Action a in remaining) {
 			if (a.score! > bestScore) bestScore = a.score!
 		}
@@ -209,7 +209,7 @@ class CellMovementPolicy {
 		real countFactor = 1.0 / (1.0 + count(remaining))
 		real scoreFactor = 100.0 / (100.0 + bestScore)
 
-		return countFactor * 0.5 + scoreFactor * 0.5
+		return (countFactor + scoreFactor) * 0.5
 	}
 
 	/*
@@ -307,7 +307,7 @@ class CellMCTS {
 		Benchmark.start("CellMCTS.run")
 
 		Combo? ptsCombo = null
-		real ptsScore = 0
+		real ptsScore = 0.0
 
 		// 1. Calibration (unless skipped)
 		if (AI.SKIP_CALIBRATION) {
@@ -372,9 +372,9 @@ class CellMCTS {
 		real mctsScore = mctsCombo.getScore()!
 
 		// Log MCTS combo to alternatives list
-		real mctsActScore = 0
+		real mctsActScore = 0.0
 		for (Action a in mctsCombo.actions) mctsActScore += a.score!
-		real mctsPosScore = mctsCombo.finalPosition != null ? mctsCombo.finalPosition!.score : 0
+		real mctsPosScore = mctsCombo.finalPosition != null ? mctsCombo.finalPosition!.score : 0.0
 		Benchmark.setMCTSCombo(mctsScore, count(mctsCombo.actions), "MCTS:" + CellMCTS.buildComboDesc(mctsCombo), mctsPosScore, mctsActScore)
 
 		Benchmark.setMCTS(iterations, nodesCreated, movesExplored, mctsScore)
@@ -644,7 +644,7 @@ class CellMCTS {
 		if (node.nodeType == CellMCTSNode.TYPE_ROOT) {
 			if (count(node.untriedCells) == 0) return node
 
-			Cell cell = shift(node.untriedCells)
+			Cell cell = shift(node.untriedCells) as Cell
 			integer? mpCost = Fight.self.reachableCells[cell]
 			if (mpCost == null) return node
 
@@ -657,7 +657,7 @@ class CellMCTS {
 
 		// CELL/ACTION/MOVE: expand with action first
 		if (count(node.untriedActions) > 0) {
-			Action action = shift(node.untriedActions)
+			Action action = shift(node.untriedActions) as Action
 
 			CellMCTSNode child = CellMCTSNode(node, action)
 			CellMCTS.initNodeActions(child, mapBestAction)
@@ -673,7 +673,7 @@ class CellMCTS {
 			}
 
 			if (count(node.untriedMoves) > 0) {
-				Cell targetCell = shift(node.untriedMoves)
+				Cell targetCell = shift(node.untriedMoves) as Cell
 
 				// Build ignoreCells: allies (from Fight.self) + killed entities (from simulation)
 				Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
