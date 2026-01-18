@@ -24,15 +24,15 @@ class Position extends Danger {
 	 * Basic constructor - creates Position from Danger calculation
 	 * Additional scores are added via addScore methods
 	 */
-	constructor(Cell cell, real dmg, string str, Consequences? consequences) {
-		super(cell, dmg, str, consequences)
+	constructor(Cell cell, real dmg, real psnDmg, string str, Consequences? consequences) {
+		super(cell, dmg, psnDmg, str, consequences)
 	}
 
 	/*
 	 * Copy constructor from Danger - promotes a Danger to Position
 	 */
 	constructor(Danger danger) {
-		super(danger.cell, danger.dmg, danger.combo, null)
+		super(danger.cell, danger.dmg, danger.psnDmg, danger.combo, null)
 		this.score = danger.score
 	}
 
@@ -71,20 +71,22 @@ class Position extends Danger {
 	/*
 	 * Apply life-based danger scaling (more cautious when low HP)
 	 * Should be called after base danger score is set
+	 * Uses total damage (dmg + psnDmg) for threshold calculations
 	 */
 	void applyLifeScaling(real lifePercent) {
-		if (this.dmg <= 0) return;
+		real totalDmg = this.dmg + this.psnDmg
+		if (totalDmg <= 0) return;
 
 		var currentLife = Fight.self.life * lifePercent
 
 		// Ignore small damage (scratches < 10% of current life)
 		// Cancel the score penalty but keep dmg visible for debugging
-		if (this.dmg < currentLife * ScoringConfig.IGNORE_DANGER_RATIO) {
-			this.score += this.dmg  // cancel the -dmg penalty
+		if (totalDmg < currentLife * ScoringConfig.IGNORE_DANGER_RATIO) {
+			this.score += totalDmg  // cancel the -totalDmg penalty
 			return
 		}
 
-		var originalDangerScore = -this.dmg
+		var originalDangerScore = -totalDmg
 		var scaledDangerScore = originalDangerScore
 
 		// Low HP scaling (below 60%)
@@ -93,11 +95,11 @@ class Position extends Danger {
 		}
 
 		// Critical danger scaling (danger > half of remaining life)
-		if (this.dmg > currentLife / 2) {
+		if (totalDmg > currentLife / 2) {
 			scaledDangerScore *= ScoringConfig.W_DANGER_CRITICAL
 		}
 
-		// Apply the difference (since base score already has -dmg)
+		// Apply the difference (since base score already has -totalDmg)
 		var adjustment = scaledDangerScore - originalDangerScore
 		this.score += adjustment
 	}
@@ -106,7 +108,7 @@ class Position extends Danger {
 	 * Get total score breakdown as string for debugging
 	 */
 	string getScoreBreakdown() {
-		return "danger=" + round((-this.dmg)) +
+		return "danger=" + round(this.dmg) + "+" + round(this.psnDmg) +
 			   " prox=" + round(this.proximityScore) +
 			   " grav=" + round(this.gravityScore) +
 			   " tact=" + round(this.tacticalScore) +
@@ -118,6 +120,6 @@ class Position extends Danger {
 	 * Format string for tests/debug
 	 */
 	string string() {
-		return '<Position ' + this.cell + ':dmg=' + round(this.dmg) + ':score=' + round(this.score) + '>'
+		return '<Position ' + this.cell + ':dmg=' + round(this.dmg) + ':psn=' + round(this.psnDmg) + ':score=' + round(this.score) + '>'
 	}
 }

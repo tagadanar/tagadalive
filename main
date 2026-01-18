@@ -58,5 +58,5 @@ Benchmark.collectCooldownsEnd(Fight.self.items, Fight.self.id)
 Benchmark.display()
 
 // MapDanger.showDanger(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
-// MapPosition.showPosition(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
-MapCellScore.showCellScores()
+MapPosition.showPosition(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
+// MapCellScore.showCellScores()

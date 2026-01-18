@@ -22,31 +22,83 @@ class MapAllyHeal {
 	// Items de heal par allié (configuré via ScoringConfig.ALLY_HEAL_ITEMS_LIMIT)
 	static Map<Entity, Array<Item>> _ally_heal_items = [:] // [ally:[items]]
 
+	// === Allies array (populated by collectAllies, used by processRound) ===
+	static Array<Entity> _allies = []
+
 	/*
-	 * Actualise les informations en fonction des alliés encore vivants
-	 * Doit être appelé APRÈS MapDanger.refresh() et Fight.refreshEntities()
+	 * Reset per-turn caches. Called by MapDanger.refresh() at start.
+	 * Note: _cache_item_targetableCells is NOT reset (valid across turns)
 	 */
-	static void refresh() {
-		// Reset des caches (sauf _cache_item_targetableCells qui reste valide entre les tours)
+	static void resetCaches() {
 		_heal = [:]
 		_hash_heal = [:]
 		_map_ally_item_heal = [:]
 		_ally_heal_items = [:]
+		_allies = []
+	}
 
-		// Pour chaque allié (sauf moi-même - on considère les autres alliés qui peuvent me heal)
+	/*
+	 * Collect allies and prepare their heal items.
+	 * Called by MapDanger.refresh() during Phase 1.
+	 * @return maxItems - maximum number of heal items across all allies
+	 */
+	static integer collectAllies() {
+		integer maxItems = 0
 		for (Entity ally in Fight.getAlliesAlive()) {
 			if (ally == Fight.self) continue
 
 			_map_ally_item_heal[ally] = [:]
-			// Récupère les items de heal de l'allié (limit via HEAL_ITEMS_LIMIT, 0 = unlimited)
 			Array<Item> healItems = Items.getOrderedHealItems(ally, HEAL_ITEMS_LIMIT)
 			_ally_heal_items[ally] = healItems
+			push(_allies, ally)
+			integer itemCount = count(healItems)
+			if (itemCount > maxItems) maxItems = itemCount
+		}
+		return maxItems
+	}
 
-			// Pour chaque item de heal
-			for (Item item in healItems) {
-				// On trouve les cases qu'il peut cibler avec son item (avec LOS)
+	/*
+	 * Process round i: compute heal map for item[i] of all allies.
+	 * Called by MapDanger.refresh() in interleaved round-robin.
+	 * @param i - item index to process
+	 */
+	static void processRound(integer i) {
+		for (Entity ally in _allies) {
+			Array<Item>? healItems = _ally_heal_items[ally]
+			if (healItems != null && i < count(healItems!)) {
+				Item item = healItems![i]
 				_map_ally_item_heal[ally]![item] = MapAllyHeal.getAllyHealMap(ally, item)
 			}
+		}
+	}
+
+	/*
+	 * Build early exit stats string for allies.
+	 * Called by MapDanger.refresh() when budget exceeded.
+	 * @param round - current round number (0-indexed)
+	 * @return stats string like "Bulb1:2/3 Bulb2:2/4"
+	 */
+	static string getEarlyExitStats(integer round) {
+		string stats = ""
+		for (Entity ally in _allies) {
+			Array<Item>? items = _ally_heal_items[ally]
+			integer total = items != null ? count(items!) : 0
+			integer done = min(round + 1, total)
+			if (stats != "") stats += " "
+			stats += ally.name + ":" + done + "/" + total
+		}
+		return stats
+	}
+
+	/*
+	 * Standalone refresh (for testing or when not using interleaved mode).
+	 * In production, MapDanger.refresh() orchestrates both maps.
+	 */
+	static void refresh() {
+		MapAllyHeal.resetCaches()
+		integer maxItems = MapAllyHeal.collectAllies()
+		for (integer i = 0; i < maxItems; i++) {
+			MapAllyHeal.processRound(i)
 		}
 	}
 
@@ -189,6 +241,23 @@ class MapAllyHeal {
 	}
 
 	/*
+	 * Check if a non-stackable HoT effect from this item is already on self.
+	 * Used to filter out heal-over-time items that won't actually add healing.
+	 * @param item Item to check
+	 * @param effect ItemEffect to check (must be EFFECT_HEAL with duration > 1)
+	 * @return true if effect should be skipped (already on self and non-stackable)
+	 */
+	static boolean isHoTAlreadyOnSelf(Item item, ItemEffect effect) {
+		// Only applies to non-stackable heal-over-time effects
+		if (effect.stackable) return false
+		if (effect.duration <= 1) return false
+
+		// Check if self already has this item's effect
+		Array<EffectOverTime>? existing = Fight.self.items_effectOverTime[item]
+		return existing != null && count(existing!) > 0
+	}
+
+	/*
 	 * Calcule le heal que peut faire allySource avec une Item
 	 * @param allySource Allié qui heal
 	 * @param item Item de heal
@@ -201,11 +270,17 @@ class MapAllyHeal {
 
 		for (ItemEffect e in item.effects) {
 			if (e.type == EFFECT_HEAL) {
+				// Skip non-stackable HoT effects already on self
+				if (e.duration > 1 && MapAllyHeal.isHoTAlreadyOnSelf(item, e)) continue
 				real tmp = e.avgmax * (1 + (allySource.getCurrentWsd(consequences) / 100)) * ratioHeal
 				heal += tmp
 			}
 			else if (e.type == EFFECT_BOOST_MAX_LIFE) {
 				real tmp = e.avgmax * (1 + (allySource.getCurrentWsd(consequences) / 100)) * ratioHeal
+				heal += tmp
+			}
+			else if (e.type == EFFECT_RAW_HEAL) {
+				real tmp = e.avgmax * ratioHeal  // No wisdom scaling
 				heal += tmp
 			}
 		}
