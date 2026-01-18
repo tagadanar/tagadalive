@@ -184,7 +184,22 @@ class Combo {
 					Fight.self.init()        // Now safe: Board.entityCells is updated
 					MapAction.refresh()      // Bulb's available actions
 					AI.getCombo().play()
-					debug("BULB_OPS>" + Benchmark.format(getOperations() - opsStart))
+					integer ops = getOperations() - opsStart
+					debug("BULB_OPS>" + Benchmark.format(ops))
+
+					// Record ops to register for statistics (format: "count,sum")
+					string regKey = Entity.getBulbRegisterKey(Fight.self.extendedType)
+					string? existing = getRegister(regKey)
+					integer sampleCount = 1
+					integer totalOps = ops
+					if (existing != null) {
+						Array<string> parts = split(existing!, ",")
+						sampleCount = number(parts[0]) + 1
+						totalOps = number(parts[1]) + ops
+					}
+					setRegister(regKey, sampleCount + "," + totalOps)
+					integer mean = totalOps / sampleCount
+					debug("BULB_STATS>" + regKey + ">n=" + sampleCount + ">mean=" + Benchmark.format(mean))
 					say("Salut, moi c'est fab")
 				})
 				Benchmark.log("SUMMON>" + action.item.name + ">c" + targetCell!.id)
