@@ -41,10 +41,6 @@ class Benchmark{
 	static integer _mctsNodes = 0
 	static integer _mctsPos = 0
 	static integer _mctsBest = 0
-	// PTS stats
-	static integer _ptsOpps = 0
-	static integer _ptsActions = 0
-	static integer _ptsBest = 0
 	// Beam Search stats
 	static integer _beamDepth = 0
 	static integer _beamCandidates = 0
@@ -58,10 +54,6 @@ class Benchmark{
 	// Algorithm comparison
 	static string _algoMode = ""
 	static string _algoWinner = ""
-	// Calibration stats (CalibratedPTS)
-	static string _calBudget = ""
-	static integer _calMpValue = 0
-	static integer _calPoints = 0
 	// MCTS cells tracking
 	static Array<integer> _mctsSeeds = []      // Priority cells from PTS
 	static Array<integer> _mctsExplored = []   // Cells actually explored
@@ -142,9 +134,6 @@ class Benchmark{
 		_mctsNodes = 0
 		_mctsPos = 0
 		_mctsBest = 0
-		_ptsOpps = 0
-		_ptsActions = 0
-		_ptsBest = 0
 		_beamDepth = 0
 		_beamCandidates = 0
 		_beamPos = 0
@@ -156,9 +145,6 @@ class Benchmark{
 		_beamBudgetLow = false
 		_algoMode = ""
 		_algoWinner = ""
-		_calBudget = ""
-		_calMpValue = 0
-		_calPoints = 0
 		_mctsSeeds = []
 		_mctsExplored = []
 		_mctsSkipped = []
@@ -215,12 +201,6 @@ class Benchmark{
 		_mctsBest = round(best)
 	}
 
-	static void setPTS(integer opps, integer actions, real best){
-		_ptsOpps = opps
-		_ptsActions = actions
-		_ptsBest = round(best)
-	}
-
 	static void setBeam(integer depth, integer candidates, integer opsExpand, integer opsSort, integer opsPos, integer opsTotal, real best, boolean budgetLow){
 		_beamDepth = depth
 		_beamCandidates = candidates
@@ -235,12 +215,6 @@ class Benchmark{
 	static void setAlgo(string mode, string winner){
 		_algoMode = mode
 		_algoWinner = winner
-	}
-
-	static void setCalibration(string bestBudget, real mpValue, integer points){
-		_calBudget = bestBudget
-		_calMpValue = round(mpValue)
-		_calPoints = points
 	}
 
 	static void setMCTSCells(Array<Cell> seeds, Array<Cell> explored, Array<Cell> skipped){
@@ -343,10 +317,9 @@ class Benchmark{
 	// Category definitions for grouped display
 	static Array<Array<string>> CATEGORIES = [
 		["INIT", "init", "Map.init", "Items.init"],
-		["REFRESH", "MapPath.refresh", "Fight.refresh", "Map.refresh", "Scoring.refresh", "MapDanger.refresh", "MapAllyHeal.refresh", "MapAllyDamage.refresh", "MapPosition.refresh", "MapAction.refresh", "MapOpportunity.refresh"],
-		["PTS", "PTS.buildCombo", "CalibratedPTS.calibrate", "CalibratedPTS.buildWithBudget"],
-		["MCTS", "MCTS.iter", "Hybrid.runMCTSFull", "Hybrid.runMCTSPrioritized", "Hybrid.getMCTSSeeded", "Hybrid.getMCTSGuided"],
-		["BEAM", "BeamSearch.search", "Hybrid.runBeamFull", "Hybrid.runBeamPrioritized", "Hybrid.getBeamGuided"],
+		["REFRESH", "MapPath.refresh", "Fight.refresh", "Map.refresh", "Scoring.refresh", "MapDanger.refresh", "MapAllyHeal.refresh", "MapAllyDamage.refresh", "MapPosition.refresh", "MapAction.refresh"],
+		["MCTS", "MCTS.iter", "Hybrid.runMCTSFull"],
+		["BEAM", "BeamSearch.search", "Hybrid.runBeamFull"],
 		["POSITION", "MP.evalPos", "MP.findBest"],
 		["ACTION", "addAction"],
 		["CONSEQUENCES", "Consequences", "Consequences.fromConseq"]
@@ -381,10 +354,8 @@ class Benchmark{
 		s += "|ram:" + getUsedRAM() + "/" + getMaxRAM()
 		s += "|c:" + _selfCell + "|e:" + _enemies + "|a:" + _allies
 		s += "|m:" + _mctsIter + "," + _mctsNodes + "," + _mctsPos + "," + _mctsBest
-		s += "|p:" + _ptsOpps + "," + _ptsActions + "," + _ptsBest
 		s += "|b:" + _beamDepth + "," + _beamCandidates + "," + _beamOpsExpand + "," + _beamOpsSort + "," + _beamOpsPos + "," + _beamOpsTotal + "," + _beamBest + "," + (_beamBudgetLow ? 1 : 0)
 		if(_algoMode != "") s += "|algo:" + _algoMode + "," + _algoWinner
-		if(_calBudget != "") s += "|cal:" + _calBudget + "," + _calMpValue + "," + _calPoints
 		s += "|fc:" + funcCount  // Function count for verification
 
 		// MCTS cells: seeds, explored, skipped
@@ -480,9 +451,8 @@ class Benchmark{
 		if (_algoMode != "") {
 			debug("Algorithm: " + _algoMode + " → " + _algoWinner + " wins")
 		}
-		debug("MCTS: " + _mctsIter + " iter, " + _mctsNodes + " nodes, " + _mctsPos + " pos → score " + _mctsBest)
-		if (_ptsOpps > 0) {
-			debug("PTS:  " + _ptsOpps + " opps, " + _ptsActions + " actions → score " + _ptsBest)
+		if (_mctsIter > 0) {
+			debug("MCTS: " + _mctsIter + " iter, " + _mctsNodes + " nodes, " + _mctsPos + " pos → score " + _mctsBest)
 		}
 		if (_beamDepth > 0) {
 			debug("BEAM: d=" + _beamDepth + " cand=" + _beamCandidates + " expand=" + _beamOpsExpand + " sort=" + _beamOpsSort + " pos=" + _beamOpsPos + " total=" + _beamOpsTotal + " score=" + _beamBest + (_beamBudgetLow ? " [LOW]" : ""))

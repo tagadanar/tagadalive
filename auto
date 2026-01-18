@@ -36,7 +36,6 @@ include('Controlers/Maps/MapAllyDamage')
 include('Controlers/Maps/MapPosition')
 include('Controlers/Maps/Targets')
 include('Controlers/Maps/MapAction')
-include('Controlers/Maps/MapOpportunity')
 
 // ────────────────────────────────────────────────────────────────────────────
 // COMBO SYSTEM: Action modeling and consequence simulation
@@ -93,19 +92,11 @@ include('Model/Combos/EffectSnapshot')   // Inline scoring in addAlteration() ne
 include('Controlers/Maps/EffectCache')
 include('Model/Combos/Effects/SnapshotEffects')
 
-include('Model/Combos/Opportunity')
-
 // ────────────────────────────────────────────────────────────────────────────
 // ALGORITHMS: Search strategies for combo building
-// Order matters: CalibratedPTS before UnifiedMCTS (seeding dependency)
 // ────────────────────────────────────────────────────────────────────────────
 include('AI/Algorithms/MCTS')
 include('AI/Algorithms/BeamSearch')
-include('AI/Algorithms/PTS')
-include('AI/Algorithms/CalibratedPTS')
-include('AI/Algorithms/UnifiedMCTS')
-include('AI/Algorithms/CellMCTS')
-include('AI/Algorithms/OpportunityMCTS')
 include('AI/Algorithms/Hybrid')
 include('AI/Algorithms/ActionKnapsack')
 include('AI/Algorithms/ComboExplorer')
@@ -172,13 +163,6 @@ function init() {
 	Benchmark.start('MapAction.refresh')
 	MapAction.refresh()
 	Benchmark.stop('MapAction.refresh')
-
-	// Skip MapOpportunity for ComboExplorer (uses MapCellScore instead)
-	if (AI.mode != AI.MODE_COMBO_EXPLORER) {
-		Benchmark.start('MapOpportunity.refresh')
-		MapOpportunity.refresh()
-		Benchmark.stop('MapOpportunity.refresh')
-	}
 
 	Benchmark.stop('init')
 

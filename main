@@ -3,38 +3,11 @@ include('auto');
 // ╔═════════════════════════════════════════════════════════════════════╗
 // ║                      ALGORITHM CONFIGURATION                        ║
 // ╠═════════════════════════════════════════════════════════════════════╣
-// ║  MODE_PTS              Fast greedy, target-first                    ║
-// ║  MODE_MCTS             Full tree search (legacy)                    ║
-// ║  MODE_BEAM             Multi-path beam search (legacy)              ║
-// ║  MODE_HYBRID           PTS seeds MCTS on 1 cell (legacy)            ║
-// ║  MODE_HYBRID_GUIDED    PTS guides MCTS cell order (legacy)          ║
-// ║  MODE_HYBRID_BEAM      PTS guides BeamSearch (legacy)               ║
-// ║  MODE_UNIFIED_MCTS     Single tree, cells first-level               ║
-// ║  MODE_CELL_MCTS        Cell-centric with mid-combo MoveNodes        ║
-// ║  MODE_OPPORTUNITY_MCTS Opportunity-centric, implicit movement       ║
-// ║  MODE_COMBO_EXPLORER   Multi-phase exploration [TESTING]            ║
-// ╠═════════════════════════════════════════════════════════════════════╣
-// ║  All MCTS variants use CalibratedPTS for:                           ║
-// ║  - MP budget exploration: tests combos at each MP level (0..maxMP)  ║
-// ║  - Seeding: calibration combos pre-populate MCTS tree               ║
-// ║  - Position estimation: mpValue estimates position score per MP     ║
-// ║  - Resource sync: tracks MP/TP from Consequences (source of truth)  ║
-// ╠═════════════════════════════════════════════════════════════════════╣
-// ║  SKIP_CALIBRATION = true disables CalibratedPTS entirely:           ║
-// ║  - No PTS baseline run, no seeding, pure MCTS exploration           ║
-// ║  - Uses DEFAULT_MP_VALUE (50) for movement cost estimation          ║
-// ║  - Returns MCTS result only (no PTS vs MCTS comparison)             ║
+// ║  MODE_MCTS             Full tree search                             ║
+// ║  MODE_BEAM             Multi-path beam search                       ║
+// ║  MODE_COMBO_EXPLORER   Multi-phase exploration [DEFAULT]            ║
 // ╚═════════════════════════════════════════════════════════════════════╝
 AI.mode = AI.MODE_COMBO_EXPLORER
-
-// Pure MCTS mode (skip CalibratedPTS entirely)
-// AI.SKIP_CALIBRATION = true
-// AI.DEFAULT_MP_VALUE = 50.0  // Adjust if needed
-
-// Seeding configuration (set to false for MCTS without PTS seeding, but keeps calibration)
-// UnifiedMCTS.USE_PTS_SEEDING = false
-// OpportunityMCTS.USE_PTS_SEEDING = false
-// CellMCTS.USE_PTS_SEEDING = false
 
 // Initialize game state
 init()
@@ -58,5 +31,5 @@ Benchmark.collectCooldownsEnd(Fight.self.items, Fight.self.id)
 Benchmark.display()
 
 // MapDanger.showDanger(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
-MapPosition.showPosition(Board.getCell(getCell())!, getMP(), this.getCurrentConsequences())
+MapPosition.showPosition(Board.getCell(getCell())!, getMP(), combo.getCurrentConsequences())
 // MapCellScore.showCellScores()
