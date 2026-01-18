@@ -128,8 +128,7 @@ class Benchmark{
 
 	static string format(integer|real num){
 		num = num | 0
-		if(num >= 1000000) return round(num / 1000000) + "M"
-		if(num >= 1000) return round(num / 1000) + "k"
+		if(num >= 1000) return (round(num / 1000) | 0) + "k"
 		return num + ""
 	}
 
