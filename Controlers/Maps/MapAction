@@ -1,3 +1,19 @@
+/*
+ * ItemTarget: tuple for sorted exploration
+ * Holds (item, target, score) for priority ordering
+ */
+class ItemTarget {
+	Item item
+	Entity target
+	real score
+
+	constructor(Item item, Entity target, real score) {
+		this.item = item
+		this.target = target
+		this.score = score
+	}
+}
+
 class MapAction {
 	static Map<Item, Map<Cell, Array<Action>>> _item_cell_actions // [item:[cell:[actions]]]
 	static Map<Cell, Map<Item, Array<Action>>> _cell_item_actions // [cell:[item:[actions]]]
@@ -8,90 +24,166 @@ class MapAction {
 	// Score index: stores best score per (item, entityId, attackCell) - keeps best aimCell
 	static Map<Item, Map<integer, Map<Cell, real>>> _item_entityId_scores
 
+	// Budget: 80% of max operations
+	static real BUDGET_RATIO = 0.8
+	// Counter for actions created during refresh (for guaranteed minimum)
+	static integer _actionsCreated = 0
+
 	static void refresh() {
-		// remise à zéro des maps
+		// Reset maps
 		_item_cell_actions = [:]
 		_cell_item_actions = [:]
 		_cell_item_bestAction = [:]
 		_item_entityId_attackCells = [:]
 		_item_entityId_scores = [:]
+		_actionsCreated = 0
 		// Clear effect cache for new turn
 		EffectCache.clear()
-		// pour chaque item
-		for(Item item in Fight.self.items){
-			// si j'ai le cooldown
-			if(getCooldown(item.id, Fight.self.id) > 0) continue
-			// Handle summon chips as self-cast (cell chosen at execution time)
+
+		// Compute budget threshold
+		integer actionBudget = (getMaxOperations() * BUDGET_RATIO) as integer
+
+		// ═══════════════════════════════════════════════════════════════════
+		// PHASE 1: Score all (item, target) pairs
+		// ═══════════════════════════════════════════════════════════════════
+		Array<ItemTarget> tuples = []
+
+		for (Item item in Fight.self.items) {
+			// Skip if on cooldown
+			if (getCooldown(item.id, Fight.self.id) > 0) continue
+
+			// Handle summon chips immediately (self-cast, no target scoring)
 			if (item.isSummon) {
 				MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
 				continue
 			}
-			// selon l'area de l'item
-			if(item.area == AREA_POINT){
-				// pour chaque cible valide de l'item
-				for(Entity entity in item.targetSet()){
-					if(entity.isInvincible && !entity.isFriend) continue // skip invincible enemies
-					if(entity==Fight.self){
-						// si c'est moi la cible, je peux le lancer sur moi même que si la minrange le permet
-						if(item.minRange == 0){
-							Action? action = MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
-							if(action != null) {
-								MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell, action!.score!)
-							}
-						}
-					} else {
-						// Pre-check snapshot before cells loop (optimization)
-						EffectSnapshot? snapshot = EffectCache.getOrCompute(item, entity.cell, Fight.selfCell)
-						if (snapshot != null && MapAction.shouldFilterSnapshot(snapshot!)) continue // Skip entire target
 
-						// sinon je liste toutes les cases depuis lesquelles je peux tirer sur la cible
-						Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, entity.cell, [Fight.self.id])
-						for(Cell c in cells) {
-							Action? action = MapAction.addActionWithSnapshot(item, c, entity.cell, snapshot)
-							if(action != null) {
-								MapAction.addEntityIndex(item, entity.id, c, entity.cell, action!.score!)
-							}
-						}
-					}
-				}
-			}else if(item.area == AREA_LASER_LINE){
-				for(Entity entity in item.targetSet()){
-					if(entity.isInvincible && !entity.isFriend) continue // skip invincible enemies
-					if(entity==Fight.self) continue; // on peut jamais se tirer dessus au lazer
-					Array<Cell> cellsFrom = Targets.getLazerCellsToUseItemOnCell(item, entity.cell)
-					for(Cell cell in cellsFrom){
-						Action? action = MapAction.addAction(item, cell, entity.cell)
-						if(action != null) {
-							MapAction.addEntityIndex(item, entity.id, cell, entity.cell, action!.score!)
-						}
-					}
-				}
-				// maybe here I should handle AREA_FIRST_INLINE ?
-			}else{ // every aoe
-				for(Entity entity in item.targetSet()){
-					if(entity.isInvincible && !entity.isFriend) continue // skip invincible enemies
-					if(entity==Fight.self) continue
-					// TODO réfléchir à l'implem de ce genre de move sur case vide..
-					// si c'est moi la cible, si la minrange le permet, visez les cells proche ?
-					// if(entity==Fight.self && item.minRange <= ?){}
-					for(Cell aimCell in entity.cell.getAreaCells(item.area)){
-						// Pre-check snapshot before cells loop (optimization)
-						EffectSnapshot? snapshot = EffectCache.getOrCompute(item, aimCell, Fight.selfCell)
-						if (snapshot != null && MapAction.shouldFilterSnapshot(snapshot!)) continue // Skip this aimCell
+			// Score each valid target for this item
+			for (Entity entity in item.targetSet()) {
+				// Skip invincible enemies
+				if (entity.isInvincible && !entity.isFriend) continue
 
-						Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, aimCell, [Fight.self.id])
-						for(Cell c in cells) {
-							Action? action = MapAction.addActionWithSnapshot(item, c, aimCell, snapshot)
-							if(action != null) {
-								MapAction.addEntityIndex(item, entity.id, c, aimCell, action!.score!)
-							}
-						}
-					}
+				// Compute score using direct hit on target
+				EffectSnapshot? snapshot = EffectCache.getOrCompute(item, entity.cell, Fight.selfCell)
+				real score = snapshot != null ? snapshot!.effectScore : 0
+
+				push(tuples, new ItemTarget(item, entity, score))
+			}
+		}
+
+		// ═══════════════════════════════════════════════════════════════════
+		// PHASE 2: Sort by score descending
+		// ═══════════════════════════════════════════════════════════════════
+		arraySort(tuples, (ItemTarget a, ItemTarget b) -> b.score - a.score)
+
+		// ═══════════════════════════════════════════════════════════════════
+		// PHASE 3: Populate actions (budget-aware)
+		// ═══════════════════════════════════════════════════════════════════
+		integer totalTuples = count(tuples)
+		integer processed = 0
+
+		for (ItemTarget tuple in tuples) {
+			// Guarantee at least 3 actual actions (for bulbs starting late), then check budget
+			if (_actionsCreated >= 3 && getOperations() > actionBudget) {
+				MapAction._logEarlyExit(processed, totalTuples)
+				EffectCache.logStats()
+				return
+			}
+
+			MapAction._populateActionsForTarget(tuple.item, tuple.target)
+			processed++
+		}
+
+		// Log cache stats at end of action pool creation
+		EffectCache.logStats()
+	}
+
+	/*
+	 * Log early exit due to budget exhaustion
+	 */
+	static void _logEarlyExit(integer processed, integer total) {
+		string msg = "T" + getTurn() + " MapAction early exit @" + Benchmark.format(getOperations())
+		msg += " | tuples:" + processed + "/" + total + " | actions:" + _actionsCreated
+		debugW(msg)
+	}
+
+	/*
+	 * Populate actions for a specific (item, target) pair
+	 * Handles area-specific logic (POINT, LASER, AOE)
+	 */
+	static void _populateActionsForTarget(Item item, Entity entity) {
+		if (item.area == AREA_POINT) {
+			MapAction._populatePointActions(item, entity)
+		} else if (item.area == AREA_LASER_LINE) {
+			MapAction._populateLaserActions(item, entity)
+		} else {
+			MapAction._populateAoeActions(item, entity)
+		}
+	}
+
+	/*
+	 * AREA_POINT: single target actions
+	 */
+	static void _populatePointActions(Item item, Entity entity) {
+		if (entity == Fight.self) {
+			// Self-cast only if minRange allows
+			if (item.minRange == 0) {
+				Action? action = MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
+				if (action != null) {
+					MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell, action!.score!)
+				}
+			}
+			return
+		}
+
+		// Pre-compute snapshot for efficiency (shared across all cells)
+		EffectSnapshot? snapshot = EffectCache.getOrCompute(item, entity.cell, Fight.selfCell)
+
+		// Get all cells from which we can hit this target
+		Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, entity.cell, [Fight.self.id])
+		for (Cell c in cells) {
+			Action? action = MapAction.addActionWithSnapshot(item, c, entity.cell, snapshot)
+			if (action != null) {
+				MapAction.addEntityIndex(item, entity.id, c, entity.cell, action!.score!)
+			}
+		}
+	}
+
+	/*
+	 * AREA_LASER_LINE: laser actions (targets depend on fromCell)
+	 */
+	static void _populateLaserActions(Item item, Entity entity) {
+		// Can't laser self
+		if (entity == Fight.self) return;
+
+		Array<Cell> cellsFrom = Targets.getLazerCellsToUseItemOnCell(item, entity.cell)
+		for (Cell cell in cellsFrom) {
+			Action? action = MapAction.addAction(item, cell, entity.cell)
+			if (action != null) {
+				MapAction.addEntityIndex(item, entity.id, cell, entity.cell, action!.score!)
+			}
+		}
+	}
+
+	/*
+	 * AOE: area of effect actions (multiple aimCells per target)
+	 */
+	static void _populateAoeActions(Item item, Entity entity) {
+		// Can't AOE self
+		if (entity == Fight.self) return;
+
+		for (Cell aimCell in entity.cell.getAreaCells(item.area)) {
+			// Pre-compute snapshot for efficiency (shared across all cells)
+			EffectSnapshot? snapshot = EffectCache.getOrCompute(item, aimCell, Fight.selfCell)
+
+			Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, aimCell, [Fight.self.id])
+			for (Cell c in cells) {
+				Action? action = MapAction.addActionWithSnapshot(item, c, aimCell, snapshot)
+				if (action != null) {
+					MapAction.addEntityIndex(item, entity.id, c, aimCell, action!.score!)
 				}
 			}
 		}
-		// Log cache stats at end of action pool creation
-		EffectCache.logStats()
 	}
 
 	static Map<Cell, Map<Item, Action>> getMapBestAction(){
@@ -141,17 +233,7 @@ class MapAction {
 	}
 
 	/*
-	 * Check if a snapshot should be filtered out (score < 0 with no Liberation combo potential)
-	 */
-	static boolean shouldFilterSnapshot(EffectSnapshot snapshot) {
-		if (snapshot.effectScore >= 0) return false
-		// Score < 0: check if Liberation could help (has raw damage blocked by shields)
-		if (Fight.liberationReady && snapshot.rawEnemyDamage > 0) return false
-		return true
-	}
-
-	/*
-	 * Core logic: create action, filter, add to maps.
+	 * Core logic: create action, add to maps.
 	 * Called after reachability check and snapshot computation.
 	 * Caller must call Benchmark.start("addAction") before; this handles stop.
 	 */
@@ -161,14 +243,6 @@ class MapAction {
 			action = new Action(item, from, targetCell, snapshot!)
 		} else {
 			action = new Action(item, from, targetCell)
-		}
-
-		// Filter negative score actions (but keep if Liberation combo potential)
-		if (action.score != null && action.score! < 0) {
-			if (snapshot == null || !Fight.liberationReady || snapshot!.rawEnemyDamage <= 0) {
-				Benchmark.stop("addAction")
-				return null
-			}
 		}
 
 		// ajout dans la map par item puis cells
@@ -185,6 +259,8 @@ class MapAction {
 		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
 		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
 		else if(_cell_item_bestAction[from]![item]!.score < action.score) _cell_item_bestAction[from]![item] = action
+
+		_actionsCreated++
 		Benchmark.stop("addAction")
 		return action
 	}
@@ -206,10 +282,6 @@ class MapAction {
 		EffectSnapshot? snapshot = null
 		if (item.area == AREA_LASER_LINE) {
 			snapshot = EffectCache.getOrComputeLaser(item, from, targetCell)
-			if (snapshot != null && MapAction.shouldFilterSnapshot(snapshot!)) {
-				Benchmark.stop("addAction")
-				return null
-			}
 		} else {
 			snapshot = EffectCache.getOrCompute(item, targetCell, from)
 		}
