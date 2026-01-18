@@ -17,6 +17,7 @@ class EffectSnapshot {
 
 	// Precomputed metadata
 	real effectScore          // Score from effects only (no CD penalty, no movement)
+	real rawEnemyDamage       // Raw damage dealt to enemies before shield mitigation (for Liberation combo detection)
 	integer hashcode
 	boolean isAlteringDanger
 
@@ -30,6 +31,7 @@ class EffectSnapshot {
 		this.killed = [:]
 		this.targets = []
 		this.effectScore = 0.0
+		this.rawEnemyDamage = 0.0
 		this.hashcode = 17
 		this.isAlteringDanger = false
 		this.cdDuration = 0
@@ -149,6 +151,15 @@ class EffectSnapshot {
 	void addEffectTypeAlteration(Entity entity, integer effectType, integer value) {
 		if (!this.effectTypeAlterations[entity]) this.effectTypeAlterations[entity] = [:]
 		this.effectTypeAlterations[entity]![effectType] += value
+	}
+
+	/*
+	 * Track raw damage dealt to enemy (before shield mitigation).
+	 * Used for Liberation combo detection: if rawEnemyDamage > 0 but effectScore < 0,
+	 * shields are blocking damage that Liberation could enable.
+	 */
+	void addRawEnemyDamage(real value) {
+		this.rawEnemyDamage += value
 	}
 
 	/*

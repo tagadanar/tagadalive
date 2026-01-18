@@ -16,6 +16,9 @@ class Fight {
 	static Entity self
 	static Cell selfCell = Cell(Cell.SELF_CAST_ID)
 	static boolean isBattleRoyale
+	// Liberation availability for combo detection (computed in refresh)
+	static boolean liberationReady = false
+	static Item? liberationItem = null
 
 	// Cached turn order: entities that play after self, sorted by turn order
 	// Reset in refresh(), computed lazily in getEntitiesAfterSelfInOrder()
@@ -62,6 +65,17 @@ class Fight {
 			}
 		}
 		self = _aliveAll[getEntity()]!
+
+		// Compute Liberation availability for combo detection
+		liberationReady = false
+		liberationItem = null
+		for (Item item in self.items) {
+			if (item.id == CHIP_LIBERATION && getCooldown(item.id, self.id) == 0) {
+				liberationReady = true
+				liberationItem = item
+				break
+			}
+		}
 	}
 	
 	/*

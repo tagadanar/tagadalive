@@ -338,6 +338,15 @@ class Consequences {
 		_effectTypeAlterations[entity]![effectType] += value
 	}
 
+	/*
+	 * No-op for duck typing with EffectSnapshot.
+	 * Raw enemy damage tracking is only needed for initial pool filtering,
+	 * not for combo building (which re-evaluates everything).
+	 */
+	void addRawEnemyDamage(real value) {
+		// No-op in Consequences - only tracked in EffectSnapshot
+	}
+
 	real? getScore(){
 		return this.score
 	}
