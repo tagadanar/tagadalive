@@ -35,8 +35,10 @@ class ExplorerConfig {
 	// Top K cells for Phase 3 three-cell exploration
 	// Complexity is O(K³ × 6): K=7 → 210 combos, K=10 → 720 combos
 	static integer INTERESTING_CELLS_K_PHASE3 = 7
-	// Operation buffer: 1M for main leek (to allow bulb turns), 200k for bulbs
-	static integer OPERATION_BUFFER_LEEK = 1000000
+	// Operation buffer: dynamic for main leek (base + per bulb + potential summon), fixed for bulbs
+	static integer OPERATION_BUFFER_LEEK_BASE = 200000
+	static integer OPERATION_BUFFER_PER_BULB = 200000
+	static integer OPERATION_BUFFER_POTENTIAL_SUMMON = 200000
 	static integer OPERATION_BUFFER_BULB = 200000
 	static integer MAX_RESULTS_KEPT = 5
 }
@@ -469,10 +471,18 @@ class ComboExplorer {
 	static Combo explore() {
 		Benchmark.start("ComboExplorer.explore")
 
-		// Set operation buffer based on entity type (bulbs need less buffer)
-		ComboExplorer.operationBuffer = Fight.self.isBulb
-			? ExplorerConfig.OPERATION_BUFFER_BULB
-			: ExplorerConfig.OPERATION_BUFFER_LEEK
+		// Set operation buffer based on entity type
+		// Bulbs: fixed buffer. Leeks: base + per-bulb + potential summon
+		if (Fight.self.isBulb) {
+			ComboExplorer.operationBuffer = ExplorerConfig.OPERATION_BUFFER_BULB
+		} else {
+			integer bulbCount = count(getSummons())
+			ComboExplorer.operationBuffer = ExplorerConfig.OPERATION_BUFFER_LEEK_BASE
+				+ bulbCount * ExplorerConfig.OPERATION_BUFFER_PER_BULB
+			if (Fight.canSummon) {
+				ComboExplorer.operationBuffer += ExplorerConfig.OPERATION_BUFFER_POTENTIAL_SUMMON
+			}
+		}
 
 		// Initialize
 		ComboExplorer.topResults = []
