@@ -38,7 +38,7 @@ class Combo {
 		}
 		return count
 	}
-	
+
 	void addFinalPosition(Position position){
 		this.finalPosition = position
 	}
@@ -97,14 +97,43 @@ class Combo {
 	}
 	
 	/*
+	 * Find best empty cell for summoning (prefers cells far from enemies)
+	 * Uses Targets.getCellsToUseItemOnCell which returns empty cells within range
+	 */
+	static Cell? findSummonCell(Item item) {
+		Cell currentCell = Board.cells[getCell()!]!
+		Map<Cell, integer>? enemyDistMap = MapPosition.getNearestEnemyPathDist()
+
+		Cell? bestCell = null
+		integer bestDist = -1
+
+		// Get all valid empty cells within summon range (reuses existing targeting logic)
+		Array<Cell> validCells = Targets.getCellsToUseItemOnCell(item, currentCell, [Fight.self.id])
+
+		for (Cell cell in validCells) {
+			integer enemyDist = 0
+			if (enemyDistMap != null && enemyDistMap![cell] != null) {
+				enemyDist = enemyDistMap![cell]!
+			}
+
+			if (enemyDist > bestDist) {
+				bestDist = enemyDist
+				bestCell = cell
+			}
+		}
+		return bestCell
+	}
+
+	/*
 	 * pour chaque action dans l'ensemble d'actions
 	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
 	 */
 	void play(){
-		// étape 1: je fais mes actions
+		// étape 1: je fais mes actions (skip summons - delayed to after positioning)
 		for(Action action in this.actions){
+			if (action.item.isSummon) continue
 			if(action.from != Fight.selfCell){
-				moveTowardCell(action.from.id)				
+				moveTowardCell(action.from.id)
 				Benchmark.logMove(Fight.self.cell.id, action.from.id)
 				Fight.self.cell = Board.cells[getCell()!]!
 				// Skip action if we didn't reach the attack cell
@@ -139,6 +168,19 @@ class Combo {
 			moveTowardCell(this.finalPosition!.cell.id)
 			if(Fight.self.cell.id != getCell()){
 				Benchmark.logMove(Fight.self.cell.id, getCell()!)
+			}
+		}
+		// étape 2b: summon actions (after reaching final position)
+		for (Action action in this.actions) {
+			if (!action.item.isSummon) continue
+			Cell? targetCell = Combo.findSummonCell(action.item)
+			if (targetCell != null) {
+				summon(action.item.id, targetCell!.id, function() {
+					say("Salut, moi c'est fab")
+				})
+				Benchmark.log("SUMMON>" + action.item.name + ">c" + targetCell!.id)
+			} else {
+				debugW("No valid cell for summon: " + action.item.name)
 			}
 		}
 		// étape 3: si il reste des TP, je prend en main une arme aléatoire

@@ -22,6 +22,7 @@ class Item {
 
 	integer targetKey
 	boolean targetEmptyCell = false
+	boolean isSummon = false
 
 	static integer ALL = 0
 	static integer ALLLEEKS = 1
@@ -238,6 +239,14 @@ class Item {
 			integer i = 0
 			for(Array<real | integer> e in getChipEffects(id)!){
 				push(this.effects, ItemEffect(e, this, i++))
+			}
+		}
+
+		// Detect summon chips
+		for (ItemEffect e in this.effects) {
+			if (e.type == EFFECT_SUMMON) {
+				this.isSummon = true
+				break
 			}
 		}
 

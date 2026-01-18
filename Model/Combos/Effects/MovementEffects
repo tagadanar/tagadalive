@@ -36,9 +36,16 @@ Consequences.registerHandlers([
 	},
 
 	EFFECT_SUMMON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		// Summons a bulb
-		// Would need: BulbValue class with HP, damage potential, utility scores
-		// Factor in TP cost vs expected return over remaining turns
+		// Estimate bulb value based on chip type
+		integer bulbType = ScoringConfig.getBulbTypeFromChip(effect.item.id)
+		real? bulbValueMaybe = ScoringConfig.SUMMON_VALUES[bulbType]
+		real bulbValue = bulbValueMaybe != null ? bulbValueMaybe! : ScoringConfig.SUMMON_VALUE_DEFAULT
+
+		// Factor: remaining turns (bulbs are more valuable early in fight)
+		real turnsRemaining = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
+		real turnFactor = min(1.0, turnsRemaining / 30.0)
+
+		conseq.score += bulbValue * turnFactor
 	},
 
 	EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
