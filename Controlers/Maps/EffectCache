@@ -5,7 +5,8 @@
  * - AREA_POINT: keyed by (item, aimCell) since aimCell = target.cell
  * - AREA_LASER_LINE: keyed by (item, targetsHash) since same targets = same effects
  * - Other AOE (!onCaster): keyed by (item, aimCell) since aimCell determines targets + damage ratios
- * - AOE with onCaster: NOT cached (self inclusion depends on fromCell)
+ * - AOE with onCaster: keyed by (item, aimCell) ONLY when fromCell is outside AOE area
+ *   (when fromCell is inside area, self is added to targets - can't cache)
  * - Self-cast: NOT cached (single action anyway)
  *
  * This cache is rebuilt each turn during MapAction.refresh().
@@ -47,8 +48,11 @@ class EffectCache {
 		// Skip caching for self-cast - single action anyway
 		if (aimCell == Fight.selfCell) return null
 
-		// Skip caching for onCaster AOE - self might be added depending on fromCell
-		if (item.isAOE && item.onCaster) return null
+		// For onCaster AOE: only cache when fromCell is outside the AOE area
+		// When fromCell is inside, self gets added to targets - can't reuse snapshot
+		if (item.isAOE && item.onCaster) {
+			if (inArray(aimCell.getAreaCells(item.area), fromCell)) return null
+		}
 
 		integer itemId = item.id
 		integer cellId = aimCell.id
