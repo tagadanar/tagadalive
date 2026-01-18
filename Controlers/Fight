@@ -19,6 +19,8 @@ class Fight {
 	// Liberation availability for combo detection (computed in refresh)
 	static boolean liberationReady = false
 	static Item? liberationItem = null
+	// Summon availability for operation buffer calculation (computed in refresh)
+	static boolean canSummon = false
 
 	// Cached turn order: entities that play after self, sorted by turn order
 	// Reset in refresh(), computed lazily in getEntitiesAfterSelfInOrder()
@@ -66,14 +68,17 @@ class Fight {
 		}
 		self = _aliveAll[getEntity()]!
 
-		// Compute Liberation availability for combo detection
+		// Compute Liberation and summon availability
 		liberationReady = false
 		liberationItem = null
+		canSummon = false
 		for (Item item in self.items) {
 			if (item.id == CHIP_LIBERATION && getCooldown(item.id, self.id) == 0) {
 				liberationReady = true
 				liberationItem = item
-				break
+			}
+			if (item.isSummon && getCooldown(item.id, self.id) == 0 && self.tp >= item.cost) {
+				canSummon = true
 			}
 		}
 	}
