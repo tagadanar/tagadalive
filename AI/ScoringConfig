@@ -118,4 +118,34 @@ class ScoringConfig {
 		7 : 4.0,
 		8 : 4.4
 	]
+
+	// === Summon Values ===
+	// Base value per bulb type (modified by turns remaining)
+	static real SUMMON_VALUE_DEFAULT = 100.0
+	static Map<integer, real> SUMMON_VALUES = [
+		Entity.BULB_FIRE: 150.0,
+		Entity.BULB_HEALER: 200.0,
+		Entity.BULB_METALLIC: 180.0,
+		Entity.BULB_ICED: 140.0,
+		Entity.BULB_LIGHTNING: 130.0,
+		Entity.BULB_ROCKY: 100.0,
+		Entity.BULB_WIZARD: 160.0,
+		Entity.BULB_PUNY: 50.0,
+		Entity.BULB_TACTICIAN: 170.0,
+		Entity.BULB_SAVANT: 160.0,
+	]
+
+	static integer getBulbTypeFromChip(integer chipId) {
+		if (chipId == CHIP_FIRE_BULB) return Entity.BULB_FIRE
+		if (chipId == CHIP_HEALER_BULB) return Entity.BULB_HEALER
+		if (chipId == CHIP_METALLIC_BULB) return Entity.BULB_METALLIC
+		if (chipId == CHIP_ICED_BULB) return Entity.BULB_ICED
+		if (chipId == CHIP_LIGHTNING_BULB) return Entity.BULB_LIGHTNING
+		if (chipId == CHIP_ROCKY_BULB) return Entity.BULB_ROCKY
+		if (chipId == CHIP_WIZARD_BULB) return Entity.BULB_WIZARD
+		if (chipId == CHIP_PUNY_BULB) return Entity.BULB_PUNY
+		if (chipId == CHIP_TACTICIAN_BULB) return Entity.BULB_TACTICIAN
+		if (chipId == CHIP_SAVANT_BULB) return Entity.BULB_SAVANT
+		return ENTITY_BULB
+	}
 }

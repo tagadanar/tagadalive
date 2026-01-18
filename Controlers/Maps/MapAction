@@ -21,6 +21,11 @@ class MapAction {
 		for(Item item in Fight.self.items){
 			// si j'ai le cooldown
 			if(getCooldown(item.id, Fight.self.id) > 0) continue
+			// Handle summon chips as self-cast (cell chosen at execution time)
+			if (item.isSummon) {
+				MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
+				continue
+			}
 			// selon l'area de l'item
 			if(item.area == AREA_POINT){
 				// pour chaque cible valide de l'item

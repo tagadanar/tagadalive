@@ -94,6 +94,22 @@ class EntityCoefs {
 			Stats.WSD: 0.05, Stats.AGI: 0.05,
 			Stats.TP: 1.0, Stats.MP: 2.0, Stats.PWR: 0.1, Stats.KILL: 0.05
 		],
+		Entity.BULB_TACTICIAN: [
+			Stats.HP: 0.4, Stats.HPTIME: 0.2, Stats.HPMAX: 0.1,
+			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
+			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
+			Stats.STR: 0.2, Stats.MGC: 0.2, Stats.RST: 0.1,
+			Stats.WSD: 0.1, Stats.AGI: 0.1,
+			Stats.TP: 2.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+		],
+		Entity.BULB_SAVANT: [
+			Stats.HP: 0.4, Stats.HPTIME: 0.2, Stats.HPMAX: 0.1,
+			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
+			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
+			Stats.STR: 0.2, Stats.MGC: 0.2, Stats.RST: 0.1,
+			Stats.WSD: 0.1, Stats.AGI: 0.1,
+			Stats.TP: 2.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+		],
 		ENTITY_TURRET: [
 			Stats.HP: 3.0, Stats.HPTIME: 1.0, Stats.HPMAX: 10.0,
 			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
