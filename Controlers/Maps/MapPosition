@@ -13,7 +13,6 @@ class MapPosition {
 	// === Gravity configuration ===
 	static Map<Cell, integer> _gravity_distance = [:]  // [cell: ideal distance]
 	static Map<Cell, real> _gravity_coef = [:]         // [cell: weight]
-	static real _total_ally_coef = 0.0
 
 	// === Threat detection ===
 	// Note: enemyHasStr is now in BattleState.enemyHasStr
@@ -106,70 +105,53 @@ class MapPosition {
 
 	/*
 	 * Compute gravity cells - attraction/repulsion targets with ideal distances
+	 *
+	 * Simplified gravity system:
+	 * - Team fight: only turret attraction (weight 3)
+	 * - Other fights: nearest enemy (weight 2) + center (weight 1)
+	 *
+	 * Ally attraction is now handled by the heal map (MapAllyHeal) which provides
+	 * more accurate positioning based on actual heal potential.
 	 */
 	static void _refreshGravityCells() {
 		_gravity_distance = [:]
 		_gravity_coef = [:]
-		_total_ally_coef = 0.0  // IMPORTANT: Must use 0.0, not 0 (LeekScript type issue)
-		real coef
-		boolean isSummon = Fight.self.isBulb
 
-		for (Entity ally in Fight.getAlliesLeeksAlive()) {
-			if (ally == Fight.self) continue;
-			if (isSummon) coef = ScoringConfig.W_GRAVITY_ALLY_SUMMON
-			else if (ally.snc >= 600) coef = ScoringConfig.W_GRAVITY_ALLY_SNC600
-			else if (ally.snc >= 400) coef = ScoringConfig.W_GRAVITY_ALLY_SNC400
-			else if (ally.wsd >= 400) coef = ScoringConfig.W_GRAVITY_ALLY_WIS400
-			else if (ally.rst >= 200) coef = ScoringConfig.W_GRAVITY_ALLY_RST200
-			else if (ally.wsd >= 200) coef = ScoringConfig.W_GRAVITY_ALLY_WIS200
-			else coef = ScoringConfig.W_GRAVITY_ALLY_DEFAULT
-			_gravity_distance[ally.cell] = ScoringConfig.IDEAL_DIST_ALLY
-			_gravity_coef[ally.cell] = coef
-			_total_ally_coef += coef
-		}
+		boolean isTeamFight = getFightType() == FIGHT_TYPE_TEAM
 
-		if (!isSummon) {
-			real lifeRatio = Fight.self.life / Fight.self.totalLife
-			for (Entity bulb in Fight.getAlliesBulbsAlive()) {
-				_gravity_distance[bulb.cell] = ScoringConfig.IDEAL_DIST_ALLY
-				if (_need_shields) coef = ScoringConfig.W_GRAVITY_METALLIC_NEED_ARMOR
-				else if (lifeRatio < 0.9) coef = ScoringConfig.W_GRAVITY_HEALER_NEED_HEAL
-				else coef = ScoringConfig.W_GRAVITY_ALLY_DEFAULT
-				_gravity_coef[bulb.cell] = coef
-				_total_ally_coef += coef
+		if (isTeamFight) {
+			// Team fight: attract to ally turret (protect) and enemy turret (attack)
+			for (Entity ally in Fight.getAlliesAlive()) {
+				if (ally.entityType == ENTITY_TURRET) {
+					_gravity_distance[ally.cell] = ScoringConfig.IDEAL_DIST_ALLY
+					_gravity_coef[ally.cell] = 3.0
+					break  // Only one turret per team
+				}
 			}
-		}
-
-		var enemies = Fight.getEnemiesLeeksAlive()
-		integer enemyCount = mapSize(enemies)
-		if (enemyCount == 0) enemyCount = 1
-
-		real enemyCoef
-		real lifeRatio2 = Fight.self.life / Fight.self.totalLife
-		if (!isSummon && lifeRatio2 > 0.8 && !_need_shields) {
-			enemyCoef = ceil(_total_ally_coef / enemyCount) as real
+			for (Entity enemy in Fight.getEnemiesAlive()) {
+				if (enemy.entityType == ENTITY_TURRET) {
+					integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
+					_gravity_distance[enemy.cell] = distToEnemy
+					_gravity_coef[enemy.cell] = 3.0
+					break  // Only one turret per team
+				}
+			}
 		} else {
-			enemyCoef = floor(_total_ally_coef / enemyCount) as real
-		}
-		if (enemyCoef < 1) enemyCoef = 1.0
+			// Solo/Farmer fight: nearest enemy + center
 
-		integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
-		for (Entity enemy in enemies) {
-			_gravity_distance[enemy.cell] = distToEnemy
-			_gravity_coef[enemy.cell] = enemyCoef
-		}
-
-		if (distToEnemy < 20 && !_need_shields) {
-			for (Entity eBulb in Fight.getEnemiesBulbsAlive()) {
-				_gravity_distance[eBulb.cell] = ScoringConfig.IDEAL_DIST_CAC
-				_gravity_coef[eBulb.cell] = enemyCoef * 0.5
+			// Nearest enemy with weight 2
+			if (_nearest_enemy != null) {
+				integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
+				_gravity_distance[_nearest_enemy!.cell] = distToEnemy
+				_gravity_coef[_nearest_enemy!.cell] = 2.0
 			}
-		}
 
-		Cell? centerCell = Board.getCell(306)
-		if (centerCell != null) {
-			_gravity_distance[centerCell!] = ScoringConfig.IDEAL_DIST_CENTER
-			_gravity_coef[centerCell!] = enemyCoef
+			// Center with weight 1
+			Cell? centerCell = Board.getCell(306)
+			if (centerCell != null) {
+				_gravity_distance[centerCell!] = ScoringConfig.IDEAL_DIST_CENTER
+				_gravity_coef[centerCell!] = 1.0
+			}
 		}
 	}
 

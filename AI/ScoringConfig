@@ -59,21 +59,6 @@ class ScoringConfig {
 	static real W_PROXIMITY_AREA2 = 20.0      // distance 2
 	static real W_PROXIMITY_AREA3 = 10.0      // distance 3
 
-	// Gravity weights - attraction to allies based on their role
-	static real W_GRAVITY_ALLY_SUMMON = 80.0  // we're a summon, stay close to master
-	static real W_GRAVITY_ALLY_SNC600 = 40.0  // high science ally (buffer/healer)
-	static real W_GRAVITY_ALLY_SNC400 = 25.0  // science ally
-	static real W_GRAVITY_ALLY_WIS400 = 25.0  // wisdom ally
-	static real W_GRAVITY_ALLY_RST200 = 10.0  // tanky ally
-	static real W_GRAVITY_ALLY_WIS200 = 8.0   // wisdom ally (lower)
-	static real W_GRAVITY_ALLY_DEFAULT = 1.0  // default ally attraction
-
-	// Bulb-specific gravity
-	static real W_GRAVITY_METALLIC_NEED_ARMOR = 80.0  // metallic bulb when we need shields
-	static real W_GRAVITY_METALLIC_DEFAULT = 6.0      // metallic bulb normally
-	static real W_GRAVITY_HEALER_NEED_HEAL = 40.0     // healer bulb when hurt
-	static real W_GRAVITY_HEALER_DEFAULT = 5.0        // healer bulb normally
-
 	// Tactical weights
 	// Note: W_LOCK_BONUS is in Scoring (dynamically computed in refresh)
 	static real W_CAC_IN_RANGE = 1000.0       // bonus if enemy can reach us for melee (we're CAC)
@@ -83,10 +68,8 @@ class ScoringConfig {
 	// === Distance Weights ===
 	// Note: IDEAL_DIST_RANGED is in Scoring (dynamically computed in refresh)
 	static integer IDEAL_DIST_CAC = 1         // ideal distance for melee (adjacent)
-	static integer IDEAL_DIST_ALLY = 3        // default ideal distance to allies
+	static integer IDEAL_DIST_ALLY = 3        // default ideal distance to allies/turret
 	static integer IDEAL_DIST_CENTER = 4      // ideal distance to map center (cell 306)
-	static integer IDEAL_DIST_METALLIC = 1    // stay close to metallic bulb
-	static integer IDEAL_DIST_HEALER = 4      // healing range
 
 	// === Duration Mitigation Tables ===
 	// Maps effect duration to value multiplier (diminishing returns for long durations)
