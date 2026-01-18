@@ -176,6 +176,15 @@ class Combo {
 			Cell? targetCell = Combo.findSummonCell(action.item)
 			if (targetCell != null) {
 				summon(action.item.id, targetCell!.id, function() {
+					// Lightweight bulb AI: update state without recreating entities
+					integer opsStart = getOperations()
+					Fight.updateForSummon()  // Create bulb + update self + update positions
+					Board.updateForSummon()  // Rebuild entityCells (with updated positions)
+					MapPath.refresh()        // Clear path cache
+					Fight.self.init()        // Now safe: Board.entityCells is updated
+					MapAction.refresh()      // Bulb's available actions
+					AI.getCombo().play()
+					debug("BULB_OPS>" + Benchmark.format(getOperations() - opsStart))
 					say("Salut, moi c'est fab")
 				})
 				Benchmark.log("SUMMON>" + action.item.name + ">c" + targetCell!.id)

@@ -94,12 +94,30 @@ class Scoring {
 	}
 
 	/*
+	 * Add a single entity to scoring caches (for mid-turn summons).
+	 * Populates both _cache_coef and _cache_dynamic_coef.
+	 */
+	static void _addEntityToCache(Entity entity) {
+		_cache_coef[entity] = [:]
+		for (integer stat in ScoringConfig.ALL_STATS) {
+			_cache_coef[entity]![stat] = EntityCoefs.getStatCoef(entity, stat)
+		}
+		_cache_dynamic_coef[entity] = [:]
+		for (integer stat in ScoringConfig.ALL_STATS) {
+			_cache_dynamic_coef[entity]![stat] = _computeDynamicCoef(entity, stat, null)
+		}
+	}
+
+	/*
 	 * Returns cached base coefficient for an entity and stat
 	 * @param entity The entity
 	 * @param key The stat type (Stats.HP, Stats.STR, etc.)
 	 * @return Base coefficient (positive for allies, negative for enemies)
 	 */
 	static real getCoef(Entity entity, integer key) {
+		if (_cache_coef[entity] == null) {
+			_addEntityToCache(entity)
+		}
 		return _cache_coef[entity]![key]!
 	}
 
@@ -134,6 +152,10 @@ class Scoring {
 			return _computeDynamicCoef(entity, stat, consequences)
 		} else {
 			// === STATIC MODE: pure cache lookup (canDie evaluated at turn start) ===
+			// If entity not in cache (e.g., just-summoned bulb), add it
+			if (_cache_dynamic_coef[entity] == null) {
+				_addEntityToCache(entity)
+			}
 			return _cache_dynamic_coef[entity]![stat]!
 		}
 	}

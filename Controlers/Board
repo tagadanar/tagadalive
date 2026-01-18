@@ -39,6 +39,19 @@ class Board {
 		}
 		Fight.refreshEntities() // init des entities après avoir refresh les positions sur la map
 	}
+
+	/*
+	 * Lightweight update for summon callbacks.
+	 * Rebuilds entityCells from current entity positions.
+	 * Does NOT call Fight.refreshEntities() (preserves existing entity state).
+	 */
+	static void updateForSummon() {
+		Board.entityCells = [:]
+		for (Entity entity in Fight.getAllAlive()) {
+			if (entity == Fight.self) continue
+			Board.entityCells[entity.cell] = entity
+		}
+	}
 	
 	/*
 	 * Renvoie un objet Cell correspondant à l'id de la cellule

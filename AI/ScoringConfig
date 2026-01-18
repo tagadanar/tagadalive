@@ -120,19 +120,19 @@ class ScoringConfig {
 	]
 
 	// === Summon Values ===
-	// Base value per bulb type (modified by turns remaining)
-	static real SUMMON_VALUE_DEFAULT = 100.0
+	// Base value per bulb type (modified by turns remaining and duplicate count)
+	static real SUMMON_VALUE_DEFAULT = 500.0
 	static Map<integer, real> SUMMON_VALUES = [
-		Entity.BULB_FIRE: 150.0,
-		Entity.BULB_HEALER: 200.0,
-		Entity.BULB_METALLIC: 180.0,
-		Entity.BULB_ICED: 140.0,
-		Entity.BULB_LIGHTNING: 130.0,
-		Entity.BULB_ROCKY: 100.0,
-		Entity.BULB_WIZARD: 160.0,
-		Entity.BULB_PUNY: 50.0,
-		Entity.BULB_TACTICIAN: 170.0,
-		Entity.BULB_SAVANT: 160.0,
+		Entity.BULB_FIRE: 900.0,
+		Entity.BULB_HEALER: 1000.0,
+		Entity.BULB_METALLIC: 1200.0,
+		Entity.BULB_ICED: 800.0,
+		Entity.BULB_LIGHTNING: 1000.0,
+		Entity.BULB_ROCKY: 600.0,
+		Entity.BULB_WIZARD: 800.0,
+		Entity.BULB_PUNY: 200.0,
+		Entity.BULB_TACTICIAN: 1000.0,
+		Entity.BULB_SAVANT: 800.0,
 	]
 
 	static integer getBulbTypeFromChip(integer chipId) {

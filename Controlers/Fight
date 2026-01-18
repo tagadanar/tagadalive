@@ -68,7 +68,69 @@ class Fight {
 			push(allEntitiesId, entity.id)
 		}
 	}
-	
+
+	/*
+	 * Lightweight update for summon callbacks.
+	 * Creates the new summon entity, updates Fight.self, and updates positions of all entities.
+	 * Does NOT recreate existing entities (preserves offensiveItems, etc.).
+	 */
+	static void updateForSummon() {
+		integer selfId = getEntity()
+
+		// Create summon entity if it doesn't exist yet
+		if (_aliveAll[selfId] == null) {
+			Entity entity = Entity(selfId)
+			_aliveAll[selfId] = entity
+			push(allEntitiesId, entity.id)
+			if (entity.isFriend) {
+				_aliveAllies[selfId] = entity
+				if (entity.isBulb) {
+					_aliveAlliesBulbs[selfId] = entity
+					_aliveAllBulbs[selfId] = entity
+				} else {
+					_aliveAlliesLeeks[selfId] = entity
+					_aliveAllLeeks[selfId] = entity
+				}
+			} else {
+				_aliveEnemies[selfId] = entity
+				if (entity.isBulb) {
+					_aliveEnemiesBulbs[selfId] = entity
+					_aliveAllBulbs[selfId] = entity
+				} else {
+					_aliveEnemiesLeeks[selfId] = entity
+					_aliveAllLeeks[selfId] = entity
+				}
+			}
+		}
+
+		// Update Fight.self to the current playing entity
+		self = _aliveAll[selfId]!
+		selfCell = Cell(Cell.SELF_CAST_ID)
+
+		// Remove dead entities from all collections (they may have died during main leek's turn)
+		// Collect IDs first to avoid modifying map while iterating
+		Array<integer> deadIds = []
+		for (integer id : Entity entity in _aliveAll) {
+			if (!isAlive(id)) push(deadIds, id)
+		}
+		for (integer id in deadIds) {
+			mapRemove(_aliveAll, id)
+			mapRemove(_aliveAllies, id)
+			mapRemove(_aliveEnemies, id)
+			mapRemove(_aliveAllLeeks, id)
+			mapRemove(_aliveAllBulbs, id)
+			mapRemove(_aliveAlliesLeeks, id)
+			mapRemove(_aliveAlliesBulbs, id)
+			mapRemove(_aliveEnemiesLeeks, id)
+			mapRemove(_aliveEnemiesBulbs, id)
+		}
+
+		// Update positions of all remaining alive entities from game state
+		for (Entity entity in _aliveAll) {
+			entity.updatePosition()
+		}
+	}
+
 	/*
 	 * Renvoie Entity correspondant a l'id de l'entity demandée si elle est vivante
 	 * @param entityId Id de l'Entity
