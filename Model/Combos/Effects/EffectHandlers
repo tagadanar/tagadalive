@@ -39,6 +39,11 @@ class EffectHandlers {
 		real beforeShield = EffectCalc.rawDamage(effect.avg, srcStr, srcPwr, ratio, targetsCount)
 		real value = EffectCalc.applyShields(beforeShield, tgtRel, tgtAbs)
 
+		// Track raw damage to enemies for Liberation combo detection
+		if (!target.isFriend) {
+			ctx.addRawEnemyDamage(beforeShield)
+		}
+
 		ctx.add(target, Stats.HP, -round(value))
 
 		// Inline passives for damage taken (target's passives)
@@ -107,6 +112,11 @@ class EffectHandlers {
 	static void lifeDamage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcLife, integer srcPwr, integer tgtRel, integer tgtAbs, integer tgtDmgRet, ctx) {
 		real beforeShield = EffectCalc.lifeDamageRaw(srcLife, effect.avg, srcPwr)
 		real value = EffectCalc.applyShields(beforeShield, tgtRel, tgtAbs)
+
+		// Track raw damage to enemies for Liberation combo detection
+		if (!target.isFriend) {
+			ctx.addRawEnemyDamage(beforeShield)
+		}
 
 		ctx.add(target, Stats.HP, -round(value))
 
