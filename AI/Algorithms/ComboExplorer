@@ -534,17 +534,6 @@ class ComboExplorer {
 	static void phaseTargetFocus() {
 		Benchmark.start("ComboExplorer.phaseTargetFocus")
 
-		// Check if we have Liberation available
-		boolean hasLiberation = false
-		Item? liberationItem = null
-		for (Item item in Fight.self.items) {
-			if (item.id == CHIP_LIBERATION && getCooldown(item.id, Fight.self.id) == 0) {
-				hasLiberation = true
-				liberationItem = item
-				break
-			}
-		}
-
 		boolean hasMPBuff = Fight.self.maxMPBuff > 0
 
 		// For each enemy: try kill focus (with and without Liberation, with and without MP buff)
@@ -562,14 +551,14 @@ class ComboExplorer {
 			}
 
 			// Variant C: Liberation first, then max damage (no MP buff)
-			if (hasLiberation && liberationItem != null) {
+			if (Fight.liberationReady && Fight.liberationItem != null) {
 				if (ComboExplorer.shouldStop()) break
-				ComboExplorer.tryKillTarget(enemy, liberationItem, "T:Lib+" + enemy.name, false)
+				ComboExplorer.tryKillTarget(enemy, Fight.liberationItem, "T:Lib+" + enemy.name, false)
 
 				// Variant D: Liberation + MP buff
 				if (hasMPBuff) {
 					if (ComboExplorer.shouldStop()) break
-					ComboExplorer.tryKillTarget(enemy, liberationItem, "T:Lib+" + enemy.name + "+B", true)
+					ComboExplorer.tryKillTarget(enemy, Fight.liberationItem, "T:Lib+" + enemy.name + "+B", true)
 				}
 			}
 		}
