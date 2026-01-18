@@ -40,7 +40,7 @@ class MapDanger {
 		}
 
 		// Phase 2: Round-robin - process item i for all enemies before item i+1
-		integer halfBudget = (getMaxOperations() * 0.5) as integer
+		integer dangerBudget = (getMaxOperations() * 0.4) as integer
 		for(integer i = 0; i < maxItems; i++){
 			for(Entity e in enemies){
 				if(i < count(e.offensiveItems)){
@@ -48,8 +48,8 @@ class MapDanger {
 					_map_entity_item_danger[e]![item] = MapDanger.getEnemiesDmgMap(e, item)
 				}
 			}
-			// Early exit if we've used more than half the operation budget
-			if(getOperations() > halfBudget){
+			// Early exit if we've used more than 40% of the operation budget
+			if(getOperations() > dangerBudget){
 				string stats = ""
 				for(Entity e in enemies){
 					integer done = min(i + 1, count(e.offensiveItems))
