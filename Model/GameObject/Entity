@@ -18,6 +18,28 @@ class Entity {
 	static integer BULB_TACTICIAN = 109
 	static integer BULB_SAVANT = 110
 
+	// Bulb type to register key mapping
+	static Map<integer, string> BULB_KEYS = [
+		BULB_HEALER: "healer",
+		BULB_WIZARD: "wizard",
+		BULB_FIRE: "fire",
+		BULB_ICED: "iced",
+		BULB_LIGHTNING: "lightning",
+		BULB_METALLIC: "metallic",
+		BULB_ROCKY: "rocky",
+		BULB_PUNY: "puny",
+		BULB_TACTICIAN: "tactician",
+		BULB_SAVANT: "savant"
+	]
+
+	/*
+	 * Get register key for a bulb type (e.g., "bo_fire" for BULB_FIRE)
+	 */
+	static string getBulbRegisterKey(integer bulbType) {
+		string? key = BULB_KEYS[bulbType]
+		return "bo_" + (key != null ? key! : "unknown")
+	}
+
 	integer id
 	string name
 	Cell cell
