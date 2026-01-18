@@ -14,6 +14,13 @@ class BattleState {
 	static integer countFire = 0      // ally fire bulbs
 	static integer countMetal = 0     // ally metallic bulbs
 	static integer countHealer = 0    // ally healer bulbs
+	static integer countIced = 0      // ally iced bulbs
+	static integer countLightning = 0 // ally lightning bulbs
+	static integer countRocky = 0     // ally rocky bulbs
+	static integer countWizard = 0    // ally wizard bulbs
+	static integer countPuny = 0      // ally puny bulbs
+	static integer countTactician = 0 // ally tactician bulbs
+	static integer countSavant = 0    // ally savant bulbs
 	static integer countStrBulbs = 0  // ally offensive bulbs (fire + iced + lightning)
 
 	// === Team Flags ===
@@ -47,6 +54,13 @@ class BattleState {
 		countFire = 0
 		countMetal = 0
 		countHealer = 0
+		countIced = 0
+		countLightning = 0
+		countRocky = 0
+		countWizard = 0
+		countPuny = 0
+		countTactician = 0
+		countSavant = 0
 		countStrBulbs = 0
 		allyHasStr = false
 		enemyHasStr = false
@@ -67,12 +81,26 @@ class BattleState {
 			if (eType == Entity.BULB_FIRE) {
 				countFire++
 				countStrBulbs++
-			} else if (eType == Entity.BULB_ICED || eType == Entity.BULB_LIGHTNING) {
+			} else if (eType == Entity.BULB_ICED) {
+				countIced++
+				countStrBulbs++
+			} else if (eType == Entity.BULB_LIGHTNING) {
+				countLightning++
 				countStrBulbs++
 			} else if (eType == Entity.BULB_METALLIC) {
 				countMetal++
 			} else if (eType == Entity.BULB_HEALER) {
 				countHealer++
+			} else if (eType == Entity.BULB_ROCKY) {
+				countRocky++
+			} else if (eType == Entity.BULB_WIZARD) {
+				countWizard++
+			} else if (eType == Entity.BULB_PUNY) {
+				countPuny++
+			} else if (eType == Entity.BULB_TACTICIAN) {
+				countTactician++
+			} else if (eType == Entity.BULB_SAVANT) {
+				countSavant++
 			}
 
 			// Check for ally with significant strength
@@ -132,6 +160,24 @@ class BattleState {
 		// Compute ratios
 		ratioHP = (sumEnemyLife > 0) ? sumAllyLife / sumEnemyLife : 1.0
 		ratioCount = (enemyLeekCount > 0) ? (allyLeekCount * 1.0) / enemyLeekCount : 1.0
+	}
+
+	/*
+	 * Returns the count of existing ally bulbs of a specific type.
+	 * Used by summon scoring to reduce value of duplicate bulbs.
+	 */
+	static integer getBulbCount(integer bulbType) {
+		if (bulbType == Entity.BULB_FIRE) return countFire
+		if (bulbType == Entity.BULB_METALLIC) return countMetal
+		if (bulbType == Entity.BULB_HEALER) return countHealer
+		if (bulbType == Entity.BULB_ICED) return countIced
+		if (bulbType == Entity.BULB_LIGHTNING) return countLightning
+		if (bulbType == Entity.BULB_ROCKY) return countRocky
+		if (bulbType == Entity.BULB_WIZARD) return countWizard
+		if (bulbType == Entity.BULB_PUNY) return countPuny
+		if (bulbType == Entity.BULB_TACTICIAN) return countTactician
+		if (bulbType == Entity.BULB_SAVANT) return countSavant
+		return 0
 	}
 
 	/*

@@ -178,6 +178,14 @@ class Entity {
 	}
 
 	/*
+	 * Updates entity position from game state.
+	 * Used by Fight.updateForSummon() to update existing entities without recreating them.
+	 */
+	void updatePosition() {
+		this.cell = Board.getCell(getCell(this.id))!
+	}
+
+	/*
 	 * Initialise certaines informations de l'objet Entity
 	 * Certaines peuvent être dépendantes d'autres classes.
 	 */

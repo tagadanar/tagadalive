@@ -45,7 +45,35 @@ Consequences.registerHandlers([
 		real turnsRemaining = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
 		real turnFactor = min(1.0, turnsRemaining / 30.0)
 
-		conseq.score += bulbValue * turnFactor
+		// Factor: duplicate bulbs (reduce value if we already have this type)
+		real duplicateFactor
+		boolean isStrBulb = bulbType == Entity.BULB_FIRE || bulbType == Entity.BULB_ICED || bulbType == Entity.BULB_LIGHTNING
+		if (bulbType == Entity.BULB_HEALER) {
+			// Healer bulbs: more tolerant of duplicates
+			integer existingCount = BattleState.countHealer
+			if (existingCount == 0) duplicateFactor = 3.0
+			else if (existingCount == 1) duplicateFactor = 2.0
+			else if (existingCount == 2) duplicateFactor = 1.5
+			else if (existingCount == 3) duplicateFactor = 1.0
+			else duplicateFactor = 0.5
+		} else if (isStrBulb) {
+			// Str bulbs (fire, iced, lightning): use total strBulb count with healer-style modifiers
+			integer existingCount = BattleState.countStrBulbs
+			if (existingCount == 0) duplicateFactor = 3.0
+			else if (existingCount == 1) duplicateFactor = 2.0
+			else if (existingCount == 2) duplicateFactor = 1.0
+			else if (existingCount == 3) duplicateFactor = 0.5
+			else duplicateFactor = 0.5
+		} else {
+			// Other bulbs: standard duplicate penalty
+			integer existingCount = BattleState.getBulbCount(bulbType)
+			if (existingCount == 0) duplicateFactor = 3.0
+			else if (existingCount == 1) duplicateFactor = 1.5
+			else if (existingCount == 2) duplicateFactor = 0.5
+			else duplicateFactor = 0.1
+		}
+
+		conseq.score += bulbValue * turnFactor * duplicateFactor
 	},
 
 	EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
