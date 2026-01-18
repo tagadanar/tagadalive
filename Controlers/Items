@@ -105,7 +105,7 @@ class Items {
 	
 	/*
 	 * Classifie les items de heal d'une Entity par efficacité (heal/TP)
-	 * Ne considère que EFFECT_HEAL et EFFECT_BOOST_MAX_LIFE
+	 * Considère: EFFECT_HEAL, EFFECT_BOOST_MAX_LIFE, EFFECT_RAW_HEAL
 	 * @param entity Entity qui possède les items
 	 * @param limit Nombre max d'items à retourner (0 = unlimited)
 	 * @return tableau d'Item classé par efficacité de heal
@@ -124,6 +124,9 @@ class Items {
 				}
 				else if(e.type == EFFECT_BOOST_MAX_LIFE){
 					heal += e.avg * (1 + (entity.wsd / 100))
+				}
+				else if(e.type == EFFECT_RAW_HEAL){
+					heal += e.avg  // No wisdom scaling for raw heal
 				}
 			}
 			if(heal > 0) healPerItem[item] = heal / item.cost

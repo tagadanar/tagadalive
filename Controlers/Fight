@@ -17,11 +17,16 @@ class Fight {
 	static Cell selfCell = Cell(Cell.SELF_CAST_ID)
 	static boolean isBattleRoyale
 
+	// Cached turn order: entities that play after self, sorted by turn order
+	// Reset in refresh(), computed lazily in getEntitiesAfterSelfInOrder()
+	private static Array<Entity>? _entitiesAfterSelfInOrder = null
+
 	/*
 	 * Actualise les tableaux contenant les entités vivante alliée et ennemie ainsi que l'ensemble des entités alliées + ennemies
 	 */
 	static void refresh(){
 		isBattleRoyale = getFightType() == FIGHT_TYPE_BATTLE_ROYALE
+		_entitiesAfterSelfInOrder = null  // Reset turn order cache
 		_aliveEnemies = [:]
 		_aliveAllies = [:]
 		_aliveAll = [:]
@@ -235,5 +240,42 @@ class Fight {
 			}
 		}
 		return list;
+	}
+
+	/*
+	 * Returns all entities (enemies + allies) that play after self, sorted by turn order.
+	 * Wraps around: if self plays last, returns entities from start of next round.
+	 * Excludes self. Used by computeDanger for proper turn order processing.
+	 * Cached - computed once per turn.
+	 */
+	static Array<Entity> getEntitiesAfterSelfInOrder() {
+		if (_entitiesAfterSelfInOrder != null) return _entitiesAfterSelfInOrder!
+
+		integer selfOrder = self.turnOrder
+
+		// Separate entities into those after self (this round) and before self (next round)
+		Array<Entity> afterSelf = []   // turnOrder > selfOrder (play this round after self)
+		Array<Entity> beforeSelf = []  // turnOrder < selfOrder (play next round before self)
+
+		for (Entity e in _aliveAll) {
+			if (e == self) continue
+			if (e.turnOrder > selfOrder) {
+				push(afterSelf, e)
+			} else {
+				push(beforeSelf, e)
+			}
+		}
+
+		// Sort each group by turnOrder (ascending)
+		afterSelf = arraySort(afterSelf, (Entity a, Entity b) -> a.turnOrder - b.turnOrder)
+		beforeSelf = arraySort(beforeSelf, (Entity a, Entity b) -> a.turnOrder - b.turnOrder)
+
+		// Concatenate: first those after self (this round), then wrap to those before (next round)
+		Array<Entity> result = []
+		for (Entity e in afterSelf) push(result, e)
+		for (Entity e in beforeSelf) push(result, e)
+
+		_entitiesAfterSelfInOrder = result
+		return result
 	}
 }

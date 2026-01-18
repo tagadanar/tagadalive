@@ -20,46 +20,113 @@ class MapDanger {
 	static Map<Entity, Map<Item, Map<Cell, real>>> _map_entity_item_danger = [:] // [e:[item:[cell:ratio]]]
 	
 	/*
-	 * Actualise les informations en fonctions des enemies et alliés encore vivant
+	 * Actualise les informations en fonctions des enemies et alliés encore vivant.
+	 * Orchestre le round-robin avec priorité:
+	 *   Phase 1: Enemy[0] + Ally[0] → minimum info guaranteed
+	 *   Phase 2: Enemy[1..n] → danger priority, check after each round
+	 *   Phase 3: Ally[1..n] → heal completion, check after each round
 	 */
 	static void refresh(){
-		// reset du cache
+		// Reset caches (both danger and heal)
 		_danger = [:]
 		_hash_danger = [:]
 		_map_entity_item_danger = [:]
+		MapAllyHeal.resetCaches()
 
-		// Phase 1: Collect enemies and prepare their offensive items
+		// Collect enemies and prepare their offensive items
 		Array<Entity> enemies = []
-		integer maxItems = 0
+		integer maxEnemyItems = 0
 		for(Entity e in Fight.getEnemiesAlive()){
 			_map_entity_item_danger[e] = [:]
 			e.offensiveItems = Items.getOrderedOffensiveItems(e)
 			push(enemies, e)
 			integer itemCount = count(e.offensiveItems)
-			if(itemCount > maxItems) maxItems = itemCount
+			if(itemCount > maxEnemyItems) maxEnemyItems = itemCount
 		}
 
-		// Phase 2: Round-robin - process item i for all enemies before item i+1
+		// Collect allies and prepare their heal items
+		integer maxAllyItems = MapAllyHeal.collectAllies()
+
 		integer dangerBudget = (getMaxOperations() * 0.4) as integer
-		for(integer i = 0; i < maxItems; i++){
-			for(Entity e in enemies){
-				if(i < count(e.offensiveItems)){
-					Item item = e.offensiveItems[i]
-					_map_entity_item_danger[e]![item] = MapDanger.getEnemiesDmgMap(e, item)
-				}
-			}
-			// Early exit if we've used more than 40% of the operation budget
+		integer enemyRound = 0
+		integer allyRound = 0
+
+		// ═══════════════════════════════════════════════════════════════════
+		// PHASE 1: Minimum info - Enemy[0] + Ally[0] (guaranteed)
+		// ═══════════════════════════════════════════════════════════════════
+		if(maxEnemyItems > 0){
+			MapDanger._processEnemyRound(enemies, 0)
+			enemyRound = 1
+		}
+		if(maxAllyItems > 0){
+			MapAllyHeal.processRound(0)
+			allyRound = 1
+		}
+
+		// Check budget after Phase 1
+		if(getOperations() > dangerBudget){
+			MapDanger._logEarlyExit("Phase1", enemyRound, maxEnemyItems, allyRound, maxAllyItems, enemies)
+			return
+		}
+
+		// ═══════════════════════════════════════════════════════════════════
+		// PHASE 2: Enemy priority - complete enemy danger map
+		// ═══════════════════════════════════════════════════════════════════
+		for(integer i = 1; i < maxEnemyItems; i++){
+			MapDanger._processEnemyRound(enemies, i)
+			enemyRound = i + 1
+
 			if(getOperations() > dangerBudget){
-				string stats = ""
-				for(Entity e in enemies){
-					integer done = min(i + 1, count(e.offensiveItems))
-					if(stats != "") stats += " "
-					stats += e.name + ":" + done + "/" + count(e.offensiveItems)
-				}
-				debugW("T" + getTurn() + " MapDanger early exit: round " + (i + 1) + "/" + maxItems + " @" + Benchmark.format(getOperations()) + " | " + stats)
-				break
+				MapDanger._logEarlyExit("Phase2", enemyRound, maxEnemyItems, allyRound, maxAllyItems, enemies)
+				return
 			}
 		}
+
+		// ═══════════════════════════════════════════════════════════════════
+		// PHASE 3: Ally heal completion
+		// ═══════════════════════════════════════════════════════════════════
+		for(integer i = 1; i < maxAllyItems; i++){
+			MapAllyHeal.processRound(i)
+			allyRound = i + 1
+
+			if(getOperations() > dangerBudget){
+				MapDanger._logEarlyExit("Phase3", enemyRound, maxEnemyItems, allyRound, maxAllyItems, enemies)
+				return
+			}
+		}
+	}
+
+	/*
+	 * Process enemy round i: compute danger map for item[i] of all enemies
+	 */
+	static void _processEnemyRound(Array<Entity> enemies, integer i){
+		for(Entity e in enemies){
+			if(i < count(e.offensiveItems)){
+				Item item = e.offensiveItems[i]
+				_map_entity_item_danger[e]![item] = MapDanger.getEnemiesDmgMap(e, item)
+			}
+		}
+	}
+
+	/*
+	 * Log early exit with phase info and stats
+	 */
+	static void _logEarlyExit(string phase, integer enemyRound, integer maxEnemy, integer allyRound, integer maxAlly, Array<Entity> enemies){
+		string enemyStats = ""
+		for(Entity e in enemies){
+			integer done = min(enemyRound, count(e.offensiveItems))
+			if(enemyStats != "") enemyStats += " "
+			enemyStats += e.name + ":" + done + "/" + count(e.offensiveItems)
+		}
+		// allyRound is 1-indexed (rounds completed), getEarlyExitStats expects 0-indexed (last round index)
+		string allyStats = allyRound > 0 ? MapAllyHeal.getEarlyExitStats(allyRound - 1) : ""
+
+		string msg = "T" + getTurn() + " MapDanger " + phase + " early exit @" + Benchmark.format(getOperations())
+		msg += " | E:" + enemyRound + "/" + maxEnemy
+		if(enemyStats != "") msg += " (" + enemyStats + ")"
+		msg += " | A:" + allyRound + "/" + maxAlly
+		if(allyStats != "") msg += " (" + allyStats + ")"
+		debugW(msg)
 	}
 	
 	/*
@@ -219,10 +286,11 @@ class MapDanger {
 		Array<Danger> arrayDanger = []
 		for(Cell c : integer d in reachableCells) {
 			Danger danger = MapDanger.getCellDanger(c, consequences)
-			integer red = ((danger.dmg*255)/Fight.self.life) as integer
-			if(red>255) mark(c.id, getColor(0, 0, 0))
+			real totalDmg = danger.dmg + danger.psnDmg
+			integer red = ((totalDmg * 255) / Fight.self.life) as integer
+			if(red > 255) mark(c.id, getColor(0, 0, 0))
 			else mark(c.id, getColor(red, 255-red, 0))
-			markText(c.id, round(danger.dmg))
+			markText(c.id, round(totalDmg))
 			push(arrayDanger, danger)
 		}
 	}

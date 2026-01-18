@@ -1,58 +1,185 @@
-class Damages{
+class Damages {
 	/*
-	 * TODO gestion des consequences
-	 * Pour chaque ennemis vivants somme les dommages de leurs items en fonction des TP et des temps de récupérations
+	 * Calcule le danger sur une cellule en prenant en compte:
+	 * - Les dommages des ennemis (EFFECT_DAMAGE → dmg, EFFECT_POISON → psnDmg)
+	 * - Les heals des alliés (réduisent dmg/psnDmg selon le type d'effet)
+	 * - L'ordre de jeu (turn order) pour un calcul séquentiel correct
+	 *
 	 * @param cell Cellule sur laquelle le danger va être calculé
-	 * @param consequences Consequences qui contient les altérations de la série d'action précédente dans le combo
-	 * @return un objet <Danger>
+	 * @param consequences Consequences qui contient les altérations de la série d'action précédente
+	 * @return un objet Danger avec dmg (HP) et psnDmg (HPTIME) séparés
 	 */
-	static Danger computeDanger(Cell cell, Consequences? consequences){
-		real dmg = 0.0
+	static Danger computeDanger(Cell cell, Consequences? consequences) {
+		real dmg = 0.0      // HP damage (instant)
+		real psnDmg = 0.0   // HPTIME damage (poison over time)
 		string str = ""
-		for(Entity e in Fight.getEnemiesAlive()){ // TODO boucle sur ordered all
-			if(consequences && consequences!.isKilled(e)) continue
-			integer tpleft = e.getCurrentTP(consequences)
-			for(Item item in e.offensiveItems){
-				if(MapDanger._map_entity_item_danger[e]![item] == null) continue // Item not processed (early exit)
-				real ratioDmg = MapDanger._map_entity_item_danger[e]![item]![cell]!
-				real tmpdmg = Damages.getDamage(e, Fight.self, item, ratioDmg, consequences)
-				if(tmpdmg>0){
-					integer uses = 0
-					while(item.cost<=tpleft && uses < item.maxUse){
-						str+=" "+item.name
-						dmg+=tmpdmg
-						tpleft-=item.cost
-						uses++
-						if(item.haveCD) break
+
+		// Track HP state for heal capping
+		real currentLife = Fight.self.getCurrentHP(consequences)
+		real maxLife = Fight.self.getCurrentMaxHP(consequences)
+
+		// Process entities in turn order (after self, wrapping around)
+		for (Entity e in Fight.getEntitiesAfterSelfInOrder()) {
+			if (consequences && consequences!.isKilled(e)) continue
+
+			if (!e.isFriend) {
+				// === ENEMY: Add damage ===
+				// Check if enemy can reach this cell (from danger map)
+				if (MapDanger._map_entity_item_danger[e] == null) continue
+
+				integer tpLeft = e.getCurrentTP(consequences)
+
+				for (Item item in e.offensiveItems) {
+					Map<Cell, real>? itemMap = MapDanger._map_entity_item_danger[e]![item]
+					if (itemMap == null) continue  // Item not processed (early exit in MapDanger)
+
+					real? ratioDmg = itemMap![cell]
+					if (ratioDmg == null || ratioDmg <= 0) continue
+
+					// Calculate damage components separately
+					real itemDmg = 0.0
+					real itemPsn = 0.0
+					for (ItemEffect ef in item.effects) {
+						if (ef.type == EFFECT_DAMAGE) {
+							real tmp = ef.avgmax * (1 + e.getCurrentStr(consequences) / 100) * (1 + e.pwr / 100)
+							tmp = tmp * ratioDmg! * (1 - Fight.self.getCurrentRel(consequences) / 100) - Fight.self.getCurrentAbs(consequences)
+							if (tmp > 0) itemDmg += tmp
+						}
+						else if (ef.type == EFFECT_POISON) {
+							real duration = ScoringConfig.defensive_duration_mitigation[ef.duration]!
+							// TODO if(_CAN_ANTIDOTE) duration = 1;
+							itemPsn += ef.avgmax * (1 + e.getCurrentMgc(consequences) / 100) * (1 + e.pwr / 100) * ratioDmg! * duration
+						}
+					}
+
+					if (itemDmg > 0 || itemPsn > 0) {
+						integer uses = 0
+						while (item.cost <= tpLeft && uses < item.maxUse) {
+							str += " " + item.name
+							dmg += itemDmg
+							psnDmg += itemPsn
+							tpLeft -= item.cost
+							uses++
+							if (item.haveCD) break
+						}
+					}
+				}
+			} else {
+				// === ALLY: Subtract healing ===
+				// Check if ally can heal this cell (from ally heal map)
+				if (MapAllyHeal._map_ally_item_heal[e] == null) continue
+
+				Array<Item>? healItems = MapAllyHeal._ally_heal_items[e]
+				if (healItems == null) continue
+
+				integer tpLeft = e.getCurrentTP(consequences)
+
+				for (Item item in healItems!) {
+					Map<Cell, real>? itemMap = MapAllyHeal._map_ally_item_heal[e]![item]
+					if (itemMap == null) continue
+
+					real? ratioHeal = itemMap![cell]
+					if (ratioHeal == null || ratioHeal <= 0) continue
+
+					// Calculate healing for each effect type
+					for (ItemEffect ef in item.effects) {
+						if (ef.type == EFFECT_HEAL) {
+							// Skip non-stackable HoT already on self
+							if (ef.duration > 1 && MapAllyHeal.isHoTAlreadyOnSelf(item, ef)) continue
+
+							real healVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratioHeal!
+
+							if (ef.duration > 1) {
+								// Heal over time → reduces psnDmg
+								integer uses = 0
+								while (item.cost <= tpLeft && uses < item.maxUse) {
+									real effectiveHeal = min(healVal, psnDmg)
+									if (effectiveHeal > 0) {
+										str += " " + item.name
+										psnDmg -= effectiveHeal
+									}
+									tpLeft -= item.cost
+									uses++
+									if (item.haveCD) break
+								}
+							} else {
+								// Instant heal → reduces dmg (capped by missing HP + accumulated damage)
+								integer uses = 0
+								while (item.cost <= tpLeft && uses < item.maxUse) {
+									real missingHP = maxLife - currentLife + dmg
+									real effectiveHeal = min(healVal, missingHP)
+									if (effectiveHeal > 0) {
+										str += " " + item.name
+										dmg -= effectiveHeal
+									}
+									tpLeft -= item.cost
+									uses++
+									if (item.haveCD) break
+								}
+							}
+						}
+						else if (ef.type == EFFECT_RAW_HEAL) {
+							// Raw heal → reduces dmg (capped by missing HP)
+							real healVal = ef.avgmax * ratioHeal!
+							integer uses = 0
+							while (item.cost <= tpLeft && uses < item.maxUse) {
+								real missingHP = maxLife - currentLife + dmg
+								real effectiveHeal = min(healVal, missingHP)
+								if (effectiveHeal > 0) {
+									str += " " + item.name
+									dmg -= effectiveHeal
+								}
+								tpLeft -= item.cost
+								uses++
+								if (item.haveCD) break
+							}
+						}
+						else if (ef.type == EFFECT_BOOST_MAX_LIFE) {
+							// Max life boost → reduces dmg (uncapped) and increases maxLife
+							real boostVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratioHeal!
+							integer uses = 0
+							while (item.cost <= tpLeft && uses < item.maxUse) {
+								str += " " + item.name
+								dmg -= boostVal
+								maxLife += boostVal  // Track increased max life
+								tpLeft -= item.cost
+								uses++
+								if (item.haveCD) break
+							}
+						}
 					}
 				}
 			}
 		}
-		return Danger(cell, dmg, str, consequences)
+
+		// Floor at 0 (can't have negative danger)
+		if (dmg < 0) dmg = 0
+		if (psnDmg < 0) psnDmg = 0
+
+		return Danger(cell, dmg, psnDmg, str, consequences)
 	}
-		
+
 	/*
-	 * Calcule les dommages que peux faire eSource sur eTarget avec une Item en fonction des effets de celle-ci
-	 * @param eSource attaquant
-	 * @param eTarget receveur
-	 * @param item Item
-	 * @return dmg Dommages calculés
+	 * Legacy method for backwards compatibility.
+	 * Returns total damage (dmg + psnDmg) from an enemy item.
+	 * @deprecated Use computeDanger for separated values.
 	 */
-	static real getDamage(Entity eSource, Entity eTarget, Item item, real ratioDmg, Consequences? conseq){
-		real dmg = 0.0;
-		for(ItemEffect e in item.effects){
-			if(e.type == EFFECT_DAMAGE){
-				real tmp = e.avgmax *(1+(eSource.getCurrentStr(conseq))/100) *(1+(eSource.pwr/100));
-				tmp = tmp *ratioDmg *(1-(eTarget.getCurrentRel(conseq))/100) - (eTarget.getCurrentAbs(conseq))
-				dmg+= tmp>0?tmp:0
+	static real getDamage(Entity eSource, Entity eTarget, Item item, real ratioDmg, Consequences? conseq) {
+		real dmg = 0.0
+		real psn = 0.0
+
+		for (ItemEffect e in item.effects) {
+			if (e.type == EFFECT_DAMAGE) {
+				real tmp = e.avgmax * (1 + eSource.getCurrentStr(conseq) / 100) * (1 + eSource.pwr / 100)
+				tmp = tmp * ratioDmg * (1 - eTarget.getCurrentRel(conseq) / 100) - eTarget.getCurrentAbs(conseq)
+				if (tmp > 0) dmg += tmp
 			}
-			else if(e.type == EFFECT_POISON){
+			else if (e.type == EFFECT_POISON) {
 				real duration = ScoringConfig.defensive_duration_mitigation[e.duration]!
-				// TODO if(_CAN_ANTIDOTE) duration = 1;
-				// TODO add consequences for pwr !
-				dmg += e.avgmax *(1+(eSource.getCurrentMgc(conseq))/100) *(1+(eSource.pwr/100)) *ratioDmg*duration
+				psn += e.avgmax * (1 + eSource.getCurrentMgc(conseq) / 100) * (1 + eSource.pwr / 100) * ratioDmg * duration
 			}
 		}
-		return dmg
+
+		return dmg + psn
 	}
 }

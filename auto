@@ -149,6 +149,8 @@ function init() {
 	Scoring.refresh()
 	Benchmark.stop('Scoring.refresh')
 
+	// MapDanger.refresh() now orchestrates both enemy danger AND ally heal maps
+	// using interleaved round-robin with shared 40% operation budget
 	Benchmark.start('MapDanger.refresh')
 	MapDanger.refresh()
 	Benchmark.stop('MapDanger.refresh')
@@ -159,11 +161,7 @@ function init() {
 	// If you call Scoring.refresh() alone, you must also call this afterward.
 	BattleState.computeAllAllyDanger()
 
-	/*Benchmark.start('MapAllyHeal.refresh')
-	MapAllyHeal.refresh()
-	Benchmark.stop('MapAllyHeal.refresh')
-
-	Benchmark.start('MapAllyDamage.refresh')
+	/*Benchmark.start('MapAllyDamage.refresh')
 	MapAllyDamage.refresh()
 	Benchmark.stop('MapAllyDamage.refresh')*/
 
