@@ -124,7 +124,7 @@ class MapAction {
 	}
 
 	/*
-	 * Get scores for a specific (item, entityId) pair - used by MapOpportunity
+	 * Get scores for a specific (item, entityId) pair
 	 * Returns Map<Cell, real> where key=attackCell, value=best score from that cell
 	 */
 	static Map<Cell, real>? getScoresForEntity(Item item, integer entityId) {
