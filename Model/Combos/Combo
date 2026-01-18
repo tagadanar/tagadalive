@@ -176,30 +176,64 @@ class Combo {
 			Cell? targetCell = Combo.findSummonCell(action.item)
 			if (targetCell != null) {
 				summon(action.item.id, targetCell!.id, function() {
-					// Lightweight bulb AI: update state without recreating entities
-					integer opsStart = getOperations()
+					// Lightweight bulb AI: measure cost of each step
+					integer t0 = getOperations()
 					Fight.updateForSummon()  // Create bulb + update self + update positions
+					integer t1 = getOperations()
 					Board.updateForSummon()  // Rebuild entityCells (with updated positions)
+					integer t2 = getOperations()
 					MapPath.refresh()        // Clear path cache
+					integer t3 = getOperations()
 					Fight.self.init()        // Now safe: Board.entityCells is updated
+					integer t4 = getOperations()
 					MapAction.refresh()      // Bulb's available actions
+					integer t5 = getOperations()
 					AI.getCombo().play()
-					integer ops = getOperations() - opsStart
-					debug("BULB_OPS>" + Benchmark.format(ops))
+					integer t6 = getOperations()
 
-					// Record ops to register for statistics (format: "count,sum")
+					// Calculate ops for each step
+					integer opsUpdate = t1 - t0
+					integer opsBoard = t2 - t1
+					integer opsPath = t3 - t2
+					integer opsInit = t4 - t3
+					integer opsAction = t5 - t4
+					integer opsAI = t6 - t5
+					integer opsTotal = t6 - t0
+
+					// Record ops to register for statistics
+					// Format: "count,total,update,board,path,init,action,ai"
 					string regKey = Entity.getBulbRegisterKey(Fight.self.extendedType)
 					string? existing = getRegister(regKey)
-					integer sampleCount = 1
-					integer totalOps = ops
+					integer n = 1
+					integer sumTotal = opsTotal
+					integer sumUpdate = opsUpdate
+					integer sumBoard = opsBoard
+					integer sumPath = opsPath
+					integer sumInit = opsInit
+					integer sumAction = opsAction
+					integer sumAI = opsAI
 					if (existing != null) {
-						Array<string> parts = split(existing!, ",")
-						sampleCount = number(parts[0]) + 1
-						totalOps = number(parts[1]) + ops
+						Array<string> p = split(existing!, ",")
+						n = number(p[0]) + 1
+						sumTotal = number(p[1]) + opsTotal
+						sumUpdate = number(p[2]) + opsUpdate
+						sumBoard = number(p[3]) + opsBoard
+						sumPath = number(p[4]) + opsPath
+						sumInit = number(p[5]) + opsInit
+						sumAction = number(p[6]) + opsAction
+						sumAI = number(p[7]) + opsAI
 					}
-					setRegister(regKey, sampleCount + "," + totalOps)
-					integer mean = totalOps / sampleCount
-					debug("BULB_STATS>" + regKey + ">n=" + sampleCount + ">mean=" + Benchmark.format(mean))
+					setRegister(regKey, n + "," + sumTotal + "," + sumUpdate + "," + sumBoard + "," + sumPath + "," + sumInit + "," + sumAction + "," + sumAI)
+
+					// Display mean cost of every step
+					debug("BULB_STATS>" + regKey + ">n=" + n +
+						">total=" + Benchmark.format(sumTotal / n) +
+						">update=" + Benchmark.format(sumUpdate / n) +
+						">board=" + Benchmark.format(sumBoard / n) +
+						">path=" + Benchmark.format(sumPath / n) +
+						">init=" + Benchmark.format(sumInit / n) +
+						">action=" + Benchmark.format(sumAction / n) +
+						">ai=" + Benchmark.format(sumAI / n))
 					say("Salut, moi c'est fab")
 				})
 				Benchmark.log("SUMMON>" + action.item.name + ">c" + targetCell!.id)

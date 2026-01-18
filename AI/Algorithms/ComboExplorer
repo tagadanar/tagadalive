@@ -35,7 +35,9 @@ class ExplorerConfig {
 	// Top K cells for Phase 3 three-cell exploration
 	// Complexity is O(K³ × 6): K=7 → 210 combos, K=10 → 720 combos
 	static integer INTERESTING_CELLS_K_PHASE3 = 7
-	static integer OPERATION_BUFFER = 200000
+	// Operation buffer: 1M for main leek (to allow bulb turns), 200k for bulbs
+	static integer OPERATION_BUFFER_LEEK = 1000000
+	static integer OPERATION_BUFFER_BULB = 200000
 	static integer MAX_RESULTS_KEPT = 5
 }
 
@@ -451,11 +453,14 @@ class ComboExplorer {
 	static integer combosEvaluated = 0
 	static string bestPhase = ""
 
+	// Dynamic operation buffer (set at explore() start based on entity type)
+	static integer operationBuffer = 0
+
 	/*
 	 * Check if we should stop (operation budget exhausted)
 	 */
 	static boolean shouldStop() {
-		return getOperations() > getMaxOperations() - ExplorerConfig.OPERATION_BUFFER
+		return getOperations() > getMaxOperations() - ComboExplorer.operationBuffer
 	}
 
 	/*
@@ -463,6 +468,11 @@ class ComboExplorer {
 	 */
 	static Combo explore() {
 		Benchmark.start("ComboExplorer.explore")
+
+		// Set operation buffer based on entity type (bulbs need less buffer)
+		ComboExplorer.operationBuffer = Fight.self.isBulb
+			? ExplorerConfig.OPERATION_BUFFER_BULB
+			: ExplorerConfig.OPERATION_BUFFER_LEEK
 
 		// Initialize
 		ComboExplorer.topResults = []
