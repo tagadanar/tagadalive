@@ -124,7 +124,7 @@ class MapPosition {
 			for (Entity ally in Fight.getAlliesAlive()) {
 				if (ally.entityType == ENTITY_TURRET) {
 					_gravity_distance[ally.cell] = ScoringConfig.IDEAL_DIST_ALLY
-					_gravity_coef[ally.cell] = 3.0
+					_gravity_coef[ally.cell] = 2.0
 					break  // Only one turret per team
 				}
 			}
