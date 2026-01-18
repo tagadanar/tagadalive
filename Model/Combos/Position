@@ -15,7 +15,6 @@ class Position extends Danger {
 	real proximityScore = 0.0     // penalty for nearby enemies
 	real gravityScore = 0.0       // attraction/repulsion to gravity targets
 	real tacticalScore = 0.0      // lock, CAC range, COVID, etc.
-	real shieldScore = 0.0        // value of keeping shields
 
 	// Movement info
 	integer pathDistance = 0      // path distance to primary target
@@ -58,14 +57,6 @@ class Position extends Danger {
 	void addTacticalScore(real tactical) {
 		this.tacticalScore = tactical
 		this.score += tactical
-	}
-
-	/*
-	 * Add shield value score
-	 */
-	void addShieldScore(real shields) {
-		this.shieldScore = shields
-		this.score += shields
 	}
 
 	/*
@@ -112,7 +103,6 @@ class Position extends Danger {
 			   " prox=" + round(this.proximityScore) +
 			   " grav=" + round(this.gravityScore) +
 			   " tact=" + round(this.tacticalScore) +
-			   " shield=" + round(this.shieldScore) +
 			   " => " + round(this.score)
 	}
 

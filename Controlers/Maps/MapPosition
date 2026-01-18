@@ -278,12 +278,6 @@ class MapPosition {
 			pos.addTacticalScore(MapPosition._computeTacticalScore(cell))
 		}
 
-		if (BattleState.enemyHasStr || _enemies_have_snc) {
-			real shieldValue = Fight.self.getCurrentAbs(consequences) * ScoringConfig.W_SHIELD_ABS +
-							   Fight.self.getCurrentRel(consequences) * ScoringConfig.W_SHIELD_REL
-			pos.addShieldScore(shieldValue)
-		}
-
 		// Store in cache
 		if (consequences != null && consequences!.isAlteringDanger) {
 			if (_hash_position[consequences!.hashcode] == null) {
@@ -517,7 +511,7 @@ class MapPosition {
 			if (red > 255) mark(c.id, getColor(0, 0, 0))
 			else mark(c.id, getColor(red, 255 - red, 0))
 			// Text: positioning score (non-danger components) | danger
-			integer posScore = round(pos.proximityScore + pos.gravityScore + pos.tacticalScore + pos.shieldScore)
+			integer posScore = round(pos.proximityScore + pos.gravityScore + pos.tacticalScore)
 			integer dangerVal = round(pos.dmg)
 			markText(c.id, posScore + " | " + dangerVal)
 		}

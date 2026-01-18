@@ -80,10 +80,6 @@ class ScoringConfig {
 	static real W_COVID_LEEK = 10000.0        // big bonus for being near uninfected enemy leek
 	static real W_COVID_SUMMON = 1000.0       // bonus for being near uninfected enemy summon
 
-	// Shield weights - value of keeping shields active
-	static real W_SHIELD_ABS = 3.0            // value per point of absolute shield
-	static real W_SHIELD_REL = 6.0            // value per point of relative shield
-
 	// === Distance Weights ===
 	// Note: IDEAL_DIST_RANGED is in Scoring (dynamically computed in refresh)
 	static integer IDEAL_DIST_CAC = 1         // ideal distance for melee (adjacent)
