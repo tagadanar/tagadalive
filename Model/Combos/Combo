@@ -181,6 +181,8 @@ class Combo {
 					Fight.updateForSummon()  // Create bulb + update self + update positions
 					integer t1 = getOperations()
 					Board.updateForSummon()  // Rebuild entityCells (with updated positions)
+					MapPosition._position = [:]  // Invalidate stale proximity cache (leek now in entityCells)
+					MapPosition._hash_position = [:]
 					integer t2 = getOperations()
 					MapPath.refresh()        // Clear path cache
 					integer t3 = getOperations()
