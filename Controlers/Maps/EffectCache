@@ -144,6 +144,7 @@ class EffectCache {
 
 	/*
 	 * Compute EffectSnapshot with pre-computed targets.
+	 * Uses effect-first loop order (matches game behavior) to enable STEAL_LIFE tracking.
 	 *
 	 * @param item The item being used
 	 * @param targets Pre-computed target list
@@ -155,20 +156,29 @@ class EffectCache {
 		snap.cdDuration = item.cdDuration
 		snap.targets = targets
 
-		// Apply effects to each target
-		// Score is computed inline in EffectSnapshot.addAlteration() and addKill()
-		for (Entity target in targets) {
-			if (snap.isKilled(target)) continue
+		// Effect-first loop order (matches game behavior)
+		// This enables tracking lastEffectTotalValue for STEAL_LIFE
+		for (ItemEffect effect in item.effects) {
+			// Save previous effect's total and reset accumulator
+			snap.nextEffect()
 
-			// Calculate damage ratio for AOE (laser has no ratio)
-			real ratioDmg = 1.0
-			if (item.isAOE && aimCell != null) {
-				ratioDmg = 1 - (0.2 * getCellDistance(aimCell!.id, target.cell.id))
-				if (ratioDmg <= 0) continue  // Target too far from AOE center
+			// modifCaster effects apply once to caster, not per-target
+			if (effect.modifCaster) {
+				EffectCache.applyEffect(snap, effect, Fight.self, Fight.self, 1.0)
+				continue
 			}
 
-			// Apply each effect
-			for (ItemEffect effect in item.effects) {
+			// Apply effect to all targets
+			for (Entity target in targets) {
+				if (snap.isKilled(target)) continue
+
+				// Calculate damage ratio for AOE (laser has no ratio)
+				real ratioDmg = 1.0
+				if (item.isAOE && aimCell != null) {
+					ratioDmg = 1 - (0.2 * getCellDistance(aimCell!.id, target.cell.id))
+					if (ratioDmg <= 0) continue  // Target too far from AOE center
+				}
+
 				EffectCache.applyEffect(snap, effect, Fight.self, target, ratioDmg)
 			}
 		}
@@ -195,6 +205,7 @@ class EffectCache {
 	/*
 	 * Apply a single effect to the snapshot.
 	 * Dispatches to registered handler based on effect type.
+	 * Note: modifCaster is now handled in the loop (applied once to caster, not per-target)
 	 */
 	static void applyEffect(EffectSnapshot snap, ItemEffect effect, Entity source, Entity target, real ratioDmg) {
 		var handler = EffectCache.snapshotHandlers[effect.type]
@@ -203,14 +214,7 @@ class EffectCache {
 			return
 		}
 
-		Entity effectTarget = target
-		real effectRatio = ratioDmg
-		if (effect.modifCaster) {
-			effectTarget = source
-			effectRatio = 1.0
-		}
-
-		handler(effect, source, effectTarget, effectRatio, snap)
+		handler(effect, source, target, ratioDmg, snap)
 	}
 
 	/*

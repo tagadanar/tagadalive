@@ -38,13 +38,17 @@ class EffectHandlers {
 		integer targetsCount = effect.multiplyByTarget ? count(ctx.targets) : 1
 		real beforeShield = EffectCalc.rawDamage(effect.avg, srcStr, srcPwr, ratio, targetsCount)
 		real value = EffectCalc.applyShields(beforeShield, tgtRel, tgtAbs)
+		integer damageDealt = round(value)
+
+		// Track effect value for STEAL_LIFE chaining
+		ctx.addEffectValue(damageDealt)
 
 		// Track raw damage to enemies for Liberation combo detection
 		if (!target.isFriend) {
 			ctx.addRawEnemyDamage(beforeShield)
 		}
 
-		ctx.add(target, Stats.HP, -round(value))
+		ctx.add(target, Stats.HP, -damageDealt)
 
 		// Inline passives for damage taken (target's passives)
 		Map<integer, real> passives = target.passives
@@ -148,6 +152,10 @@ class EffectHandlers {
 
 	static void novaDamage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, integer srcPwr, integer tgtHPMiss, ctx) {
 		integer value = EffectCalc.novaDamage(effect.avg, srcSnc, srcPwr, ratio, tgtHPMiss)
+
+		// Track effect value for STEAL_LIFE chaining
+		ctx.addEffectValue(value)
+
 		ctx.add(target, Stats.HPMAX, -value)
 
 		// Inline passive for nova (target's passives)
