@@ -154,14 +154,75 @@ class Entity {
 		/*
 		this.launchedEffects = []
 		for(var e in getLaunchedEffects(id)){
-			push(this.launchedEffects, 
+			push(this.launchedEffects,
 		}
 		*/
-		
-		for(Array<boolean|integer> e in getEffects(id)!){
+
+		this.loadEffects()
+		this.psnlife = this.life - this.psnTurn
+	}
+
+	/*
+	 * Updates entity position from game state.
+	 * Used by Fight.updateForSummon() to update existing entities without recreating them.
+	 */
+	void updatePosition() {
+		this.cell = Board.getCell(getCell(this.id))!
+	}
+
+	/*
+	 * Refreshes entity state from game for bulb turn synchronization.
+	 * Called by Fight.updateForSummon() on existing entities to ensure they have
+	 * up-to-date HP/stats/effects after the main leek's actions.
+	 * Does NOT touch precomputed AI data (offensiveItems, reachableCells, etc.).
+	 */
+	void refreshState() {
+		// Refresh HP (may have changed from damage/heals/erosion)
+		this.life = getLife(this.id)!
+		this.totalLife = getTotalLife(this.id)!
+
+		// Refresh all stats (could be buffed/shackled)
+		this.pwr = getPower(this.id)!
+		this.str = getStrength(this.id)!
+		this.mgc = getMagic(this.id)!
+		this.wsd = getWisdom(this.id)!
+		this.rst = getResistance(this.id)!
+		this.agi = getAgility(this.id)!
+		this.snc = getScience(this.id)!
+		this.tp = getTP(this.id)!
+		this.mp = getMP(this.id)!
+
+		// Refresh shields and damage return
+		this.relShield = getRelativeShield(this.id)!
+		this.absShield = getAbsoluteShield(this.id)!
+		this.dmgReturn = getDamageReturn(this.id)!
+
+		// Clear and reload effects
+		this.effects = []
+		this.items_effectOverTime = [:]
+		this.psnTurn = 0
+		this.psnTotal = 0
+		this.altStr = 0
+		this.altMgc = 0
+		this.altAgi = 0
+		this.altTP = 0
+		this.altMP = 0
+		this.isStatic = false
+		this.isInvincible = false
+		this.loadEffects()
+		this.psnlife = this.life - this.psnTurn
+	}
+
+	/*
+	 * Loads effects from game state into entity fields.
+	 * Called by constructor and refreshState().
+	 * Assumes effect-related fields are already initialized/cleared.
+	 */
+	private void loadEffects() {
+		for(Array<boolean|integer> e in getEffects(this.id)!) {
 			EntityEffect effect = EntityEffect(e)
 			// ADD_STATE: set flags, don't add to effects (can't be liberated)
-			if(effect.type == EFFECT_ADD_STATE){
+			if(effect.type == EFFECT_ADD_STATE) {
 				if(effect.value == STATE_INVINCIBLE) this.isInvincible = true
 				else if(effect.value == 11) this.isStatic = true // no STATE_STATIC constant in leekwars api
 				continue
@@ -172,39 +233,30 @@ class Entity {
 			// piste d'optimisation en ayant une meilleure structure pour les effets ici ?
 			// les eval en dessous pourrait être déléguer à un tab pour éviter les ifelseif?
 			// et ptete ajouter d'autres alt pour les autres stats ?
-			if(effect.type == EFFECT_POISON){
-				this.psnTurn+= effect.value
-				this.psnTotal+= effect.value * effect.turns
-			}else if(effect.type == EFFECT_HEAL){
-				this.psnTurn+= -effect.value
-				this.psnTotal+= -effect.value * effect.turns
-			}else if(effect.type == EFFECT_SHACKLE_STRENGTH){
-				this.altStr += -effect.value;
-			//	}else if(effect.type == EFFECT_SHACKLE_MAGIC){
-			//		this.altMgc -= value;
-			}else if(effect.type == EFFECT_SHACKLE_TP){
-				this.altTP += -effect.value;
-			}else if(effect.type == EFFECT_SHACKLE_MP){
-				this.altMP += -effect.value;
-			}else if(effect.type == EFFECT_BUFF_STRENGTH || effect.type == EFFECT_RAW_BUFF_STRENGTH){
-				this.altStr += effect.value;
-			}else if(effect.type == EFFECT_BUFF_TP || effect.type == EFFECT_RAW_BUFF_TP){
-				this.altTP += effect.value;
-			}else if(effect.type == EFFECT_BUFF_MP || effect.type == EFFECT_RAW_BUFF_MP){
-				this.altMP += effect.value;
-			}else if(effect.type == EFFECT_BUFF_AGILITY || effect.type == EFFECT_RAW_BUFF_AGILITY){
-				this.altAgi += effect.value;
+			if(effect.type == EFFECT_POISON) {
+				this.psnTurn += effect.value
+				this.psnTotal += effect.value * effect.turns
+			} else if(effect.type == EFFECT_HEAL) {
+				this.psnTurn += -effect.value
+				this.psnTotal += -effect.value * effect.turns
+			} else if(effect.type == EFFECT_SHACKLE_STRENGTH) {
+				this.altStr += -effect.value
+			//	} else if(effect.type == EFFECT_SHACKLE_MAGIC) {
+			//		this.altMgc -= value
+			} else if(effect.type == EFFECT_SHACKLE_TP) {
+				this.altTP += -effect.value
+			} else if(effect.type == EFFECT_SHACKLE_MP) {
+				this.altMP += -effect.value
+			} else if(effect.type == EFFECT_BUFF_STRENGTH || effect.type == EFFECT_RAW_BUFF_STRENGTH) {
+				this.altStr += effect.value
+			} else if(effect.type == EFFECT_BUFF_TP || effect.type == EFFECT_RAW_BUFF_TP) {
+				this.altTP += effect.value
+			} else if(effect.type == EFFECT_BUFF_MP || effect.type == EFFECT_RAW_BUFF_MP) {
+				this.altMP += effect.value
+			} else if(effect.type == EFFECT_BUFF_AGILITY || effect.type == EFFECT_RAW_BUFF_AGILITY) {
+				this.altAgi += effect.value
 			}
 		}
-		this.psnlife= this.life-this.psnTurn
-	}
-
-	/*
-	 * Updates entity position from game state.
-	 * Used by Fight.updateForSummon() to update existing entities without recreating them.
-	 */
-	void updatePosition() {
-		this.cell = Board.getCell(getCell(this.id))!
 	}
 
 	/*
