@@ -149,9 +149,14 @@ class Fight {
 			mapRemove(_aliveEnemiesBulbs, id)
 		}
 
-		// Update positions of all remaining alive entities from game state
-		for (Entity entity in _aliveAll) {
+		// Update positions and state of all remaining alive entities from game state
+		// refreshState() ensures entities have current HP/stats/effects after main leek's actions
+		for (integer id : Entity entity in _aliveAll) {
 			entity.updatePosition()
+			// Refresh state for existing entities (not the newly created bulb)
+			if (id != selfId) {
+				entity.refreshState()
+			}
 		}
 	}
 
