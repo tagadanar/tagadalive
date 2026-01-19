@@ -21,7 +21,7 @@ class BattleState {
 	static integer countPuny = 0      // ally puny bulbs
 	static integer countTactician = 0 // ally tactician bulbs
 	static integer countSavant = 0    // ally savant bulbs
-	static integer countStrBulbs = 0  // ally offensive bulbs (fire + iced + lightning)
+	static integer countStrBulbs = 0  // ally offensive bulbs (fire + iced + lightning + rocky)
 
 	// === Team Flags ===
 	static boolean enemyHasStr = false // any enemy has STR >= 100
@@ -93,6 +93,7 @@ class BattleState {
 				countHealer++
 			} else if (eType == Entity.BULB_ROCKY) {
 				countRocky++
+				countStrBulbs++
 			} else if (eType == Entity.BULB_WIZARD) {
 				countWizard++
 			} else if (eType == Entity.BULB_PUNY) {
