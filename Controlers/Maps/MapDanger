@@ -283,15 +283,17 @@ class MapDanger {
 		
 	static void showDanger(Cell from, integer mpleft, Consequences consequences) {
 		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpleft, Fight.self.cellsToIgnore)
-		Array<Danger> arrayDanger = []
-		for(Cell c : integer d in reachableCells) {
+		for (Cell c : integer d in reachableCells) {
 			Danger danger = MapDanger.getCellDanger(c, consequences)
+			// Color: based on total danger (dmg + psnDmg)
 			real totalDmg = danger.dmg + danger.psnDmg
 			integer red = ((totalDmg * 255) / Fight.self.life) as integer
-			if(red > 255) mark(c.id, getColor(0, 0, 0))
-			else mark(c.id, getColor(red, 255-red, 0))
-			markText(c.id, round(totalDmg))
-			push(arrayDanger, danger)
+			if (red > 255) mark(c.id, getColor(0, 0, 0))
+			else mark(c.id, getColor(red, 255 - red, 0))
+			// Text: dmg+psnDmg
+			integer dmgVal = round(danger.dmg)
+			integer psnVal = round(danger.psnDmg)
+			markText(c.id, dmgVal + "+" + psnVal)
 		}
 	}
 
