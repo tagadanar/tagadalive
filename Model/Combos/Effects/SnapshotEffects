@@ -329,7 +329,12 @@ EffectCache.registerHandlers([
 	},
 
 	EFFECT_STEAL_LIFE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
-		// Placeholder
+		// Heals caster for total value of preceding effect (e.g., Quantum Rifle: NOVA_DAMAGE -> STEAL_LIFE)
+		integer totalValue = snap.lastEffectTotalValue
+		if (totalValue <= 0) return;
+		integer hpMissing = snap.getHPMissing(entityTarget)
+		integer healAmount = min(totalValue, hpMissing)
+		if (healAmount > 0) snap.add(entityTarget, Stats.HP, healAmount)
 	},
 
 	EFFECT_ADD_STATE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {

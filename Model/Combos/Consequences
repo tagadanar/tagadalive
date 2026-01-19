@@ -13,9 +13,28 @@ class Consequences {
 	Item? currentWeapon           // Equipped weapon (for switch cost tracking)
 	private integer _boostMP_before = 0
 
+	// Effect value tracking for STEAL_LIFE (tracks total value of preceding effect)
+	integer lastEffectTotalValue = 0
+	integer _currentEffectTotal = 0
+
 	// Shared effect snapshot (null = local mode, set = shared mode)
 	// In shared mode, effect data comes from _shared, local maps are empty
 	EffectSnapshot? _shared = null
+
+	/*
+	 * Called before processing each effect to save accumulated value and reset
+	 */
+	void nextEffect() {
+		this.lastEffectTotalValue = this._currentEffectTotal
+		this._currentEffectTotal = 0
+	}
+
+	/*
+	 * Called by damage/nova handlers to track their applied value
+	 */
+	void addEffectValue(integer value) {
+		this._currentEffectTotal += value
+	}
 
 
 	/*
@@ -125,20 +144,31 @@ class Consequences {
 		integer? boostTPbefore = this._alterations[Fight.self] != null ? this._alterations[Fight.self]![Stats.TP] : null
 
 		// actualisation des conséquences de l'action sur le jeu
+		// Effect-first loop order (matches game behavior) for STEAL_LIFE tracking
 		this.targets = Targets.getTargets(action)
-		for(Entity target in this.targets){
-			if(this._killed[target]) continue
-			// For self in AOE, use simulated position (this.currentCell) not real position (target.cell)
-			integer targetCellId = (target == Fight.self) ? this.currentCell.id : target.cell.id
-			// For self-cast AOE, center is caster's simulated position, not sentinel cell
-			Cell aoeCenterCell = (action.to == Fight.selfCell) ? this.currentCell : action.to
-			real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(aoeCenterCell.id, targetCellId)) : 1.0
-			if(ratioDmg<=0){
-				debugE('Bug in Consequences: ratioDmg<=0 for target ' + target + ' at cell ' + targetCellId)
-				debugE(action)
+		Cell aoeCenterCell = (action.to == Fight.selfCell) ? this.currentCell : action.to
+
+		for (ItemEffect effect in action.item.effects) {
+			// Save previous effect's total and reset accumulator
+			this.nextEffect()
+
+			// modifCaster effects apply once to caster, not per-target
+			if (effect.modifCaster) {
+				this.updateConsequences(effect, Fight.self, Fight.self, 1.0)
 				continue
 			}
-			for(ItemEffect effect in action.item.effects) {
+
+			// Apply effect to all targets
+			for (Entity target in this.targets) {
+				if (this._killed[target]) continue
+				// For self in AOE, use simulated position (this.currentCell) not real position (target.cell)
+				integer targetCellId = (target == Fight.self) ? this.currentCell.id : target.cell.id
+				real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(aoeCenterCell.id, targetCellId)) : 1.0
+				if (ratioDmg <= 0) {
+					debugE('Bug in Consequences: ratioDmg<=0 for target ' + target + ' at cell ' + targetCellId)
+					debugE(action)
+					continue
+				}
 				this.updateConsequences(effect, Fight.self, target, ratioDmg)
 			}
 		}
@@ -352,12 +382,11 @@ class Consequences {
 	}
 	
 	void updateConsequences(ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg) {
-		// fixme: ce if marche pas, j'ai tjr true mm pour EFFECT_DAMAGE :'(
-		if(Consequences.convertToValue[effect.type] == null) debugW('unhandledEffect on effect: '+ effect)
-		Entity target = effect.modifCaster ? entitySource : entityTarget
-		ratioDmg = effect.modifCaster ? 1.0 : ratioDmg;
-
-		(Consequences.convertToValue[effect.type]!)(effect, entitySource, target, ratioDmg, this)
+		if (Consequences.convertToValue[effect.type] == null) {
+			debugW('unhandledEffect on effect: ' + effect)
+			return;
+		}
+		(Consequences.convertToValue[effect.type]!)(effect, entitySource, entityTarget, ratioDmg, this)
 	}
 
 	// Effect handlers map - populated by Effect modules (see Model/Combos/Effects/)

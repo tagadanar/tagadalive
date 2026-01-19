@@ -24,6 +24,10 @@ class EffectSnapshot {
 	// Item reference for CD penalty calculation
 	integer cdDuration
 
+	// Effect value tracking for STEAL_LIFE (tracks total value of preceding effect)
+	integer lastEffectTotalValue = 0
+	integer _currentEffectTotal = 0
+
 	constructor() {
 		this.alterations = [:]
 		this.altEffects = [:]
@@ -35,6 +39,21 @@ class EffectSnapshot {
 		this.hashcode = 17
 		this.isAlteringDanger = false
 		this.cdDuration = 0
+	}
+
+	/*
+	 * Called before processing each effect to save accumulated value and reset
+	 */
+	void nextEffect() {
+		this.lastEffectTotalValue = this._currentEffectTotal
+		this._currentEffectTotal = 0
+	}
+
+	/*
+	 * Called by damage/nova handlers to track their applied value
+	 */
+	void addEffectValue(integer value) {
+		this._currentEffectTotal += value
 	}
 
 	/*
