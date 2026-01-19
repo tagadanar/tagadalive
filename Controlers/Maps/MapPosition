@@ -487,14 +487,15 @@ class MapPosition {
 		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpleft, Fight.self.cellsToIgnore)
 		for (Cell c : integer d in reachableCells) {
 			Position pos = MapPosition.evaluatePosition(c, consequences)
-			// Color: based on danger only (like showDanger)
-			integer red = ((pos.dmg * 255) / Fight.self.life) as integer
-			if (red > 255) mark(c.id, getColor(0, 0, 0))
-			else mark(c.id, getColor(red, 255 - red, 0))
-			// Text: positioning score (non-danger components) | danger
-			integer posScore = round(pos.proximityScore + pos.gravityScore + pos.tacticalScore)
-			integer dangerVal = round(pos.dmg)
-			markText(c.id, posScore + " | " + dangerVal)
+			// Color: based on position score (green = high/good, red = low/bad)
+			integer scoreVal = round(pos.score)
+			// Normalize score to 0-255 range (assuming score ranges roughly -500 to +100)
+			integer green = ((scoreVal + 500) * 255 / 600) as integer
+			if (green < 0) green = 0
+			if (green > 255) green = 255
+			mark(c.id, getColor(255 - green, green, 0))
+			// Text: position score
+			markText(c.id, scoreVal)
 		}
 		Benchmark.stop("MP.showPos")
 	}

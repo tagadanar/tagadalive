@@ -36,7 +36,7 @@ class ExplorerConfig {
 	// Complexity is O(K³ × 6): K=7 → 210 combos, K=10 → 720 combos
 	static integer INTERESTING_CELLS_K_PHASE3 = 7
 	// Operation buffer: dynamic for main leek (base + per bulb + potential summon), fixed for bulbs
-	static integer OPERATION_BUFFER_LEEK_BASE = 200000
+	static integer OPERATION_BUFFER_LEEK_BASE = 250000
 	static integer OPERATION_BUFFER_PER_BULB = 200000
 	static integer OPERATION_BUFFER_POTENTIAL_SUMMON = 200000
 	static integer OPERATION_BUFFER_BULB = 200000
