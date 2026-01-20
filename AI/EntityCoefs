@@ -23,92 +23,92 @@ class EntityCoefs {
 			Stats.TP: 40.0, Stats.MP: 40.0, Stats.PWR: 1.0, Stats.KILL: 1.0
 		],
 		ENTITY_BULB: [ // Generic bulb fallback
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.1,
+			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.2, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 4.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.0,
+			Stats.WSD: 0.0, Stats.AGI: 0.0,
+			Stats.TP: 10.0, Stats.MP: 10.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_HEALER: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.3, Stats.HPMAX: 0.15,
-			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.3,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.0, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 4.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.DEBUFF: 0.1, Stats.ANTIDOTE: 0.1,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.0,
+			Stats.WSD: 0.6, Stats.AGI: 0.3,
+			Stats.TP: 10.0, Stats.MP: 10.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_WIZARD: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.2,
+			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.0, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 6.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.0, Stats.MGC: 0.6, Stats.RST: 0.0,
+			Stats.WSD: 0.0, Stats.AGI: 0.3,
+			Stats.TP: 10.0, Stats.MP: 10.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_FIRE: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.15,
+			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.4, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 5.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+			Stats.ABSSHIELD: 2.0, Stats.RELSHIELD: 4.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.9, Stats.MGC: 0.0, Stats.RST: 0.0,
+			Stats.WSD: 0.3, Stats.AGI: 0.3,
+			Stats.TP: 25.0, Stats.MP: 25.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_ICED: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.15,
+			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.4, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 5.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.85, Stats.MGC: 0.0, Stats.RST: 0.0,
+			Stats.WSD: 0.3, Stats.AGI: 0.3,
+			Stats.TP: 20.0, Stats.MP: 20.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_LIGHTNING: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.2, Stats.HPMAX: 0.18,
+			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.5, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 5.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.9, Stats.MGC: 0.0, Stats.RST: 0.0,
+			Stats.WSD: 0.3, Stats.AGI: 0.3,
+			Stats.TP: 30.0, Stats.MP: 30.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_METALLIC: [
-			Stats.HP: 0.3, Stats.HPTIME: 0.1, Stats.HPMAX: 0.05,
-			Stats.DEBUFF: 0.1, Stats.ANTIDOTE: 0.1,
-			Stats.ABSSHIELD: 0.1, Stats.RELSHIELD: 0.1, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.0, Stats.MGC: 0.1, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 2.0, Stats.MP: 4.0, Stats.PWR: 0.1, Stats.KILL: 0.1
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 2.0,
+			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.1,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.6,
+			Stats.WSD: 0.0, Stats.AGI: 0.3,
+			Stats.TP: 10.0, Stats.MP: 10.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_ROCKY: [
-			Stats.HP: 0.4, Stats.HPTIME: 0.2, Stats.HPMAX: 0.1,
+			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.2, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 2.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.8, Stats.MGC: 0.0, Stats.RST: 0.0,
+			Stats.WSD: 0.3, Stats.AGI: 0.3,
+			Stats.TP: 15.0, Stats.MP: 15.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_PUNY: [
-			Stats.HP: 0.2, Stats.HPTIME: 0.1, Stats.HPMAX: 0.05,
-			Stats.DEBUFF: 0.1, Stats.ANTIDOTE: 0.1,
-			Stats.ABSSHIELD: 0.3, Stats.RELSHIELD: 0.6, Stats.DMGRETURN: 0.3,
-			Stats.STR: 0.05, Stats.MGC: 0.1, Stats.RST: 0.05,
-			Stats.WSD: 0.05, Stats.AGI: 0.05,
-			Stats.TP: 1.0, Stats.MP: 2.0, Stats.PWR: 0.1, Stats.KILL: 0.05
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.2,
+			Stats.WSD: 0.2, Stats.AGI: 0.2,
+			Stats.TP: 5.0, Stats.MP: 5.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_TACTICIAN: [
-			Stats.HP: 0.4, Stats.HPTIME: 0.2, Stats.HPMAX: 0.1,
+			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.2, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 2.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.0,
+			Stats.WSD: 0.0, Stats.AGI: 0.1,
+			Stats.TP: 30.0, Stats.MP: 30.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_SAVANT: [
-			Stats.HP: 0.4, Stats.HPTIME: 0.2, Stats.HPMAX: 0.1,
+			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
-			Stats.ABSSHIELD: 0.6, Stats.RELSHIELD: 1.2, Stats.DMGRETURN: 0.6,
-			Stats.STR: 0.2, Stats.MGC: 0.2, Stats.RST: 0.1,
-			Stats.WSD: 0.1, Stats.AGI: 0.1,
-			Stats.TP: 2.0, Stats.MP: 4.0, Stats.PWR: 0.2, Stats.KILL: 0.2
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.0,
+			Stats.WSD: 0.0, Stats.AGI: 0.3,
+			Stats.TP: 10.0, Stats.MP: 10.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		ENTITY_TURRET: [
 			Stats.HP: 3.0, Stats.HPTIME: 1.0, Stats.HPMAX: 10.0,

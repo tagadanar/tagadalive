@@ -236,7 +236,7 @@ class Combo {
 						">init=" + Benchmark.format(sumInit / n) +
 						">action=" + Benchmark.format(sumAction / n) +
 						">ai=" + Benchmark.format(sumAI / n))
-					say("Bonjour, moi c'est Fab.")
+					say("Salut, moi c'est fab")
 				})
 				Benchmark.log("SUMMON>" + action.item.name + ">c" + targetCell!.id)
 			} else {
