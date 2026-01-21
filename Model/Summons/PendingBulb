@@ -1,6 +1,6 @@
 /*
  * PendingBulb - Tracks a bulb that will be summoned, for accurate buff scoring.
- * Stores all info needed to compute actual damage score after each buff.
+ * Stores all info needed to compute actual damage AND defensive score after each buff.
  */
 class PendingBulb {
 	BulbStats stats           // Current stats (updated by buffs)
@@ -8,6 +8,10 @@ class PendingBulb {
 	Array<Item> offensiveChips // Bulb's damage chips
 	integer bulbType          // Entity.BULB_LIGHTNING, etc.
 	real currentDmgScore      // Damage score already applied to Consequences
+
+	// Defensive tracking (for shield/life buffs)
+	integer absShield = 0     // Accumulated absolute shield
+	integer relShield = 0     // Accumulated relative shield
 
 	constructor(BulbStats stats, Entity target, Array<Item> offensiveChips, integer bulbType, real initialDmgScore) {
 		this.stats = stats
@@ -18,6 +22,21 @@ class PendingBulb {
 	}
 
 	PendingBulb clone() {
-		return PendingBulb(this.stats.clone(), this.target, this.offensiveChips, this.bulbType, this.currentDmgScore)
+		PendingBulb copy = PendingBulb(this.stats.clone(), this.target, this.offensiveChips, this.bulbType, this.currentDmgScore)
+		copy.absShield = this.absShield
+		copy.relShield = this.relShield
+		return copy
+	}
+
+	/*
+	 * Get coefficient for a stat based on bulb type.
+	 * Uses EntityCoefs lookup with fallback to generic ENTITY_BULB.
+	 */
+	real getCoef(integer stat) {
+		Map<integer, real>? coefs = EntityCoefs.baseCoefs[this.bulbType]
+		if (coefs == null) {
+			coefs = EntityCoefs.baseCoefs[ENTITY_BULB]
+		}
+		return coefs![stat]!
 	}
 }
