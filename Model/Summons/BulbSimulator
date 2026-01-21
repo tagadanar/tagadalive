@@ -22,23 +22,76 @@ class BulbSimulator {
 
 	/*
 	 * Calculate expected damage for a chip vs target
-	 * Considers: base damage, str scaling, target shields
+	 * Handles both direct damage (STR) and poison damage (MGC)
+	 * Uses EffectCalc for formula consistency
 	 */
 	static real calcChipDamage(Item chip, BulbStats stats, Entity target) {
 		real totalDmg = 0
 
 		for (ItemEffect effect in chip.effects) {
 			if (effect.type == EFFECT_DAMAGE) {
-				// Damage = base * (1 + str/100) * (1 + pwr/100)
-				// Bulbs have pwr=0, so just str scaling
-				real raw = effect.avg * (1 + stats.str / 100.0)
-				// Apply target shields
-				real dmg = raw * (1 - target.relShield / 100.0) - target.absShield
-				if (dmg > 0) totalDmg += dmg
+				// Direct damage: STR-based, bulbs have pwr=0, ratio=1.0, targetCount=1
+				real raw = EffectCalc.rawDamage(effect.avg, stats.str, 0, 1.0, 1)
+				real dmg = EffectCalc.applyShields(raw, target.relShield, target.absShield)
+				totalDmg += dmg
+			} else if (effect.type == EFFECT_POISON) {
+				// Poison damage: MGC-based, duration from effect
+				// Poison bypasses shields, total damage over duration
+				integer dur = effect.duration > 0 ? effect.duration : 2
+				real psn = EffectCalc.poisonDamage(effect.avg, stats.mgc, 0, 1.0, dur)
+				totalDmg += psn
 			}
 		}
 
 		return totalDmg
+	}
+
+	/*
+	 * Calculate expected healing for a chip on ally
+	 * Uses EffectCalc for formula consistency
+	 */
+	static real calcChipHeal(Item chip, BulbStats stats, Entity ally) {
+		real totalHeal = 0
+
+		for (ItemEffect effect in chip.effects) {
+			if (effect.type == EFFECT_HEAL) {
+				// Bulbs have ratio=1.0
+				real heal = EffectCalc.healValue(effect.avg, stats.wsd, 1.0)
+				if (heal > 0) totalHeal += heal
+			}
+		}
+
+		return totalHeal
+	}
+
+	/*
+	 * Calculate expected absolute shield value for a chip on ally
+	 * Returns raw value, scoring should use Stats.ABSSHIELD coefficient
+	 */
+	static real calcChipAbsShield(Item chip, BulbStats stats, Entity ally) {
+		real total = 0
+		for (ItemEffect effect in chip.effects) {
+			if (effect.type == EFFECT_ABSOLUTE_SHIELD) {
+				real shield = EffectCalc.scaledShield(effect.avg, stats.rst, 1.0)
+				if (shield > 0) total += shield
+			}
+		}
+		return total
+	}
+
+	/*
+	 * Calculate expected relative shield value for a chip on ally
+	 * Returns raw percentage, scoring should use Stats.RELSHIELD coefficient
+	 */
+	static real calcChipRelShield(Item chip, BulbStats stats, Entity ally) {
+		real total = 0
+		for (ItemEffect effect in chip.effects) {
+			if (effect.type == EFFECT_RELATIVE_SHIELD) {
+				real shield = EffectCalc.scaledShield(effect.avg, stats.rst, 1.0)
+				if (shield > 0) total += shield
+			}
+		}
+		return total
 	}
 
 	/*

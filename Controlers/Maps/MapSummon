@@ -4,8 +4,7 @@
  * For each summon chip, computes the N best cells to summon a bulb by scoring
  * the bulb's expected damage output on reachable targets.
  *
- * Currently supports: Lightning Bulb
- * TODO: Add other bulb types (fire, healer, iced, etc.)
+ * Currently supports: All bulb types (Lightning, Fire, Iced, Rocky, Puny, Healer, Metallic, Wizard, Savant, Tactician)
  *
  * Usage:
  *   // After init(), call to get best summon cells for lightning bulb
@@ -27,28 +26,196 @@ class MapSummon {
 	// ═══════════════════════════════════════════════════════════════════════════
 
 	// Lightning Bulb profile
-	// Stats: life 400-600, str 0-400, agi 0-100, mp 4-6, snc 0-200, tp 6-10, mgc 0
-	// Reference chip: CHIP_LIGHTNING
+	// Stats: life 400-600, str 0-400, agi 0-100, mp 4-6, tp 6-10, snc 0-200
 	static BulbProfile PROFILE_LIGHTNING = BulbProfile(
-		Entity.BULB_LIGHTNING, CHIP_LIGHTNING_BULB, CHIP_LIGHTNING,
+		Entity.BULB_LIGHTNING, CHIP_LIGHTNING_BULB,
 		400, 600,   // life
 		0, 400,     // str
 		0, 100,     // agi
 		4, 6,       // mp
-		0, 200,     // snc
 		6, 10,      // tp
-		0, 0        // mgc (lightning bulb uses STR, not MGC)
+		0, 200,     // snc
+		0, 0,       // wsd
+		0, 0,       // mgc
+		0, 0        // rst
+	)
+
+	// Fire Bulb profile
+	// Stats: life 300-500, str 0-300, agi 0-100, mp 3-5, tp 4-9, wsd 0-200
+	static BulbProfile PROFILE_FIRE = BulbProfile(
+		Entity.BULB_FIRE, CHIP_FIRE_BULB,
+		300, 500,   // life
+		0, 300,     // str
+		0, 100,     // agi
+		3, 5,       // mp
+		4, 9,       // tp
+		0, 0,       // snc
+		0, 200,     // wsd
+		0, 0,       // mgc
+		0, 0        // rst
+	)
+
+	// Iced Bulb profile
+	// Stats: life 300-500, str 0-300, agi 0-100, mp 3-4, tp 5-8, snc 0-200
+	static BulbProfile PROFILE_ICED = BulbProfile(
+		Entity.BULB_ICED, CHIP_ICED_BULB,
+		300, 500,   // life
+		0, 300,     // str
+		0, 100,     // agi
+		3, 4,       // mp
+		5, 8,       // tp
+		0, 200,     // snc
+		0, 0,       // wsd
+		0, 0,       // mgc
+		0, 0        // rst
+	)
+
+	// Rocky Bulb profile
+	// Stats: life 400-600, str 0-200, agi 0-100, mp 2-3, tp 4-8, rst 0-200
+	static BulbProfile PROFILE_ROCKY = BulbProfile(
+		Entity.BULB_ROCKY, CHIP_ROCKY_BULB,
+		400, 600,   // life
+		0, 200,     // str
+		0, 100,     // agi
+		2, 3,       // mp
+		4, 8,       // tp
+		0, 0,       // snc
+		0, 0,       // wsd
+		0, 0,       // mgc
+		0, 200      // rst
+	)
+
+	// Puny Bulb profile (defensive only - no offensive chips)
+	// Stats: life 50-300, str 0-100, agi 0-100, mp 3-5, tp 4-7, snc 0-100, wsd 0-100, rst 0-100
+	static BulbProfile PROFILE_PUNY = BulbProfile(
+		Entity.BULB_PUNY, CHIP_PUNY_BULB,
+		50, 300,    // life
+		0, 100,     // str
+		0, 100,     // agi
+		3, 5,       // mp
+		4, 7,       // tp
+		0, 100,     // snc
+		0, 100,     // wsd
+		0, 0,       // mgc
+		0, 100      // rst
+	)
+
+	// Healer Bulb profile (targets allies, not enemies)
+	// Stats: life 300-400, str 0, agi 0-100, mp 3-6, tp 4-8, wsd 0-300
+	static BulbProfile PROFILE_HEALER = BulbProfile(
+		Entity.BULB_HEALER, CHIP_HEALER_BULB,
+		300, 400,   // life
+		0, 0,       // str
+		0, 100,     // agi
+		3, 6,       // mp
+		4, 8,       // tp
+		0, 0,       // snc
+		0, 300,     // wsd
+		0, 0,       // mgc
+		0, 0        // rst
+	)
+
+	// Metallic Bulb profile (shields allies)
+	// Stats: life 800-1100, str 0, agi 0-100, mp 1-2, tp 5-9, snc 0-200, rst 0-300
+	static BulbProfile PROFILE_METALLIC = BulbProfile(
+		Entity.BULB_METALLIC, CHIP_METALLIC_BULB,
+		800, 1100,  // life
+		0, 0,       // str
+		0, 100,     // agi
+		1, 2,       // mp
+		5, 9,       // tp
+		0, 200,     // snc
+		0, 0,       // wsd
+		0, 0,       // mgc
+		0, 300      // rst
+	)
+
+	// Wizard Bulb profile (poison damage, MGC-based)
+	// Stats: life 300-600, str 0, agi 0-100, mp 4-7, tp 5-8, mgc 0-240
+	static BulbProfile PROFILE_WIZARD = BulbProfile(
+		Entity.BULB_WIZARD, CHIP_WIZARD_BULB,
+		300, 600,   // life
+		0, 0,       // str
+		0, 100,     // agi
+		4, 7,       // mp
+		5, 8,       // tp
+		0, 0,       // snc
+		0, 0,       // wsd
+		0, 240,     // mgc
+		0, 0        // rst
+	)
+
+	// Savant Bulb profile (defensive only - no offensive chips)
+	// Stats: life 400-600, str 0, agi 0-200, mp 4-6, tp 6-8, snc 0-300
+	static BulbProfile PROFILE_SAVANT = BulbProfile(
+		Entity.BULB_SAVANT, CHIP_SAVANT_BULB,
+		400, 600,   // life
+		0, 0,       // str
+		0, 200,     // agi
+		4, 6,       // mp
+		6, 8,       // tp
+		0, 300,     // snc
+		0, 0,       // wsd
+		0, 0,       // mgc
+		0, 0        // rst
+	)
+
+	// Tactician Bulb profile (defensive only - no offensive chips)
+	// Stats: life 500-700, str 0, agi 0-200, mp 6, tp 6
+	static BulbProfile PROFILE_TACTICIAN = BulbProfile(
+		Entity.BULB_TACTICIAN, CHIP_TACTICIAN_BULB,
+		500, 700,   // life
+		0, 0,       // str
+		0, 200,     // agi
+		6, 6,       // mp (flat)
+		6, 6,       // tp (flat)
+		0, 0,       // snc
+		0, 0,       // wsd
+		0, 0,       // mgc
+		0, 0        // rst
 	)
 
 	// Map chip ID -> profile for easy lookup
 	static Map<integer, BulbProfile> PROFILES = [
-		CHIP_LIGHTNING_BULB: PROFILE_LIGHTNING
+		CHIP_LIGHTNING_BULB: PROFILE_LIGHTNING,
+		CHIP_FIRE_BULB: PROFILE_FIRE,
+		CHIP_ICED_BULB: PROFILE_ICED,
+		CHIP_ROCKY_BULB: PROFILE_ROCKY,
+		CHIP_PUNY_BULB: PROFILE_PUNY,
+		CHIP_HEALER_BULB: PROFILE_HEALER,
+		CHIP_METALLIC_BULB: PROFILE_METALLIC,
+		CHIP_WIZARD_BULB: PROFILE_WIZARD,
+		CHIP_SAVANT_BULB: PROFILE_SAVANT,
+		CHIP_TACTICIAN_BULB: PROFILE_TACTICIAN
 	]
 
 	// Offensive chips per bulb type (for combo simulation)
-	// Lightning: CHIP_LIGHTNING (main), CHIP_FLASH (cheap), CHIP_SHOCK (medium)
+	// First chip determines attack range for positioning!
+	// Lightning: CHIP_LIGHTNING (main), CHIP_FLASH, CHIP_SHOCK
+	// Fire: CHIP_METEORITE (main), CHIP_FLAME, CHIP_SPARK, CHIP_DEVIL_STRIKE
+	// Iced: CHIP_STALACTITE (main), CHIP_ICEBERG, CHIP_ICE
+	// Rocky: CHIP_ROCKFALL (main), CHIP_ROCK, CHIP_PEBBLE
+	// Healer: CHIP_VACCINE (main), CHIP_DRIP, CHIP_CURE, CHIP_BANDAGE (targets allies!)
+	// Metallic: CHIP_ARMOR (main), CHIP_SHIELD, CHIP_WALL (shields allies!)
+	// Wizard: CHIP_TOXIN (main), CHIP_VENOM (poison, MGC-based)
 	static Map<integer, Array<integer>> BULB_OFFENSIVE_CHIPS = [
-		Entity.BULB_LIGHTNING: [CHIP_LIGHTNING, CHIP_FLASH, CHIP_SHOCK]
+		Entity.BULB_LIGHTNING: [CHIP_LIGHTNING, CHIP_FLASH, CHIP_SHOCK],
+		Entity.BULB_FIRE: [CHIP_METEORITE, CHIP_FLAME, CHIP_SPARK, CHIP_DEVIL_STRIKE],
+		Entity.BULB_ICED: [CHIP_STALACTITE, CHIP_ICEBERG, CHIP_ICE],
+		Entity.BULB_ROCKY: [CHIP_ROCKFALL, CHIP_ROCK, CHIP_PEBBLE],
+		Entity.BULB_HEALER: [CHIP_VACCINE, CHIP_DRIP, CHIP_CURE, CHIP_BANDAGE],
+		Entity.BULB_METALLIC: [CHIP_ARMOR, CHIP_SHIELD, CHIP_WALL],
+		Entity.BULB_WIZARD: [CHIP_TOXIN, CHIP_VENOM]
+	]
+
+	// Target modes for bulb types
+	static integer TARGET_MODE_ENEMY = 0       // Damage enemies (default)
+	static integer TARGET_MODE_ALLY_HEAL = 1   // Heal allies
+	static integer TARGET_MODE_ALLY_SHIELD = 2 // Shield allies
+
+	static Map<integer, integer> BULB_TARGET_MODE = [
+		Entity.BULB_HEALER: TARGET_MODE_ALLY_HEAL,
+		Entity.BULB_METALLIC: TARGET_MODE_ALLY_SHIELD
 	]
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -359,39 +526,49 @@ class MapSummon {
 		debug("=== End MapSummon ===")
 	}
 
+	// Map bulb type to single letter for display
+	static Map<integer, string> BULB_LETTERS = [
+		Entity.BULB_LIGHTNING: "L",
+		Entity.BULB_FIRE: "F",
+		Entity.BULB_ICED: "I",
+		Entity.BULB_ROCKY: "R",
+		Entity.BULB_PUNY: "P",
+		Entity.BULB_HEALER: "H",
+		Entity.BULB_METALLIC: "M",
+		Entity.BULB_WIZARD: "W",
+		Entity.BULB_SAVANT: "S",
+		Entity.BULB_TACTICIAN: "T"
+	]
+
 	/*
 	 * Display summon cells on the map (for debugging)
-	 * Color: orange = summon cell with no reachable enemy
-	 *        red (low) to green (high) gradient = has candidates (by score)
-	 *        blue = best cell
-	 * Text: rounded score for candidates, "X" for no-reach cells
+	 * Color: orange = best offensive cell (combo score)
+	 *        purple = best defensive cell (combo score)
+	 * Text: bulb letter + score (e.g. "L:8905" for lightning)
 	 */
 	static void showSummonCells() {
-		for (integer chipId : Array<SummonCandidate> candidates in _candidates) {
-			if (count(candidates) == 0) continue
+		// Show best offensive plan cell in orange
+		for (integer chipId : Array<OffensivePlan> plans in _offensivePlans) {
+			if (count(plans) == 0) continue
 
-			// Find max score for gradient
-			real maxScore = 1.0
-			for (SummonCandidate c in candidates) {
-				if (c.score > maxScore) maxScore = c.score
-			}
+			OffensivePlan bestPlan = plans[0]
+			BulbProfile? profile = PROFILES[chipId]
+			string? letterVal = profile != null ? BULB_LETTERS[profile!.bulbType] : null
+			string letter = letterVal != null ? letterVal! : "?"
+			mark(bestPlan.spawnCell.id, getColor(255, 165, 0))
+			markText(bestPlan.spawnCell.id, letter + ":" + round(bestPlan.score))
+		}
 
-			// Mark candidate cells
-			boolean first = true
-			for (SummonCandidate c in candidates) {
-				if (first) {
-					// Best cell = blue
-					mark(c.cell.id, getColor(0, 100, 255))
-					markText(c.cell.id, round(c.score) + "")
-					first = false
-				} else {
-					// Score gradient: red (low) to green (high)
-					integer green = ((c.score * 255) / maxScore) as integer
-					integer red = 255 - green
-					mark(c.cell.id, getColor(red, green, 0))
-					markText(c.cell.id, round(c.score) + "")
-				}
-			}
+		// Show best defensive plan cell in purple
+		for (integer chipId : Array<DefensivePlan> plans in _defensivePlans) {
+			if (count(plans) == 0) continue
+
+			DefensivePlan bestPlan = plans[0]
+			BulbProfile? profile = PROFILES[chipId]
+			string? letterVal = profile != null ? BULB_LETTERS[profile!.bulbType] : null
+			string letter = letterVal != null ? letterVal! : "?"
+			mark(bestPlan.spawnCell.id, getColor(180, 0, 255))
+			markText(bestPlan.spawnCell.id, letter + ":" + round(bestPlan.score))
 		}
 	}
 
@@ -448,6 +625,46 @@ class MapSummon {
 	}
 
 	/*
+	 * Calculate knapsack healing for a specific ally target.
+	 */
+	static real _calcKnapsackHealForAlly(BulbStats stats, Array<Item> chips, Entity ally) {
+		Array<BulbChipAction> actions = []
+		for (Item chip in chips) {
+			real heal = BulbSimulator.calcChipHeal(chip, stats, ally)
+			if (heal > 0) {
+				push(actions, BulbChipAction(chip, chip.cost, heal, chip.maxUse))
+			}
+		}
+		if (count(actions) == 0) return 0
+		return BulbSimulator.knapsackDamage(actions, stats.tp)  // reuse knapsack algo
+	}
+
+	/*
+	 * Calculate knapsack shield value for a specific ally target.
+	 * Scores each chip's shield effects using proper coefficients before knapsack.
+	 */
+	static real _calcKnapsackShieldForAlly(BulbStats stats, Array<Item> chips, Entity ally) {
+		Array<BulbChipAction> actions = []
+
+		// Get coefficients once
+		real absCoef = Scoring.getDynamicCoef(ally, Stats.ABSSHIELD, null)
+		real relCoef = Scoring.getDynamicCoef(ally, Stats.RELSHIELD, null)
+
+		for (Item chip in chips) {
+			real absShield = BulbSimulator.calcChipAbsShield(chip, stats, ally)
+			real relShield = BulbSimulator.calcChipRelShield(chip, stats, ally)
+
+			// Score = absValue * absCoef + relValue * relCoef
+			real score = absShield * absCoef + relShield * relCoef
+			if (score > 0) {
+				push(actions, BulbChipAction(chip, chip.cost, score, chip.maxUse))
+			}
+		}
+		if (count(actions) == 0) return 0
+		return BulbSimulator.knapsackDamage(actions, stats.tp)  // reuse knapsack algo
+	}
+
+	/*
 	 * Evaluate all valid summon cells using BACKWARD PATH algorithm:
 	 * 1. For each enemy: find attack cells (where bulb can use main chip)
 	 * 2. From each attack cell: walk back bulbMP to find spawn cells
@@ -478,33 +695,62 @@ class MapSummon {
 		integer bulbMP = stats.mp
 		integer bulbReach = bulbMP + mainChip.maxRange
 
-		// Map: spawnCell.id -> (score, target, expectedDmg)
+		// Map: spawnCell.id -> (score, target, expectedValue)
 		// We keep the best score per cell
 		Map<integer, real> cellScores = [:]
 		Map<integer, Entity> cellTargets = [:]
-		Map<integer, real> cellDamages = [:]
+		Map<integer, real> cellDamages = [:]  // damage, heal, or shield value
 		Map<integer, Cell> cellRefs = [:]  // id -> Cell reference
 
-		// Process each enemy
-		for (Entity enemy in Fight.getEnemiesAlive()) {
-			if (enemy.isInvincible) continue
+		// Determine target mode: enemy damage, ally heal, or ally shield
+		integer? modeVal = BULB_TARGET_MODE[profile.bulbType]
+		integer targetMode = modeVal != null ? modeVal! : TARGET_MODE_ENEMY
+		boolean targetsAllies = targetMode != TARGET_MODE_ENEMY
 
-			// Calculate knapsack damage for this enemy (same for all spawn cells)
-			real knapsackDmg = MapSummon._calcKnapsackDamageForEnemy(stats, chips, enemy)
-			if (knapsackDmg <= 0) continue
+		Map<integer, Entity> targets = targetsAllies
+			? Fight.getAlliesAlive()
+			: Fight.getEnemiesAlive()
 
-			// Calculate score for this damage
-			real dmgCoef = Scoring.getDynamicCoef(enemy, Stats.HP, null)
-			real score = (-knapsackDmg) * dmgCoef  // -damage * -coef = positive
+		// Process each target (for-in on Map iterates values in LS4)
+		for (Entity target in targets) {
+			// Skip self for ally-targeting bulbs
+			if (targetsAllies && target.id == Fight.self.id) continue
+			// Skip invincible enemies
+			if (!targetsAllies && target.isInvincible) continue
 
-			// Add kill bonus if applicable
-			boolean isKill = knapsackDmg >= enemy.life
-			if (isKill) {
-				score += (-1) * dmgCoef * ScoringConfig.KILL_VALUE
+			// Calculate knapsack value based on mode
+			real value = 0
+			if (targetMode == TARGET_MODE_ENEMY) {
+				value = MapSummon._calcKnapsackDamageForEnemy(stats, chips, target)
+			} else if (targetMode == TARGET_MODE_ALLY_HEAL) {
+				value = MapSummon._calcKnapsackHealForAlly(stats, chips, target)
+			} else if (targetMode == TARGET_MODE_ALLY_SHIELD) {
+				value = MapSummon._calcKnapsackShieldForAlly(stats, chips, target)
+			}
+			if (value <= 0) continue
+
+			// Calculate score
+			real score = 0
+			real coef = Scoring.getDynamicCoef(target, Stats.HP, null)
+			if (targetMode == TARGET_MODE_ALLY_SHIELD) {
+				// Shield value is pre-scored in _calcKnapsackShieldForAlly
+				score = value
+			} else {
+				score = targetsAllies
+					? value * coef       // heal * positive ally coef = positive
+					: (-value) * coef    // -damage * negative enemy coef = positive
 			}
 
-			// Find attack cells: where bulb can hit enemy with main chip
-			Array<Cell> attackCells = MapSummon._getAttackCells(enemy.cell, mainChip)
+			// Add kill bonus for damage only
+			if (targetMode == TARGET_MODE_ENEMY) {
+				boolean isKill = value >= target.life
+				if (isKill) {
+					score += (-1) * coef * ScoringConfig.KILL_VALUE
+				}
+			}
+
+			// Find attack cells: where bulb can hit target with main chip
+			Array<Cell> attackCells = MapSummon._getAttackCells(target.cell, mainChip)
 			if (count(attackCells) == 0) continue
 
 			// Pick the attack cell closest to self (spawn cells will be nearer to leek's reachable area)
@@ -529,8 +775,8 @@ class MapSummon {
 				if (existingScore != null && existingScore! >= score) continue
 
 				cellScores[cellId] = score
-				cellTargets[cellId] = enemy
-				cellDamages[cellId] = knapsackDmg
+				cellTargets[cellId] = target
+				cellDamages[cellId] = value
 				cellRefs[cellId] = spawnCell
 			}
 		}

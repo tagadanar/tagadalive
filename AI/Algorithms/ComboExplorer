@@ -560,14 +560,26 @@ class ComboExplorer {
 		for (Item item in Fight.self.items) {
 			if (!item.isSummon) continue
 
-			OffensivePlan? plan = MapSummon.getBestOffensivePlan(item.id)
-			if (plan == null) continue
+			// Check offensive plan
+			OffensivePlan? offPlan = MapSummon.getBestOffensivePlan(item.id)
+			if (offPlan != null) {
+				// Only record if it beats current best
+				if (ComboExplorer.bestResult == null || offPlan!.score > ComboExplorer.bestResult!.score) {
+					string buffStr = count(offPlan!.buffs) > 0 ? "+" + offPlan!.buffs[0].chip.name : ""
+					ExplorerResult result = ExplorerResult(offPlan!.combo, "S:" + item.name + buffStr, "S")
+					ComboExplorer.recordResult(result)
+				}
+			}
 
-			// Only record if it beats current best
-			if (ComboExplorer.bestResult == null || plan!.score > ComboExplorer.bestResult!.score) {
-				string buffStr = count(plan!.buffs) > 0 ? "+" + plan!.buffs[0].chip.name : ""
-				ExplorerResult result = ExplorerResult(plan!.combo, "S:" + item.name + buffStr, "S")
-				ComboExplorer.recordResult(result)
+			// Check defensive plan
+			DefensivePlan? defPlan = MapSummon.getBestDefensivePlan(item.id)
+			if (defPlan != null) {
+				// Only record if it beats current best
+				if (ComboExplorer.bestResult == null || defPlan!.score > ComboExplorer.bestResult!.score) {
+					string buffStr = count(defPlan!.buffs) > 0 ? "+" + defPlan!.buffs[0].chip.name : ""
+					ExplorerResult result = ExplorerResult(defPlan!.combo, "D:" + item.name + buffStr, "D")
+					ComboExplorer.recordResult(result)
+				}
 			}
 		}
 	}
