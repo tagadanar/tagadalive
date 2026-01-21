@@ -95,43 +95,15 @@ class Combo {
 		if(count(this.actions)>0) return actions[count(this.actions)-1].consequences
 		else return Consequences()
 	}
-	
-	/*
-	 * Find best empty cell for summoning (prefers cells far from enemies)
-	 * Uses Targets.getCellsToUseItemOnCell which returns empty cells within range
-	 */
-	static Cell? findSummonCell(Item item) {
-		Cell currentCell = Board.cells[getCell()!]!
-		Map<Cell, integer>? enemyDistMap = MapPosition.getNearestEnemyPathDist()
-
-		Cell? bestCell = null
-		integer bestDist = -1
-
-		// Get all valid empty cells within summon range (reuses existing targeting logic)
-		Array<Cell> validCells = Targets.getCellsToUseItemOnCell(item, currentCell, [Fight.self.id])
-
-		for (Cell cell in validCells) {
-			integer enemyDist = 0
-			if (enemyDistMap != null && enemyDistMap![cell] != null) {
-				enemyDist = enemyDistMap![cell]!
-			}
-
-			if (enemyDist > bestDist) {
-				bestDist = enemyDist
-				bestCell = cell
-			}
-		}
-		return bestCell
-	}
 
 	/*
 	 * pour chaque action dans l'ensemble d'actions
 	 * on se déplace a l'emplacement définis dans la génération de l'action et on éxécute l'Item sur la cible définis.
 	 */
 	void play(){
-		// étape 1: je fais mes actions (skip summons - delayed to after positioning)
+		// étape 1: je fais mes actions
 		for(Action action in this.actions){
-			if (action.item.isSummon) continue
+			// Move to attack position if needed
 			if(action.from != Fight.selfCell){
 				moveTowardCell(action.from.id)
 				Benchmark.logMove(Fight.self.cell.id, action.from.id)
@@ -142,6 +114,24 @@ class Combo {
 					continue
 				}
 			}
+
+			// Handle summons: use summon() function with bulb AI callback
+			if (action.item.isSummon) {
+				summon(action.item.id, action.to.id, function() {
+					Fight.updateForSummon()
+					Board.updateForSummon()
+					MapPosition._position = [:]
+					MapPosition._hash_position = [:]
+					MapPath.refresh()
+					Fight.self.init()
+					MapAction.refresh()
+					AI.getCombo().play()
+				})
+				Benchmark.log("SUMMON>" + action.item.name + ">c" + action.to.id)
+				continue
+			}
+
+			// Regular actions
 			if(action.to == Fight.selfCell){
 				action.item.useItemOnCell(Fight.self.cell)
 				Benchmark.logBuff(action.item.name)
@@ -168,79 +158,6 @@ class Combo {
 			moveTowardCell(this.finalPosition!.cell.id)
 			if(Fight.self.cell.id != getCell()){
 				Benchmark.logMove(Fight.self.cell.id, getCell()!)
-			}
-		}
-		// étape 2b: summon actions (after reaching final position)
-		for (Action action in this.actions) {
-			if (!action.item.isSummon) continue
-			Cell? targetCell = Combo.findSummonCell(action.item)
-			if (targetCell != null) {
-				summon(action.item.id, targetCell!.id, function() {
-					// Lightweight bulb AI: measure cost of each step
-					integer t0 = getOperations()
-					Fight.updateForSummon()  // Create bulb + update self + update positions
-					integer t1 = getOperations()
-					Board.updateForSummon()  // Rebuild entityCells (with updated positions)
-					MapPosition._position = [:]  // Invalidate stale proximity cache (leek now in entityCells)
-					MapPosition._hash_position = [:]
-					integer t2 = getOperations()
-					MapPath.refresh()        // Clear path cache
-					integer t3 = getOperations()
-					Fight.self.init()        // Now safe: Board.entityCells is updated
-					integer t4 = getOperations()
-					MapAction.refresh()      // Bulb's available actions
-					integer t5 = getOperations()
-					AI.getCombo().play()
-					integer t6 = getOperations()
-
-					// Calculate ops for each step
-					integer opsUpdate = t1 - t0
-					integer opsBoard = t2 - t1
-					integer opsPath = t3 - t2
-					integer opsInit = t4 - t3
-					integer opsAction = t5 - t4
-					integer opsAI = t6 - t5
-					integer opsTotal = t6 - t0
-
-					// Record ops to register for statistics
-					// Format: "count,total,update,board,path,init,action,ai"
-					string regKey = Entity.getBulbRegisterKey(Fight.self.extendedType)
-					string? existing = getRegister(regKey)
-					integer n = 1
-					integer sumTotal = opsTotal
-					integer sumUpdate = opsUpdate
-					integer sumBoard = opsBoard
-					integer sumPath = opsPath
-					integer sumInit = opsInit
-					integer sumAction = opsAction
-					integer sumAI = opsAI
-					if (existing != null) {
-						Array<string> p = split(existing!, ",")
-						n = number(p[0]) + 1
-						sumTotal = number(p[1]) + opsTotal
-						sumUpdate = number(p[2]) + opsUpdate
-						sumBoard = number(p[3]) + opsBoard
-						sumPath = number(p[4]) + opsPath
-						sumInit = number(p[5]) + opsInit
-						sumAction = number(p[6]) + opsAction
-						sumAI = number(p[7]) + opsAI
-					}
-					setRegister(regKey, n + "," + sumTotal + "," + sumUpdate + "," + sumBoard + "," + sumPath + "," + sumInit + "," + sumAction + "," + sumAI)
-
-					// Display mean cost of every step
-					debug("BULB_STATS>" + regKey + ">n=" + n +
-						">total=" + Benchmark.format(sumTotal / n) +
-						">update=" + Benchmark.format(sumUpdate / n) +
-						">board=" + Benchmark.format(sumBoard / n) +
-						">path=" + Benchmark.format(sumPath / n) +
-						">init=" + Benchmark.format(sumInit / n) +
-						">action=" + Benchmark.format(sumAction / n) +
-						">ai=" + Benchmark.format(sumAI / n))
-					say("Salut, moi c'est fab")
-				})
-				Benchmark.log("SUMMON>" + action.item.name + ">c" + targetCell!.id)
-			} else {
-				debugW("No valid cell for summon: " + action.item.name)
 			}
 		}
 		// étape 3: si il reste des TP, je prend en main une arme aléatoire

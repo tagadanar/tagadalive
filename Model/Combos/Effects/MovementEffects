@@ -36,52 +36,8 @@ Consequences.registerHandlers([
 	},
 
 	EFFECT_SUMMON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		// Estimate bulb value based on chip type
-		integer bulbType = ScoringConfig.getBulbTypeFromChip(effect.item.id)
-		real? bulbValueMaybe = ScoringConfig.SUMMON_VALUES[bulbType]
-		real bulbValue = bulbValueMaybe != null ? bulbValueMaybe! : ScoringConfig.SUMMON_VALUE_DEFAULT
-
-		// Factor: remaining turns (bulbs are more valuable early in fight)
-		real turnsRemaining = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
-		real turnFactor = min(1.0, turnsRemaining / 30.0)
-
-		// Factor: duplicate bulbs (reduce value if we already have this type)
-		real duplicateFactor
-		boolean isStrBulb = bulbType == Entity.BULB_FIRE || bulbType == Entity.BULB_ICED || bulbType == Entity.BULB_LIGHTNING || bulbType == Entity.BULB_ROCKY
-		if (bulbType == Entity.BULB_HEALER) {
-			// Healer bulbs: more tolerant of duplicates
-			integer existingCount = BattleState.countHealer
-			if (existingCount == 0) duplicateFactor = 3.0
-			else if (existingCount == 1) duplicateFactor = 2.0
-			else if (existingCount == 2) duplicateFactor = 1.5
-			else if (existingCount == 3) duplicateFactor = 1.0
-			else if (existingCount == 4) duplicateFactor = 0.5
-			else duplicateFactor = -0.1
-		} else if (bulbType == Entity.BULB_METALLIC) {
-			// Healer bulbs: more tolerant of duplicates
-			integer existingCount = BattleState.countHealer
-			if (existingCount == 0) duplicateFactor = 3.0
-			else if (existingCount == 1) duplicateFactor = 1.5
-			else if (existingCount == 2) duplicateFactor = 0.5
-			else duplicateFactor = -0.1
-		} else if (isStrBulb) {
-			// Str bulbs (fire, iced, lightning, rocky): use total strBulb count with healer-style modifiers
-			integer existingCount = BattleState.countStrBulbs
-			if (existingCount == 0) duplicateFactor = 3.0
-			else if (existingCount == 1) duplicateFactor = 2.0
-			else if (existingCount == 2) duplicateFactor = 1.0
-			else if (existingCount == 3) duplicateFactor = 0.5
-			else duplicateFactor = 0.1
-		} else {
-			// Other bulbs: standard duplicate penalty
-			integer existingCount = BattleState.getBulbCount(bulbType)
-			if (existingCount == 0) duplicateFactor = 3.0
-			else if (existingCount == 1) duplicateFactor = 1.5
-			else if (existingCount == 2) duplicateFactor = 0.5
-			else duplicateFactor = 0.1
-		}
-
-		conseq.score += bulbValue * turnFactor * duplicateFactor
+		// Note: targetCell not directly available in movement context, pass null for base value only
+		conseq.score += EffectHandlers.summon(effect.item, entitySource.level, null)
 	},
 
 	EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {

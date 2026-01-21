@@ -1,0 +1,96 @@
+/*
+ * BulbChipAction - Lightweight action for bulb combo simulation
+ */
+class BulbChipAction {
+	Item item
+	integer cost
+	real damage
+	integer maxUse
+
+	constructor(Item item, integer cost, real damage, integer maxUse) {
+		this.item = item
+		this.cost = cost
+		this.damage = damage
+		this.maxUse = maxUse
+	}
+}
+
+/*
+ * BulbSimulator - Utility functions for bulb damage calculation
+ */
+class BulbSimulator {
+
+	/*
+	 * Calculate expected damage for a chip vs target
+	 * Considers: base damage, str scaling, target shields
+	 */
+	static real calcChipDamage(Item chip, BulbStats stats, Entity target) {
+		real totalDmg = 0
+
+		for (ItemEffect effect in chip.effects) {
+			if (effect.type == EFFECT_DAMAGE) {
+				// Damage = base * (1 + str/100) * (1 + pwr/100)
+				// Bulbs have pwr=0, so just str scaling
+				real raw = effect.avg * (1 + stats.str / 100.0)
+				// Apply target shields
+				real dmg = raw * (1 - target.relShield / 100.0) - target.absShield
+				if (dmg > 0) totalDmg += dmg
+			}
+		}
+
+		return totalDmg
+	}
+
+	/*
+	 * Knapsack algorithm to find optimal chip damage within TP budget
+	 * @param actions Array of BulbChipAction with (item, cost, damage, maxUse)
+	 * @param maxTP   Available TP
+	 * @return Maximum damage achievable
+	 */
+	static real knapsackDamage(Array<BulbChipAction> actions, integer maxTP) {
+		if (count(actions) == 0 || maxTP <= 0) return 0
+
+		// Expand actions respecting maxUse
+		Array<BulbChipAction> expanded = []
+		Map<Item, integer> useCounts = [:]
+
+		// Sort by damage/cost (best efficiency first)
+		actions = arraySort(actions, (BulbChipAction a, BulbChipAction b) -> real {
+			return (b.damage / b.cost) - (a.damage / a.cost)
+		}) as Array<BulbChipAction>
+
+		for (BulbChipAction a in actions) {
+			integer uses = useCounts[a.item] != null ? useCounts[a.item]! : 0
+			if (uses >= a.maxUse) continue
+			push(expanded, a)
+			useCounts[a.item] = uses + 1
+		}
+
+		if (count(expanded) == 0) return 0
+
+		// DP: dp[tp] = max damage using exactly tp
+		Array<real> dp = []
+		for (integer i = 0; i <= maxTP; i++) {
+			push(dp, 0.0)
+		}
+
+		// 0/1 knapsack (each expanded action used at most once)
+		for (BulbChipAction action in expanded) {
+			// Process in reverse to avoid using same item twice
+			for (integer tp = maxTP; tp >= action.cost; tp--) {
+				real newDmg = dp[tp - action.cost] + action.damage
+				if (newDmg > dp[tp]) {
+					dp[tp] = newDmg
+				}
+			}
+		}
+
+		// Find best achievable damage
+		real best = 0
+		for (integer tp = 0; tp <= maxTP; tp++) {
+			if (dp[tp] > best) best = dp[tp]
+		}
+
+		return best
+	}
+}

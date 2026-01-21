@@ -1,0 +1,26 @@
+/*
+ * SummonCandidate - Result of summon cell evaluation (base, without buffs)
+ */
+class SummonCandidate {
+	Cell cell           // The cell to summon on (target cell)
+	Cell fromCell       // The cell caster stands on to cast summon
+	real score          // Offensive score (expected damage weighted)
+	Entity target       // Best target from this cell
+	real expectedDmg    // Raw expected damage on target
+	integer distToTarget // Distance from summon cell to target
+	integer bulbReach   // MP + item range
+
+	constructor(Cell cell, Cell fromCell, real score, Entity target, real expectedDmg, integer distToTarget, integer bulbReach) {
+		this.cell = cell
+		this.fromCell = fromCell
+		this.score = score
+		this.target = target
+		this.expectedDmg = expectedDmg
+		this.distToTarget = distToTarget
+		this.bulbReach = bulbReach
+	}
+
+	string string() {
+		return "<Summon from c" + this.fromCell.id + " -> c" + this.cell.id + " score=" + round(this.score) + " target=" + this.target.name + " dmg=" + round(this.expectedDmg) + ">"
+	}
+}
