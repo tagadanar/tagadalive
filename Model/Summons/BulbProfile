@@ -1,10 +1,9 @@
 /*
- * BulbProfile - Static definition of a bulb type's stat ranges and reference item
+ * BulbProfile - Static definition of a bulb type's stat ranges
  */
 class BulbProfile {
 	integer bulbType       // Entity.BULB_LIGHTNING, etc.
 	integer summonChip     // CHIP_LIGHTNING_BULB
-	integer referenceChip  // CHIP_LIGHTNING (main damage chip)
 
 	// Stat ranges [min, max] - linearly interpolated by summoner level
 	integer lifeMin
@@ -15,26 +14,31 @@ class BulbProfile {
 	integer agiMax
 	integer mpMin
 	integer mpMax
-	integer sncMin
-	integer sncMax
 	integer tpMin
 	integer tpMax
-	integer mgcMin
+	integer sncMin  // science
+	integer sncMax
+	integer wsdMin  // wisdom
+	integer wsdMax
+	integer mgcMin  // magic
 	integer mgcMax
+	integer rstMin  // resistance
+	integer rstMax
 
 	constructor(
-		integer bulbType, integer summonChip, integer referenceChip,
+		integer bulbType, integer summonChip,
 		integer lifeMin, integer lifeMax,
 		integer strMin, integer strMax,
 		integer agiMin, integer agiMax,
 		integer mpMin, integer mpMax,
-		integer sncMin, integer sncMax,
 		integer tpMin, integer tpMax,
-		integer mgcMin, integer mgcMax
+		integer sncMin, integer sncMax,
+		integer wsdMin, integer wsdMax,
+		integer mgcMin, integer mgcMax,
+		integer rstMin, integer rstMax
 	) {
 		this.bulbType = bulbType
 		this.summonChip = summonChip
-		this.referenceChip = referenceChip
 		this.lifeMin = lifeMin
 		this.lifeMax = lifeMax
 		this.strMin = strMin
@@ -43,12 +47,16 @@ class BulbProfile {
 		this.agiMax = agiMax
 		this.mpMin = mpMin
 		this.mpMax = mpMax
-		this.sncMin = sncMin
-		this.sncMax = sncMax
 		this.tpMin = tpMin
 		this.tpMax = tpMax
+		this.sncMin = sncMin
+		this.sncMax = sncMax
+		this.wsdMin = wsdMin
+		this.wsdMax = wsdMax
 		this.mgcMin = mgcMin
 		this.mgcMax = mgcMax
+		this.rstMin = rstMin
+		this.rstMax = rstMax
 	}
 
 	/*
@@ -64,9 +72,11 @@ class BulbProfile {
 			floor(this.strMin + (this.strMax - this.strMin) * ratio),
 			floor(this.agiMin + (this.agiMax - this.agiMin) * ratio),
 			floor(this.mpMin + (this.mpMax - this.mpMin) * ratio),
-			floor(this.sncMin + (this.sncMax - this.sncMin) * ratio),
 			floor(this.tpMin + (this.tpMax - this.tpMin) * ratio),
-			floor(this.mgcMin + (this.mgcMax - this.mgcMin) * ratio)
+			floor(this.sncMin + (this.sncMax - this.sncMin) * ratio),
+			floor(this.wsdMin + (this.wsdMax - this.wsdMin) * ratio),
+			floor(this.mgcMin + (this.mgcMax - this.mgcMin) * ratio),
+			floor(this.rstMin + (this.rstMax - this.rstMin) * ratio)
 		)
 	}
 }

@@ -6,22 +6,26 @@ class BulbStats {
 	integer str
 	integer agi
 	integer mp
-	integer snc
 	integer tp
-	integer mgc
+	integer snc  // science
+	integer wsd  // wisdom
+	integer mgc  // magic
+	integer rst  // resistance
 
-	constructor(integer life, integer str, integer agi, integer mp, integer snc, integer tp, integer mgc) {
+	constructor(integer life, integer str, integer agi, integer mp, integer tp, integer snc, integer wsd, integer mgc, integer rst) {
 		this.life = life
 		this.str = str
 		this.agi = agi
 		this.mp = mp
-		this.snc = snc
 		this.tp = tp
+		this.snc = snc
+		this.wsd = wsd
 		this.mgc = mgc
+		this.rst = rst
 	}
 
 	BulbStats clone() {
-		return BulbStats(this.life, this.str, this.agi, this.mp, this.snc, this.tp, this.mgc)
+		return BulbStats(this.life, this.str, this.agi, this.mp, this.tp, this.snc, this.wsd, this.mgc, this.rst)
 	}
 
 	// Apply buffs and return new stats (requires Buff class)
@@ -38,6 +42,6 @@ class BulbStats {
 	}
 
 	string string() {
-		return "<BulbStats life=" + this.life + " str=" + this.str + " agi=" + this.agi + " mp=" + this.mp + " snc=" + this.snc + " tp=" + this.tp + " mgc=" + this.mgc + ">"
+		return "<BulbStats life=" + this.life + " str=" + this.str + " agi=" + this.agi + " mp=" + this.mp + " tp=" + this.tp + " snc=" + this.snc + " wsd=" + this.wsd + " mgc=" + this.mgc + " rst=" + this.rst + ">"
 	}
 }
