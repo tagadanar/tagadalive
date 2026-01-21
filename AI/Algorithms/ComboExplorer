@@ -389,24 +389,20 @@ class ComboBuilder {
 		// Step 2: Sort selected by priority for execution order
 		selected = MapCellScore.sortByPriority(selected)
 
-		// Step 3: Build set of selected action keys for tracking
-		Map<integer, boolean> selectedKeys = [:]
-		for (Action a in selected) {
-			selectedKeys[ComboBuilder.actionKey(a)] = true
-		}
-
-		// Step 4: Try to add selected actions
+		// Step 3: Try to add selected actions
 		for (Action action in selected) {
 			ComboBuilder.tryAddAction(combo, action, usesThisTurn, reserveMP)
 		}
 
-		// Step 5: Greedy fallback - fill remaining TP from unselected pool
+		// Step 4: Greedy fallback - fill remaining TP from pool
+		// NOTE: We include ALL actions (even already-selected ones) and loop with while
+		// to support repeatable items (e.g., Spark with maxUse=5). tryAddAction checks
+		// usesThisTurn against maxUse, so it naturally stops when limit is reached.
 		Consequences currentCsq = combo.getCurrentConsequences()
 		if (currentCsq.currentTP > 0) {
-			// Get remaining actions not in selected set
+			// Get all valid actions from pool
 			Array<Action> remaining = []
 			for (Action a in pool) {
-				if (selectedKeys[ComboBuilder.actionKey(a)]) continue
 				if (a.score == null || a.score! <= 0) continue
 
 				// If restricting to current cell, skip actions from other cells
@@ -420,13 +416,13 @@ class ComboBuilder {
 			// Sort by score for greedy fill
 			remaining = MapCellScore.sortByScore(remaining)
 
-			// Try to fill
+			// Try to fill - loop on each action until it fails (for repeatable items)
 			for (Action action in remaining) {
-				ComboBuilder.tryAddAction(combo, action, usesThisTurn, reserveMP)
+				while (ComboBuilder.tryAddAction(combo, action, usesThisTurn, reserveMP)) {}
 			}
 		}
 
-		// Step 6: Final position
+		// Step 5: Final position
 		Consequences finalCsq = combo.getCurrentConsequences()
 		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
 		combo.addFinalPosition(pos)
@@ -730,12 +726,6 @@ class ComboExplorer {
 		// Sort by priority for execution
 		selected = MapCellScore.sortByPriority(selected)
 
-		// Build set of selected keys for greedy fallback
-		Map<integer, boolean> selectedKeys = [:]
-		for (Action a in selected) {
-			selectedKeys[ComboBuilder.actionKey(a)] = true
-		}
-
 		// Try to add selected actions (stop if target dies)
 		for (Action action in selected) {
 			if (combo.getCurrentConsequences().isKilled(target)) break
@@ -743,6 +733,8 @@ class ComboExplorer {
 		}
 
 		// Greedy fallback: fill remaining TP
+		// NOTE: We include ALL actions (even already-selected ones) and loop with while
+		// to support repeatable items. tryAddAction checks usesThisTurn against maxUse.
 		Consequences csq = combo.getCurrentConsequences()
 		if (csq.currentTP > 0) {
 			Array<Action> remaining = []
@@ -753,21 +745,18 @@ class ComboExplorer {
 				// Note: cellActions excludes self-cast (stored separately)
 				for (Cell cell : Array<Action> actions in MapCellScore.cellActions) {
 					for (Action a in actions) {
-						if (selectedKeys[ComboBuilder.actionKey(a)]) continue
 						if (a.score == null || a.score! <= 0) continue
 						push(remaining, a)
 					}
 				}
 				// Add self-cast actions (not in cellActions)
 				for (Action a in MapCellScore.selfCastActions) {
-					if (selectedKeys[ComboBuilder.actionKey(a)]) continue
 					if (a.score == null || a.score! <= 0) continue
 					push(remaining, a)
 				}
 			} else {
 				// Target alive → stick to damageActions (try to finish kill)
 				for (Action a in damageActions) {
-					if (selectedKeys[ComboBuilder.actionKey(a)]) continue
 					if (a.score == null || a.score! <= 0) continue
 					push(remaining, a)
 				}
@@ -778,7 +767,8 @@ class ComboExplorer {
 			for (Action action in remaining) {
 				// Only break on kill if we were trying to kill (not in full-pool mode)
 				if (!targetDead && combo.getCurrentConsequences().isKilled(target)) break
-				ComboBuilder.tryAddAction(combo, action, usesThisTurn, 0)
+				// Loop to support repeatable items (e.g., Spark)
+				while (ComboBuilder.tryAddAction(combo, action, usesThisTurn, 0)) {}
 			}
 		}
 
@@ -873,30 +863,24 @@ class ComboExplorer {
 		// Sort by priority for execution
 		selected = MapCellScore.sortByPriority(selected)
 
-		// Build set of selected keys for greedy fallback
-		Map<integer, boolean> selectedKeys = [:]
-		for (Action a in selected) {
-			selectedKeys[ComboBuilder.actionKey(a)] = true
-		}
-
 		// Try to add selected actions
 		for (Action action in selected) {
 			ComboBuilder.tryAddAction(combo, action, usesThisTurn, 0)
 		}
 
-		// Greedy fallback: if TP remaining, try unselected actions
+		// Greedy fallback: if TP remaining, try all actions (including already-selected)
+		// Loop with while to support repeatable items. tryAddAction checks usesThisTurn.
 		if (combo.getCurrentConsequences().currentTP > 0) {
-			// Sort remaining by score for greedy fill
+			// Sort by score for greedy fill
 			Array<Action> remaining = []
 			for (Action a in filteredActions) {
-				if (selectedKeys[ComboBuilder.actionKey(a)]) continue
 				if (a.score == null || a.score! <= 0) continue
 				push(remaining, a)
 			}
 			remaining = MapCellScore.sortByScore(remaining)
 
 			for (Action action in remaining) {
-				ComboBuilder.tryAddAction(combo, action, usesThisTurn, 0)
+				while (ComboBuilder.tryAddAction(combo, action, usesThisTurn, 0)) {}
 			}
 		}
 

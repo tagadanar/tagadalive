@@ -173,6 +173,22 @@ class ActionKnapsack {
 	/*
 	 * Expand actions respecting maxUse limits
 	 * Each "virtual item" represents one use of an action
+	 *
+	 * LIMITATION: This does NOT create multiple copies for repeatable items (maxUse > 1).
+	 * The pool has one action per (item, fromCell, targetCell), so repeatable chips like
+	 * Spark (maxUse=5) only appear once. The knapsack cannot compare "4 Sparks vs 1 Meteorite".
+	 *
+	 * ALTERNATIVE (Option 1 - not implemented):
+	 * Create N virtual copies for repeatable items where N = min(maxUse, TP/cost, CAP).
+	 * Pros: Knapsack would find truly optimal TP allocation for repeatables.
+	 * Cons:
+	 *   - Operation cost: O(items × TP × weaponStates) grows with more virtual items
+	 *   - Stale scores: All copies have same score, but real value diminishes (target dies)
+	 *   - Memory overhead for virtual KnapsackItem objects
+	 *
+	 * Current approach: Greedy fallback in ComboExplorer loops on repeatable items to
+	 * compensate. This handles dynamic score changes (Combo.add re-evaluates) but may
+	 * miss optimal knapsack selections.
 	 */
 	static Array<KnapsackItem> expandActions(Array<Action> pool) {
 		Array<KnapsackItem> items = []

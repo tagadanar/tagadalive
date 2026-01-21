@@ -425,41 +425,107 @@ class Consequences {
 
 	/*
 	 * Handle buff effect on a pending (not yet summoned) bulb.
-	 * Computes actual damage delta from the buff, not coefficient approximation.
-	 * Updates pending bulb stats and currentDmgScore for subsequent buff chaining.
+	 * Updates pending bulb stats/shields and scores the effect.
+	 *
+	 * Offensive buffs (STR, AGI, TP, MP, MGC): recalculate damage delta
+	 * Defensive buffs (shields, life, RST, WSD): score using bulb-type coefficients
 	 *
 	 * Uses same scaling as normal buffs: EFFECT_BUFF_* scaled by science, EFFECT_RAW_BUFF_* unscaled.
 	 */
 	void handlePendingBulbBuff(ItemEffect effect, Cell cell) {
 		PendingBulb bulb = this.pendingBulbs[cell]!
 
-		// Get caster's science for scaled buffs (Fight.self is always the caster)
+		// Get caster's stats for scaled effects (Fight.self is always the caster)
 		integer snc = Fight.self.getCurrentSnc(this)
+		integer rst = Fight.self.getCurrentRst(this)
+		integer wsd = Fight.self.getCurrentWsd(this)
 
-		// Apply buff to stats using proper scaling (same as BuffEffects handlers)
+		// Track if this is an offensive buff (affects damage calculation)
+		boolean isOffensive = false
+		// Track defensive value for coefficient-based scoring
+		integer defValue = 0
+		integer defStat = 0
+
+		// ════════════════════════════════════════════════════════════════════════
+		// OFFENSIVE BUFFS - update stats, recalculate damage
+		// ════════════════════════════════════════════════════════════════════════
+
 		if (effect.type == EFFECT_BUFF_STRENGTH) {
 			bulb.stats.str += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+			isOffensive = true
 		} else if (effect.type == EFFECT_RAW_BUFF_STRENGTH) {
 			bulb.stats.str += EffectCalc.rawBuff(effect.avg, 1.0)
+			isOffensive = true
 		} else if (effect.type == EFFECT_BUFF_TP) {
 			bulb.stats.tp += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+			isOffensive = true
 		} else if (effect.type == EFFECT_RAW_BUFF_TP) {
 			bulb.stats.tp += EffectCalc.rawBuff(effect.avg, 1.0)
+			isOffensive = true
 		} else if (effect.type == EFFECT_BUFF_MP) {
 			bulb.stats.mp += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+			isOffensive = true
 		} else if (effect.type == EFFECT_RAW_BUFF_MP) {
 			bulb.stats.mp += EffectCalc.rawBuff(effect.avg, 1.0)
+			isOffensive = true
 		} else if (effect.type == EFFECT_BUFF_AGILITY) {
 			bulb.stats.agi += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+			isOffensive = true
 		} else if (effect.type == EFFECT_RAW_BUFF_AGILITY) {
 			bulb.stats.agi += EffectCalc.rawBuff(effect.avg, 1.0)
+			isOffensive = true
 		} else if (effect.type == EFFECT_RAW_BUFF_MAGIC) {
 			bulb.stats.mgc += EffectCalc.rawBuff(effect.avg, 1.0)
-		}
-		// Other buffs (wisdom, resistance) don't affect damage, but still update stats if needed
+			isOffensive = true
 
-		// Compute new damage with buffed stats and score the delta
-		if (count(bulb.offensiveChips) > 0 && bulb.target != Fight.self) {
+		// ════════════════════════════════════════════════════════════════════════
+		// DEFENSIVE BUFFS - update stats/shields, score with coefficients
+		// ════════════════════════════════════════════════════════════════════════
+
+		} else if (effect.type == EFFECT_BUFF_WISDOM) {
+			defValue = EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+			bulb.stats.wsd += defValue
+			defStat = Stats.WSD
+		} else if (effect.type == EFFECT_RAW_BUFF_WISDOM) {
+			defValue = EffectCalc.rawBuff(effect.avg, 1.0)
+			bulb.stats.wsd += defValue
+			defStat = Stats.WSD
+		} else if (effect.type == EFFECT_BUFF_RESISTANCE) {
+			defValue = EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+			bulb.stats.rst += defValue
+			defStat = Stats.RST
+		} else if (effect.type == EFFECT_RAW_BUFF_RESISTANCE) {
+			defValue = EffectCalc.rawBuff(effect.avg, 1.0)
+			bulb.stats.rst += defValue
+			defStat = Stats.RST
+		} else if (effect.type == EFFECT_BOOST_MAX_LIFE) {
+			defValue = EffectCalc.boostMaxLife(effect.avg, wsd, 1.0)
+			bulb.stats.life += defValue
+			defStat = Stats.HPMAX
+		} else if (effect.type == EFFECT_ABSOLUTE_SHIELD) {
+			defValue = EffectCalc.scaledShield(effect.avg, rst, 1.0)
+			bulb.absShield += defValue
+			defStat = Stats.ABSSHIELD
+		} else if (effect.type == EFFECT_RAW_ABSOLUTE_SHIELD) {
+			defValue = EffectCalc.rawShield(effect.avg)
+			bulb.absShield += defValue
+			defStat = Stats.ABSSHIELD
+		} else if (effect.type == EFFECT_RELATIVE_SHIELD) {
+			defValue = EffectCalc.scaledShield(effect.avg, rst, 1.0)
+			bulb.relShield += defValue
+			defStat = Stats.RELSHIELD
+		} else if (effect.type == EFFECT_RAW_RELATIVE_SHIELD) {
+			defValue = EffectCalc.rawShield(effect.avg)
+			bulb.relShield += defValue
+			defStat = Stats.RELSHIELD
+		}
+
+		// ════════════════════════════════════════════════════════════════════════
+		// SCORING
+		// ════════════════════════════════════════════════════════════════════════
+
+		// Offensive buffs: recalculate damage and score delta
+		if (isOffensive && count(bulb.offensiveChips) > 0 && bulb.target != Fight.self) {
 			real newDmg = MapSummon._calcKnapsackDamageForEnemy(bulb.stats, bulb.offensiveChips, bulb.target)
 			real newDmgScore = MapSummon.computeDamageScore(newDmg, bulb.target)
 
@@ -468,6 +534,12 @@ class Consequences {
 
 			// Update for next buff in chain
 			bulb.currentDmgScore = newDmgScore
+		}
+
+		// Defensive buffs: score using bulb-type coefficient
+		if (defValue > 0 && defStat > 0) {
+			real coef = bulb.getCoef(defStat)
+			this.score += defValue * coef
 		}
 
 		// pendingBulbs[cell] already points to bulb (reference), no need to reassign
