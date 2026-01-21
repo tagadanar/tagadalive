@@ -307,7 +307,8 @@ EffectCache.registerHandlers([
 	},
 
 	EFFECT_SUMMON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
-		// Summons are complex - skip in snapshot
+		// Note: targetCell not available in snapshot context, pass null for base value only
+		snap.effectScore += EffectHandlers.summon(effect.item, entitySource.level, null)
 	},
 
 	EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {

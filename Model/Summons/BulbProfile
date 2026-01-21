@@ -1,0 +1,72 @@
+/*
+ * BulbProfile - Static definition of a bulb type's stat ranges and reference item
+ */
+class BulbProfile {
+	integer bulbType       // Entity.BULB_LIGHTNING, etc.
+	integer summonChip     // CHIP_LIGHTNING_BULB
+	integer referenceChip  // CHIP_LIGHTNING (main damage chip)
+
+	// Stat ranges [min, max] - linearly interpolated by summoner level
+	integer lifeMin
+	integer lifeMax
+	integer strMin
+	integer strMax
+	integer agiMin
+	integer agiMax
+	integer mpMin
+	integer mpMax
+	integer sncMin
+	integer sncMax
+	integer tpMin
+	integer tpMax
+	integer mgcMin
+	integer mgcMax
+
+	constructor(
+		integer bulbType, integer summonChip, integer referenceChip,
+		integer lifeMin, integer lifeMax,
+		integer strMin, integer strMax,
+		integer agiMin, integer agiMax,
+		integer mpMin, integer mpMax,
+		integer sncMin, integer sncMax,
+		integer tpMin, integer tpMax,
+		integer mgcMin, integer mgcMax
+	) {
+		this.bulbType = bulbType
+		this.summonChip = summonChip
+		this.referenceChip = referenceChip
+		this.lifeMin = lifeMin
+		this.lifeMax = lifeMax
+		this.strMin = strMin
+		this.strMax = strMax
+		this.agiMin = agiMin
+		this.agiMax = agiMax
+		this.mpMin = mpMin
+		this.mpMax = mpMax
+		this.sncMin = sncMin
+		this.sncMax = sncMax
+		this.tpMin = tpMin
+		this.tpMax = tpMax
+		this.mgcMin = mgcMin
+		this.mgcMax = mgcMax
+	}
+
+	/*
+	 * Compute bulb stats based on summoner level
+	 * Formula: floor(min + (max - min) * min(300, level) / 300)
+	 * Note: Max level is 301, but LeekWars scales bulb stats over 300 (official game formula)
+	 */
+	BulbStats computeStats(integer summonerLevel) {
+		// LeekWars official formula: stats scale linearly from min to max over levels 1-300
+		real ratio = min(300, summonerLevel) / 300.0
+		return BulbStats(
+			floor(this.lifeMin + (this.lifeMax - this.lifeMin) * ratio),
+			floor(this.strMin + (this.strMax - this.strMin) * ratio),
+			floor(this.agiMin + (this.agiMax - this.agiMin) * ratio),
+			floor(this.mpMin + (this.mpMax - this.mpMin) * ratio),
+			floor(this.sncMin + (this.sncMax - this.sncMin) * ratio),
+			floor(this.tpMin + (this.tpMax - this.tpMin) * ratio),
+			floor(this.mgcMin + (this.mgcMax - this.mgcMin) * ratio)
+		)
+	}
+}

@@ -27,6 +27,17 @@ include('Controlers/Board')
 include('Controlers/Items')
 
 // ────────────────────────────────────────────────────────────────────────────
+// SUMMONS: Bulb models and simulation (needed before MapSummon)
+// ────────────────────────────────────────────────────────────────────────────
+include('Model/Summons/Buff')
+include('Model/Summons/BulbStats')
+include('Model/Summons/BulbProfile')
+include('Model/Summons/BulbSimulator')
+include('Model/Summons/SummonCandidate')
+include('Model/Summons/PendingBulb')
+include('Model/Summons/SummonPlan')
+
+// ────────────────────────────────────────────────────────────────────────────
 // MAPS: Spatial indexing, pathfinding, danger assessment, targeting
 // ────────────────────────────────────────────────────────────────────────────
 include('Controlers/Maps/MapPath')
@@ -36,6 +47,7 @@ include('Controlers/Maps/MapAllyDamage')
 include('Controlers/Maps/MapPosition')
 include('Controlers/Maps/Targets')
 include('Controlers/Maps/MapAction')
+include('Controlers/Maps/MapSummon')
 
 // ────────────────────────────────────────────────────────────────────────────
 // COMBO SYSTEM: Action modeling and consequence simulation
@@ -159,6 +171,11 @@ function init() {
 	Benchmark.start('MapPosition.refresh')
 	MapPosition.refresh()
 	Benchmark.stop('MapPosition.refresh')
+
+	// MapSummon: compute best summon cells for available bulb chips (BEFORE MapAction)
+	Benchmark.start('MapSummon.refresh')
+	MapSummon.refresh()
+	Benchmark.stop('MapSummon.refresh')
 
 	Benchmark.start('MapAction.refresh')
 	MapAction.refresh()

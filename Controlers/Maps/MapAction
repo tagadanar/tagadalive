@@ -52,9 +52,31 @@ class MapAction {
 			// Skip if on cooldown
 			if (getCooldown(item.id, Fight.self.id) > 0) continue
 
-			// Handle summon chips immediately (self-cast, no target scoring)
+			// Handle summon chips: use MapSummon's best target cells, find fromCells like other items
 			if (item.isSummon) {
-				MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
+				Array<SummonCandidate> candidates = MapSummon.getBestCells(item.id, 5)
+				for (SummonCandidate c in candidates) {
+					// Get cells from which we can cast summon ON the target cell
+					Array<Cell> fromCells = Targets.getCellsToUseItemOnCell(item, c.cell, [Fight.self.id])
+
+					// Manually add selfCell if in range (getCellsToUseItemOnCell excludes occupied cells)
+					integer distToTarget = getCellDistance(Fight.self.cell.id, c.cell.id)
+					if (distToTarget >= item.minRange && distToTarget <= item.maxRange) {
+						if (!item.needLOS || lineOfSight(Fight.self.cell.id, c.cell.id, [Fight.self.id])) {
+							// Insert selfCell at beginning (most accessible)
+							Array<Cell> withSelf = [Fight.self.cell]
+							for (Cell fc in fromCells) push(withSelf, fc)
+							fromCells = withSelf
+						}
+					}
+
+					// Create actions for each reachable fromCell
+					for (Cell fromCell in fromCells) {
+						// Check reachability (selfCell always reachable, others need extendedReachableCells)
+						if (fromCell != Fight.self.cell && Fight.self.extendedReachableCells[fromCell] == null) continue
+						MapAction.addSummonAction(item, fromCell, c.cell)
+					}
+				}
 				continue
 			}
 
@@ -74,7 +96,7 @@ class MapAction {
 		// ═══════════════════════════════════════════════════════════════════
 		// PHASE 2: Sort by score descending
 		// ═══════════════════════════════════════════════════════════════════
-		arraySort(tuples, (ItemTarget a, ItemTarget b) -> b.score - a.score)
+		tuples = arraySort(tuples, (ItemTarget a, ItemTarget b) -> b.score - a.score) as Array<ItemTarget>
 
 		// ═══════════════════════════════════════════════════════════════════
 		// PHASE 3: Populate actions (budget-aware)
@@ -287,5 +309,37 @@ class MapAction {
 		}
 
 		return MapAction.addActionCore(item, from, targetCell, snapshot)
+	}
+
+	/*
+	 * Add summon action with direct score computation (bypasses EffectCache).
+	 * Summons don't target existing entities, so we compute score from EffectHandlers.summon().
+	 */
+	static Action? addSummonAction(Item item, Cell from, Cell targetCell) {
+		if (from != Fight.self.cell && Fight.self.extendedReachableCells[from] == null) return null
+		Benchmark.start("addAction")
+
+		// Create action without snapshot (summons don't affect existing entities)
+		Action action = new Action(item, from, targetCell)
+
+		// Set score directly from summon scoring logic (includes expected damage)
+		action.score = EffectHandlers.summon(item, Fight.self.level, targetCell)
+
+		// Add to maps (same as addActionCore)
+		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]
+		if(!_item_cell_actions[item]![from]) _item_cell_actions[item]![from] = []
+		push(_item_cell_actions[item]![from]!, action)
+
+		if(!_cell_item_actions[from]) _cell_item_actions[from] = [:]
+		if(!_cell_item_actions[from]![item]) _cell_item_actions[from]![item] = []
+		push(_cell_item_actions[from]![item]!, action)
+
+		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
+		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
+		else if(_cell_item_bestAction[from]![item]!.score < action.score) _cell_item_bestAction[from]![item] = action
+
+		_actionsCreated++
+		Benchmark.stop("addAction")
+		return action
 	}
 }

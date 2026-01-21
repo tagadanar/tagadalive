@@ -373,4 +373,71 @@ class EffectHandlers {
 		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		ctx.add(target, Stats.MP, eot)
 	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// SUMMON EFFECTS
+	// ════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Calculate summon score based on bulb type, expected damage, and game state.
+	 * Returns the score value (caller adds to ctx.score or ctx.effectScore).
+	 *
+	 * @param item          The summon chip item
+	 * @param summonerLevel The summoner's level (for bulb stats)
+	 * @param targetCell    Optional: the cell where bulb will be summoned (for damage lookup)
+	 */
+	static real summon(Item item, integer summonerLevel, Cell? targetCell) {
+		integer bulbType = ScoringConfig.getBulbTypeFromChip(item.id)
+
+		// Base value for having a bulb (intrinsic strategic value)
+		real? baseValueMaybe = ScoringConfig.SUMMON_VALUES[bulbType]
+		real baseValue = baseValueMaybe != null ? baseValueMaybe! : ScoringConfig.SUMMON_VALUE_DEFAULT
+
+		// Computed score from simulation (includes: dmg*coef + kill bonus + distFactor)
+		real computedScore = 0
+		if (targetCell != null) {
+			computedScore = MapSummon.getComputedScore(item.id, targetCell!)
+		}
+
+		// Total value = base strategic value + combat score
+		real totalValue = baseValue + computedScore
+
+		// Factor: remaining turns (bulbs are more valuable early in fight)
+		real turnsRemaining = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
+		real turnFactor = min(1.0, turnsRemaining / 30.0)
+
+		// Factor: duplicate bulbs
+		real duplicateFactor
+		boolean isStrBulb = bulbType == Entity.BULB_FIRE || bulbType == Entity.BULB_ICED || bulbType == Entity.BULB_LIGHTNING || bulbType == Entity.BULB_ROCKY
+		if (bulbType == Entity.BULB_HEALER) {
+			integer existingCount = BattleState.countHealer
+			if (existingCount == 0) duplicateFactor = 3.0
+			else if (existingCount == 1) duplicateFactor = 2.0
+			else if (existingCount == 2) duplicateFactor = 1.5
+			else if (existingCount == 3) duplicateFactor = 1.0
+			else if (existingCount == 4) duplicateFactor = 0.5
+			else duplicateFactor = -0.1
+		} else if (bulbType == Entity.BULB_METALLIC) {
+			integer existingCount = BattleState.countMetal
+			if (existingCount == 0) duplicateFactor = 3.0
+			else if (existingCount == 1) duplicateFactor = 1.5
+			else if (existingCount == 2) duplicateFactor = 0.5
+			else duplicateFactor = -0.1
+		} else if (isStrBulb) {
+			integer existingCount = BattleState.countStrBulbs
+			if (existingCount == 0) duplicateFactor = 3.0
+			else if (existingCount == 1) duplicateFactor = 2.0
+			else if (existingCount == 2) duplicateFactor = 1.0
+			else if (existingCount == 3) duplicateFactor = 0.5
+			else duplicateFactor = 0.1
+		} else {
+			integer existingCount = BattleState.getBulbCount(bulbType)
+			if (existingCount == 0) duplicateFactor = 3.0
+			else if (existingCount == 1) duplicateFactor = 1.5
+			else if (existingCount == 2) duplicateFactor = 0.5
+			else duplicateFactor = 0.1
+		}
+
+		return totalValue * turnFactor * duplicateFactor
+	}
 }

@@ -92,28 +92,27 @@ class ScoringModifiers {
 
 	/*
 	 * Computes STR/MGC scaling modifier based on current stat level
-	 * Peak value at 1000, diminishing returns above
+	 * Rises quickly to 1.0, then gradually to 1.5, plateaus above 500
 	 *
 	 * Scoring evolution:
 	 * | Current stat | modifier | meaning                        |
 	 * |--------------|----------|--------------------------------|
-	 * | 0            | 0.5      | no stat, low value to boost    |
-	 * | 500          | 1.0      | mid stat                       |
-	 * | 1000         | 1.5      | peak value (scales best)       |
-	 * | 1500         | 1.0      | diminishing returns            |
-	 * | 2000+        | 0.5      | very high, minimal benefit     |
+	 * | 0            | 0.0      | no stat, no value to boost     |
+	 * | 100          | 1.0      | minimal stat, full base value  |
+	 * | 300          | 1.25     | mid stat, growing value        |
+	 * | 500+         | 1.5      | good stat, max value           |
 	 */
 	static real getStatScalingModifier(integer currentStat) {
-		if (currentStat <= 0) return 0.5
-		if (currentStat <= 1000) {
-			// Linear 0.5 → 1.5 over 0 → 1000
-			return 0.5 + (currentStat / 1000.0)
+		if (currentStat <= 0) return 0.0
+		if (currentStat <= 100) {
+			// Linear 0 → 1.0 over 0 → 100
+			return currentStat / 100.0
 		}
-		if (currentStat <= 2000) {
-			// Linear 1.5 → 0.5 over 1000 → 2000
-			return 1.5 - ((currentStat - 1000) / 1000.0)
+		if (currentStat <= 500) {
+			// Linear 1.0 → 1.5 over 100 → 500
+			return 1.0 + 0.5 * (currentStat - 100) / 400.0
 		}
-		return 0.5
+		return 1.5
 	}
 
 	/*

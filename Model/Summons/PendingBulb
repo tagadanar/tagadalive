@@ -1,0 +1,23 @@
+/*
+ * PendingBulb - Tracks a bulb that will be summoned, for accurate buff scoring.
+ * Stores all info needed to compute actual damage score after each buff.
+ */
+class PendingBulb {
+	BulbStats stats           // Current stats (updated by buffs)
+	Entity target             // Who the bulb will attack
+	Array<Item> offensiveChips // Bulb's damage chips
+	integer bulbType          // Entity.BULB_LIGHTNING, etc.
+	real currentDmgScore      // Damage score already applied to Consequences
+
+	constructor(BulbStats stats, Entity target, Array<Item> offensiveChips, integer bulbType, real initialDmgScore) {
+		this.stats = stats
+		this.target = target
+		this.offensiveChips = offensiveChips
+		this.bulbType = bulbType
+		this.currentDmgScore = initialDmgScore
+	}
+
+	PendingBulb clone() {
+		return PendingBulb(this.stats.clone(), this.target, this.offensiveChips, this.bulbType, this.currentDmgScore)
+	}
+}

@@ -1,0 +1,43 @@
+/*
+ * BulbStats - Computed stats for a bulb based on summoner level
+ */
+class BulbStats {
+	integer life
+	integer str
+	integer agi
+	integer mp
+	integer snc
+	integer tp
+	integer mgc
+
+	constructor(integer life, integer str, integer agi, integer mp, integer snc, integer tp, integer mgc) {
+		this.life = life
+		this.str = str
+		this.agi = agi
+		this.mp = mp
+		this.snc = snc
+		this.tp = tp
+		this.mgc = mgc
+	}
+
+	BulbStats clone() {
+		return BulbStats(this.life, this.str, this.agi, this.mp, this.snc, this.tp, this.mgc)
+	}
+
+	// Apply buffs and return new stats (requires Buff class)
+	BulbStats withBuffs(Array<Buff> buffs) {
+		BulbStats result = this.clone()
+		for (Buff buff in buffs) {
+			result.str += buff.strBoost
+			result.tp += buff.tpBoost
+			result.mp += buff.mpBoost
+			result.agi += buff.agiBoost
+			result.mgc += buff.mgcBoost
+		}
+		return result
+	}
+
+	string string() {
+		return "<BulbStats life=" + this.life + " str=" + this.str + " agi=" + this.agi + " mp=" + this.mp + " snc=" + this.snc + " tp=" + this.tp + " mgc=" + this.mgc + ">"
+	}
+}

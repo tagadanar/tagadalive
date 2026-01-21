@@ -21,6 +21,11 @@ class Consequences {
 	// In shared mode, effect data comes from _shared, local maps are empty
 	EffectSnapshot? _shared = null
 
+	// Pending bulbs from summon actions in this consequence chain
+	// Used to score buff actions on bulbs that will be summoned
+	// PendingBulb stores stats, target, chips, and currentDmgScore for accurate damage scoring
+	Map<Cell, PendingBulb> pendingBulbs = [:]
+
 	/*
 	 * Called before processing each effect to save accumulated value and reset
 	 */
@@ -79,6 +84,11 @@ class Consequences {
 		}
 		this.hashcode = consequences.hashcode
 		this.score = consequences.score != null ? consequences.score : 0.0  // Inherit parent score
+		// Clone pending bulbs for buff chaining on future summons
+		this.pendingBulbs = [:]
+		for (Cell c : PendingBulb bulb in consequences.pendingBulbs) {
+			this.pendingBulbs[c] = bulb.clone()
+		}
 		construct(action, true)  // Warn during combo building (catches actual bugs)
 		Benchmark.stop("Consequences.fromConseq")
 	}
@@ -158,6 +168,33 @@ class Consequences {
 				continue
 			}
 
+			// Summon effects: score via EffectHandlers (includes base value + damage + factors)
+			if (effect.type == EFFECT_SUMMON) {
+				// EffectHandlers.summon() scores: baseValue + getComputedScore() (damage) + factors
+				this.score += EffectHandlers.summon(effect.item, Fight.self.level, action.to)
+
+				// Register pending bulb for buff chaining with accurate damage scoring
+				BulbProfile? profile = MapSummon.PROFILES[effect.item.id]
+				if (profile != null) {
+					BulbStats stats = profile!.computeStats(Fight.self.level)
+					Entity? target = MapSummon.getTargetForCell(effect.item.id, action.to)
+					Array<Item> chips = MapSummon.getOffensiveChips(profile!.bulbType)
+
+					if (target != null && count(chips) > 0) {
+						// Track base damage score for delta computation in handlePendingBulbBuff
+						// (damage is already scored by EffectHandlers.summon via getComputedScore)
+						real baseDmg = MapSummon._calcKnapsackDamageForEnemy(stats, chips, target!)
+						real baseDmgScore = MapSummon.computeDamageScore(baseDmg, target!)
+
+						this.pendingBulbs[action.to] = PendingBulb(stats, target!, chips, profile!.bulbType, baseDmgScore)
+					} else {
+						// No target found - register bulb without damage scoring
+						this.pendingBulbs[action.to] = PendingBulb(stats, Fight.self, [], profile!.bulbType, 0)
+					}
+				}
+				continue
+			}
+
 			// Apply effect to all targets
 			for (Entity target in this.targets) {
 				if (this._killed[target]) continue
@@ -170,6 +207,11 @@ class Consequences {
 					continue
 				}
 				this.updateConsequences(effect, Fight.self, target, ratioDmg)
+			}
+
+			// If no real targets but pending bulb at aimCell, handle buff on future summon
+			if (count(this.targets) == 0 && this.pendingBulbs[aoeCenterCell] != null) {
+				this.handlePendingBulbBuff(effect, aoeCenterCell)
 			}
 		}
 
@@ -380,7 +422,57 @@ class Consequences {
 	real? getScore(){
 		return this.score
 	}
-	
+
+	/*
+	 * Handle buff effect on a pending (not yet summoned) bulb.
+	 * Computes actual damage delta from the buff, not coefficient approximation.
+	 * Updates pending bulb stats and currentDmgScore for subsequent buff chaining.
+	 *
+	 * Uses same scaling as normal buffs: EFFECT_BUFF_* scaled by science, EFFECT_RAW_BUFF_* unscaled.
+	 */
+	void handlePendingBulbBuff(ItemEffect effect, Cell cell) {
+		PendingBulb bulb = this.pendingBulbs[cell]!
+
+		// Get caster's science for scaled buffs (Fight.self is always the caster)
+		integer snc = Fight.self.getCurrentSnc(this)
+
+		// Apply buff to stats using proper scaling (same as BuffEffects handlers)
+		if (effect.type == EFFECT_BUFF_STRENGTH) {
+			bulb.stats.str += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+		} else if (effect.type == EFFECT_RAW_BUFF_STRENGTH) {
+			bulb.stats.str += EffectCalc.rawBuff(effect.avg, 1.0)
+		} else if (effect.type == EFFECT_BUFF_TP) {
+			bulb.stats.tp += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+		} else if (effect.type == EFFECT_RAW_BUFF_TP) {
+			bulb.stats.tp += EffectCalc.rawBuff(effect.avg, 1.0)
+		} else if (effect.type == EFFECT_BUFF_MP) {
+			bulb.stats.mp += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+		} else if (effect.type == EFFECT_RAW_BUFF_MP) {
+			bulb.stats.mp += EffectCalc.rawBuff(effect.avg, 1.0)
+		} else if (effect.type == EFFECT_BUFF_AGILITY) {
+			bulb.stats.agi += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
+		} else if (effect.type == EFFECT_RAW_BUFF_AGILITY) {
+			bulb.stats.agi += EffectCalc.rawBuff(effect.avg, 1.0)
+		} else if (effect.type == EFFECT_RAW_BUFF_MAGIC) {
+			bulb.stats.mgc += EffectCalc.rawBuff(effect.avg, 1.0)
+		}
+		// Other buffs (wisdom, resistance) don't affect damage, but still update stats if needed
+
+		// Compute new damage with buffed stats and score the delta
+		if (count(bulb.offensiveChips) > 0 && bulb.target != Fight.self) {
+			real newDmg = MapSummon._calcKnapsackDamageForEnemy(bulb.stats, bulb.offensiveChips, bulb.target)
+			real newDmgScore = MapSummon.computeDamageScore(newDmg, bulb.target)
+
+			// Score the delta (new - old)
+			this.score += newDmgScore - bulb.currentDmgScore
+
+			// Update for next buff in chain
+			bulb.currentDmgScore = newDmgScore
+		}
+
+		// pendingBulbs[cell] already points to bulb (reference), no need to reassign
+	}
+
 	void updateConsequences(ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg) {
 		if (Consequences.convertToValue[effect.type] == null) {
 			debugW('unhandledEffect on effect: ' + effect)

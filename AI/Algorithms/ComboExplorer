@@ -515,6 +515,9 @@ class ComboExplorer {
 			ComboExplorer.phaseThreeCell()
 		}
 
+		// Phase S: SummonPlan - check if pre-computed summon+buff plans beat current best
+		ComboExplorer.phaseSummonPlan()
+
 		// Log results
 		ComboExplorer.logResults()
 
@@ -544,6 +547,28 @@ class ComboExplorer {
 				return Sort.desc(a.score, b.score)
 			}) as Array<ExplorerResult>
 			ComboExplorer.topResults = arraySlice(ComboExplorer.topResults, 0, ExplorerConfig.MAX_RESULTS_KEPT) as Array<ExplorerResult>
+		}
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE S: SUMMON PLAN
+	// Check if pre-computed summon+buff plans beat current best
+	// ════════════════════════════════════════════════════════════
+
+	static void phaseSummonPlan() {
+		// Check each summon chip for plans
+		for (Item item in Fight.self.items) {
+			if (!item.isSummon) continue
+
+			OffensivePlan? plan = MapSummon.getBestOffensivePlan(item.id)
+			if (plan == null) continue
+
+			// Only record if it beats current best
+			if (ComboExplorer.bestResult == null || plan!.score > ComboExplorer.bestResult!.score) {
+				string buffStr = count(plan!.buffs) > 0 ? "+" + plan!.buffs[0].chip.name : ""
+				ExplorerResult result = ExplorerResult(plan!.combo, "S:" + item.name + buffStr, "S")
+				ComboExplorer.recordResult(result)
+			}
 		}
 	}
 
