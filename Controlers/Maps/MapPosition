@@ -110,8 +110,8 @@ class MapPosition {
 	 * - Team fight: only turret attraction (weight 3)
 	 * - Other fights: nearest enemy (weight 2) + center (weight 1)
 	 *
-	 * Ally attraction is now handled by the heal map (MapAllyHeal) which provides
-	 * more accurate positioning based on actual heal potential.
+	 * Ally attraction is now handled by the support map (MapAllySupport) which provides
+	 * more accurate positioning based on actual support potential (heal + shields).
 	 */
 	static void _refreshGravityCells() {
 		_gravity_distance = [:]

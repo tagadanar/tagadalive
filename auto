@@ -42,7 +42,7 @@ include('Model/Summons/SummonPlan')
 // ────────────────────────────────────────────────────────────────────────────
 include('Controlers/Maps/MapPath')
 include('Controlers/Maps/MapDanger')
-include('Controlers/Maps/MapAllyHeal')
+include('Controlers/Maps/MapAllySupport')
 include('Controlers/Maps/MapAllyDamage')
 include('Controlers/Maps/MapPosition')
 include('Controlers/Maps/Targets')
@@ -184,8 +184,8 @@ function init() {
 	Benchmark.stop('init')
 
 	// Debug ally maps (uncomment to test)
-	/*MapAllyHeal.debugAllyHealItems()
-	MapAllyHeal.showHealAll()
+	/*MapAllySupport.debugAllySupportItems()
+	MapAllySupport.showSupportAll()
 	MapAllyDamage.debugAllyWeapons()
 	MapAllyDamage.showDamageAll()*/
 }

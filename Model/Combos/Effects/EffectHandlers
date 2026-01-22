@@ -423,6 +423,8 @@ class EffectHandlers {
 			else if (existingCount == 1) duplicateFactor = 1.5
 			else if (existingCount == 2) duplicateFactor = 0.5
 			else duplicateFactor = -0.1
+			// Shields are useless if no enemy has significant strength (physical damage)
+			if (!BattleState.enemyHasStr) duplicateFactor *= 0.1
 		} else if (isStrBulb) {
 			integer existingCount = BattleState.countStrBulbs
 			if (existingCount == 0) duplicateFactor = 3.0
