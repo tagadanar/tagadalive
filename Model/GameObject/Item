@@ -39,6 +39,7 @@ class Item {
 	static integer UNKNOWN_PRIORITY = 50
 
 	// Priority groups (suggested consolidation for future reference):
+	// -1: Antidote (before Liberation - full poison removal)
 	// 0: Debuff removal (Liberation)
 	// 1-3: Agility buffs (crits for subsequent attacks)
 	// 4-5: TP/MP generation
@@ -49,10 +50,10 @@ class Item {
 	// 14: Armor application
 	// 15-18: Damage, poison, debuffs
 	// 19-20: Heals, damage reflection
-	// 21: Antidote (after poisons)
 	// 22: Special (bulbs, teleport, resurrection)
 	static Map<integer, integer> PRIORITIES = [
-		CHIP_LIBERATION: 0,          // Always first - removes debuffs
+		CHIP_ANTIDOTE: -1,           // Before Liberation - full poison removal
+		CHIP_LIBERATION: 0,          // Removes debuffs (after Antidote)
 		CHIP_MANUMISSION: 0,		 // hmmm avant ou après libe ? xD
 		CHIP_REFLEXES: 1,            // Agility buffs (crits)
 		CHIP_STRETCHING: 2,
@@ -169,7 +170,6 @@ class Item {
 		CHIP_MIRROR: 20,             // Damage reflection
 		CHIP_THORN: 20,
 		CHIP_BRAMBLE: 20,
-		CHIP_ANTIDOTE: 21,           // Antidote (after using poisons!)
 		CHIP_LIGHTNING_BULB: 22,     // Special chips
 		CHIP_WIZARD_BULB: 22,
 		CHIP_FIRE_BULB: 22,
