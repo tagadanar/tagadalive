@@ -174,18 +174,13 @@ class Scoring {
 		boolean isAlly = entity.isFriend
 		boolean isOtherAlly = isAlly && entity != Fight.self
 
-		// === HP-related stats: lifeRatio + winning modifier ===
+		// === HP-related stats: lifeRatio modifier ===
 		if (stat == Stats.HP || stat == Stats.HPTIME) {
 			// Use dynamic or static lifeRatio based on consequences
 			if (consequences != null) {
 				base *= ScoringModifiers.getLifeRatioModifierDynamic(entity, consequences!)
 			} else {
 				base *= ScoringModifiers.getLifeRatioModifier(entity)
-			}
-			// Winning modifier for allies
-			if (isAlly) {
-				base *= ScoringModifiers.getWinningModifier()
-				//ScoringConfig.W_DANGER_BASE = ScoringModifiers.getWinningModifier() // testing
 			}
 		}
 

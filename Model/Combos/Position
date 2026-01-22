@@ -70,9 +70,9 @@ class Position extends Danger {
 
 		var currentLife = Fight.self.life * lifePercent
 
-		// Ignore small damage (scratches < 10% of current life)
+		// Ignore small damage (scratches) - bulbs tolerate more (80%) than leeks (10%)
 		// Cancel the score penalty but keep dmg visible for debugging
-		if (totalDmg < currentLife * ScoringConfig.IGNORE_DANGER_RATIO) {
+		if (totalDmg < currentLife * ScoringConfig.getIgnoreDangerRatio(Fight.self)) {
 			this.score += totalDmg  // cancel the -totalDmg penalty
 			return
 		}

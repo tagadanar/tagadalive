@@ -31,7 +31,7 @@ class MapDanger {
 		_danger = [:]
 		_hash_danger = [:]
 		_map_entity_item_danger = [:]
-		MapAllyHeal.resetCaches()
+		MapAllySupport.resetCaches()
 
 		// Collect enemies and prepare their offensive items
 		Array<Entity> enemies = []
@@ -45,7 +45,7 @@ class MapDanger {
 		}
 
 		// Collect allies and prepare their heal items
-		integer maxAllyItems = MapAllyHeal.collectAllies()
+		integer maxAllyItems = MapAllySupport.collectAllies()
 
 		integer dangerBudget = (getMaxOperations() * 0.4) as integer
 		integer enemyRound = 0
@@ -59,7 +59,7 @@ class MapDanger {
 			enemyRound = 1
 		}
 		if(maxAllyItems > 0){
-			MapAllyHeal.processRound(0)
+			MapAllySupport.processRound(0)
 			allyRound = 1
 		}
 
@@ -86,7 +86,7 @@ class MapDanger {
 		// PHASE 3: Ally heal completion
 		// ═══════════════════════════════════════════════════════════════════
 		for(integer i = 1; i < maxAllyItems; i++){
-			MapAllyHeal.processRound(i)
+			MapAllySupport.processRound(i)
 			allyRound = i + 1
 
 			if(getOperations() > dangerBudget){
@@ -119,7 +119,7 @@ class MapDanger {
 			enemyStats += e.name + ":" + done + "/" + count(e.offensiveItems)
 		}
 		// allyRound is 1-indexed (rounds completed), getEarlyExitStats expects 0-indexed (last round index)
-		string allyStats = allyRound > 0 ? MapAllyHeal.getEarlyExitStats(allyRound - 1) : ""
+		string allyStats = allyRound > 0 ? MapAllySupport.getEarlyExitStats(allyRound - 1) : ""
 
 		string msg = "T" + getTurn() + " MapDanger " + phase + " early exit @" + Benchmark.format(getOperations())
 		msg += " | E:" + enemyRound + "/" + maxEnemy

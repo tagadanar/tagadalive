@@ -18,6 +18,10 @@ class Damages {
 		real currentLife = Fight.self.getCurrentHP(consequences)
 		real maxLife = Fight.self.getCurrentMaxHP(consequences)
 
+		// Track shield state (existing + ally contributions)
+		real absShield = Fight.self.getCurrentAbs(consequences)
+		real relShield = Fight.self.getCurrentRel(consequences)
+
 		// Process entities in turn order (after self, wrapping around)
 		for (Entity e in Fight.getEntitiesAfterSelfInOrder()) {
 			if (consequences && consequences!.isKilled(e)) continue
@@ -36,13 +40,13 @@ class Damages {
 					real? ratioDmg = itemMap![cell]
 					if (ratioDmg == null || ratioDmg <= 0) continue
 
-					// Calculate damage components separately
+					// Calculate damage components separately (using current shield state)
 					real itemDmg = 0.0
 					real itemPsn = 0.0
 					for (ItemEffect ef in item.effects) {
 						if (ef.type == EFFECT_DAMAGE) {
 							real tmp = ef.avgmax * (1 + e.getCurrentStr(consequences) / 100) * (1 + e.pwr / 100)
-							tmp = tmp * ratioDmg! * (1 - Fight.self.getCurrentRel(consequences) / 100) - Fight.self.getCurrentAbs(consequences)
+							tmp = tmp * ratioDmg! * (1 - relShield / 100) - absShield
 							if (tmp > 0) itemDmg += tmp
 						}
 						else if (ef.type == EFFECT_POISON) {
@@ -65,29 +69,29 @@ class Damages {
 					}
 				}
 			} else {
-				// === ALLY: Subtract healing ===
-				// Check if ally can heal this cell (from ally heal map)
-				if (MapAllyHeal._map_ally_item_heal[e] == null) continue
+				// === ALLY: Subtract healing and add shields ===
+				// Check if ally can support this cell (from ally support map)
+				if (MapAllySupport._map_ally_item_heal[e] == null) continue
 
-				Array<Item>? healItems = MapAllyHeal._ally_heal_items[e]
-				if (healItems == null) continue
+				Array<Item>? supportItems = MapAllySupport._ally_support_items[e]
+				if (supportItems == null) continue
 
 				integer tpLeft = e.getCurrentTP(consequences)
 
-				for (Item item in healItems!) {
-					Map<Cell, real>? itemMap = MapAllyHeal._map_ally_item_heal[e]![item]
+				for (Item item in supportItems!) {
+					Map<Cell, real>? itemMap = MapAllySupport._map_ally_item_heal[e]![item]
 					if (itemMap == null) continue
 
-					real? ratioHeal = itemMap![cell]
-					if (ratioHeal == null || ratioHeal <= 0) continue
+					real? ratio = itemMap![cell]
+					if (ratio == null || ratio <= 0) continue
 
-					// Calculate healing for each effect type
+					// Calculate support for each effect type
 					for (ItemEffect ef in item.effects) {
 						if (ef.type == EFFECT_HEAL) {
 							// Skip non-stackable HoT already on self
-							if (ef.duration > 1 && MapAllyHeal.isHoTAlreadyOnSelf(item, ef)) continue
+							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
 
-							real healVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratioHeal!
+							real healVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio!
 
 							if (ef.duration > 1) {
 								// Heal over time → reduces psnDmg
@@ -120,7 +124,7 @@ class Damages {
 						}
 						else if (ef.type == EFFECT_RAW_HEAL) {
 							// Raw heal → reduces dmg (capped by missing HP)
-							real healVal = ef.avgmax * ratioHeal!
+							real healVal = ef.avgmax * ratio!
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
 								real missingHP = maxLife - currentLife + dmg
@@ -136,12 +140,41 @@ class Damages {
 						}
 						else if (ef.type == EFFECT_BOOST_MAX_LIFE) {
 							// Max life boost → reduces dmg (uncapped) and increases maxLife
-							real boostVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratioHeal!
+							real boostVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio!
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
 								str += " " + item.name
 								dmg -= boostVal
 								maxLife += boostVal  // Track increased max life
+								tpLeft -= item.cost
+								uses++
+								if (item.haveCD) break
+							}
+						}
+						// === SHIELD EFFECTS ===
+						else if (ef.type == EFFECT_ABSOLUTE_SHIELD) {
+							// Skip non-stackable shield already on self
+							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
+
+							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio!
+							integer uses = 0
+							while (item.cost <= tpLeft && uses < item.maxUse) {
+								str += " " + item.name
+								absShield += shieldVal  // Increases shield for subsequent enemy attacks
+								tpLeft -= item.cost
+								uses++
+								if (item.haveCD) break
+							}
+						}
+						else if (ef.type == EFFECT_RELATIVE_SHIELD) {
+							// Skip non-stackable shield already on self
+							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
+
+							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio!
+							integer uses = 0
+							while (item.cost <= tpLeft && uses < item.maxUse) {
+								str += " " + item.name
+								relShield += shieldVal  // Increases shield for subsequent enemy attacks
 								tpLeft -= item.cost
 								uses++
 								if (item.haveCD) break

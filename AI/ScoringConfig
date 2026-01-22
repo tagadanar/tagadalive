@@ -29,7 +29,17 @@ class ScoringConfig {
 	// === CanDie Thresholds ===
 	static real CANDIE_MODIFIER = 5.0   // massive boost when ally might die
 	static real CANDIE_THRESHOLD = 0.8   // ally.hp < danger * threshold → canDie
-	static real IGNORE_DANGER_RATIO = 0.1 // ignore damage < 10% of current life
+
+	static real getIgnoreDangerRatio(Entity entity) {
+		real winMod = ScoringModifiers.getWinningModifier()
+		if (entity.isBulb) {
+			// Bulb: 0.8 when losing/even, scale to 1.0 when winning
+			if (winMod <= 1.0) return 0.8
+			return min(1.0, 0.8 + 0.4 * (winMod - 1.0))  // 1.0 → 0.8, 1.5 → 1.0
+		}
+		if (winMod < 1) return 0.1
+		return 0.1 + (winMod - 1)  // 1.0 → 0.1, 1.5 → 0.6
+	}
 
 	// === Ally Modifier ===
 	// Slight boost for buffing allies (not self) - they benefit from our support

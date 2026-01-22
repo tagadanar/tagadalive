@@ -1,6 +1,6 @@
 /*
  * Ensemble de methodes et d'algorithmes permettant de calculer les dommages potentiels des allies sur chaque case
- * Similaire a MapAllyHeal mais pour les dommages (ignore les entites dans la LOS, comme MapDanger)
+ * Similaire a MapAllySupport mais pour les dommages (ignore les entites dans la LOS, comme MapDanger)
  * Ne considere que les ARMES (pas les chips)
  */
 class MapAllyDamage {

@@ -208,13 +208,16 @@ class ScoringModifiers {
 	 * More valuable to shield unshielded allies / remove shields from unshielded enemies
 	 *
 	 * Scoring evolution (for ALLIES):
-	 * | Entity      | Current Shield | enemyHasStr | Modifier | Rationale                  |
-	 * |-------------|----------------|-------------|----------|----------------------------|
-	 * | LEEK        | 0              | yes         |     3.0x | urgent need for shields    |
-	 * | LEEK        | ≤80            | yes         |     2.0x | low shields, STR incoming  |
-	 * | LEEK        | any            | no          |     1.0x | no physical threat         |
-	 * | FIRE_BULB   | 0              | any         |     2.0x | fire bulb needs protection |
-	 * | other       | any            | any         |     1.0x | default                    |
+	 * | Entity      | Stat      | Current Shield | enemyHasStr | Modifier | Rationale                  |
+	 * |-------------|-----------|----------------|-------------|----------|----------------------------|
+	 * | FIRE_BULB   | any       | 0              | any         |     2.0x | fire bulb needs protection |
+	 * | any ally    | any       | any            | no          |     0.5x | no physical threat         |
+	 * | any ally    | ABSSHIELD | ≤-50           | yes         |     3.0x | very low, urgent           |
+	 * | any ally    | ABSSHIELD | 50             | yes         |     2.0x | linear interpolation       |
+	 * | any ally    | ABSSHIELD | ≥150           | yes         |     1.0x | well shielded              |
+	 * | any ally    | RELSHIELD | ≤-20           | yes         |     3.0x | very low, urgent           |
+	 * | any ally    | RELSHIELD | 20             | yes         |     2.0x | linear interpolation       |
+	 * | any ally    | RELSHIELD | ≥60            | yes         |     1.0x | well shielded              |
 	 *
 	 * Scoring evolution (for ENEMIES - inverted logic):
 	 * | Current Shield | Modifier | Rationale                              |
@@ -242,25 +245,30 @@ class ScoringModifiers {
 				return 2.0
 			}
 
-			// Leek with low/no shields when enemy has STR
-			if (eType == ENTITY_LEEK){
-				if(BattleState.enemyHasStr) {
-					if (currentShield <= 0) return 3.0
-					if (currentShield <= 80) return 2.0
-				} else {
-					return 0.5
-				}
+			// No physical threat → shields low value
+			if (!BattleState.enemyHasStr) {
+				return 0.5
+			}
+
+			// Enemy has STR: linear scaling based on current shields
+			if (stat == Stats.ABSSHIELD) {
+				// Linear from 3.0 at -50 to 1.0 at 150
+				if (currentShield <= -50) return 3.0
+				if (currentShield >= 150) return 1.0
+				return 3.0 - (currentShield + 50) / 100.0
+			} else {
+				// RELSHIELD: linear from 3.0 at -20 to 1.0 at 60
+				if (currentShield <= -20) return 3.0
+				if (currentShield >= 60) return 1.0
+				return 3.0 - (currentShield + 20) / 40.0
 			}
 		} else {
 			// Enemy: libe/vuln value - based on whether WE have STR to exploit it
 			if (!BattleState.allyHasStr) {
 				return 0.5  // No STR, vuln is less valuable
-			} else {
-				return 3.0
 			}
+			return 3.0
 		}
-
-		return 1.0
 	}
 
 	/*
