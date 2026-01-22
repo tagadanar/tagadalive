@@ -122,22 +122,6 @@ class Damages {
 								}
 							}
 						}
-						else if (ef.type == EFFECT_RAW_HEAL) {
-							// Raw heal → reduces dmg (capped by missing HP)
-							real healVal = ef.avgmax * ratio!
-							integer uses = 0
-							while (item.cost <= tpLeft && uses < item.maxUse) {
-								real missingHP = maxLife - currentLife + dmg
-								real effectiveHeal = min(healVal, missingHP)
-								if (effectiveHeal > 0) {
-									str += " " + item.name
-									dmg -= effectiveHeal
-								}
-								tpLeft -= item.cost
-								uses++
-								if (item.haveCD) break
-							}
-						}
 						else if (ef.type == EFFECT_BOOST_MAX_LIFE) {
 							// Max life boost → reduces dmg (uncapped) and increases maxLife
 							real boostVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio!
