@@ -130,10 +130,6 @@ class Items {
 				real coef = Scoring.getDynamicCoef(Fight.self, Stats.HPMAX, null)
 				value += boostValue * coef * mitigation
 			}
-			else if (e.type == EFFECT_RAW_HEAL) {
-				real coef = Scoring.getDynamicCoef(Fight.self, Stats.HP, null)
-				value += e.avg * coef * mitigation
-			}
 			// === SHIELD EFFECTS ===
 			else if (e.type == EFFECT_ABSOLUTE_SHIELD) {
 				real shieldValue = e.avg * (1 + entity.rst / 100)
