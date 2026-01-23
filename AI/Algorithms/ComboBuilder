@@ -692,12 +692,13 @@ class ComboBuilder {
 
 			if (action!.to != target.cell) continue
 
-			// Check reachability
+			// Check reachability (cache may have cells beyond MP, must verify distance)
 			if (action!.from != Fight.selfCell) {
 				Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
 				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
 					csq.currentCell, csq.currentMP, ignoreCells)
-				if (reachable[action!.from] == null) continue
+				integer? dist = reachable[action!.from]
+				if (dist == null || dist! > csq.currentMP) continue
 			}
 
 			return action
