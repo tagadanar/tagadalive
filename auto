@@ -8,7 +8,7 @@
 // ────────────────────────────────────────────────────────────────────────────
 // FOUNDATION: API compatibility and game objects
 // ────────────────────────────────────────────────────────────────────────────
-include('API/compatibility')
+include('Services/GameAPI')
 
 include('Model/GameObject/Cell')
 include('Model/GameObject/Entity')

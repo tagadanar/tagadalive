@@ -80,13 +80,13 @@ class Position extends Danger {
 		var originalDangerScore = -totalDmg
 		var scaledDangerScore = originalDangerScore
 
-		// Low HP scaling (below 60%)
-		if (lifePercent < 0.6) {
+		// Low HP scaling (below threshold)
+		if (lifePercent < ScoringConfig.LOW_HP_THRESHOLD) {
 			scaledDangerScore *= ScoringConfig.W_DANGER_LOW_HP
 		}
 
-		// Critical danger scaling (danger > half of remaining life)
-		if (totalDmg > currentLife / 2) {
+		// Critical danger scaling (danger > ratio of remaining life)
+		if (totalDmg > currentLife * ScoringConfig.CRITICAL_DANGER_RATIO) {
 			scaledDangerScore *= ScoringConfig.W_DANGER_CRITICAL
 		}
 

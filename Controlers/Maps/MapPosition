@@ -90,7 +90,7 @@ class MapPosition {
 		_enemies_have_snc = false
 
 		for (Entity e in Fight.getEnemiesAlive()) {
-			if (e.snc > 200) _enemies_have_snc = true
+			if (e.snc > ScoringConfig.THREAT_SNC_THRESHOLD) _enemies_have_snc = true
 		}
 
 		_need_shields = (BattleState.enemyHasStr || _enemies_have_snc) &&
@@ -124,7 +124,7 @@ class MapPosition {
 			for (Entity ally in Fight.getAlliesAlive()) {
 				if (ally.entityType == ENTITY_TURRET) {
 					_gravity_distance[ally.cell] = ScoringConfig.IDEAL_DIST_ALLY
-					_gravity_coef[ally.cell] = 2.0
+					_gravity_coef[ally.cell] = ScoringConfig.W_GRAVITY_ALLY_TURRET
 					break  // Only one turret per team
 				}
 			}
@@ -132,25 +132,25 @@ class MapPosition {
 				if (enemy.entityType == ENTITY_TURRET) {
 					integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
 					_gravity_distance[enemy.cell] = distToEnemy
-					_gravity_coef[enemy.cell] = 3.0
+					_gravity_coef[enemy.cell] = ScoringConfig.W_GRAVITY_ENEMY_TURRET
 					break  // Only one turret per team
 				}
 			}
 		} else {
 			// Solo/Farmer fight: nearest enemy + center
 
-			// Nearest enemy with weight 2
+			// Nearest enemy
 			if (_nearest_enemy != null) {
 				integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
 				_gravity_distance[_nearest_enemy!.cell] = distToEnemy
-				_gravity_coef[_nearest_enemy!.cell] = 2.0
+				_gravity_coef[_nearest_enemy!.cell] = ScoringConfig.W_GRAVITY_NEAREST_ENEMY
 			}
 
-			// Center with weight 1
+			// Center
 			Cell? centerCell = Board.getCell(306)
 			if (centerCell != null) {
 				_gravity_distance[centerCell!] = ScoringConfig.IDEAL_DIST_CENTER
-				_gravity_coef[centerCell!] = 1.0
+				_gravity_coef[centerCell!] = ScoringConfig.W_GRAVITY_CENTER
 			}
 		}
 	}
