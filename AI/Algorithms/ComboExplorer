@@ -197,8 +197,8 @@ class ComboExplorer {
 			ComboExplorer.phaseThreeCell(ctx)
 		}
 
-		// Phase S: SummonPlan - check if pre-computed summon+buff plans beat current best
-		ComboExplorer.phaseSummonPlan(ctx)
+		// NOTE: Summon buff exploration is now handled dynamically in ComboBuilder
+		// via _expandWithBulbBuffs() after any summon action is added to a combo.
 
 		// Log results
 		ComboExplorer.logResults(ctx)
@@ -207,40 +207,6 @@ class ComboExplorer {
 
 		// Return best combo (guaranteed from Phase 0)
 		return ctx.bestResult!.combo
-	}
-
-	// ════════════════════════════════════════════════════════════
-	// PHASE S: SUMMON PLAN
-	// Check if pre-computed summon+buff plans beat current best
-	// ════════════════════════════════════════════════════════════
-
-	static void phaseSummonPlan(ExplorationContext ctx) {
-		// Check each summon chip for plans
-		for (Item item in Fight.self.items) {
-			if (!item.isSummon) continue
-
-			// Check offensive plan
-			OffensivePlan? offPlan = MapSummon.getBestOffensivePlan(item.id)
-			if (offPlan != null) {
-				// Only record if it beats current best
-				if (ctx.bestResult == null || offPlan!.score > ctx.bestResult!.score) {
-					string buffStr = count(offPlan!.buffs) > 0 ? "+" + offPlan!.buffs[0].chip.name : ""
-					ExplorerResult result = ExplorerResult(offPlan!.combo, "S:" + item.name + buffStr, "S")
-					ctx.recordResult(result)
-				}
-			}
-
-			// Check defensive plan
-			DefensivePlan? defPlan = MapSummon.getBestDefensivePlan(item.id)
-			if (defPlan != null) {
-				// Only record if it beats current best
-				if (ctx.bestResult == null || defPlan!.score > ctx.bestResult!.score) {
-					string buffStr = count(defPlan!.buffs) > 0 ? "+" + defPlan!.buffs[0].chip.name : ""
-					ExplorerResult result = ExplorerResult(defPlan!.combo, "D:" + item.name + buffStr, "D")
-					ctx.recordResult(result)
-				}
-			}
-		}
 	}
 
 	// ════════════════════════════════════════════════════════════

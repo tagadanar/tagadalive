@@ -13,13 +13,12 @@
  *   for (SummonCandidate c in best) {
  *       debug("Cell " + c.cell.id + " score=" + c.score + " target=" + c.target.name)
  *   }
+ *
+ * NOTE: Buff actions for bulbs are now generated dynamically by ComboBuilder
+ * via MapAction.getBulbBuffActions() after a summon is added to a combo.
  */
 
 class MapSummon {
-
-	// Filter constants for _findBuffsForCell
-	static integer BUFF_FILTER_OFFENSIVE = 1
-	static integer BUFF_FILTER_DEFENSIVE = 2
 
 	// ═══════════════════════════════════════════════════════════════════════════
 	// BULB PROFILES - Static data for each bulb type
@@ -225,12 +224,6 @@ class MapSummon {
 	// Map: summonChip -> sorted Array<SummonCandidate>
 	static Map<integer, Array<SummonCandidate>> _candidates = [:]
 
-	// Map: summonChip -> sorted Array<OffensivePlan>
-	static Map<integer, Array<OffensivePlan>> _offensivePlans = [:]
-
-	// Map: summonChip -> sorted Array<DefensivePlan>
-	static Map<integer, Array<DefensivePlan>> _defensivePlans = [:]
-
 	// Map: summonChip -> (Cell -> SummonCandidate) for O(1) lookup
 	static Map<integer, Map<Cell, SummonCandidate>> _candidateByCell = [:]
 
@@ -243,23 +236,16 @@ class MapSummon {
 
 	/*
 	 * Refresh placement analysis for all available summon chips.
-	 * Generates both offensive plans (damage + buffs) and defensive plans (safe cell + survival buffs).
-	 * Call after init() when Fight.self is available.
+	 * Generates SummonCandidate list for cell selection.
+	 * Buff selection is now handled dynamically by ComboBuilder after summon.
 	 */
 	static void refresh() {
 		Benchmark.start("MapSummon")
 		integer startOps = getOperations()
 		_candidates = [:]
-		_offensivePlans = [:]
-		_defensivePlans = [:]
 		_candidateByCell = [:]
 
 		integer summonerLevel = Fight.self.level
-		integer leekTP = Fight.self.tp
-		Map<Cell, integer> leekReachable = Fight.self.reachableCells
-
-		// Cache buff chips once for plan generation (unified cache)
-		MapSummon._cacheBuffChips()
 
 		// Process each summon chip the player has
 		for (Item item in Fight.self.items) {
@@ -283,55 +269,6 @@ class MapSummon {
 				cellMap[c.cell] = c
 			}
 			_candidateByCell[item.id] = cellMap
-
-			BulbStats baseStats = profile!.computeStats(summonerLevel)
-			integer availableTP = leekTP - item.cost
-
-			// === OFFENSIVE PLANS ===
-			// Generate plans for best candidate only (to limit operations)
-			if (count(candidates) > 0) {
-				Array<integer>? chipIds = BULB_OFFENSIVE_CHIPS[profile!.bulbType]
-				Array<Item> chips = []
-				if (chipIds != null) {
-					for (integer chipId in chipIds!) {
-						Item? chip = Items.getItem(chipId)
-						if (chip != null) push(chips, chip!)
-					}
-				}
-
-				Array<OffensivePlan> allPlans = []
-
-				// Only process best candidate to limit operations
-				SummonCandidate c = candidates[0]
-
-				// Find buffs that can target this spawn cell
-				// Use post-summon reachability (from where leek will be AFTER casting summon)
-				integer summonMoveCost = leekReachable[c.fromCell] != null ? leekReachable[c.fromCell]! : 0
-				integer remainingMP = Fight.self.mp - summonMoveCost
-				Map<Cell, integer> postSummonReachable = MapPath.getReachableCells([c.fromCell: 0], remainingMP, [])
-				Array<Buff> buffs = MapSummon._findBuffsForCell(c.cell, postSummonReachable, MapSummon.BUFF_FILTER_OFFENSIVE)
-
-				// Generate offensive plan
-				Array<OffensivePlan> plans = MapSummon._generateOffensivePlan(
-					c, item, baseStats, chips, availableTP, buffs
-				)
-				for (OffensivePlan p in plans) {
-					push(allPlans, p)
-				}
-
-				// Sort all plans by score DESC
-				allPlans = arraySort(allPlans, (OffensivePlan a, OffensivePlan b) -> b.score - a.score) as Array<OffensivePlan>
-				_offensivePlans[item.id] = allPlans
-			}
-
-			// === DEFENSIVE PLANS ===
-			// Find safe cells (0-danger) and generate defensive plans
-			Array<DefensivePlan> defPlans = MapSummon._generateDefensivePlan(
-				item, baseStats, availableTP, leekReachable
-			)
-			if (count(defPlans) > 0) {
-				_defensivePlans[item.id] = defPlans
-			}
 		}
 
 		_opsUsed = getOperations() - startOps
@@ -364,64 +301,6 @@ class MapSummon {
 	static Cell? getBestCell(integer chipId) {
 		Array<SummonCandidate> best = MapSummon.getBestCells(chipId, 1)
 		return count(best) > 0 ? best[0].cell : null
-	}
-
-	/*
-	 * Get the N best OffensivePlans for a given summon chip.
-	 * Plans include optional buffs to cast on the bulb after summoning.
-	 * Must call refresh() first.
-	 *
-	 * @param chipId  The summon chip (e.g., CHIP_LIGHTNING_BULB)
-	 * @param n       Max results to return
-	 * @return Sorted array of OffensivePlan (best score first), may be empty
-	 */
-	static Array<OffensivePlan> getBestOffensivePlans(integer chipId, integer n) {
-		Array<OffensivePlan>? plans = _offensivePlans[chipId]
-		if (plans == null) return []
-
-		integer resultCount = min(n, count(plans!))
-		Array<OffensivePlan> result = []
-		for (integer i = 0; i < resultCount; i++) {
-			push(result, plans![i])
-		}
-		return result
-	}
-
-	/*
-	 * Get the single best OffensivePlan for a summon chip, or null if none valid.
-	 */
-	static OffensivePlan? getBestOffensivePlan(integer chipId) {
-		Array<OffensivePlan> best = MapSummon.getBestOffensivePlans(chipId, 1)
-		return count(best) > 0 ? best[0] : null
-	}
-
-	/*
-	 * Get the N best DefensivePlans for a given summon chip.
-	 * Defensive plans prioritize safe cells (0-danger) and survival buffs.
-	 * Must call refresh() first.
-	 *
-	 * @param chipId  The summon chip (e.g., CHIP_LIGHTNING_BULB)
-	 * @param n       Max results to return
-	 * @return Sorted array of DefensivePlan (best score first), may be empty
-	 */
-	static Array<DefensivePlan> getBestDefensivePlans(integer chipId, integer n) {
-		Array<DefensivePlan>? plans = _defensivePlans[chipId]
-		if (plans == null) return []
-
-		integer resultCount = min(n, count(plans!))
-		Array<DefensivePlan> result = []
-		for (integer i = 0; i < resultCount; i++) {
-			push(result, plans![i])
-		}
-		return result
-	}
-
-	/*
-	 * Get the single best DefensivePlan for a summon chip, or null if none valid.
-	 */
-	static DefensivePlan? getBestDefensivePlan(integer chipId) {
-		Array<DefensivePlan> best = MapSummon.getBestDefensivePlans(chipId, 1)
-		return count(best) > 0 ? best[0] : null
 	}
 
 	/*
@@ -481,7 +360,23 @@ class MapSummon {
 	}
 
 	/*
-	 * Debug output: show all computed placements and plans
+	 * Calculate knapsack damage for a specific enemy target.
+	 * @return Total damage achievable with bulb's chips and TP
+	 */
+	static real _calcKnapsackDamageForEnemy(BulbStats stats, Array<Item> chips, Entity enemy) {
+		Array<BulbChipAction> actions = []
+		for (Item chip in chips) {
+			real dmg = BulbSimulator.calcChipDamage(chip, stats, enemy)
+			if (dmg > 0) {
+				push(actions, BulbChipAction(chip, chip.cost, dmg, chip.maxUse))
+			}
+		}
+		if (count(actions) == 0) return 0
+		return BulbSimulator.knapsackDamage(actions, stats.tp)
+	}
+
+	/*
+	 * Debug output: show all computed placements
 	 */
 	static void debugAll() {
 		debug("=== MapSummon Results (ops=" + _opsUsed + ") ===")
@@ -496,30 +391,6 @@ class MapSummon {
 				if (shown >= 5) {
 					if (count(candidates) > 5) debug("    ... and " + (count(candidates) - 5) + " more")
 					break
-				}
-			}
-
-			// Show offensive plans
-			Array<OffensivePlan>? plans = _offensivePlans[chipId]
-			if (plans != null && count(plans!) > 0) {
-				debug("  Offensive Plans: " + count(plans!))
-				shown = 0
-				for (OffensivePlan p in plans!) {
-					debug("    " + p)
-					shown++
-					if (shown >= 3) {
-						if (count(plans!) > 3) debug("    ... and " + (count(plans!) - 3) + " more plans")
-						break
-					}
-				}
-			}
-
-			// Show defensive plans
-			Array<DefensivePlan>? defPlans = _defensivePlans[chipId]
-			if (defPlans != null && count(defPlans!) > 0) {
-				debug("  Defensive Plans: " + count(defPlans!))
-				for (DefensivePlan p in defPlans!) {
-					debug("    " + p)
 				}
 			}
 		}
@@ -542,33 +413,19 @@ class MapSummon {
 
 	/*
 	 * Display summon cells on the map (for debugging)
-	 * Color: orange = best offensive cell (combo score)
-	 *        purple = best defensive cell (combo score)
+	 * Color: orange = best cell per summon chip
 	 * Text: bulb letter + score (e.g. "L:8905" for lightning)
 	 */
 	static void showSummonCells() {
-		// Show best offensive plan cell in orange
-		for (integer chipId : Array<OffensivePlan> plans in _offensivePlans) {
-			if (count(plans) == 0) continue
+		for (integer chipId : Array<SummonCandidate> candidates in _candidates) {
+			if (count(candidates) == 0) continue
 
-			OffensivePlan bestPlan = plans[0]
+			SummonCandidate best = candidates[0]
 			BulbProfile? profile = PROFILES[chipId]
 			string? letterVal = profile != null ? BULB_LETTERS[profile!.bulbType] : null
 			string letter = letterVal != null ? letterVal! : "?"
-			mark(bestPlan.spawnCell.id, getColor(255, 165, 0))
-			markText(bestPlan.spawnCell.id, letter + ":" + round(bestPlan.score))
-		}
-
-		// Show best defensive plan cell in purple
-		for (integer chipId : Array<DefensivePlan> plans in _defensivePlans) {
-			if (count(plans) == 0) continue
-
-			DefensivePlan bestPlan = plans[0]
-			BulbProfile? profile = PROFILES[chipId]
-			string? letterVal = profile != null ? BULB_LETTERS[profile!.bulbType] : null
-			string letter = letterVal != null ? letterVal! : "?"
-			mark(bestPlan.spawnCell.id, getColor(180, 0, 255))
-			markText(bestPlan.spawnCell.id, letter + ":" + round(bestPlan.score))
+			mark(best.cell.id, getColor(255, 165, 0))
+			markText(best.cell.id, letter + ":" + round(best.score))
 		}
 	}
 
@@ -606,22 +463,6 @@ class MapSummon {
 			push(result, c)
 		}
 		return result
-	}
-
-	/*
-	 * Calculate knapsack damage for a specific enemy target.
-	 * @return Total damage achievable with bulb's chips and TP
-	 */
-	static real _calcKnapsackDamageForEnemy(BulbStats stats, Array<Item> chips, Entity enemy) {
-		Array<BulbChipAction> actions = []
-		for (Item chip in chips) {
-			real dmg = BulbSimulator.calcChipDamage(chip, stats, enemy)
-			if (dmg > 0) {
-				push(actions, BulbChipAction(chip, chip.cost, dmg, chip.maxUse))
-			}
-		}
-		if (count(actions) == 0) return 0
-		return BulbSimulator.knapsackDamage(actions, stats.tp)
 	}
 
 	/*
@@ -823,408 +664,6 @@ class MapSummon {
 		}) as Array<SummonCandidate>
 
 		return candidates
-	}
-
-	// ═══════════════════════════════════════════════════════════════════════════
-	// UNIFIED BUFF CACHE - Single pass for all buff stats
-	// ═══════════════════════════════════════════════════════════════════════════
-
-	static Array<Item> _buffChips = []
-	// Offensive stats
-	static Map<integer, integer> _buffStr = [:]   // chipId -> strBoost
-	static Map<integer, integer> _buffAgi = [:]   // chipId -> agiBoost
-	static Map<integer, integer> _buffTp = [:]    // chipId -> tpBoost
-	static Map<integer, integer> _buffMp = [:]    // chipId -> mpBoost
-	static Map<integer, integer> _buffMgc = [:]   // chipId -> mgcBoost
-	// Defensive stats
-	static Map<integer, integer> _buffAbsShield = [:]  // chipId -> absShield
-	static Map<integer, integer> _buffRelShield = [:]  // chipId -> relShield %
-	static Map<integer, integer> _buffResistance = [:] // chipId -> resistance
-	static Map<integer, integer> _buffLife = [:]       // chipId -> lifeBoost
-
-	/*
-	 * Pre-compute all buff effects in a single pass (called once per refresh).
-	 * Populates both offensive (STR, AGI, TP, MP, MGC) and defensive (shields, resistance, life) stats.
-	 */
-	static void _cacheBuffChips() {
-		_buffChips = []
-		_buffStr = [:]
-		_buffAgi = [:]
-		_buffTp = [:]
-		_buffMp = [:]
-		_buffMgc = [:]
-		_buffAbsShield = [:]
-		_buffRelShield = [:]
-		_buffResistance = [:]
-		_buffLife = [:]
-
-		integer snc = Fight.self.snc  // Caster's science for scaling
-		integer rst = Fight.self.rst  // Caster's resistance for shield scaling
-
-		for (Item chip in Fight.self.items) {
-			if (chip.isWeap) continue
-			if (getCooldown(chip.id, Fight.self.id) > 0) continue
-
-			// Offensive
-			integer strBoost = 0
-			integer agiBoost = 0
-			integer tpBoost = 0
-			integer mpBoost = 0
-			integer mgcBoost = 0
-			// Defensive
-			integer absShield = 0
-			integer relShield = 0
-			integer resistance = 0
-			integer lifeBoost = 0
-
-			for (ItemEffect effect in chip.effects) {
-				// Offensive effects
-				if (effect.type == EFFECT_BUFF_STRENGTH) {
-					strBoost += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
-				} else if (effect.type == EFFECT_RAW_BUFF_STRENGTH) {
-					strBoost += EffectCalc.rawBuff(effect.avg, 1.0)
-				} else if (effect.type == EFFECT_BUFF_AGILITY) {
-					agiBoost += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
-				} else if (effect.type == EFFECT_RAW_BUFF_AGILITY) {
-					agiBoost += EffectCalc.rawBuff(effect.avg, 1.0)
-				} else if (effect.type == EFFECT_BUFF_TP) {
-					tpBoost += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
-				} else if (effect.type == EFFECT_RAW_BUFF_TP) {
-					tpBoost += EffectCalc.rawBuff(effect.avg, 1.0)
-				} else if (effect.type == EFFECT_BUFF_MP) {
-					mpBoost += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
-				} else if (effect.type == EFFECT_RAW_BUFF_MP) {
-					mpBoost += EffectCalc.rawBuff(effect.avg, 1.0)
-				} else if (effect.type == EFFECT_RAW_BUFF_MAGIC) {
-					mgcBoost += EffectCalc.rawBuff(effect.avg, 1.0)
-				}
-				// Defensive effects
-				else if (effect.type == EFFECT_ABSOLUTE_SHIELD) {
-					absShield += EffectCalc.scaledShield(effect.avg, rst, 1.0)
-				} else if (effect.type == EFFECT_RELATIVE_SHIELD) {
-					relShield += effect.avg as integer
-				} else if (effect.type == EFFECT_BUFF_RESISTANCE) {
-					resistance += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
-				} else if (effect.type == EFFECT_RAW_BUFF_RESISTANCE) {
-					resistance += EffectCalc.rawBuff(effect.avg, 1.0)
-				} else if (effect.type == EFFECT_BOOST_MAX_LIFE) {
-					lifeBoost += effect.avg as integer
-				}
-			}
-
-			// Skip chips with no relevant buffs
-			boolean hasOffensive = strBoost > 0 || agiBoost > 0 || tpBoost > 0 || mpBoost > 0 || mgcBoost > 0
-			boolean hasDefensive = absShield > 0 || relShield > 0 || resistance > 0 || lifeBoost > 0
-			if (!hasOffensive && !hasDefensive) continue
-
-			push(_buffChips, chip)
-			_buffStr[chip.id] = strBoost
-			_buffAgi[chip.id] = agiBoost
-			_buffTp[chip.id] = tpBoost
-			_buffMp[chip.id] = mpBoost
-			_buffMgc[chip.id] = mgcBoost
-			_buffAbsShield[chip.id] = absShield
-			_buffRelShield[chip.id] = relShield
-			_buffResistance[chip.id] = resistance
-			_buffLife[chip.id] = lifeBoost
-		}
-	}
-
-	/*
-	 * Find buff chips that can target a spawn cell.
-	 * @param filter MapSummon.BUFF_FILTER_OFFENSIVE or MapSummon.BUFF_FILTER_DEFENSIVE
-	 */
-	static Array<Buff> _findBuffsForCell(Cell spawnCell, Map<Cell, integer> leekReachable, integer filter) {
-		Array<Buff> result = []
-
-		for (Item chip in _buffChips) {
-			// Check filter
-			integer strBoost = _buffStr[chip.id]!
-			integer agiBoost = _buffAgi[chip.id]!
-			integer tpBoost = _buffTp[chip.id]!
-			integer mpBoost = _buffMp[chip.id]!
-			integer mgcBoost = _buffMgc[chip.id]!
-			integer absShield = _buffAbsShield[chip.id]!
-			integer relShield = _buffRelShield[chip.id]!
-			integer resistance = _buffResistance[chip.id]!
-			integer lifeBoost = _buffLife[chip.id]!
-
-			boolean isOffensive = strBoost > 0 || agiBoost > 0 || tpBoost > 0 || mpBoost > 0 || mgcBoost > 0
-			boolean isDefensive = absShield > 0 || relShield > 0 || resistance > 0 || lifeBoost > 0 || tpBoost > 0
-
-			if (filter == MapSummon.BUFF_FILTER_OFFENSIVE && !isOffensive) continue
-			if (filter == MapSummon.BUFF_FILTER_DEFENSIVE && !isDefensive) continue
-
-			// Use getTargetableCells which INCLUDES occupied cells
-			Array<Cell> castCells = Targets.getTargetableCells(chip, spawnCell, [Fight.self.id])
-
-			Cell? bestFrom = null
-			integer bestCost = 9999
-			for (Cell castCell in castCells) {
-				integer? cost = leekReachable[castCell]
-				if (cost != null && cost! < bestCost) {
-					bestCost = cost!
-					bestFrom = castCell
-				}
-			}
-
-			if (bestFrom == null) continue
-
-			push(result, Buff(
-				chip, bestFrom!, chip.cost,
-				strBoost, agiBoost, tpBoost, mpBoost, mgcBoost,
-				absShield, relShield, resistance, lifeBoost
-			))
-		}
-
-		return result
-	}
-
-	/*
-	 * Generate a single OffensivePlan for a candidate using Combo-based approach.
-	 * Attempts to add buffs if available; returns summon-only combo if no buffs possible.
-	 *
-	 * @param candidate    Base summon candidate
-	 * @param summonChip   The summon chip
-	 * @param baseStats    Unbuffed bulb stats
-	 * @param chips        Bulb's offensive chips
-	 * @param availableTP  TP remaining after summon cost
-	 * @param buffs        Available buff options (may be empty)
-	 * @return Array with single OffensivePlan (with or without buffs)
-	 */
-	static Array<OffensivePlan> _generateOffensivePlan(
-		SummonCandidate candidate, Item summonChip, BulbStats baseStats,
-		Array<Item> chips, integer availableTP, Array<Buff> buffs
-	) {
-		Array<OffensivePlan> plans = []
-
-		// === Create summon action ===
-		// Consequences will register pendingBulb and score base damage
-		Action summonAction = Action(summonChip, candidate.fromCell, candidate.cell)
-
-		// Build combo: summon + any available buffs
-		Combo combo = Combo()
-		boolean summonAdded = combo.add(summonAction)
-
-		if (!summonAdded) {
-			// Summon didn't improve score (shouldn't happen, but handle gracefully)
-			return plans
-		}
-
-		// Try to add buffs if we have TP and buff chips available
-		Array<Buff> selectedBuffs = []
-		if (count(buffs) > 0 && availableTP > 0) {
-			// Score each buff using Consequences (same scoring as ComboExplorer)
-			Consequences baseCSQ = combo.getCurrentConsequences()
-			real baseScore = baseCSQ.score
-			Map<Buff, real> buffEfficiency = [:]
-
-			for (Buff buff in buffs) {
-				// Clone consequences and evaluate buff action in one step
-				Action buffAction = Action(buff.chip, buff.fromCell, candidate.cell)
-				Consequences csq = Consequences(buffAction, baseCSQ)
-
-				real scoreDelta = csq.score - baseScore
-				buffEfficiency[buff] = scoreDelta / buff.cost
-			}
-
-			// Sort buffs by efficiency (score delta / cost) - same principle as ComboExplorer
-			buffs = arraySort(buffs, (Buff a, Buff b) -> real {
-				return buffEfficiency[b]! - buffEfficiency[a]!
-			}) as Array<Buff>
-
-			integer usedTP = 0
-			Map<Item, integer> usesThisTurn = [:]
-
-			for (Buff buff in buffs) {
-				if (usedTP + buff.cost > availableTP) continue
-
-				// Create buff action targeting spawn cell
-				Action buffAction = Action(buff.chip, buff.fromCell, candidate.cell)
-
-				// Use ComboBuilder.tryAddAction() for validation
-				boolean added = ComboBuilder.tryAddAction(combo, buffAction, usesThisTurn, 0)
-
-				if (added) {
-					push(selectedBuffs, buff)
-					usedTP += buff.cost
-				}
-			}
-		}
-
-		// Find best final position (adds position score to combo)
-		Consequences csq = combo.getCurrentConsequences()
-		Position pos = MapPosition.findBestPosition(csq.currentCell, csq.currentMP, csq)
-		combo.addFinalPosition(pos)
-
-		// Compute final stats and expected damage
-		BulbStats finalStats = baseStats.withBuffs(selectedBuffs)
-		real finalDmg = count(selectedBuffs) > 0
-			? MapSummon._calcKnapsackDamageForEnemy(finalStats, chips, candidate.target)
-			: candidate.expectedDmg
-
-		// combo.getScore() includes: summon + buff deltas (if any) + position
-		real finalScore = combo.getScore()
-
-		integer totalTP = summonChip.cost
-		for (Buff buff in selectedBuffs) {
-			totalTP += buff.cost
-		}
-
-		OffensivePlan plan = OffensivePlan(
-			candidate.cell, candidate.fromCell, summonChip, selectedBuffs,
-			totalTP, finalScore, candidate.target, finalDmg, finalStats, combo
-		)
-		push(plans, plan)
-
-		return plans
-	}
-
-	/*
-	 * Generate defensive plans: find lowest-danger cells and add survival buffs.
-	 * Prefers 0-danger cells, but falls back to the lowest available danger.
-	 * Returns a single plan with the safest cell and available defensive buffs.
-	 *
-	 * @param summonChip    The summon chip
-	 * @param baseStats     Base bulb stats (for life calculation)
-	 * @param availableTP   TP remaining after summon cost
-	 * @param leekReachable Cells the leek can reach
-	 * @return Array with single DefensivePlan (may be empty if no reachable cells)
-	 */
-	static Array<DefensivePlan> _generateDefensivePlan(
-		Item summonChip, BulbStats baseStats, integer availableTP, Map<Cell, integer> leekReachable
-	) {
-		Array<DefensivePlan> plans = []
-
-		// Find candidate cells to summon on, ranked by danger (lowest first)
-		// A cell is valid if: empty and leek can cast summon on it
-		Array<Cell> candidateCells = []
-		Map<Cell, Cell> cellFromCell = [:]    // spawnCell -> castFromCell
-		Map<Cell, integer> cellCost = [:]     // spawnCell -> MP cost to reach cast cell
-		Map<Cell, real> cellDangerVal = [:]   // spawnCell -> total danger value
-
-		for (Cell cell in Board.cells) {
-			if (Board.entityCells[cell] != null) continue  // Must be empty
-
-			// Get danger value (lower is better, 0 = safe)
-			Danger cellDanger = MapDanger.getCellDanger(cell)
-			real dangerVal = cellDanger.dmg + cellDanger.psnDmg
-
-			// Find where leek can cast summon from
-			Array<Cell> castCells = Targets.getCellsToUseItemOnCell(summonChip, cell, [Fight.self.id])
-
-			Cell? bestFrom = null
-			integer bestCost = 9999
-			for (Cell castCell in castCells) {
-				integer? cost = leekReachable[castCell]
-				if (cost != null && cost! < bestCost) {
-					bestCost = cost!
-					bestFrom = castCell
-				}
-			}
-
-			if (bestFrom == null) continue
-
-			push(candidateCells, cell)
-			cellFromCell[cell] = bestFrom!
-			cellCost[cell] = bestCost
-			cellDangerVal[cell] = dangerVal
-		}
-
-		if (count(candidateCells) == 0) return plans
-
-		// Sort by danger first (ascending), then by MP cost (ascending)
-		candidateCells = arraySort(candidateCells, (Cell a, Cell b) -> integer {
-			real dangerDiff = cellDangerVal[a]! - cellDangerVal[b]!
-			if (dangerDiff != 0) return dangerDiff < 0 ? -1 : 1
-			return cellCost[a]! - cellCost[b]!
-		}) as Array<Cell>
-
-		// Use the safest (lowest danger) cell
-		Cell spawnCell = candidateCells[0]
-		Cell fromCell = cellFromCell[spawnCell]!
-		integer dangerValue = round(cellDangerVal[spawnCell]!)
-
-		// Create summon action
-		Action summonAction = Action(summonChip, fromCell, spawnCell)
-
-		// Build combo: summon + defensive buffs
-		Combo combo = Combo()
-		boolean summonAdded = combo.add(summonAction)
-
-		if (!summonAdded) {
-			// Summon didn't work (shouldn't happen for defensive, but handle gracefully)
-			return plans
-		}
-
-		// Find defensive buffs that can target this spawn cell
-		integer summonMoveCost = cellCost[spawnCell]!
-		integer remainingMP = Fight.self.mp - summonMoveCost
-		Map<Cell, integer> postSummonReachable = MapPath.getReachableCells([fromCell: 0], remainingMP, [])
-		Array<Buff> availableBuffs = MapSummon._findBuffsForCell(spawnCell, postSummonReachable, MapSummon.BUFF_FILTER_DEFENSIVE)
-
-		// Try to add defensive buffs
-		Array<Buff> selectedBuffs = []
-		if (count(availableBuffs) > 0 && availableTP > 0) {
-			// Score each buff using Consequences (same scoring as ComboExplorer)
-			Consequences baseCSQ = combo.getCurrentConsequences()
-			real baseScore = baseCSQ.score
-			Map<Buff, real> buffEfficiency = [:]
-
-			for (Buff buff in availableBuffs) {
-				// Clone consequences and evaluate buff action in one step
-				Action buffAction = Action(buff.chip, buff.fromCell, spawnCell)
-				Consequences csq = Consequences(buffAction, baseCSQ)
-
-				real scoreDelta = csq.score - baseScore
-				buffEfficiency[buff] = scoreDelta / buff.cost
-			}
-
-			// Sort buffs by efficiency (score delta / cost) - same principle as ComboExplorer
-			availableBuffs = arraySort(availableBuffs, (Buff a, Buff b) -> real {
-				return buffEfficiency[b]! - buffEfficiency[a]!
-			}) as Array<Buff>
-
-			integer usedTP = 0
-			Map<Item, integer> usesThisTurn = [:]
-
-			for (Buff buff in availableBuffs) {
-				if (usedTP + buff.cost > availableTP) continue
-
-				// Create buff action targeting spawn cell
-				Action buffAction = Action(buff.chip, buff.fromCell, spawnCell)
-
-				// Use ComboBuilder.tryAddAction() for validation
-				boolean added = ComboBuilder.tryAddAction(combo, buffAction, usesThisTurn, 0)
-
-				if (added) {
-					push(selectedBuffs, buff)
-					usedTP += buff.cost
-				}
-			}
-		}
-
-		// Find best final position
-		Consequences csq = combo.getCurrentConsequences()
-		Position pos = MapPosition.findBestPosition(csq.currentCell, csq.currentMP, csq)
-		combo.addFinalPosition(pos)
-
-		// Calculate total TP cost
-		integer totalTP = summonChip.cost
-		for (Buff buff in selectedBuffs) {
-			totalTP += buff.cost
-		}
-
-		// Score based on bulb survival value (life + shields)
-		real score = combo.getScore()
-
-		DefensivePlan plan = DefensivePlan(
-			spawnCell, fromCell, summonChip, selectedBuffs,
-			totalTP, score, dangerValue, combo
-		)
-		push(plans, plan)
-
-		return plans
 	}
 
 }

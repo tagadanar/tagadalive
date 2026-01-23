@@ -28,19 +28,6 @@ class BulbStats {
 		return BulbStats(this.life, this.str, this.agi, this.mp, this.tp, this.snc, this.wsd, this.mgc, this.rst)
 	}
 
-	// Apply buffs and return new stats (requires Buff class)
-	BulbStats withBuffs(Array<Buff> buffs) {
-		BulbStats result = this.clone()
-		for (Buff buff in buffs) {
-			result.str += buff.strBoost
-			result.tp += buff.tpBoost
-			result.mp += buff.mpBoost
-			result.agi += buff.agiBoost
-			result.mgc += buff.mgcBoost
-		}
-		return result
-	}
-
 	string string() {
 		return "<BulbStats life=" + this.life + " str=" + this.str + " agi=" + this.agi + " mp=" + this.mp + " tp=" + this.tp + " snc=" + this.snc + " wsd=" + this.wsd + " mgc=" + this.mgc + " rst=" + this.rst + ">"
 	}

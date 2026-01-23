@@ -29,13 +29,11 @@ include('Controlers/Items')
 // ────────────────────────────────────────────────────────────────────────────
 // SUMMONS: Bulb models and simulation (needed before MapSummon)
 // ────────────────────────────────────────────────────────────────────────────
-include('Model/Summons/Buff')
 include('Model/Summons/BulbStats')
 include('Model/Summons/BulbProfile')
 include('Model/Summons/BulbSimulator')
 include('Model/Summons/SummonCandidate')
 include('Model/Summons/PendingBulb')
-include('Model/Summons/SummonPlan')
 
 // ────────────────────────────────────────────────────────────────────────────
 // SERVICES: Utilities (no dependencies, needed early)
