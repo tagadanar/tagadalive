@@ -51,7 +51,7 @@ include('Controlers/Maps/MapDanger')
 include('Controlers/Maps/MapAllySupport')
 include('Controlers/Maps/MapAllyDamage')
 include('Controlers/Maps/MapPosition')
-include('Controlers/Maps/Targets')
+include('Controlers/Targets')
 include('Controlers/Maps/MapAction')
 include('Controlers/Maps/MapSummon')
 include('Controlers/Maps/MapCellScore')   // Cell-centric action aggregation (uses MapAction, Sort)
@@ -102,7 +102,7 @@ include('AI/Scoring')
 // EffectSnapshot must be AFTER Scoring (addAlteration uses Scoring.getDynamicCoef)
 // ────────────────────────────────────────────────────────────────────────────
 include('Model/Combos/EffectSnapshot')   // Inline scoring in addAlteration() needs Scoring
-include('Controlers/Maps/EffectCache')
+include('Controlers/EffectCache')
 include('Model/Combos/Effects/SnapshotEffects')
 
 // ────────────────────────────────────────────────────────────────────────────
