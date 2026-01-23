@@ -121,7 +121,8 @@ class MapDanger {
 		// allyRound is 1-indexed (rounds completed), getEarlyExitStats expects 0-indexed (last round index)
 		string allyStats = allyRound > 0 ? MapAllySupport.getEarlyExitStats(allyRound - 1) : ""
 
-		string msg = "T" + getTurn() + " MapDanger " + phase + " early exit @" + Benchmark.format(getOperations())
+		string entity = Fight.self.isBulb ? "bulb" : "leek"
+		string msg = entity + " T" + getTurn() + " MapDanger " + phase + " early exit @" + Benchmark.format(getOperations())
 		msg += " | E:" + enemyRound + "/" + maxEnemy
 		if(enemyStats != "") msg += " (" + enemyStats + ")"
 		msg += " | A:" + allyRound + "/" + maxAlly

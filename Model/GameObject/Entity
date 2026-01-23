@@ -334,10 +334,11 @@ class Entity {
 		return Items.getItem(getWeapon(this.id))
 	}
 	
-	// n'est used que pour check les !stackable item, d'où le count(-1) et [0], maybe rename pour préciser ?
+	// Returns the most recent effect from an item on this entity (for !stackable checks)
+	// Uses Consequences.getExistingItemEffect which is COW-aware
 	EffectOverTime? getCurrentItemEffect(Item item, Consequences? consequences){
-		if(consequences && consequences!._altEffects[this] && consequences!._altEffects[this]![item]){
-			return consequences!._altEffects[this]![item]![count(consequences!._altEffects[this]![item]!)-1]
+		if (consequences != null) {
+			return consequences!.getExistingItemEffect(this, item)
 		}
 		return this.items_effectOverTime[item] ? this.items_effectOverTime[item]![0] : null
 	}
