@@ -2,6 +2,11 @@
  * ComboBuilder - Unified combo construction
  *
  * Centralizes all combo-building logic to avoid duplication across phases.
+ * All public methods take ExplorationContext as first parameter for:
+ * - Initial resources (TP, MP, weapon)
+ * - Reachability maps
+ * - Cells to ignore in pathfinding
+ *
  * Provides specialized methods for different exploration strategies:
  * - buildAtCell: Single cell, no MP buffs
  * - buildAtCellBuffed: Single cell with auto MP buffs
@@ -23,16 +28,18 @@ class ComboBuilder {
 	 * Build combo at a single cell (no MP buffs needed).
 	 * Used by: phaseStay, phaseSingleCell (1a)
 	 *
+	 * @param ctx Exploration context with initial resources
 	 * @param cell Target cell to execute actions from
 	 * @param reserveMP MP to reserve for defensive positioning
 	 * @return Combo with actions + final position
 	 */
-	static Combo buildAtCell(Cell cell, integer reserveMP) {
+	static Combo buildAtCell(ExplorationContext ctx, Cell cell, integer reserveMP) {
 		Array<Action> pool = MapCellScore.getActionsForCell(cell)
 		return ComboBuilder._buildCore(
+			ctx,
 			pool,
-			Fight.self.tp,
-			Fight.self.getWeaponInHand(),
+			ctx.initialTP,
+			ctx.initialWeapon,
 			reserveMP,
 			null,   // stopWhenKilled
 			true    // restrictToCell
@@ -44,22 +51,23 @@ class ComboBuilder {
 	 * Automatically calculates minimal MP buffs needed.
 	 * Used by: phaseSingleCell (1b)
 	 *
+	 * @param ctx Exploration context with initial resources
 	 * @param cell Target cell beyond normal MP range
 	 * @param distanceToCell Distance from current position to cell
 	 * @return Combo with buffs + actions + position, or null if unreachable
 	 */
-	static Combo? buildAtCellBuffed(Cell cell, integer distanceToCell) {
-		integer baseMP = Fight.self.mp
+	static Combo? buildAtCellBuffed(ExplorationContext ctx, Cell cell, integer distanceToCell) {
+		integer baseMP = ctx.initialMP
 
 		if (distanceToCell <= baseMP) {
 			// No buff needed, use regular method
-			return ComboBuilder.buildAtCell(cell, 0)
+			return ComboBuilder.buildAtCell(ctx, cell, 0)
 		}
 
 		integer neededBuff = distanceToCell - baseMP
 
 		// Calculate minimal buffs
-		Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededBuff, Fight.self.tp)
+		Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededBuff, ctx.initialTP)
 		if (buffs == null) return null
 
 		// Start combo with buffs
@@ -81,6 +89,7 @@ class ComboBuilder {
 
 		// Build rest of combo
 		ComboBuilder._buildCoreInto(
+			ctx,
 			combo,
 			usesThisTurn,
 			pool,
@@ -100,14 +109,15 @@ class ComboBuilder {
 	 * Stops adding target-specific actions when target dies, then expands to full pool.
 	 * Used by: tryKillTarget
 	 *
+	 * @param ctx Exploration context with initial resources
 	 * @param target Enemy to focus damage on
 	 * @param liberation Optional Liberation chip to use first
 	 * @param useMPBuff Whether to use MP buffs for extended reach
 	 * @return Combo, or null if no useful actions found
 	 */
-	static Combo? buildForTarget(Entity target, Item? liberation, boolean useMPBuff) {
-		integer baseMP = Fight.self.mp
-		integer baseTP = Fight.self.tp
+	static Combo? buildForTarget(ExplorationContext ctx, Entity target, Item? liberation, boolean useMPBuff) {
+		integer baseMP = ctx.initialMP
+		integer baseTP = ctx.initialTP
 
 		// Get all actions that can damage this target
 		Array<Action> damageActions = MapCellScore.getActionsDamagingTarget(target)
@@ -115,8 +125,8 @@ class ComboBuilder {
 
 		// Filter by reach (or calculate buffs)
 		Array<Action> mpBuffActions = []
-		if (useMPBuff && Fight.self.maxMPBuff > 0) {
-			integer maxDist = ComboBuilder._getMaxDistNeeded(damageActions)
+		if (useMPBuff && ctx.maxMPBuff > 0) {
+			integer maxDist = ComboBuilder._getMaxDistNeeded(ctx, damageActions)
 			if (maxDist > baseMP) {
 				Array<Action>? buffs = ComboBuilder._calculateMPBuffs(maxDist - baseMP, baseTP)
 				if (buffs == null) return null
@@ -124,7 +134,7 @@ class ComboBuilder {
 			}
 		} else {
 			// Filter to current reach only
-			damageActions = ComboBuilder._filterByReach(damageActions, false)
+			damageActions = ComboBuilder._filterByReach(ctx, damageActions, false)
 		}
 
 		// Start combo
@@ -137,7 +147,7 @@ class ComboBuilder {
 		// Apply Liberation if provided
 		if (liberation != null) {
 			Consequences csq = combo.getCurrentConsequences()
-			Action? libAction = ComboBuilder._findLiberationAction(liberation!, target, csq)
+			Action? libAction = ComboBuilder._findLiberationAction(ctx, liberation!, target, csq)
 			if (libAction != null) {
 				combo.add(libAction!)
 				usesThisTurn[liberation!] = 1
@@ -157,7 +167,7 @@ class ComboBuilder {
 		// Add selected actions (stop when target dies)
 		for (Action action in selected) {
 			if (combo.getCurrentConsequences().isKilled(target)) break
-			ComboBuilder.tryAddAction(combo, action, usesThisTurn, 0)
+			ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)
 		}
 
 		// Greedy fallback with pool expansion on kill
@@ -172,7 +182,7 @@ class ComboBuilder {
 				fallbackPool = damageActions
 			}
 			fallbackPool = ComboBuilder._excludeUsed(fallbackPool, usesThisTurn)
-			ComboBuilder._greedyFallback(combo, fallbackPool, usesThisTurn, false)
+			ComboBuilder._greedyFallback(ctx, combo, fallbackPool, usesThisTurn, false)
 		}
 
 		// Final position
@@ -185,13 +195,14 @@ class ComboBuilder {
 	 * Build combo focused on supporting a specific ally.
 	 * Used by: trySupportAlly
 	 *
+	 * @param ctx Exploration context with initial resources
 	 * @param ally Ally to focus support on
 	 * @param useMPBuff Whether to use MP buffs for extended reach
 	 * @return Combo, or null if no useful actions found
 	 */
-	static Combo? buildForAlly(Entity ally, boolean useMPBuff) {
-		integer baseMP = Fight.self.mp
-		integer baseTP = Fight.self.tp
+	static Combo? buildForAlly(ExplorationContext ctx, Entity ally, boolean useMPBuff) {
+		integer baseMP = ctx.initialMP
+		integer baseTP = ctx.initialTP
 
 		// Get all actions that help this ally
 		Array<Action> helpActions = MapCellScore.getActionsHelpingAlly(ally)
@@ -199,15 +210,15 @@ class ComboBuilder {
 
 		// Filter by reach (or calculate buffs)
 		Array<Action> mpBuffActions = []
-		if (useMPBuff && Fight.self.maxMPBuff > 0) {
-			integer maxDist = ComboBuilder._getMaxDistNeeded(helpActions)
+		if (useMPBuff && ctx.maxMPBuff > 0) {
+			integer maxDist = ComboBuilder._getMaxDistNeeded(ctx, helpActions)
 			if (maxDist > baseMP) {
 				Array<Action>? buffs = ComboBuilder._calculateMPBuffs(maxDist - baseMP, baseTP)
 				if (buffs == null) return null
 				mpBuffActions = buffs!
 			}
 		} else {
-			helpActions = ComboBuilder._filterByReach(helpActions, false)
+			helpActions = ComboBuilder._filterByReach(ctx, helpActions, false)
 		}
 
 		// Start combo
@@ -225,6 +236,7 @@ class ComboBuilder {
 
 		// Build core
 		ComboBuilder._buildCoreInto(
+			ctx,
 			combo,
 			usesThisTurn,
 			helpActions,
@@ -243,17 +255,18 @@ class ComboBuilder {
 	 * Automatically partitions actions and calculates MP buffs if needed.
 	 * Used by: tryPairOrder, tryTripletOrder
 	 *
+	 * @param ctx Exploration context with initial resources
 	 * @param sequence Array of cells to visit in order
 	 * @param useMPBuff Whether to use MP buffs for extended reach
 	 * @return Combo, or null if path is unreachable
 	 */
-	static Combo? buildAcrossCells(Array<Cell> sequence, boolean useMPBuff) {
+	static Combo? buildAcrossCells(ExplorationContext ctx, Array<Cell> sequence, boolean useMPBuff) {
 		if (count(sequence) == 0) return null
 
-		integer baseMP = Fight.self.mp
-		integer baseTP = Fight.self.tp
-		integer maxMPBuff = Fight.self.maxMPBuff
-		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+		integer baseMP = ctx.initialMP
+		integer baseTP = ctx.initialTP
+		integer maxMPBuff = ctx.maxMPBuff
+		Array<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Array<Cell>
 
 		// Calculate total distance needed
 		integer totalDistance = ComboBuilder._calculatePathDistance(sequence, ignoreCells, baseMP + maxMPBuff)
@@ -265,7 +278,7 @@ class ComboBuilder {
 		// Get minimal buffs if needed
 		Array<Action> mpBuffActions = []
 		integer effectiveTP = baseTP
-		Item? effectiveWeapon = Fight.self.getWeaponInHand()
+		Item? effectiveWeapon = ctx.initialWeapon
 
 		if (neededBuff > 0) {
 			if (!useMPBuff) return null  // Need buffs but not allowed
@@ -311,7 +324,7 @@ class ComboBuilder {
 			if (actions == null) continue
 
 			for (Action action in actions!) {
-				ComboBuilder.tryAddAction(combo, action, usesThisTurn, 0)
+				ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)
 			}
 		}
 
@@ -330,6 +343,7 @@ class ComboBuilder {
 	 * Creates a new combo from scratch.
 	 */
 	static Combo _buildCore(
+		ExplorationContext ctx,
 		Array<Action> pool,
 		integer availableTP,
 		Item? currentWeapon,
@@ -341,7 +355,7 @@ class ComboBuilder {
 		Map<Item, integer> usesThisTurn = [:]
 
 		ComboBuilder._buildCoreInto(
-			combo, usesThisTurn, pool, availableTP, currentWeapon,
+			ctx, combo, usesThisTurn, pool, availableTP, currentWeapon,
 			reserveMP, stopWhenKilled, restrictToCell
 		)
 
@@ -353,6 +367,7 @@ class ComboBuilder {
 	 * Allows prepending buffs/liberation before core logic.
 	 */
 	static void _buildCoreInto(
+		ExplorationContext ctx,
 		Combo combo,
 		Map<Item, integer> usesThisTurn,
 		Array<Action> pool,
@@ -369,14 +384,14 @@ class ComboBuilder {
 		// Add selected actions
 		for (Action action in selected) {
 			if (stopWhenKilled != null && combo.getCurrentConsequences().isKilled(stopWhenKilled!)) break
-			ComboBuilder.tryAddAction(combo, action, usesThisTurn, reserveMP)
+			ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, reserveMP)
 		}
 
 		// Greedy fallback
 		Consequences csq = combo.getCurrentConsequences()
 		if (csq.currentTP > 0) {
 			Array<Action> remaining = ComboBuilder._excludeUsed(pool, usesThisTurn)
-			ComboBuilder._greedyFallback(combo, remaining, usesThisTurn, restrictToCell)
+			ComboBuilder._greedyFallback(ctx, combo, remaining, usesThisTurn, restrictToCell)
 		}
 
 		// Final position
@@ -398,6 +413,7 @@ class ComboBuilder {
 	 * Loops on repeatable items until maxUse reached.
 	 */
 	static void _greedyFallback(
+		ExplorationContext ctx,
 		Combo combo,
 		Array<Action> pool,
 		Map<Item, integer> usesThisTurn,
@@ -418,7 +434,7 @@ class ComboBuilder {
 
 		// Try to fill - loop on each action until it fails
 		for (Action action in filtered) {
-			while (ComboBuilder.tryAddAction(combo, action, usesThisTurn, 0)) {}
+			while (ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)) {}
 		}
 	}
 
@@ -438,12 +454,12 @@ class ComboBuilder {
 	/*
 	 * Filter actions to only those reachable with current/extended MP.
 	 */
-	static Array<Action> _filterByReach(Array<Action> actions, boolean useExtended) {
-		integer baseMP = Fight.self.mp
-		integer maxReach = useExtended ? baseMP + Fight.self.maxMPBuff : baseMP
+	static Array<Action> _filterByReach(ExplorationContext ctx, Array<Action> actions, boolean useExtended) {
+		integer baseMP = ctx.initialMP
+		integer maxReach = useExtended ? baseMP + ctx.maxMPBuff : baseMP
 		Map<Cell, integer> reachable = useExtended
-			? Fight.self.extendedReachableCells
-			: Fight.self.reachableCells
+			? ctx.extendedReachableCells
+			: ctx.reachableCells
 
 		Array<Action> filtered = []
 		for (Action a in actions) {
@@ -462,9 +478,9 @@ class ComboBuilder {
 	/*
 	 * Find maximum distance needed to reach any action's from-cell.
 	 */
-	static integer _getMaxDistNeeded(Array<Action> actions) {
+	static integer _getMaxDistNeeded(ExplorationContext ctx, Array<Action> actions) {
 		integer maxDist = 0
-		Map<Cell, integer> reachable = Fight.self.extendedReachableCells
+		Map<Cell, integer> reachable = ctx.extendedReachableCells
 
 		for (Action a in actions) {
 			if (a.from == Fight.selfCell) continue
@@ -480,10 +496,12 @@ class ComboBuilder {
 	 * Calculate minimal MP buffs needed for given extra MP.
 	 * Greedy by efficiency (MP/TP).
 	 * Returns null if impossible.
+	 * Note: Uses Fight.self.effects to check active buffs (entity state, not context).
 	 */
 	static Array<Action>? _calculateMPBuffs(integer neededMP, integer availableTP) {
 		if (neededMP <= 0) return []
 
+		// Base MP comes from action consequences (which are computed relative to initial state)
 		integer baseMP = Fight.self.mp
 
 		// Build set of already-active MP buff chips
@@ -628,23 +646,21 @@ class ComboBuilder {
 
 	/*
 	 * Get ALL actions from all cells (for fallback expansion).
+	 * Note: cellActions and selfCastActions are already filtered (score > 0)
+	 * in MapCellScore.refresh(), so no need to re-check here.
 	 */
 	static Array<Action> _getAllActions() {
 		Array<Action> all = []
 
 		for (Cell cell : Array<Action> actions in MapCellScore.cellActions) {
 			for (Action a in actions) {
-				if (a.score != null && a.score! > 0) {
-					push(all, a)
-				}
+				push(all, a)
 			}
 		}
 
 		// Add self-cast
 		for (Action a in MapCellScore.selfCastActions) {
-			if (a.score != null && a.score! > 0) {
-				push(all, a)
-			}
+			push(all, a)
 		}
 
 		return all
@@ -667,7 +683,7 @@ class ComboBuilder {
 	/*
 	 * Find Liberation action targeting specific entity.
 	 */
-	static Action? _findLiberationAction(Item liberationItem, Entity target, Consequences csq) {
+	static Action? _findLiberationAction(ExplorationContext ctx, Item liberationItem, Entity target, Consequences csq) {
 		Map<Cell, Map<Item, Action>> bestActions = MapAction.getMapBestAction()
 
 		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
@@ -678,7 +694,7 @@ class ComboBuilder {
 
 			// Check reachability
 			if (action!.from != Fight.selfCell) {
-				Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(csq)
+				Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
 				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
 					csq.currentCell, csq.currentMP, ignoreCells)
 				if (reachable[action!.from] == null) continue
@@ -696,8 +712,8 @@ class ComboBuilder {
 	/*
 	 * Build ignoreCells array for pathfinding: base cells + killed entities
 	 */
-	static Array<Cell> buildIgnoreCells(Consequences csq) {
-		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+	static Array<Cell> buildIgnoreCells(ExplorationContext ctx, Consequences csq) {
+		Array<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Array<Cell>
 		for (Entity e : Entity _ in csq._killed) {
 			push(ignoreCells, e.cell)
 		}
@@ -709,13 +725,30 @@ class ComboBuilder {
 	 * Handles: usage limits, TP cost, weapon switch, reachability with reserveMP.
 	 * Updates usesThisTurn map if action was added.
 	 *
+	 * @param ctx Exploration context with initial resources
 	 * @param combo The combo to add to
 	 * @param action The action to try adding
 	 * @param usesThisTurn Map tracking item usage counts this turn
 	 * @param reserveMP MP to reserve for defense (subtracted from available MP)
 	 * @return true if action was added, false otherwise
 	 */
+	static boolean tryAddAction(ExplorationContext ctx, Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP) {
+		return ComboBuilder._tryAddActionImpl(combo, action, usesThisTurn, reserveMP, ctx.cellsToIgnore)
+	}
+
+	/*
+	 * Try to add an action to a combo (without exploration context).
+	 * For use by external modules like MapSummon that build combos outside exploration.
+	 * Uses Fight.self.cellsToIgnore for pathfinding.
+	 */
 	static boolean tryAddAction(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP) {
+		return ComboBuilder._tryAddActionImpl(combo, action, usesThisTurn, reserveMP, Fight.self.cellsToIgnore)
+	}
+
+	/*
+	 * Internal implementation of tryAddAction.
+	 */
+	static boolean _tryAddActionImpl(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP, Array<Cell> baseCellsToIgnore) {
 		// Check usage limit
 		integer uses = usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0
 		if (uses >= action.item.maxUse) return false
@@ -729,7 +762,11 @@ class ComboBuilder {
 
 		// Check reachability
 		if (action.from != Fight.selfCell) {
-			Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(csq)
+			// Build ignore cells: base + killed entities
+			Array<Cell> ignoreCells = clone(baseCellsToIgnore) as Array<Cell>
+			for (Entity e : Entity _ in csq._killed) {
+				push(ignoreCells, e.cell)
+			}
 			integer effectiveMP = max(0, csq.currentMP - reserveMP)
 			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
 				csq.currentCell, effectiveMP, ignoreCells)
