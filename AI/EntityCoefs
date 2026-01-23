@@ -23,7 +23,7 @@ class EntityCoefs {
 			Stats.TP: 40.0, Stats.MP: 40.0, Stats.PWR: 1.0, Stats.KILL: 1.0
 		],
 		ENTITY_BULB: [ // Generic bulb fallback
-			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.0,
@@ -31,7 +31,7 @@ class EntityCoefs {
 			Stats.TP: 10.0, Stats.MP: 10.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_HEALER: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 0.1, Stats.ANTIDOTE: 0.1,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.0,
@@ -39,7 +39,7 @@ class EntityCoefs {
 			Stats.TP: 10.0, Stats.MP: 10.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_WIZARD: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.0, Stats.MGC: 0.6, Stats.RST: 0.0,
@@ -47,7 +47,7 @@ class EntityCoefs {
 			Stats.TP: 10.0, Stats.MP: 10.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_FIRE: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
 			Stats.ABSSHIELD: 2.0, Stats.RELSHIELD: 4.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.9, Stats.MGC: 0.0, Stats.RST: 0.0,
@@ -55,7 +55,7 @@ class EntityCoefs {
 			Stats.TP: 25.0, Stats.MP: 25.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_ICED: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.85, Stats.MGC: 0.0, Stats.RST: 0.0,
@@ -63,7 +63,7 @@ class EntityCoefs {
 			Stats.TP: 20.0, Stats.MP: 20.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_LIGHTNING: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.9, Stats.MGC: 0.0, Stats.RST: 0.0,
@@ -71,7 +71,7 @@ class EntityCoefs {
 			Stats.TP: 30.0, Stats.MP: 30.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_METALLIC: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 2.0,
+			Stats.HP: 0.4, Stats.HPTIME: 0.4, Stats.HPMAX: 0.8,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.1,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.6,
@@ -79,7 +79,7 @@ class EntityCoefs {
 			Stats.TP: 10.0, Stats.MP: 10.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_ROCKY: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.8, Stats.MGC: 0.0, Stats.RST: 0.0,
@@ -87,7 +87,7 @@ class EntityCoefs {
 			Stats.TP: 15.0, Stats.MP: 15.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_PUNY: [
-			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
+			Stats.HP: 0.3, Stats.HPTIME: 0.3, Stats.HPMAX: 0.6,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.2,
@@ -95,7 +95,7 @@ class EntityCoefs {
 			Stats.TP: 5.0, Stats.MP: 5.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_TACTICIAN: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.0,
@@ -103,7 +103,7 @@ class EntityCoefs {
 			Stats.TP: 30.0, Stats.MP: 30.0, Stats.PWR: 0.2, Stats.KILL: 0.2
 		],
 		Entity.BULB_SAVANT: [
-			Stats.HP: 0.6, Stats.HPTIME: 0.6, Stats.HPMAX: 3.0,
+			Stats.HP: 0.5, Stats.HPTIME: 0.5, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 0.2, Stats.ANTIDOTE: 0.2,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 2.0, Stats.DMGRETURN: 1.0,
 			Stats.STR: 0.0, Stats.MGC: 0.0, Stats.RST: 0.0,

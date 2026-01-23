@@ -1,8 +1,38 @@
+/*
+ * Consequences - Simulated state changes from applying actions.
+ *
+ * OPTIMIZATION: Copy-on-Write (COW) pattern
+ * Instead of deep cloning all state when chaining actions, we:
+ * 1. Reference the parent Consequences
+ * 2. Only clone an entity's data when we first modify it
+ * 3. Reads check local data first, then walk the parent chain
+ *
+ * This reduces clone operations from O(E×S) to O(e×s) per action,
+ * where E=all entities, S=all stats, e=modified entities, s=their stats.
+ * Typical action modifies 1-2 entities, so ~10x reduction in cloning.
+ */
 class Consequences {
-	Map<Entity, Map<integer, integer>> _alterations = [:]// [entity:[caracteristic:value]]
-	Map<Entity, Map<Item, Array<EffectOverTime>>> _altEffects = [:]// [entity:[item:[EffectOverTime]]]
-	Map<Entity, Map<integer, integer>> _effectTypeAlterations = [:]// [entity:[effectType:valueAltered]]
+	// ════════════════════════════════════════════════════════════════════════
+	// COPY-ON-WRITE DATA STRUCTURES
+	// ════════════════════════════════════════════════════════════════════════
+
+	// Parent reference for COW (null = root node)
+	Consequences? _parent = null
+
+	// Local modifications only - null means "inherited from parent"
+	// Allocated lazily on first write to an entity
+	Map<Entity, Map<integer, integer>> _alterations = [:]
+	Map<Entity, Map<Item, Array<EffectOverTime>>> _altEffects = [:]
+	Map<Entity, Map<integer, integer>> _effectTypeAlterations = [:]
 	Map<Entity, Entity> _killed = [:]
+
+	// Track which entities have local data (for efficient iteration)
+	Map<Entity, boolean> _localEntities = [:]
+
+	// ════════════════════════════════════════════════════════════════════════
+	// STANDARD FIELDS
+	// ════════════════════════════════════════════════════════════════════════
+
 	real? score = null
 	boolean isAlteringDanger = false
 	integer hashcode = 17
@@ -22,9 +52,11 @@ class Consequences {
 	EffectSnapshot? _shared = null
 
 	// Pending bulbs from summon actions in this consequence chain
-	// Used to score buff actions on bulbs that will be summoned
-	// PendingBulb stores stats, target, chips, and currentDmgScore for accurate damage scoring
 	Map<Cell, PendingBulb> pendingBulbs = [:]
+
+	// ════════════════════════════════════════════════════════════════════════
+	// EFFECT VALUE TRACKING
+	// ════════════════════════════════════════════════════════════════════════
 
 	/*
 	 * Called before processing each effect to save accumulated value and reset
@@ -41,6 +73,9 @@ class Consequences {
 		this._currentEffectTotal += value
 	}
 
+	// ════════════════════════════════════════════════════════════════════════
+	// CONSTRUCTORS
+	// ════════════════════════════════════════════════════════════════════════
 
 	/*
 	 * Empty constructor for MCTS root node (no previous actions)
@@ -53,6 +88,9 @@ class Consequences {
 		this.score = 0.0
 	}
 
+	/*
+	 * Constructor from action only (initial pool creation)
+	 */
 	constructor(Action action){
 		Benchmark.start("Consequences")
 		this.currentCell = Fight.self.cell
@@ -64,31 +102,45 @@ class Consequences {
 		Benchmark.stop("Consequences")
 	}
 
+	/*
+	 * OPTIMIZED: Copy-on-write constructor
+	 * Instead of deep cloning all state, reference parent and clone lazily.
+	 */
 	constructor(Action action, Consequences consequences){
 		Benchmark.start("Consequences.fromConseq")
+
+		// Copy scalar state
 		this.currentCell = consequences.currentCell
 		this.currentMP = consequences.currentMP
 		this.currentTP = consequences.currentTP
 		this.currentWeapon = consequences.currentWeapon
-		// Materialize shared data if parent was in shared mode
+		this.hashcode = consequences.hashcode
+		this.score = consequences.score != null ? consequences.score : 0.0
+
+		// COPY-ON-WRITE: Handle different parent modes
 		if (consequences._shared != null) {
+			// Parent uses shared snapshot - must materialize (snapshot is immutable)
+			this._parent = null
 			this._alterations = clone(consequences._shared!.alterations, 2) as Map<Entity, Map<integer, integer>>
 			this._altEffects = clone(consequences._shared!.altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
 			this._effectTypeAlterations = clone(consequences._shared!.effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
 			this._killed = clone(consequences._shared!.killed) as Map<Entity, Entity>
+			// Mark all entities as local (since we materialized)
+			for (Entity e : Map<integer, integer> _ in this._alterations) {
+				this._localEntities[e] = true
+			}
 		} else {
-			this._alterations = clone(consequences._alterations, 2) as Map<Entity, Map<integer, integer>>
-			this._altEffects = clone(consequences._altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
-			this._effectTypeAlterations = clone(consequences._effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
-			this._killed = clone(consequences._killed) as Map<Entity, Entity>
+			// Parent is already in COW mode - just reference it
+			this._parent = consequences
+			// Local maps start empty - populated on first write via COW
 		}
-		this.hashcode = consequences.hashcode
-		this.score = consequences.score != null ? consequences.score : 0.0  // Inherit parent score
-		// Clone pending bulbs for buff chaining on future summons
+
+		// pendingBulbs still need cloning (modified in-place, rare)
 		this.pendingBulbs = [:]
 		for (Cell c : PendingBulb bulb in consequences.pendingBulbs) {
 			this.pendingBulbs[c] = bulb.clone()
 		}
+
 		construct(action, true)  // Warn during combo building (catches actual bugs)
 		Benchmark.stop("Consequences.fromConseq")
 	}
@@ -115,135 +167,29 @@ class Consequences {
 		Benchmark.stop("Consequences.shared")
 		return c
 	}
-	
+
+	// ════════════════════════════════════════════════════════════════════════
+	// CONSTRUCT METHODS
+	// ════════════════════════════════════════════════════════════════════════
+
 	construct(Action action, boolean warnOnUnreachable){
-		// actualisation du placement virtuel :
 		// Build ignoreCells: our starting cell + cells of killed entities (can path through kills)
 		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
-		for (Entity e : Entity _ in this._killed) {
-			push(ignoreCells, e.cell)
-		}
+		// Use COW-aware iteration for killed entities
+		this.appendKilledCells(ignoreCells)
+
 		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, ignoreCells)
-		// déplacement jusqu'à la case de l'action
+
+		// Movement to action cell
 		if(action.from != Fight.selfCell){
 			if(reachableCells[action.from] != null) {
 				integer moveCost = reachableCells[action.from]!
-				// Only warn during combo building (not pool creation where extended cells are valid)
 				if(warnOnUnreachable && moveCost > 0 && moveCost > max(0, this.currentMP)) {
 					debugW('Impossible action: move cost ' + moveCost + ' > effective MP ' + max(0, this.currentMP) + '\n' + action + '\n' + this)
 				}
-				this.currentMP = this.currentMP - moveCost  // Keep actual tracking for boost calculations
+				this.currentMP = this.currentMP - moveCost
 			} else if(warnOnUnreachable) {
 				debugW('Impossible action: unreachable cell !!\n'+action+'\n'+this)
-			}
-			// actualisation de la case actuelle
-			this.currentCell = action.from
-		}
-		// déduction du coût TP de l'action
-		this.currentTP -= action.item.cost
-		// Weapon switch cost: +1 TP if switching to a different weapon
-		if (action.item.isWeap && action.item != this.currentWeapon) {
-			this.currentTP -= 1
-		}
-		// Update current weapon if action uses a weapon
-		if (action.item.isWeap) {
-			this.currentWeapon = action.item
-		}
-		// on retient les boosts mp/tp déjà appliquer à soit mm pour après
-		integer? boostMPbefore = this._alterations[Fight.self] != null ? this._alterations[Fight.self]![Stats.MP] : null
-		integer? boostTPbefore = this._alterations[Fight.self] != null ? this._alterations[Fight.self]![Stats.TP] : null
-
-		// actualisation des conséquences de l'action sur le jeu
-		// Effect-first loop order (matches game behavior) for STEAL_LIFE tracking
-		this.targets = Targets.getTargets(action)
-		Cell aoeCenterCell = (action.to == Fight.selfCell) ? this.currentCell : action.to
-
-		for (ItemEffect effect in action.item.effects) {
-			// Save previous effect's total and reset accumulator
-			this.nextEffect()
-
-			// modifCaster effects apply once to caster, not per-target
-			if (effect.modifCaster) {
-				this.updateConsequences(effect, Fight.self, Fight.self, 1.0)
-				continue
-			}
-
-			// Summon effects: score via EffectHandlers (includes base value + damage + factors)
-			if (effect.type == EFFECT_SUMMON) {
-				// EffectHandlers.summon() scores: baseValue + getComputedScore() (damage) + factors
-				this.score += EffectHandlers.summon(effect.item, Fight.self.level, action.to)
-
-				// Register pending bulb for buff chaining with accurate damage scoring
-				BulbProfile? profile = MapSummon.PROFILES[effect.item.id]
-				if (profile != null) {
-					BulbStats stats = profile!.computeStats(Fight.self.level)
-					Entity? target = MapSummon.getTargetForCell(effect.item.id, action.to)
-					Array<Item> chips = MapSummon.getOffensiveChips(profile!.bulbType)
-
-					if (target != null && count(chips) > 0) {
-						// Track base damage score for delta computation in handlePendingBulbBuff
-						// (damage is already scored by EffectHandlers.summon via getComputedScore)
-						real baseDmg = MapSummon._calcKnapsackDamageForEnemy(stats, chips, target!)
-						real baseDmgScore = MapSummon.computeDamageScore(baseDmg, target!)
-
-						this.pendingBulbs[action.to] = PendingBulb(stats, target!, chips, profile!.bulbType, baseDmgScore)
-					} else {
-						// No target found - register bulb without damage scoring
-						this.pendingBulbs[action.to] = PendingBulb(stats, Fight.self, [], profile!.bulbType, 0)
-					}
-				}
-				continue
-			}
-
-			// Apply effect to all targets
-			for (Entity target in this.targets) {
-				if (this._killed[target]) continue
-				// For self in AOE, use simulated position (this.currentCell) not real position (target.cell)
-				integer targetCellId = (target == Fight.self) ? this.currentCell.id : target.cell.id
-				real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(aoeCenterCell.id, targetCellId)) : 1.0
-				if (ratioDmg <= 0) {
-					debugE('Bug in Consequences: ratioDmg<=0 for target ' + target + ' at cell ' + targetCellId)
-					debugE(action)
-					continue
-				}
-				this.updateConsequences(effect, Fight.self, target, ratioDmg)
-			}
-
-			// If no real targets but pending bulb at aimCell, handle buff on future summon
-			if (count(this.targets) == 0 && this.pendingBulbs[aoeCenterCell] != null) {
-				this.handlePendingBulbBuff(effect, aoeCenterCell)
-			}
-		}
-
-		// actualisation des MP en cas de self boost/debuff de mp (e.g., Liberation reducing Leather Boots)
-		integer? boostMP = this.getAlteration(Fight.self, Stats.MP)
-		if(boostMP != boostMPbefore){
-			this.currentMP += boostMP - boostMPbefore  // null coerces to 0
-		}
-
-		// actualisation des TP en cas de self boost/debuff de tp (e.g., Liberation reducing Motivation)
-		integer? boostTP = this.getAlteration(Fight.self, Stats.TP)
-		if(boostTP != boostTPbefore){
-			this.currentTP += boostTP - boostTPbefore  // null coerces to 0
-		}
-
-		// Cooldown opportunity cost: penalize using CD items for marginal gains
-		this.score -= action.item.cdDuration as real
-	}
-
-	/*
-	 * Movement-only construction for shared snapshot mode.
-	 * Applies movement cost and weapon switch cost, but no effect computation.
-	 * Effects are pre-computed in the shared EffectSnapshot.
-	 */
-	void constructMovementOnly(Action action) {
-		// Movement cost calculation (same as construct, but no kills to ignore in initial pool)
-		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
-
-		if (action.from != Fight.selfCell) {
-			if (reachableCells[action.from] != null) {
-				integer moveCost = reachableCells[action.from]!
-				this.currentMP = this.currentMP - moveCost
 			}
 			this.currentCell = action.from
 		}
@@ -255,13 +201,101 @@ class Consequences {
 		if (action.item.isWeap && action.item != this.currentWeapon) {
 			this.currentTP -= 1
 		}
-
-		// Update current weapon
 		if (action.item.isWeap) {
 			this.currentWeapon = action.item
 		}
 
-		// Handle MP/TP boosts from shared snapshot
+		// Track MP/TP boosts before applying effects
+		integer? boostMPbefore = this.getAlteration(Fight.self, Stats.MP)
+		integer? boostTPbefore = this.getAlteration(Fight.self, Stats.TP)
+
+		// Apply effects
+		this.targets = Targets.getTargets(action)
+		Cell aoeCenterCell = (action.to == Fight.selfCell) ? this.currentCell : action.to
+
+		for (ItemEffect effect in action.item.effects) {
+			this.nextEffect()
+
+			if (effect.modifCaster) {
+				this.updateConsequences(effect, Fight.self, Fight.self, 1.0)
+				continue
+			}
+
+			if (effect.type == EFFECT_SUMMON) {
+				this.score += EffectHandlers.summon(effect.item, Fight.self.level, action.to)
+
+				BulbProfile? profile = MapSummon.PROFILES[effect.item.id]
+				if (profile != null) {
+					BulbStats stats = profile!.computeStats(Fight.self.level)
+					Entity? target = MapSummon.getTargetForCell(effect.item.id, action.to)
+					Array<Item> chips = MapSummon.getOffensiveChips(profile!.bulbType)
+
+					if (target != null && count(chips) > 0) {
+						real baseDmg = MapSummon._calcKnapsackDamageForEnemy(stats, chips, target!)
+						real baseDmgScore = MapSummon.computeDamageScore(baseDmg, target!)
+						this.pendingBulbs[action.to] = PendingBulb(stats, target!, chips, profile!.bulbType, baseDmgScore)
+					} else {
+						this.pendingBulbs[action.to] = PendingBulb(stats, Fight.self, [], profile!.bulbType, 0)
+					}
+				}
+				continue
+			}
+
+			for (Entity target in this.targets) {
+				if (this.isKilled(target)) continue
+				integer targetCellId = (target == Fight.self) ? this.currentCell.id : target.cell.id
+				real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(aoeCenterCell.id, targetCellId)) : 1.0
+				if (ratioDmg <= 0) {
+					debugE('Bug in Consequences: ratioDmg<=0 for target ' + target + ' at cell ' + targetCellId)
+					debugE(action)
+					continue
+				}
+				this.updateConsequences(effect, Fight.self, target, ratioDmg)
+			}
+
+			if (count(this.targets) == 0 && this.pendingBulbs[aoeCenterCell] != null) {
+				this.handlePendingBulbBuff(effect, aoeCenterCell)
+			}
+		}
+
+		// Apply MP/TP boost changes
+		integer? boostMP = this.getAlteration(Fight.self, Stats.MP)
+		if(boostMP != boostMPbefore){
+			this.currentMP += boostMP - boostMPbefore
+		}
+
+		integer? boostTP = this.getAlteration(Fight.self, Stats.TP)
+		if(boostTP != boostTPbefore){
+			this.currentTP += boostTP - boostTPbefore
+		}
+
+		// Cooldown penalty
+		this.score -= action.item.cdDuration as real
+	}
+
+	/*
+	 * Movement-only construction for shared snapshot mode.
+	 */
+	void constructMovementOnly(Action action) {
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
+
+		if (action.from != Fight.selfCell) {
+			if (reachableCells[action.from] != null) {
+				integer moveCost = reachableCells[action.from]!
+				this.currentMP = this.currentMP - moveCost
+			}
+			this.currentCell = action.from
+		}
+
+		this.currentTP -= action.item.cost
+
+		if (action.item.isWeap && action.item != this.currentWeapon) {
+			this.currentTP -= 1
+		}
+		if (action.item.isWeap) {
+			this.currentWeapon = action.item
+		}
+
 		integer? boostMP = this._shared!.getAlteration(Fight.self, Stats.MP)
 		if (boostMP != null && boostMP != 0) {
 			this.currentMP += boostMP!
@@ -273,20 +307,33 @@ class Consequences {
 		}
 	}
 
+	// ════════════════════════════════════════════════════════════════════════
+	// COPY-ON-WRITE ADD METHODS
+	// ════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Add alteration with copy-on-write semantics.
+	 * Only clones the entity's data on first modification.
+	 */
 	void add(Entity entity, integer key, EffectOverTime|integer effect){
-		if(!_alterations[entity]) _alterations[entity] = [:]
+		// COW: Materialize this entity's data if not already local
+		if (!this._localEntities[entity]) {
+			this._materializeEntity(entity)
+		}
+
 		boolean isOverTime = effect instanceof EffectOverTime
 		integer value = isOverTime ? (effect as EffectOverTime).value : effect as integer
+
 		if(isOverTime){
 			if(!_altEffects[entity]) _altEffects[entity] = [:]
-			if(!_altEffects[entity]![(effect as EffectOverTime).item]) _altEffects[entity]![(effect as EffectOverTime).item] = []
-
-			push(_altEffects[entity]![(effect as EffectOverTime).item]!, (effect as EffectOverTime))
+			Item item = (effect as EffectOverTime).item
+			if(!_altEffects[entity]![item]) _altEffects[entity]![item] = []
+			push(_altEffects[entity]![item]!, (effect as EffectOverTime))
 		}
-		_alterations[entity]![key] += value // pour null, devrait se comporter comme si ça contenait 0
-		// ça ne marche qu'avec += en leekscriptv1, pas tester en v1.1 comment ça marche...
-		// j'avais des bugs sur les -=, donc il faut faire += -value si le comportement est le mm ici.
 
+		_alterations[entity]![key] += value
+
+		// Update danger flags and hashcode
 		if(entity==Fight.self && (
 			   key==Stats.HP
 			|| key==Stats.ABSSHIELD
@@ -304,117 +351,333 @@ class Consequences {
 				this.hashcode = 31 * this.hashcode + (value|0)
 		}
 
-		// update du score (using dynamic coefficients for situational modifiers)
+		// Score update
 		real coef = Scoring.getDynamicCoef(entity, key, this)
 		real scoreDelta = value * coef
 		if(!isOverTime) this.score += scoreDelta
 		else this.score += scoreDelta * ScoringConfig.offensive_duration_mitigation[(effect as EffectOverTime).duration]!
 	}
-	
+
+	/*
+	 * Add kill with copy-on-write semantics.
+	 */
 	void addKill(Entity entity){
 		this.isAlteringDanger=true
 		this.hashcode = 31 * this.hashcode + entity.id
+
+		// Add to local killed map (no need to clone - kills don't override)
 		this._killed[entity]=entity
+
 		this.score+= ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
-		// Inline passive for kill
+
+		// Inline passives
 		Map<integer, real> passives = Fight.self.passives
 		if(passives[EFFECT_KILL_TO_TP]) {
 			integer tpGain = round(passives[EFFECT_KILL_TO_TP]!)
 			if(tpGain > 0) this.add(Fight.self, Stats.TP, tpGain)
 		}
-		// Chest power gain (all fight types): wood +10, iron +50, diamond +100
 		if(entity.entityType == ENTITY_CHEST) {
 			this.add(Fight.self, Stats.PWR, Fight.chestPwrGained[entity.name]!)
 		}
-		// BR power gain (leek/chest = 10 + 50% pwr, bulb = 2 + 50% pwr)
 		if(Fight.isBattleRoyale) {
 			integer basePwr = entity.isBulb ? 2 : 10
 			integer pwrGain = basePwr + round(entity.pwr * 0.5)
 			this.add(Fight.self, Stats.PWR, pwrGain)
 		}
 	}
-	
-	Map<Entity, Map<integer, integer>> getAlterations(){
-		if (_shared != null) return _shared!.alterations
-		return _alterations
+
+	/*
+	 * Add effect type alteration with COW.
+	 */
+	void addEffectTypeAlteration(Entity entity, integer effectType, integer value){
+		// COW: Materialize if needed
+		if(!_effectTypeAlterations[entity]) {
+			// Check if parent has data to copy
+			Map<integer, integer>? parentData = this._getParentEffectTypeMap(entity)
+			if (parentData != null) {
+				_effectTypeAlterations[entity] = clone(parentData) as Map<integer, integer>
+			} else {
+				_effectTypeAlterations[entity] = [:]
+			}
+			this._localEntities[entity] = true
+		}
+		_effectTypeAlterations[entity]![effectType] += value
 	}
 
+	// ════════════════════════════════════════════════════════════════════════
+	// COPY-ON-WRITE READ METHODS
+	// ════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Get alteration value, walking parent chain if needed.
+	 */
+	integer? getAlteration(Entity entity, integer key){
+		// Check shared mode first
+		if (_shared != null) return _shared!.getAlteration(entity, key)
+
+		// Check local data
+		if(_alterations[entity] != null) {
+			return _alterations[entity]![key]
+		}
+
+		// Walk parent chain
+		if (_parent != null) {
+			return _parent!.getAlteration(entity, key)
+		}
+
+		return null
+	}
+
+	/*
+	 * Check if entity is killed, walking parent chain.
+	 */
 	boolean isKilled(Entity entity){
 		if (_shared != null) return _shared!.isKilled(entity)
-		return _killed[entity] != null
-	}
 
-	integer? getAlteration(Entity entity, integer key){
-		if (_shared != null) return _shared!.getAlteration(entity, key)
-		if(_alterations[entity] == null) return null
-		return _alterations[entity]![key]
+		// Check local kills
+		if (_killed[entity] != null) return true
+
+		// Walk parent chain
+		if (_parent != null) {
+			return _parent!.isKilled(entity)
+		}
+
+		return false
 	}
 
 	/*
-	 * Unified interface: Get current HP considering alterations.
-	 * Used by EffectHandlers for duck-typed context.
+	 * Get effect type alteration, walking parent chain.
 	 */
-	integer getHP(Entity entity) {
-		integer? hpDelta = this.getAlteration(entity, Stats.HP)
-		return entity.life + (hpDelta != null ? hpDelta! : 0)
+	integer getEffectTypeAlteration(Entity entity, integer effectType){
+		if (_shared != null) return _shared!.getEffectTypeAlteration(entity, effectType)
+
+		// Check local data
+		if(_effectTypeAlterations[entity] != null) {
+			integer? local = _effectTypeAlterations[entity]![effectType]
+			if (local != null) return local!
+		}
+
+		// Walk parent chain
+		if (_parent != null) {
+			return _parent!.getEffectTypeAlteration(entity, effectType)
+		}
+
+		return 0
 	}
 
 	/*
-	 * Unified interface: Get current HP missing considering alterations.
-	 * Used by EffectHandlers for duck-typed context.
+	 * Get all alterations (materializes full map for iteration).
+	 * Note: This is called rarely (mainly for debug output).
 	 */
-	integer getHPMissing(Entity entity) {
-		integer? hpMaxDelta = this.getAlteration(entity, Stats.HPMAX)
-		integer currentMax = entity.totalLife + (hpMaxDelta != null ? hpMaxDelta! : 0)
-		return currentMax - this.getHP(entity)
+	Map<Entity, Map<integer, integer>> getAlterations(){
+		if (_shared != null) return _shared!.alterations
+		return this._materializeAllAlterations()
 	}
 
 	/*
-	 * Unified interface: Get existing effect from same item on entity.
-	 * Used by EffectHandlers for non-stackable de-dupe.
-	 * Checks combo effects first (most recent), then turn-start effects.
+	 * Get existing effect from same item on entity.
+	 * Walks parent chain for _altEffects.
 	 */
 	EffectOverTime? getExistingItemEffect(Entity entity, Item item) {
-		// Check combo effects first
 		if (_shared != null) {
 			if (_shared!.altEffects[entity] && _shared!.altEffects[entity]![item]) {
 				Array<EffectOverTime> effects = _shared!.altEffects[entity]![item]!
 				return effects[count(effects) - 1]
 			}
 		} else {
+			// Check local first
 			if (_altEffects[entity] && _altEffects[entity]![item]) {
 				Array<EffectOverTime> effects = _altEffects[entity]![item]!
 				return effects[count(effects) - 1]
 			}
+			// Walk parent chain
+			if (_parent != null) {
+				return _parent!.getExistingItemEffect(entity, item)
+			}
 		}
-		// Then check turn-start effects
+		// Check turn-start effects
 		return entity.items_effectOverTime[item] ? entity.items_effectOverTime[item]![0] : null
 	}
 
-	/**
-	 * Get how much of an effect type has already been altered/countered in simulation.
-	 * Used by removal/reduction effects (Antidote, Liberation, Manumission) to avoid double-counting.
+	/*
+	 * Check if entity has any altEffects (simulated effects from combo).
+	 * Walks parent chain.
 	 */
-	integer getEffectTypeAlteration(Entity entity, integer effectType){
-		if (_shared != null) return _shared!.getEffectTypeAlteration(entity, effectType)
-		if(!_effectTypeAlterations[entity]) return 0
-		return _effectTypeAlterations[entity]![effectType]!  // null coerces to 0
-	}
-
-	/**
-	 * Track that we altered/countered some amount of an effect type.
-	 * Called after processing an effect to record what was handled.
-	 */
-	void addEffectTypeAlteration(Entity entity, integer effectType, integer value){
-		if(!_effectTypeAlterations[entity]) _effectTypeAlterations[entity] = [:]
-		_effectTypeAlterations[entity]![effectType] += value
+	boolean hasAltEffects(Entity entity) {
+		if (_shared != null) {
+			return _shared!.altEffects[entity] != null
+		}
+		if (_altEffects[entity] != null) return true
+		if (_parent != null) return _parent!.hasAltEffects(entity)
+		return false
 	}
 
 	/*
-	 * No-op for duck typing with EffectSnapshot.
-	 * Raw enemy damage tracking is only needed for initial pool filtering,
-	 * not for combo building (which re-evaluates everything).
+	 * Get materialized altEffects for an entity (for iteration).
+	 * Returns null if entity has no effects.
+	 * Used by DebuffEffects for Liberation.
 	 */
+	Map<Item, Array<EffectOverTime>>? getEntityAltEffects(Entity entity) {
+		if (_shared != null) {
+			return _shared!.altEffects[entity]
+		}
+		// Need to merge local + parent chain
+		return this._materializeEntityAltEffects(entity)
+	}
+
+	/*
+	 * Ensure altEffects entry exists for entity+item (for pre-allocation before iteration).
+	 * Used by DebuffEffects to avoid ConcurrentModificationException.
+	 */
+	void ensureAltEffectsEntry(Entity entity, Item item) {
+		if (!_altEffects[entity]) _altEffects[entity] = [:]
+		if (!_altEffects[entity]![item]) _altEffects[entity]![item] = []
+	}
+
+	/*
+	 * Materialize altEffects for a single entity from parent chain.
+	 */
+	private Map<Item, Array<EffectOverTime>>? _materializeEntityAltEffects(Entity entity) {
+		Map<Item, Array<EffectOverTime>>? result = null
+
+		// Get from parent chain first
+		if (_parent != null) {
+			result = _parent!._materializeEntityAltEffects(entity)
+		}
+
+		// Merge local data
+		if (_altEffects[entity] != null) {
+			if (result == null) {
+				// Clone to prevent accidental mutations of parent data
+				result = clone(_altEffects[entity], 2) as Map<Item, Array<EffectOverTime>>
+			} else {
+				// Merge - local takes precedence for same item
+				for (Item item : Array<EffectOverTime> effects in _altEffects[entity]!) {
+					result![item] = effects
+				}
+			}
+		}
+
+		return result
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// COW HELPER METHODS
+	// ════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Materialize an entity's data from parent chain (COW clone).
+	 * Called on first write to an entity.
+	 */
+	private void _materializeEntity(Entity entity) {
+		// Get alterations from parent chain
+		Map<integer, integer>? parentAlts = this._getParentAlterationMap(entity)
+		if (parentAlts != null) {
+			_alterations[entity] = clone(parentAlts) as Map<integer, integer>
+		} else {
+			_alterations[entity] = [:]
+		}
+
+		// Get altEffects from parent chain
+		Map<Item, Array<EffectOverTime>>? parentEffects = this._getParentAltEffectsMap(entity)
+		if (parentEffects != null) {
+			_altEffects[entity] = clone(parentEffects, 2) as Map<Item, Array<EffectOverTime>>
+		}
+		// Note: _altEffects[entity] may remain null if no effects exist
+
+		_localEntities[entity] = true
+	}
+
+	/*
+	 * Get parent's alteration map for an entity.
+	 */
+	private Map<integer, integer>? _getParentAlterationMap(Entity entity) {
+		if (_parent != null) {
+			// Check parent's local data first
+			if (_parent!._alterations[entity] != null) {
+				return _parent!._alterations[entity]
+			}
+			// Recurse up chain
+			return _parent!._getParentAlterationMap(entity)
+		}
+		return null
+	}
+
+	/*
+	 * Get parent's altEffects map for an entity.
+	 */
+	private Map<Item, Array<EffectOverTime>>? _getParentAltEffectsMap(Entity entity) {
+		if (_parent != null) {
+			if (_parent!._altEffects[entity] != null) {
+				return _parent!._altEffects[entity]
+			}
+			return _parent!._getParentAltEffectsMap(entity)
+		}
+		return null
+	}
+
+	/*
+	 * Get parent's effectTypeAlterations map for an entity.
+	 */
+	private Map<integer, integer>? _getParentEffectTypeMap(Entity entity) {
+		if (_parent != null) {
+			if (_parent!._effectTypeAlterations[entity] != null) {
+				return _parent!._effectTypeAlterations[entity]
+			}
+			return _parent!._getParentEffectTypeMap(entity)
+		}
+		return null
+	}
+
+	/*
+	 * Append killed entity cells to array (walks parent chain).
+	 * Public for use by ComboBuilder.buildIgnoreCells().
+	 */
+	void appendKilledCells(Array<Cell> cells) {
+		// Add local kills
+		for (Entity e : Entity _ in this._killed) {
+			push(cells, e.cell)
+		}
+		// Walk parent chain
+		if (_parent != null) {
+			_parent!.appendKilledCells(cells)
+		}
+	}
+
+	/*
+	 * Materialize full alterations map (for iteration/debug).
+	 */
+	private Map<Entity, Map<integer, integer>> _materializeAllAlterations() {
+		Map<Entity, Map<integer, integer>> result = [:]
+
+		// Collect from parent chain first (bottom-up)
+		if (_parent != null) {
+			result = _parent!._materializeAllAlterations()
+		}
+
+		// Apply local modifications (overwrites parent data for same entity)
+		for (Entity e : Map<integer, integer> alts in _alterations) {
+			result[e] = alts
+		}
+
+		return result
+	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// UNIFIED INTERFACE (for duck-typed EffectHandlers)
+	// ════════════════════════════════════════════════════════════════════════
+
+	integer getHP(Entity entity) {
+		integer? hpDelta = this.getAlteration(entity, Stats.HP)
+		return entity.life + (hpDelta != null ? hpDelta! : 0)
+	}
+
+	integer getHPMissing(Entity entity) {
+		integer? hpMaxDelta = this.getAlteration(entity, Stats.HPMAX)
+		integer currentMax = entity.totalLife + (hpMaxDelta != null ? hpMaxDelta! : 0)
+		return currentMax - this.getHP(entity)
+	}
+
 	void addRawEnemyDamage(real value) {
 		// No-op in Consequences - only tracked in EffectSnapshot
 	}
@@ -423,33 +686,22 @@ class Consequences {
 		return this.score
 	}
 
-	/*
-	 * Handle buff effect on a pending (not yet summoned) bulb.
-	 * Updates pending bulb stats/shields and scores the effect.
-	 *
-	 * Offensive buffs (STR, AGI, TP, MP, MGC): recalculate damage delta
-	 * Defensive buffs (shields, life, RST, WSD): score using bulb-type coefficients
-	 *
-	 * Uses same scaling as normal buffs: EFFECT_BUFF_* scaled by science, EFFECT_RAW_BUFF_* unscaled.
-	 */
+	// ════════════════════════════════════════════════════════════════════════
+	// PENDING BULB HANDLING
+	// ════════════════════════════════════════════════════════════════════════
+
 	void handlePendingBulbBuff(ItemEffect effect, Cell cell) {
 		PendingBulb bulb = this.pendingBulbs[cell]!
 
-		// Get caster's stats for scaled effects (Fight.self is always the caster)
 		integer snc = Fight.self.getCurrentSnc(this)
 		integer rst = Fight.self.getCurrentRst(this)
 		integer wsd = Fight.self.getCurrentWsd(this)
 
-		// Track if this is an offensive buff (affects damage calculation)
 		boolean isOffensive = false
-		// Track defensive value for coefficient-based scoring
 		integer defValue = 0
 		integer defStat = 0
 
-		// ════════════════════════════════════════════════════════════════════════
-		// OFFENSIVE BUFFS - update stats, recalculate damage
-		// ════════════════════════════════════════════════════════════════════════
-
+		// OFFENSIVE BUFFS
 		if (effect.type == EFFECT_BUFF_STRENGTH) {
 			bulb.stats.str += EffectCalc.scaledBuff(effect.avg, snc, 1.0)
 			isOffensive = true
@@ -478,10 +730,7 @@ class Consequences {
 			bulb.stats.mgc += EffectCalc.rawBuff(effect.avg, 1.0)
 			isOffensive = true
 
-		// ════════════════════════════════════════════════════════════════════════
-		// DEFENSIVE BUFFS - update stats/shields, score with coefficients
-		// ════════════════════════════════════════════════════════════════════════
-
+		// DEFENSIVE BUFFS
 		} else if (effect.type == EFFECT_BUFF_WISDOM) {
 			defValue = EffectCalc.scaledBuff(effect.avg, snc, 1.0)
 			bulb.stats.wsd += defValue
@@ -520,30 +769,23 @@ class Consequences {
 			defStat = Stats.RELSHIELD
 		}
 
-		// ════════════════════════════════════════════════════════════════════════
 		// SCORING
-		// ════════════════════════════════════════════════════════════════════════
-
-		// Offensive buffs: recalculate damage and score delta
 		if (isOffensive && count(bulb.offensiveChips) > 0 && bulb.target != Fight.self) {
 			real newDmg = MapSummon._calcKnapsackDamageForEnemy(bulb.stats, bulb.offensiveChips, bulb.target)
 			real newDmgScore = MapSummon.computeDamageScore(newDmg, bulb.target)
-
-			// Score the delta (new - old)
 			this.score += newDmgScore - bulb.currentDmgScore
-
-			// Update for next buff in chain
 			bulb.currentDmgScore = newDmgScore
 		}
 
-		// Defensive buffs: score using bulb-type coefficient
 		if (defValue > 0 && defStat > 0) {
 			real coef = bulb.getCoef(defStat)
 			this.score += defValue * coef
 		}
-
-		// pendingBulbs[cell] already points to bulb (reference), no need to reassign
 	}
+
+	// ════════════════════════════════════════════════════════════════════════
+	// EFFECT HANDLER DISPATCH
+	// ════════════════════════════════════════════════════════════════════════
 
 	void updateConsequences(ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg) {
 		if (Consequences.convertToValue[effect.type] == null) {
@@ -555,63 +797,52 @@ class Consequences {
 
 	// Effect handlers map - populated by Effect modules (see Model/Combos/Effects/)
 	static Map<integer, Function<ItemEffect, Entity, Entity, real, Consequences => void>> convertToValue = [:]
-	
-	/**
-	 * Register an effect handler for a specific effect type.
-	 * Called by Effect modules during include to populate convertToValue map.
-	 */
+
 	static void registerHandler(integer effectType, Function<ItemEffect, Entity, Entity, real, Consequences => void> handler) {
 		convertToValue[effectType] = handler
 	}
-	
-	/**
-	 * Register multiple effect handlers at once.
-	 * @param handlers Map of effectType -> handler function
-	 */
+
 	static void registerHandlers(Map<integer, Function<ItemEffect, Entity, Entity, real, Consequences => void>> handlers) {
 		for(integer effectType : Function<ItemEffect, Entity, Entity, real, Consequences => void> handler in handlers) {
 			convertToValue[effectType] = handler
 		}
 	}
-	
-	/*
-	//Non utilisée et buggué 
-	computeScore(){
-		var totalScore = 0;
-		for(Entity  entity:Map<integer, integer> key in this._alterations){
-			var value = this.getAlteration(entity, key)
-			if(key == Stats.HP) 			totalScore+= entity.isFriend ? value : -value
-			if(key == Stats.ABSSHIELD) 	totalScore+= entity.isFriend ? value*3 : -(value*3)
-			if(key == Stats.STR) 		totalScore+= entity.isFriend ? value : -value
-			
-		}
-		for(Entity entity:var bool in this._killed){
-			var killScore = 10000
-			killScore*= entity.isBulb ? 0.5 : 1
-			totalScore+= entity.isFriend ? -killScore : killScore
-		}
-		return totalScore
-	}*/
-	
+
+	// ════════════════════════════════════════════════════════════════════════
+	// DEBUG OUTPUT
+	// ════════════════════════════════════════════════════════════════════════
+
 	string string(){
 		string str = "<Consequences"
-		for(Entity entity:Map<integer, integer> alteration in this._alterations){
+		Map<Entity, Map<integer, integer>> allAlterations = this.getAlterations()
+		for(Entity entity : Map<integer, integer> alteration in allAlterations){
 			str+= "\n" + entity.name + ":"
 			for(string strKey in Stats.getFields()){
 				integer key = Stats.getInstance()[strKey] as integer
-				//var key = Stats.getInstance()[strKey]
 				if(alteration[key] != null) str+= "|"+strKey+": "+round(alteration[key]!)
 			}
-			/*
-			for(var key:var value in alteration){
-				if(key == Stats.HP) 			str+= "|HP: "+round(value)
-				if(key == Stats.ABSSHIELD) 	str+= "|ABSSHIELD: "+round(value)
-				if(key == Stats.STR) 		str+= "|STR: "+round(value)
-			}
-			*/
 		}
-		for(Entity entity:var isDead in this._killed) str+= "\n|KILL: "+ entity
+		// Collect all kills (walks parent chain)
+		Array<Entity> allKilled = this._collectAllKilled()
+		for(Entity entity in allKilled) str+= "\n|KILL: "+ entity
 		str+="\nhashcode:"+this.hashcode+">"
 		return str
+	}
+
+	/*
+	 * Collect all killed entities from this node and parents.
+	 */
+	private Array<Entity> _collectAllKilled() {
+		Array<Entity> result = []
+		for (Entity e : Entity _ in this._killed) {
+			push(result, e)
+		}
+		if (_parent != null) {
+			Array<Entity> parentKilled = _parent!._collectAllKilled()
+			for (Entity e in parentKilled) {
+				if (!inArray(result, e)) push(result, e)
+			}
+		}
+		return result
 	}
 }

@@ -714,9 +714,7 @@ class ComboBuilder {
 	 */
 	static Array<Cell> buildIgnoreCells(ExplorationContext ctx, Consequences csq) {
 		Array<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Array<Cell>
-		for (Entity e : Entity _ in csq._killed) {
-			push(ignoreCells, e.cell)
-		}
+		csq.appendKilledCells(ignoreCells)
 		return ignoreCells
 	}
 
@@ -762,11 +760,9 @@ class ComboBuilder {
 
 		// Check reachability
 		if (action.from != Fight.selfCell) {
-			// Build ignore cells: base + killed entities
+			// Build ignore cells: base + killed entities (COW-aware)
 			Array<Cell> ignoreCells = clone(baseCellsToIgnore) as Array<Cell>
-			for (Entity e : Entity _ in csq._killed) {
-				push(ignoreCells, e.cell)
-			}
+			csq.appendKilledCells(ignoreCells)
 			integer effectiveMP = max(0, csq.currentMP - reserveMP)
 			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
 				csq.currentCell, effectiveMP, ignoreCells)

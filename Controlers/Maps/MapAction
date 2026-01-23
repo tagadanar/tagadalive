@@ -124,7 +124,8 @@ class MapAction {
 	 * Log early exit due to budget exhaustion
 	 */
 	static void _logEarlyExit(integer processed, integer total) {
-		string msg = "T" + getTurn() + " MapAction early exit @" + Benchmark.format(getOperations())
+		string entity = Fight.self.isBulb ? "bulb" : "leek"
+		string msg = entity + " T" + getTurn() + " MapAction early exit @" + Benchmark.format(getOperations())
 		msg += " | tuples:" + processed + "/" + total + " | actions:" + _actionsCreated
 		debugW(msg)
 	}

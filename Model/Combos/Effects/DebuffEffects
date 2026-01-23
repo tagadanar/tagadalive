@@ -60,24 +60,26 @@ Consequences.registerHandlers([
 
 		// First, process simulated effects (buffs/debuffs added earlier in this combo)
 		// Must iterate BEFORE adding counter-effects to avoid reducing our own counters
-		if (conseq._altEffects[entityTarget]) {
+		if (conseq.hasAltEffects(entityTarget)) {
 			// Pre-create entry for this item to avoid ConcurrentModificationException when adding counter-effects
-			if (!conseq._altEffects[entityTarget]![effect.item]) {
-				conseq._altEffects[entityTarget]![effect.item] = []
-			}
-			for (Item item : Array<EffectOverTime> effects in conseq._altEffects[entityTarget]!) {
-				for (EffectOverTime simEffect in effects) {
-					integer absValue = abs(simEffect.value)
-					integer reduction = round(absValue * (effect.avg/100.0))
-					if (reduction <= 0) continue
+			conseq.ensureAltEffectsEntry(entityTarget, effect.item)
+			// Get materialized effects for iteration (COW-aware)
+			Map<Item, Array<EffectOverTime>>? entityEffects = conseq.getEntityAltEffects(entityTarget)
+			if (entityEffects != null) {
+				for (Item item : Array<EffectOverTime> effects in entityEffects!) {
+					for (EffectOverTime simEffect in effects) {
+						integer absValue = abs(simEffect.value)
+						integer reduction = round(absValue * (effect.avg/100.0))
+						if (reduction <= 0) continue
 
-					integer? stat = Stats.entityEffectType_to_stats[simEffect.effectType]
-					if (stat == null) continue
+						integer? stat = Stats.entityEffectType_to_stats[simEffect.effectType]
+						if (stat == null) continue
 
-					// Counter-effect has opposite sign of original
-					integer counterValue = simEffect.value > 0 ? -reduction : reduction
-					EffectOverTime eot = EffectOverTime(effect.item, counterValue, simEffect.duration, simEffect.effectType)
-					conseq.add(entityTarget, stat!, eot)
+						// Counter-effect has opposite sign of original
+						integer counterValue = simEffect.value > 0 ? -reduction : reduction
+						EffectOverTime eot = EffectOverTime(effect.item, counterValue, simEffect.duration, simEffect.effectType)
+						conseq.add(entityTarget, stat!, eot)
+					}
 				}
 			}
 		}
