@@ -61,8 +61,12 @@ class ScoringConfig {
 
 	// Danger weights - how much we penalize expected damage
 	static real W_DANGER_BASE = 1.0           // base danger penalty per HP of damage
-	static real W_DANGER_LOW_HP = 1.5         // multiplier when life < 60%
-	static real W_DANGER_CRITICAL = 2.0       // multiplier when danger > life/2
+	static real W_DANGER_LOW_HP = 1.5         // multiplier when life < LOW_HP_THRESHOLD
+	static real W_DANGER_CRITICAL = 2.0       // multiplier when danger > life * CRITICAL_DANGER_RATIO
+
+	// Life thresholds for danger scaling
+	static real LOW_HP_THRESHOLD = 0.6        // life percent below which W_DANGER_LOW_HP applies
+	static real CRITICAL_DANGER_RATIO = 0.5   // danger > life * this → critical
 
 	// Proximity weights - penalty for nearby enemies (excluding primary target)
 	static real W_PROXIMITY_AREA1 = 150.0     // adjacent cell (distance 1)
@@ -74,6 +78,15 @@ class ScoringConfig {
 	static real W_CAC_IN_RANGE = 1000.0       // bonus if enemy can reach us for melee (we're CAC)
 	static real W_COVID_LEEK = 10000.0        // big bonus for being near uninfected enemy leek
 	static real W_COVID_SUMMON = 1000.0       // bonus for being near uninfected enemy summon
+
+	// Gravity weights - attraction/repulsion to key targets
+	static real W_GRAVITY_ALLY_TURRET = 2.0   // weight for ally turret (team fight)
+	static real W_GRAVITY_ENEMY_TURRET = 3.0  // weight for enemy turret (team fight)
+	static real W_GRAVITY_NEAREST_ENEMY = 2.0 // weight for nearest enemy (solo/farmer)
+	static real W_GRAVITY_CENTER = 1.0        // weight for map center (solo/farmer)
+
+	// Threat detection thresholds
+	static integer THREAT_SNC_THRESHOLD = 200 // enemy snc above this → they have science threat
 
 	// === Distance Weights ===
 	// Note: IDEAL_DIST_RANGED is in Scoring (dynamically computed in refresh)
