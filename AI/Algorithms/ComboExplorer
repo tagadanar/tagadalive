@@ -44,6 +44,97 @@ class ExplorerConfig {
 }
 
 // ════════════════════════════════════════════════════════════════
+// EXPLORATION CONTEXT
+// Holds per-exploration state: initial resources, results, operation control
+// ════════════════════════════════════════════════════════════════
+
+class ExplorationContext {
+	// Initial resources (snapshot at exploration start)
+	integer initialTP
+	integer initialMP
+	Item? initialWeapon
+	integer maxMPBuff
+
+	// Reachability maps (snapshot at exploration start)
+	Map<Cell, integer> reachableCells
+	Map<Cell, integer> extendedReachableCells
+	Array<Cell> cellsToIgnore
+
+	// Results tracking
+	Array<ExplorerResult> topResults
+	ExplorerResult? bestResult
+	integer combosEvaluated
+	string bestPhase
+
+	// Operation control
+	integer operationBuffer
+
+	/*
+	 * Create fresh context from current Fight.self state
+	 */
+	constructor() {
+		// Snapshot initial resources
+		this.initialTP = Fight.self.tp
+		this.initialMP = Fight.self.mp
+		this.initialWeapon = Fight.self.getWeaponInHand()
+		this.maxMPBuff = Fight.self.maxMPBuff
+
+		// Snapshot reachability
+		this.reachableCells = Fight.self.reachableCells
+		this.extendedReachableCells = Fight.self.extendedReachableCells
+		this.cellsToIgnore = clone(Fight.self.cellsToIgnore) as Array<Cell>
+
+		// Initialize results
+		this.topResults = []
+		this.bestResult = null
+		this.combosEvaluated = 0
+		this.bestPhase = ""
+
+		// Calculate operation buffer based on entity type
+		if (Fight.self.isBulb) {
+			this.operationBuffer = ExplorerConfig.OPERATION_BUFFER_BULB
+		} else {
+			integer bulbCount = count(getSummons())
+			this.operationBuffer = ExplorerConfig.OPERATION_BUFFER_LEEK_BASE
+				+ bulbCount * ExplorerConfig.OPERATION_BUFFER_PER_BULB
+			if (Fight.canSummon) {
+				this.operationBuffer += ExplorerConfig.OPERATION_BUFFER_POTENTIAL_SUMMON
+			}
+		}
+	}
+
+	/*
+	 * Check if we should stop (operation budget exhausted)
+	 */
+	boolean shouldStop() {
+		return getOperations() > getMaxOperations() - this.operationBuffer
+	}
+
+	/*
+	 * Record a result and update best if needed
+	 */
+	void recordResult(ExplorerResult result) {
+		this.combosEvaluated++
+
+		// Update best
+		if (this.bestResult == null || result.score > this.bestResult!.score) {
+			this.bestResult = result
+			this.bestPhase = result.phase
+		}
+
+		// Keep top N results
+		push(this.topResults, result)
+		if (count(this.topResults) > ExplorerConfig.MAX_RESULTS_KEPT) {
+			// Sort and trim
+			this.topResults = arraySort(this.topResults, (ExplorerResult a, ExplorerResult b) => integer|real {
+				return Sort.desc(a.score, b.score)
+			}) as Array<ExplorerResult>
+			this.topResults = arraySlice(this.topResults, 0, ExplorerConfig.MAX_RESULTS_KEPT) as Array<ExplorerResult>
+		}
+	}
+}
+
+// ════════════════════════════════════════════════════════════════
 // RESULT WRAPPER
 // ════════════════════════════════════════════════════════════════
 
@@ -284,23 +375,8 @@ class MapCellScore {
 // ════════════════════════════════════════════════════════════════
 
 class ComboExplorer {
-	// Best results tracking
-	static Array<ExplorerResult> topResults = []
-	static ExplorerResult? bestResult = null
-
-	// Statistics
-	static integer combosEvaluated = 0
-	static string bestPhase = ""
-
-	// Dynamic operation buffer (set at explore() start based on entity type)
-	static integer operationBuffer = 0
-
-	/*
-	 * Check if we should stop (operation budget exhausted)
-	 */
-	static boolean shouldStop() {
-		return getOperations() > getMaxOperations() - ComboExplorer.operationBuffer
-	}
+	// Current exploration context (set during explore())
+	static ExplorationContext? ctx = null
 
 	/*
 	 * Main entry point
@@ -308,83 +384,46 @@ class ComboExplorer {
 	static Combo explore() {
 		Benchmark.start("ComboExplorer.explore")
 
-		// Set operation buffer based on entity type
-		// Bulbs: fixed buffer. Leeks: base + per-bulb + potential summon
-		if (Fight.self.isBulb) {
-			ComboExplorer.operationBuffer = ExplorerConfig.OPERATION_BUFFER_BULB
-		} else {
-			integer bulbCount = count(getSummons())
-			ComboExplorer.operationBuffer = ExplorerConfig.OPERATION_BUFFER_LEEK_BASE
-				+ bulbCount * ExplorerConfig.OPERATION_BUFFER_PER_BULB
-			if (Fight.canSummon) {
-				ComboExplorer.operationBuffer += ExplorerConfig.OPERATION_BUFFER_POTENTIAL_SUMMON
-			}
-		}
-
-		// Initialize
-		ComboExplorer.topResults = []
-		ComboExplorer.bestResult = null
-		ComboExplorer.combosEvaluated = 0
+		// Create fresh context for this exploration
+		ExplorationContext ctx = ExplorationContext()
+		ComboExplorer.ctx = ctx
 
 		// Refresh cell scoring
 		MapCellScore.refresh()
 
 		// Phase 0: Stay in place - ALWAYS runs (cheap baseline, guaranteed result)
-		ComboExplorer.phaseStay()
+		ComboExplorer.phaseStay(ctx)
 
 		// Phase T: Target Focus
-		if (!ComboExplorer.shouldStop()) {
-			ComboExplorer.phaseTargetFocus()
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phaseTargetFocus(ctx)
 		}
 
 		// Phase 1: Single-cell MP sampling
-		if (!ComboExplorer.shouldStop()) {
-			ComboExplorer.phaseSingleCell()
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phaseSingleCell(ctx)
 		}
 
 		// Phase 2: Multi-cell pairs
-		if (!ComboExplorer.shouldStop()) {
-			ComboExplorer.phaseMultiCell()
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phaseMultiCell(ctx)
 		}
 
 		// Phase 3: Three-cell combos
-		if (!ComboExplorer.shouldStop()) {
-			ComboExplorer.phaseThreeCell()
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phaseThreeCell(ctx)
 		}
 
 		// Phase S: SummonPlan - check if pre-computed summon+buff plans beat current best
-		ComboExplorer.phaseSummonPlan()
+		ComboExplorer.phaseSummonPlan(ctx)
 
 		// Log results
-		ComboExplorer.logResults()
+		ComboExplorer.logResults(ctx)
 
 		Benchmark.stop("ComboExplorer.explore")
 
 		// Return best combo (guaranteed from Phase 0)
-		return ComboExplorer.bestResult!.combo
-	}
-
-	/*
-	 * Record a result and update best if needed
-	 */
-	static void recordResult(ExplorerResult result) {
-		ComboExplorer.combosEvaluated++
-
-		// Update best
-		if (ComboExplorer.bestResult == null || result.score > ComboExplorer.bestResult!.score) {
-			ComboExplorer.bestResult = result
-			ComboExplorer.bestPhase = result.phase
-		}
-
-		// Keep top N results
-		push(ComboExplorer.topResults, result)
-		if (count(ComboExplorer.topResults) > ExplorerConfig.MAX_RESULTS_KEPT) {
-			// Sort and trim
-			ComboExplorer.topResults = arraySort(ComboExplorer.topResults, (ExplorerResult a, ExplorerResult b) => integer|real {
-				return Sort.desc(a.score, b.score)
-			}) as Array<ExplorerResult>
-			ComboExplorer.topResults = arraySlice(ComboExplorer.topResults, 0, ExplorerConfig.MAX_RESULTS_KEPT) as Array<ExplorerResult>
-		}
+		return ctx.bestResult!.combo
 	}
 
 	// ════════════════════════════════════════════════════════════
@@ -392,7 +431,7 @@ class ComboExplorer {
 	// Check if pre-computed summon+buff plans beat current best
 	// ════════════════════════════════════════════════════════════
 
-	static void phaseSummonPlan() {
+	static void phaseSummonPlan(ExplorationContext ctx) {
 		// Check each summon chip for plans
 		for (Item item in Fight.self.items) {
 			if (!item.isSummon) continue
@@ -401,10 +440,10 @@ class ComboExplorer {
 			OffensivePlan? offPlan = MapSummon.getBestOffensivePlan(item.id)
 			if (offPlan != null) {
 				// Only record if it beats current best
-				if (ComboExplorer.bestResult == null || offPlan!.score > ComboExplorer.bestResult!.score) {
+				if (ctx.bestResult == null || offPlan!.score > ctx.bestResult!.score) {
 					string buffStr = count(offPlan!.buffs) > 0 ? "+" + offPlan!.buffs[0].chip.name : ""
 					ExplorerResult result = ExplorerResult(offPlan!.combo, "S:" + item.name + buffStr, "S")
-					ComboExplorer.recordResult(result)
+					ctx.recordResult(result)
 				}
 			}
 
@@ -412,10 +451,10 @@ class ComboExplorer {
 			DefensivePlan? defPlan = MapSummon.getBestDefensivePlan(item.id)
 			if (defPlan != null) {
 				// Only record if it beats current best
-				if (ComboExplorer.bestResult == null || defPlan!.score > ComboExplorer.bestResult!.score) {
+				if (ctx.bestResult == null || defPlan!.score > ctx.bestResult!.score) {
 					string buffStr = count(defPlan!.buffs) > 0 ? "+" + defPlan!.buffs[0].chip.name : ""
 					ExplorerResult result = ExplorerResult(defPlan!.combo, "D:" + item.name + buffStr, "D")
-					ComboExplorer.recordResult(result)
+					ctx.recordResult(result)
 				}
 			}
 		}
@@ -425,48 +464,48 @@ class ComboExplorer {
 	// PHASE T: TARGET FOCUS
 	// ════════════════════════════════════════════════════════════
 
-	static void phaseTargetFocus() {
+	static void phaseTargetFocus(ExplorationContext ctx) {
 		Benchmark.start("ComboExplorer.phaseTargetFocus")
 
-		boolean hasMPBuff = Fight.self.maxMPBuff > 0
+		boolean hasMPBuff = ctx.maxMPBuff > 0
 
 		// For each enemy: try kill focus (with and without Liberation, with and without MP buff)
 		for (Entity enemy in Fight.getEnemiesAlive()) {
-			if (ComboExplorer.shouldStop()) break
+			if (ctx.shouldStop()) break
 			if (enemy.isInvincible) continue
 
 			// Variant A: Max damage on this enemy (no MP buff)
-			ComboExplorer.tryKillTarget(enemy, null, "T:Kill_" + enemy.name, false)
+			ComboExplorer.tryKillTarget(ctx, enemy, null, "T:Kill_" + enemy.name, false)
 
 			// Variant B: With MP buff to reach extended cells
 			if (hasMPBuff) {
-				if (ComboExplorer.shouldStop()) break
-				ComboExplorer.tryKillTarget(enemy, null, "T:Kill_" + enemy.name + "+B", true)
+				if (ctx.shouldStop()) break
+				ComboExplorer.tryKillTarget(ctx, enemy, null, "T:Kill_" + enemy.name + "+B", true)
 			}
 
 			// Variant C: Liberation first, then max damage (no MP buff)
 			if (Fight.liberationReady && Fight.liberationItem != null) {
-				if (ComboExplorer.shouldStop()) break
-				ComboExplorer.tryKillTarget(enemy, Fight.liberationItem, "T:Lib+" + enemy.name, false)
+				if (ctx.shouldStop()) break
+				ComboExplorer.tryKillTarget(ctx, enemy, Fight.liberationItem, "T:Lib+" + enemy.name, false)
 
 				// Variant D: Liberation + MP buff
 				if (hasMPBuff) {
-					if (ComboExplorer.shouldStop()) break
-					ComboExplorer.tryKillTarget(enemy, Fight.liberationItem, "T:Lib+" + enemy.name + "+B", true)
+					if (ctx.shouldStop()) break
+					ComboExplorer.tryKillTarget(ctx, enemy, Fight.liberationItem, "T:Lib+" + enemy.name + "+B", true)
 				}
 			}
 		}
 
 		// For each ally (not self): try support focus (with and without MP buff)
 		for (Entity ally in Fight.getAlliesAlive()) {
-			if (ComboExplorer.shouldStop()) break
+			if (ctx.shouldStop()) break
 			if (ally == Fight.self) continue
 
-			ComboExplorer.trySupportAlly(ally, "T:Help_" + ally.name, false)
+			ComboExplorer.trySupportAlly(ctx, ally, "T:Help_" + ally.name, false)
 
 			if (hasMPBuff) {
-				if (ComboExplorer.shouldStop()) break
-				ComboExplorer.trySupportAlly(ally, "T:Help_" + ally.name + "+B", true)
+				if (ctx.shouldStop()) break
+				ComboExplorer.trySupportAlly(ctx, ally, "T:Help_" + ally.name + "+B", true)
 			}
 		}
 
@@ -476,24 +515,24 @@ class ComboExplorer {
 	/*
 	 * Try to kill a specific target using ComboBuilder
 	 */
-	static void tryKillTarget(Entity target, Item? liberationItem, string name, boolean useMPBuff) {
-		Combo? combo = ComboBuilder.buildForTarget(target, liberationItem, useMPBuff)
+	static void tryKillTarget(ExplorationContext ctx, Entity target, Item? liberationItem, string name, boolean useMPBuff) {
+		Combo? combo = ComboBuilder.buildForTarget(ctx, target, liberationItem, useMPBuff)
 		if (combo == null) return;
 
 		if (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0) {
-			ComboExplorer.recordResult(ExplorerResult(combo!, name, "T"))
+			ctx.recordResult(ExplorerResult(combo!, name, "T"))
 		}
 	}
 
 	/*
 	 * Try to support a specific ally using ComboBuilder
 	 */
-	static void trySupportAlly(Entity ally, string name, boolean useMPBuff) {
-		Combo? combo = ComboBuilder.buildForAlly(ally, useMPBuff)
+	static void trySupportAlly(ExplorationContext ctx, Entity ally, string name, boolean useMPBuff) {
+		Combo? combo = ComboBuilder.buildForAlly(ctx, ally, useMPBuff)
 		if (combo == null) return;
 
 		if (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0) {
-			ComboExplorer.recordResult(ExplorerResult(combo!, name, "T"))
+			ctx.recordResult(ExplorerResult(combo!, name, "T"))
 		}
 	}
 
@@ -501,11 +540,11 @@ class ComboExplorer {
 	// PHASE 0: STAY IN PLACE
 	// ════════════════════════════════════════════════════════════
 
-	static void phaseStay() {
+	static void phaseStay(ExplorationContext ctx) {
 		Benchmark.start("ComboExplorer.phaseStay")
 
-		Combo combo = ComboBuilder.buildAtCell(Fight.self.cell, 0)
-		ComboExplorer.recordResult(ExplorerResult(combo, "P0:Stay", "0"))
+		Combo combo = ComboBuilder.buildAtCell(ctx, Fight.self.cell, 0)
+		ctx.recordResult(ExplorerResult(combo, "P0:Stay", "0"))
 
 		Benchmark.stop("ComboExplorer.phaseStay")
 	}
@@ -514,24 +553,24 @@ class ComboExplorer {
 	// PHASE 1: SINGLE-CELL MP SAMPLING
 	// ════════════════════════════════════════════════════════════
 
-	static void phaseSingleCell() {
+	static void phaseSingleCell(ExplorationContext ctx) {
 		Benchmark.start("ComboExplorer.phaseSingleCell")
 
-		integer maxMP = Fight.self.mp
-		integer maxMPBuff = Fight.self.maxMPBuff
+		integer maxMP = ctx.initialMP
+		integer maxMPBuff = ctx.maxMPBuff
 
 		// Phase 1a: Current MP range (no buffs needed)
 		for (integer offenseMP = 1; offenseMP <= maxMP; offenseMP++) {
-			if (ComboExplorer.shouldStop()) break
+			if (ctx.shouldStop()) break
 
 			// Find best cell at exactly this distance (each iteration explores a new ring)
-			Cell? bestCell = ComboExplorer.findBestCellAtDistance(offenseMP)
+			Cell? bestCell = ComboExplorer.findBestCellAtDistance(ctx, offenseMP)
 			if (bestCell == null) continue
 
 			// Reserve (maxMP - offenseMP) for defense
 			integer reserveMP = maxMP - offenseMP
-			Combo combo = ComboBuilder.buildAtCell(bestCell!, reserveMP)
-			ComboExplorer.recordResult(ExplorerResult(combo, "P1:MP" + offenseMP, "1"))
+			Combo combo = ComboBuilder.buildAtCell(ctx, bestCell!, reserveMP)
+			ctx.recordResult(ExplorerResult(combo, "P1:MP" + offenseMP, "1"))
 		}
 
 		// Phase 1b: Extended range (requires MP buffs)
@@ -539,16 +578,16 @@ class ComboExplorer {
 			integer maxExtended = maxMP + maxMPBuff
 
 			for (integer offenseMP = maxMP + 1; offenseMP <= maxExtended; offenseMP++) {
-				if (ComboExplorer.shouldStop()) break
+				if (ctx.shouldStop()) break
 
 				// Find best cell at this extended distance
-				Cell? bestCell = ComboExplorer.findBestCellAtExtendedDistance(offenseMP)
+				Cell? bestCell = ComboExplorer.findBestCellAtExtendedDistance(ctx, offenseMP)
 				if (bestCell == null) continue
 
 				// Build combo with auto MP buffs
-				Combo? combo = ComboBuilder.buildAtCellBuffed(bestCell!, offenseMP)
+				Combo? combo = ComboBuilder.buildAtCellBuffed(ctx, bestCell!, offenseMP)
 				if (combo != null) {
-					ComboExplorer.recordResult(ExplorerResult(combo!, "P1:MP" + offenseMP + "B", "1"))
+					ctx.recordResult(ExplorerResult(combo!, "P1:MP" + offenseMP + "B", "1"))
 				}
 			}
 		}
@@ -561,11 +600,11 @@ class ComboExplorer {
 	 * Each offenseMP value explores a new "ring" of cells, avoiding redundant
 	 * evaluation of closer cells already covered by smaller budgets.
 	 */
-	static Cell? findBestCellAtDistance(integer distance) {
+	static Cell? findBestCellAtDistance(ExplorationContext ctx, integer distance) {
 		Cell? best = null
 		real bestScore = -999999.0
 
-		Map<Cell, integer> reachable = Fight.self.reachableCells
+		Map<Cell, integer> reachable = ctx.reachableCells
 
 		for (Cell cell : real score in MapCellScore.cellScores) {
 			integer? dist = reachable[cell]
@@ -585,11 +624,11 @@ class ComboExplorer {
 	 * Used for cells beyond current MP that require MP buffs to reach.
 	 * Only considers cells in the extended range (distance > currentMP).
 	 */
-	static Cell? findBestCellAtExtendedDistance(integer distance) {
+	static Cell? findBestCellAtExtendedDistance(ExplorationContext ctx, integer distance) {
 		Cell? best = null
 		real bestScore = -999999.0
 
-		Map<Cell, integer> reachable = Fight.self.extendedReachableCells
+		Map<Cell, integer> reachable = ctx.extendedReachableCells
 
 		for (Cell cell : real score in MapCellScore.cellScores) {
 			integer? dist = reachable[cell]
@@ -608,7 +647,7 @@ class ComboExplorer {
 	// PHASE 2: MULTI-CELL PAIRS
 	// ════════════════════════════════════════════════════════════
 
-	static void phaseMultiCell() {
+	static void phaseMultiCell(ExplorationContext ctx) {
 		Benchmark.start("ComboExplorer.phaseMultiCell")
 
 		Array<Cell> interesting = MapCellScore.interestingCells
@@ -616,18 +655,18 @@ class ComboExplorer {
 
 		// Try all pairs
 		for (integer i = 0; i < n; i++) {
-			if (ComboExplorer.shouldStop()) break
+			if (ctx.shouldStop()) break
 
 			for (integer j = i + 1; j < n; j++) {
-				if (ComboExplorer.shouldStop()) break
+				if (ctx.shouldStop()) break
 
 				Cell cellA = interesting[i]
 				Cell cellB = interesting[j]
 
 				// Try both orderings
-				ComboExplorer.tryPairOrder(cellA, cellB)
-				if (ComboExplorer.shouldStop()) break
-				ComboExplorer.tryPairOrder(cellB, cellA)
+				ComboExplorer.tryPairOrder(ctx, cellA, cellB)
+				if (ctx.shouldStop()) break
+				ComboExplorer.tryPairOrder(ctx, cellB, cellA)
 			}
 		}
 
@@ -637,19 +676,19 @@ class ComboExplorer {
 	/*
 	 * Try a specific pair ordering: first -> second
 	 */
-	static void tryPairOrder(Cell first, Cell second) {
-		Combo? combo = ComboBuilder.buildAcrossCells([first, second], true)
+	static void tryPairOrder(ExplorationContext ctx, Cell first, Cell second) {
+		Combo? combo = ComboBuilder.buildAcrossCells(ctx, [first, second], true)
 		if (combo == null) return;
 
 		string name = "P2:" + first.id + "->" + second.id
-		ComboExplorer.recordResult(ExplorerResult(combo!, name, "2"))
+		ctx.recordResult(ExplorerResult(combo!, name, "2"))
 	}
 
 	// ════════════════════════════════════════════════════════════
 	// PHASE 3: THREE-CELL COMBOS
 	// ════════════════════════════════════════════════════════════
 
-	static void phaseThreeCell() {
+	static void phaseThreeCell(ExplorationContext ctx) {
 		Benchmark.start("ComboExplorer.phaseThreeCell")
 
 		Array<Cell> interesting = MapCellScore.interestingCells
@@ -657,28 +696,28 @@ class ComboExplorer {
 
 		// Try all triplets with all 6 orderings
 		for (integer i = 0; i < n; i++) {
-			if (ComboExplorer.shouldStop()) break
+			if (ctx.shouldStop()) break
 			for (integer j = i + 1; j < n; j++) {
-				if (ComboExplorer.shouldStop()) break
+				if (ctx.shouldStop()) break
 				for (integer k = j + 1; k < n; k++) {
-					if (ComboExplorer.shouldStop()) break
+					if (ctx.shouldStop()) break
 
 					Cell cellA = interesting[i]
 					Cell cellB = interesting[j]
 					Cell cellC = interesting[k]
 
 					// Try all 6 orderings
-					ComboExplorer.tryTripletOrder(cellA, cellB, cellC)
-					if (ComboExplorer.shouldStop()) break
-					ComboExplorer.tryTripletOrder(cellA, cellC, cellB)
-					if (ComboExplorer.shouldStop()) break
-					ComboExplorer.tryTripletOrder(cellB, cellA, cellC)
-					if (ComboExplorer.shouldStop()) break
-					ComboExplorer.tryTripletOrder(cellB, cellC, cellA)
-					if (ComboExplorer.shouldStop()) break
-					ComboExplorer.tryTripletOrder(cellC, cellA, cellB)
-					if (ComboExplorer.shouldStop()) break
-					ComboExplorer.tryTripletOrder(cellC, cellB, cellA)
+					ComboExplorer.tryTripletOrder(ctx, cellA, cellB, cellC)
+					if (ctx.shouldStop()) break
+					ComboExplorer.tryTripletOrder(ctx, cellA, cellC, cellB)
+					if (ctx.shouldStop()) break
+					ComboExplorer.tryTripletOrder(ctx, cellB, cellA, cellC)
+					if (ctx.shouldStop()) break
+					ComboExplorer.tryTripletOrder(ctx, cellB, cellC, cellA)
+					if (ctx.shouldStop()) break
+					ComboExplorer.tryTripletOrder(ctx, cellC, cellA, cellB)
+					if (ctx.shouldStop()) break
+					ComboExplorer.tryTripletOrder(ctx, cellC, cellB, cellA)
 				}
 			}
 		}
@@ -689,27 +728,27 @@ class ComboExplorer {
 	/*
 	 * Try a specific triplet ordering: first -> second -> third
 	 */
-	static void tryTripletOrder(Cell first, Cell second, Cell third) {
-		Combo? combo = ComboBuilder.buildAcrossCells([first, second, third], true)
+	static void tryTripletOrder(ExplorationContext ctx, Cell first, Cell second, Cell third) {
+		Combo? combo = ComboBuilder.buildAcrossCells(ctx, [first, second, third], true)
 		if (combo == null) return;
 
 		string name = "P3:" + first.id + "->" + second.id + "->" + third.id
-		ComboExplorer.recordResult(ExplorerResult(combo!, name, "3"))
+		ctx.recordResult(ExplorerResult(combo!, name, "3"))
 	}
 
 	// ════════════════════════════════════════════════════════════
 	// LOGGING
 	// ════════════════════════════════════════════════════════════
 
-	static void logResults() {
+	static void logResults(ExplorationContext ctx) {
 		// Sort top results
-		ComboExplorer.topResults = arraySort(ComboExplorer.topResults, (ExplorerResult a, ExplorerResult b) => integer|real {
+		ctx.topResults = arraySort(ctx.topResults, (ExplorerResult a, ExplorerResult b) => integer|real {
 			return Sort.desc(a.score, b.score)
 		}) as Array<ExplorerResult>
 
 		// Log top 5 to Benchmark
 		integer logged = 0
-		for (ExplorerResult r in ComboExplorer.topResults) {
+		for (ExplorerResult r in ctx.topResults) {
 			if (logged >= ExplorerConfig.MAX_RESULTS_KEPT) break
 
 			string desc = "EXP[" + r.name + "]:" + ComboExplorer.buildComboDesc(r.combo)
@@ -720,9 +759,9 @@ class ComboExplorer {
 		}
 
 		// Log summary
-		debug("ComboExplorer: " + ComboExplorer.combosEvaluated + " combos, best=" +
-			(ComboExplorer.bestResult != null ? ComboExplorer.bestResult!.name : "none") +
-			" score=" + (ComboExplorer.bestResult != null ? round(ComboExplorer.bestResult!.score) : 0))
+		debug("ComboExplorer: " + ctx.combosEvaluated + " combos, best=" +
+			(ctx.bestResult != null ? ctx.bestResult!.name : "none") +
+			" score=" + (ctx.bestResult != null ? round(ctx.bestResult!.score) : 0))
 	}
 
 	/*
