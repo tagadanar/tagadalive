@@ -53,10 +53,10 @@ class Item {
 	// 22: Special (bulbs, teleport, resurrection)
 	static Map<integer, integer> PRIORITIES = [
 		CHIP_ANTIDOTE: -1,           // Before Liberation - full poison removal
+		CHIP_MANUMISSION: -1,		 // hmmm avant ou après libe ? xD
 		CHIP_LIBERATION: 0,          // Removes debuffs (after Antidote)
-		CHIP_MANUMISSION: 0,		 // hmmm avant ou après libe ? xD
-		CHIP_REFLEXES: 1,            // Agility buffs (crits)
-		CHIP_STRETCHING: 2,
+		CHIP_REFLEXES: 2,            // Agility buffs (crits)
+		CHIP_STRETCHING: 3,
 		CHIP_WARM_UP: 3,
 		CHIP_RAGE: 4,                // TP generation
 		CHIP_MOTIVATION: 4,
@@ -170,16 +170,16 @@ class Item {
 		CHIP_MIRROR: 20,             // Damage reflection
 		CHIP_THORN: 20,
 		CHIP_BRAMBLE: 20,
-		CHIP_LIGHTNING_BULB: 22,     // Special chips
-		CHIP_WIZARD_BULB: 22,
-		CHIP_FIRE_BULB: 22,
-		CHIP_METALLIC_BULB: 22,
-		CHIP_HEALER_BULB: 22,
-		CHIP_ICED_BULB: 22,
-		CHIP_ROCKY_BULB: 22,
-		CHIP_PUNY_BULB: 22,
-		CHIP_TACTICIAN_BULB: 22,
-		CHIP_SAVANT_BULB: 22,
+		CHIP_LIGHTNING_BULB: 1,      // Summons early (so bulb can receive buffs)
+		CHIP_WIZARD_BULB: 1,
+		CHIP_FIRE_BULB: 1,
+		CHIP_METALLIC_BULB: 1,
+		CHIP_HEALER_BULB: 1,
+		CHIP_ICED_BULB: 1,
+		CHIP_ROCKY_BULB: 1,
+		CHIP_PUNY_BULB: 1,
+		CHIP_TACTICIAN_BULB: 1,
+		CHIP_SAVANT_BULB: 1,
 		CHIP_JUMP: 22,
 		CHIP_INVERSION: 22,
 		CHIP_REPOTTING: 22,

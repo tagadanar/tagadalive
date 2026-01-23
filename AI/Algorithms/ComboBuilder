@@ -384,7 +384,13 @@ class ComboBuilder {
 		// Add selected actions
 		for (Action action in selected) {
 			if (stopWhenKilled != null && combo.getCurrentConsequences().isKilled(stopWhenKilled!)) break
-			ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, reserveMP)
+
+			boolean added = ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, reserveMP)
+
+			// If summon was added, expand pool with bulb buff actions
+			if (added && action.item.isSummon) {
+				ComboBuilder._expandWithBulbBuffs(ctx, combo, action.to, usesThisTurn, reserveMP)
+			}
 		}
 
 		// Greedy fallback
@@ -396,6 +402,46 @@ class ComboBuilder {
 
 		// Final position
 		ComboBuilder._addFinalPosition(combo)
+	}
+
+	/*
+	 * Expand combo with buff actions for a newly summoned bulb.
+	 * Called after a summon action is successfully added.
+	 */
+	static void _expandWithBulbBuffs(
+		ExplorationContext ctx,
+		Combo combo,
+		Cell bulbCell,
+		Map<Item, integer> usesThisTurn,
+		integer reserveMP
+	) {
+		Consequences csq = combo.getCurrentConsequences()
+
+		// Check if a pendingBulb exists at this cell
+		if (csq.pendingBulbs[bulbCell] == null) return;
+
+		// Build ignoreCells: base + killed entities
+		Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
+
+		// Generate buff actions for the newly created pendingBulb
+		Array<Action> buffActions = MapAction.getBulbBuffActions(
+			bulbCell,
+			csq.currentCell,
+			csq.currentMP,
+			csq.currentTP,
+			usesThisTurn,
+			ignoreCells
+		)
+
+		if (count(buffActions) == 0) return;
+
+		// Sort by score (greedy selection of best buffs)
+		buffActions = MapCellScore.sortByScore(buffActions)
+
+		// Try each buff
+		for (Action buffAction in buffActions) {
+			ComboBuilder.tryAddAction(ctx, combo, buffAction, usesThisTurn, reserveMP)
+		}
 	}
 
 	/*
@@ -434,7 +480,15 @@ class ComboBuilder {
 
 		// Try to fill - loop on each action until it fails
 		for (Action action in filtered) {
-			while (ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)) {}
+			boolean added = ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)
+
+			// If summon was added, expand with bulb buff actions
+			if (added && action.item.isSummon) {
+				ComboBuilder._expandWithBulbBuffs(ctx, combo, action.to, usesThisTurn, 0)
+			}
+
+			// Continue looping for repeatable items
+			while (added && ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)) {}
 		}
 	}
 

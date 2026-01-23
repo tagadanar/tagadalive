@@ -343,4 +343,90 @@ class MapAction {
 		Benchmark.stop("addAction")
 		return action
 	}
+
+	/*
+	 * Generate buff actions that can target a specific cell (for pendingBulb).
+	 * Called by ComboBuilder after summon action creates a PendingBulb.
+	 *
+	 * @param targetCell Cell where the bulb was summoned
+	 * @param fromCell Current cell of the caster
+	 * @param remainingMP Available MP for movement
+	 * @param remainingTP Available TP for buffs
+	 * @param usesThisTurn Items already used (to respect maxUse)
+	 * @param cellsToIgnore Cells to ignore in pathfinding
+	 * @return Array of buff Actions targeting the cell
+	 */
+	static Array<Action> getBulbBuffActions(
+		Cell targetCell,
+		Cell fromCell,
+		integer remainingMP,
+		integer remainingTP,
+		Map<Item, integer> usesThisTurn,
+		Array<Cell> cellsToIgnore
+	) {
+		Array<Action> result = []
+
+		// Get reachable cells from current position
+		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(fromCell, remainingMP, cellsToIgnore)
+
+		for (Item chip in Fight.self.items) {
+			// Skip weapons and summons
+			if (chip.isWeap || chip.isSummon) continue
+
+			// Skip if on cooldown
+			if (getCooldown(chip.id, Fight.self.id) > 0) continue
+
+			// Skip if already used >= maxUse
+			integer uses = usesThisTurn[chip] != null ? usesThisTurn[chip]! : 0
+			if (uses >= chip.maxUse) continue
+
+			// Skip if cost > remaining TP
+			if (chip.cost > remainingTP) continue
+
+			// Check if this chip has any buff effects
+			if (!MapAction._hasBulbBuffEffect(chip)) continue
+
+			// Get cells from which we can target the bulb cell
+			// Use getTargetableCells which includes occupied cells (the bulb is at targetCell)
+			Array<Cell> castCells = Targets.getTargetableCells(chip, targetCell, [Fight.self.id])
+
+			// Find reachable cast cells
+			for (Cell castCell in castCells) {
+				// Check if castCell is reachable
+				integer? dist = reachable[castCell]
+				boolean castCellReachable = (castCell == fromCell) || (dist != null && dist! <= remainingMP)
+				if (!castCellReachable) continue
+
+				// Create action targeting the bulb cell
+				Action action = Action(chip, castCell, targetCell)
+				push(result, action)
+				break  // Only need one cast cell per chip (best is closest which we'll find)
+			}
+		}
+
+		return result
+	}
+
+	/*
+	 * Check if a chip has any buff effect types useful for bulbs.
+	 * Includes offensive buffs (STR, AGI, TP, MP, MGC) and defensive (shields, resistance, life).
+	 */
+	static boolean _hasBulbBuffEffect(Item chip) {
+		for (ItemEffect effect in chip.effects) {
+			integer t = effect.type
+			// Offensive buffs
+			if (t == EFFECT_BUFF_STRENGTH || t == EFFECT_RAW_BUFF_STRENGTH) return true
+			if (t == EFFECT_BUFF_AGILITY || t == EFFECT_RAW_BUFF_AGILITY) return true
+			if (t == EFFECT_BUFF_TP || t == EFFECT_RAW_BUFF_TP) return true
+			if (t == EFFECT_BUFF_MP || t == EFFECT_RAW_BUFF_MP) return true
+			if (t == EFFECT_RAW_BUFF_MAGIC) return true
+			// Defensive buffs
+			if (t == EFFECT_ABSOLUTE_SHIELD || t == EFFECT_RAW_ABSOLUTE_SHIELD) return true
+			if (t == EFFECT_RELATIVE_SHIELD || t == EFFECT_RAW_RELATIVE_SHIELD) return true
+			if (t == EFFECT_BUFF_RESISTANCE || t == EFFECT_RAW_BUFF_RESISTANCE) return true
+			if (t == EFFECT_BOOST_MAX_LIFE) return true
+			if (t == EFFECT_BUFF_WISDOM || t == EFFECT_RAW_BUFF_WISDOM) return true
+		}
+		return false
+	}
 }
