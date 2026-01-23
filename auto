@@ -38,6 +38,12 @@ include('Model/Summons/PendingBulb')
 include('Model/Summons/SummonPlan')
 
 // ────────────────────────────────────────────────────────────────────────────
+// SERVICES: Utilities (no dependencies, needed early)
+// ────────────────────────────────────────────────────────────────────────────
+include('Services/Sort')
+include('Services/Benchmark')
+
+// ────────────────────────────────────────────────────────────────────────────
 // MAPS: Spatial indexing, pathfinding, danger assessment, targeting
 // ────────────────────────────────────────────────────────────────────────────
 include('Controlers/Maps/MapPath')
@@ -48,6 +54,7 @@ include('Controlers/Maps/MapPosition')
 include('Controlers/Maps/Targets')
 include('Controlers/Maps/MapAction')
 include('Controlers/Maps/MapSummon')
+include('Controlers/Maps/MapCellScore')   // Cell-centric action aggregation (uses MapAction, Sort)
 
 // ────────────────────────────────────────────────────────────────────────────
 // COMBO SYSTEM: Action modeling and consequence simulation
@@ -78,12 +85,6 @@ include('Model/Combos/Effects/DebuffEffects')
 include('Model/Combos/Effects/UtilityEffects')
 include('Model/Combos/Effects/MovementEffects')
 include('Model/Combos/Effects/PassiveEffects')
-
-// ────────────────────────────────────────────────────────────────────────────
-// SERVICES: Utility functions and global services
-// ────────────────────────────────────────────────────────────────────────────
-include('Services/Sort')
-include('Services/Benchmark')
 
 // ────────────────────────────────────────────────────────────────────────────
 // SCORING SYSTEM: Coefficient calculation and action evaluation
