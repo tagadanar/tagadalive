@@ -275,14 +275,15 @@ class Consequences {
 
 	/*
 	 * Movement-only construction for shared snapshot mode.
+	 * Note: Cache may contain cells beyond MP, must verify distance.
 	 */
 	void constructMovementOnly(Action action) {
 		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
 
 		if (action.from != Fight.selfCell) {
-			if (reachableCells[action.from] != null) {
-				integer moveCost = reachableCells[action.from]!
-				this.currentMP = this.currentMP - moveCost
+			integer? moveCost = reachableCells[action.from]
+			if (moveCost != null && moveCost! <= this.currentMP) {
+				this.currentMP = this.currentMP - moveCost!
 			}
 			this.currentCell = action.from
 		}
