@@ -221,6 +221,8 @@ class Entity {
 	private void loadEffects() {
 		for(Array<boolean|integer> e in getEffects(this.id)!) {
 			EntityEffect effect = EntityEffect(e)
+			// RAW_BUFF_POWER: skip, no item associated - use entity.pwr stat instead
+			if (effect.type == EFFECT_RAW_BUFF_POWER) continue
 			// ADD_STATE: set flags, don't add to effects (can't be liberated)
 			if(effect.type == EFFECT_ADD_STATE) {
 				if(effect.value == STATE_INVINCIBLE) this.isInvincible = true
