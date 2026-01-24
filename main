@@ -28,6 +28,7 @@ Benchmark.collectCooldownsEnd(Fight.self.items, Fight.self.id)
 // - display()     : JSON format for Tampermonkey panel
 // - displayText() : Human-readable format
 // - displayAll()  : Both formats
+ActionKnapsack.logStats()
 Benchmark.display()
 
 // MapDanger.showDanger(Board.getCell(getCell())!, getTotalMP(), combo.getCurrentConsequences())
