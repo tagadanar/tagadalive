@@ -295,6 +295,10 @@ class Entity {
 	 * Calculate total potential MP buff from all self-cast items.
 	 * Scans this entity's items for MP buff effects and sums all gains.
 	 * MP buffs stack (Leather Boots + Motivation + Wings = total gain).
+	 *
+	 * TODO: AOE MP buffs (e.g. Precipitation) give +MP per target hit,
+	 * but this only counts 1 target. Should estimate potential targets
+	 * in range for a more accurate extendedReachableCells calculation.
 	 */
 	integer computeMaxMPBuff() {
 		integer totalGain = 0
