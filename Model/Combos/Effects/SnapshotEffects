@@ -11,7 +11,7 @@
 // Helper: check if entity has an effect from a specific item (for notReplaceable)
 function snapshotHasItemEffect(Entity target, Item item) {
 	for (EntityEffect ee in target.effects) {
-		if (ee.item.id == item.id) return true;
+		if (ee.item != null && ee.item!.id == item.id) return true;
 	}
 	return false
 }
