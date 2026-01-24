@@ -9,10 +9,6 @@ class PendingBulb {
 	integer bulbType          // Entity.BULB_LIGHTNING, etc.
 	real currentDmgScore      // Damage score already applied to Consequences
 
-	// Defensive tracking (for shield/life buffs)
-	integer absShield = 0     // Accumulated absolute shield
-	integer relShield = 0     // Accumulated relative shield
-
 	constructor(BulbStats stats, Entity target, Array<Item> offensiveChips, integer bulbType, real initialDmgScore) {
 		this.stats = stats
 		this.target = target
@@ -22,10 +18,7 @@ class PendingBulb {
 	}
 
 	PendingBulb clone() {
-		PendingBulb copy = PendingBulb(this.stats.clone(), this.target, this.offensiveChips, this.bulbType, this.currentDmgScore)
-		copy.absShield = this.absShield
-		copy.relShield = this.relShield
-		return copy
+		return PendingBulb(this.stats.clone(), this.target, this.offensiveChips, this.bulbType, this.currentDmgScore)
 	}
 
 	/*

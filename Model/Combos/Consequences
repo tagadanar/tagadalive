@@ -754,19 +754,15 @@ class Consequences {
 			defStat = Stats.HPMAX
 		} else if (effect.type == EFFECT_ABSOLUTE_SHIELD) {
 			defValue = EffectCalc.scaledShield(effect.avg, rst, 1.0)
-			bulb.absShield += defValue
 			defStat = Stats.ABSSHIELD
 		} else if (effect.type == EFFECT_RAW_ABSOLUTE_SHIELD) {
 			defValue = EffectCalc.rawShield(effect.avg)
-			bulb.absShield += defValue
 			defStat = Stats.ABSSHIELD
 		} else if (effect.type == EFFECT_RELATIVE_SHIELD) {
 			defValue = EffectCalc.scaledShield(effect.avg, rst, 1.0)
-			bulb.relShield += defValue
 			defStat = Stats.RELSHIELD
 		} else if (effect.type == EFFECT_RAW_RELATIVE_SHIELD) {
 			defValue = EffectCalc.rawShield(effect.avg)
-			bulb.relShield += defValue
 			defStat = Stats.RELSHIELD
 		}
 
