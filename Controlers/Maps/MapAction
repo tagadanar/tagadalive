@@ -55,6 +55,15 @@ class MapAction {
 			// Handle summon chips: use MapSummon's best target cells, find fromCells like other items
 			if (item.isSummon) {
 				Array<SummonCandidate> candidates = MapSummon.getBestCells(item.id, 5)
+
+				// If no candidates and this is a defensive summon, create self-cast action
+				// Defensive summons are delayed until after final position
+				if (count(candidates) == 0 && MapSummon.isDefensiveSummon(item.id)) {
+					// Self-cast: from current cell, to Fight.selfCell (marker for delayed spawn)
+					MapAction.addSummonAction(item, Fight.self.cell, Fight.selfCell)
+					continue
+				}
+
 				for (SummonCandidate c in candidates) {
 					// Get cells from which we can cast summon ON the target cell
 					Array<Cell> fromCells = Targets.getCellsToUseItemOnCell(item, c.cell, [Fight.self.id])

@@ -33,6 +33,12 @@ class AI {
 	 * Main entry point: get the best combo using the selected algorithm.
 	 */
 	static Combo getCombo() {
+		// Bulbs use lightweight greedy search instead of full exploration
+		if (Fight.self.isBulb) {
+			Benchmark.setAlgo("BULB", "GREEDY")
+			return BulbGreedy.getCombo()
+		}
+
 		if (AI.mode == AI.MODE_MCTS) {
 			Benchmark.setAlgo("MCTS", "MCTS")
 			return Hybrid.runMCTSFull()

@@ -1,0 +1,220 @@
+/*
+ * BulbGreedy - Lightweight greedy AI for bulb turns.
+ *
+ * Instead of the full ComboExplorer pipeline (MapAction + multi-phase exploration),
+ * uses a simple greedy loop: repeatedly find the single best action until no
+ * profitable actions remain, then find optimal end position.
+ *
+ * Complexity: O(iterations x items x targets) vs O(cells x items x targets x K^3) for ComboExplorer
+ * Typical: ~3k ops per bulb turn vs ~200k+ for full exploration
+ */
+class BulbGreedy {
+	/*
+	 * Main entry point for bulb AI.
+	 * @return Combo with best greedy action sequence + final position
+	 */
+	static Combo getCombo() {
+		Benchmark.start("BulbGreedy")
+		Combo combo = new Combo()
+
+		// Track item usage to respect maxUse
+		Map<Item, integer> usedItems = [:]
+
+		// Current state (updated as we add actions)
+		Cell currentCell = Fight.self.cell
+		integer currentTP = Fight.self.tp
+		integer currentMP = Fight.self.mp
+		Consequences? currentCsq = null
+
+		// Build ignoreCells for pathfinding
+		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+
+		// GREEDY LOOP: find best action, add it, repeat
+		integer maxIterations = 10  // Safety limit
+		integer iteration = 0
+
+		while (iteration++ < maxIterations) {
+			// Get reachable cells from current position
+			Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells)
+
+			// Find best action among all items and targets
+			Action? bestAction = BulbGreedy.findBestAction(
+				currentCsq, reachableCells, currentCell, currentTP, currentMP, usedItems
+			)
+
+			// No profitable action found - exit loop
+			if (bestAction == null) break
+
+			// Add action to combo
+			push(combo.actions, bestAction!)
+
+			// Update state for next iteration
+			integer prevUsed = usedItems[bestAction!.item] != null ? usedItems[bestAction!.item]! : 0
+			usedItems[bestAction!.item] = prevUsed + 1
+			currentCsq = bestAction!.consequences
+			currentCell = currentCsq!.currentCell
+			currentTP = currentCsq!.currentTP
+			currentMP = currentCsq!.currentMP
+
+			// Update ignoreCells with any killed entities
+			currentCsq!.appendKilledCells(ignoreCells)
+		}
+
+		// FINAL POSITIONING: find best end-of-turn position
+		Position position = MapPosition.findBestPosition(currentCell, currentMP, currentCsq)
+		combo.addFinalPosition(position)
+
+		Benchmark.stop("BulbGreedy")
+
+		// Log chosen combo
+		string desc = "BULB:" + BulbGreedy.buildComboDesc(combo)
+		Benchmark.setChosen(combo.getScore()!, count(combo.actions), desc)
+
+		return combo
+	}
+
+	/*
+	 * Find the single best action given current state.
+	 * Iterates through all items and their valid targets, finding the best
+	 * (item, fromCell, targetCell) combination.
+	 *
+	 * @param parentCsq - consequences from previous actions (null if first action)
+	 * @param reachableCells - cells reachable from current position (cell -> distance)
+	 * @param currentCell - current position (may differ from Fight.self.cell after moves)
+	 * @param currentTP - available TP
+	 * @param currentMP - available MP
+	 * @param usedItems - count of times each item has been used this combo
+	 * @return best Action or null if no profitable action exists
+	 */
+	static Action? findBestAction(
+		Consequences? parentCsq,
+		Map<Cell, integer> reachableCells,
+		Cell currentCell,
+		integer currentTP,
+		integer currentMP,
+		Map<Item, integer> usedItems
+	) {
+		Action? bestAction = null
+		real bestScore = parentCsq != null ? parentCsq!.score! : 0.0
+
+		for (Item item in Fight.self.items) {
+			// Skip if on cooldown
+			if (item.haveCD && getCooldown(item.id, Fight.self.id) > 0) continue
+
+			// Skip if can't afford
+			if (item.cost > currentTP) continue
+
+			// Skip if maxUse reached
+			integer used = usedItems[item] != null ? usedItems[item]! : 0
+			if (used >= item.maxUse) continue
+
+			// Skip summons - bulbs can't summon
+			if (item.isSummon) continue
+
+			// Get valid targets for this item
+			Map<integer, Entity> targets = item.targetSet()
+
+			// Handle pure self-cast items (targetKey == NONE means movement/utility that targets empty cell or self)
+			// Note: items with onCaster=true but targeting enemies/allies (like devil_strike)
+			// should NOT use this path - they need actual targets
+			if (item.targetKey == Item.NONE) {
+				// Self-cast: check if we can cast on self (minRange == 0)
+				if (item.minRange == 0) {
+					// Use currentCell (may have moved), not Fight.self.cell (start of turn)
+					Action action = BulbGreedy.createAction(item, currentCell, Fight.selfCell, parentCsq)
+					if (action.score != null && action.score! > bestScore) {
+						bestScore = action.score!
+						bestAction = action
+					}
+				}
+				continue  // Skip target iteration for pure self-cast items
+			}
+
+			// Iterate through valid targets
+			for (integer targetId : Entity target in targets) {
+				// Skip dead targets (from previous actions in combo)
+				if (parentCsq != null && parentCsq!.isKilled(target)) continue
+
+				// Skip invincible targets
+				if (target.isInvincible) continue
+
+				// Find closest reachable cell to use item on target
+				Cell? useCell = BulbGreedy.getClosestUseCell(item, target.cell, reachableCells, currentMP)
+				if (useCell == null) continue
+
+				// Use Fight.selfCell convention for self-targeting
+				Cell targetCell = (target == Fight.self) ? Fight.selfCell : target.cell
+
+				// Create and score action
+				Action action = BulbGreedy.createAction(item, useCell!, targetCell, parentCsq)
+
+				if (action.score! > bestScore) {
+					bestScore = action.score!
+					bestAction = action
+				}
+			}
+		}
+
+		return bestAction
+	}
+
+	/*
+	 * Find the closest reachable cell from which we can use the item on targetCell.
+	 *
+	 * @param item - the item to use
+	 * @param targetCell - cell of the target entity
+	 * @param reachableCells - cells we can reach (cell -> distance)
+	 * @param currentMP - current MP (to filter cache results that may exceed)
+	 * @return closest cell from which item can be used, or null if none reachable
+	 */
+	static Cell? getClosestUseCell(Item item, Cell targetCell, Map<Cell, integer> reachableCells, integer currentMP) {
+		// Get all cells from which we could use the item on targetCell
+		Array<Cell> useCells = Targets.getCellsToUseItemOnCell(item, targetCell, [Fight.self.id])
+
+		Cell? bestCell = null
+		integer bestDist = 99999
+
+		for (Cell cell in useCells) {
+			integer? dist = reachableCells[cell]
+			// Check cell is reachable and within MP budget
+			if (dist != null && dist! <= currentMP && dist! < bestDist) {
+				bestDist = dist!
+				bestCell = cell
+			}
+		}
+
+		return bestCell
+	}
+
+	/*
+	 * Create an action, properly chaining with parent consequences if present.
+	 */
+	static Action createAction(Item item, Cell fromCell, Cell toCell, Consequences? parentCsq) {
+		if (parentCsq != null) {
+			// Create base action then chain with parent consequences
+			Action baseAction = new Action(item, fromCell, toCell)
+			return new Action(baseAction, parentCsq!)
+		} else {
+			// First action - no parent
+			return new Action(item, fromCell, toCell)
+		}
+	}
+
+	/*
+	 * Build description string for a combo (for Benchmark logging).
+	 */
+	static string buildComboDesc(Combo combo) {
+		string desc = ""
+		for (Action action in combo.actions) {
+			if (desc != "") desc += ">"
+			desc += action.item.name
+			if (action.to != Fight.selfCell) {
+				desc += "@" + action.to.id
+			}
+		}
+		if (combo.finalPosition != null) {
+			desc += "->c" + combo.finalPosition!.cell.id
+		}
+		return desc
+	}
+}

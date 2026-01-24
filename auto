@@ -112,6 +112,7 @@ include('AI/Algorithms/Hybrid')
 include('AI/Algorithms/ActionKnapsack')
 include('AI/Algorithms/ComboBuilder')     // Unified combo construction (uses ActionKnapsack)
 include('AI/Algorithms/ComboExplorer')    // Multi-phase exploration (uses ComboBuilder)
+include('AI/Algorithms/BulbGreedy')       // Lightweight greedy AI for bulb turns
 
 // ────────────────────────────────────────────────────────────────────────────
 // AI DISPATCHER: Entry point for algorithm selection

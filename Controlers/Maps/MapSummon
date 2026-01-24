@@ -2,7 +2,7 @@
  * MapSummon - Intelligent summon cell selection based on offensive potential
  *
  * For each summon chip, computes the N best cells to summon a bulb by scoring
- * the bulb's expected damage output on reachable targets.
+ * the bulb expected damage output on reachable targets.
  *
  * Currently supports: All bulb types (Lightning, Fire, Iced, Rocky, Puny, Healer, Metallic, Wizard, Savant, Tactician)
  *
@@ -202,8 +202,8 @@ class MapSummon {
 		Entity.BULB_FIRE: [CHIP_METEORITE, CHIP_FLAME, CHIP_SPARK, CHIP_DEVIL_STRIKE],
 		Entity.BULB_ICED: [CHIP_STALACTITE, CHIP_ICEBERG, CHIP_ICE],
 		Entity.BULB_ROCKY: [CHIP_ROCKFALL, CHIP_ROCK, CHIP_PEBBLE],
-		Entity.BULB_HEALER: [CHIP_VACCINE, CHIP_DRIP, CHIP_CURE, CHIP_BANDAGE],
-		Entity.BULB_METALLIC: [CHIP_ARMOR, CHIP_SHIELD, CHIP_WALL],
+		// Entity.BULB_HEALER: [CHIP_VACCINE, CHIP_DRIP, CHIP_CURE, CHIP_BANDAGE],
+		// Entity.BULB_METALLIC: [CHIP_ARMOR, CHIP_SHIELD, CHIP_WALL],
 		Entity.BULB_WIZARD: [CHIP_TOXIN, CHIP_VENOM]
 	]
 
@@ -397,6 +397,79 @@ class MapSummon {
 		debug("=== End MapSummon ===")
 	}
 
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DEFENSIVE SUMMON SYSTEM
+	// For bulbs without offensive potential (Puny, Savant, Tactician, or solo Healer/Metallic)
+	// These spawn after final position, at farthest available cell
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Check if a summon chip should use the defensive (delayed) spawn system.
+	 * True if:
+	 * - No offensive chips defined for this bulb type, OR
+	 * - Ally-targeting bulb (Healer/Metallic) with no other allies (solo fight)
+	 */
+	static boolean isDefensiveSummon(integer chipId) {
+		BulbProfile? profile = PROFILES[chipId]
+		if (profile == null) return false
+
+		// Check if offensive chips are defined
+		Array<integer>? chipIds = BULB_OFFENSIVE_CHIPS[profile!.bulbType]
+		if (chipIds == null || count(chipIds!) == 0) {
+			return true  // No offensive chips = defensive bulb
+		}
+
+		// Check if ally-targeting bulb in solo (no other allies)
+		integer? modeVal = BULB_TARGET_MODE[profile!.bulbType]
+		if (modeVal != null && modeVal! != TARGET_MODE_ENEMY) {
+			// Count allies excluding self
+			integer allyCount = 0
+			for (Entity ally in Fight.getAlliesAlive()) {
+				if (ally.id != Fight.self.id) allyCount++
+			}
+			if (allyCount == 0) return true  // Solo fight, ally-targeting bulb
+		}
+
+		return false
+	}
+
+	/*
+	 * Find the farthest valid spawn cell from a given position within summon range.
+	 * Used by Combo.play() for delayed defensive summons.
+	 *
+	 * @param summonItem The summon chip
+	 * @param fromCell Position to cast from (leek's final position)
+	 * @return Farthest empty cell within range, or null if none
+	 */
+	static Cell? getFarthestSpawnCell(Item summonItem, Cell fromCell) {
+		Cell? bestCell = null
+		integer bestDist = -1
+
+		// Check all cells in summon range
+		for (integer x = fromCell.x - summonItem.maxRange; x <= fromCell.x + summonItem.maxRange; x++) {
+			for (integer y = fromCell.y - summonItem.maxRange; y <= fromCell.y + summonItem.maxRange; y++) {
+				integer dist = abs(fromCell.x - x) + abs(fromCell.y - y)
+				if (dist < summonItem.minRange || dist > summonItem.maxRange) continue
+
+				Cell? cell = Board.cellsXY[x] != null ? Board.cellsXY[x]![y] : null
+				if (cell == null) continue
+				if (cell!.isWall) continue
+				if (Board.entityCells[cell!] != null) continue  // Must be empty
+
+				// Check LOS if required
+				if (summonItem.needLOS && !lineOfSight(fromCell.id, cell!.id, [])) continue
+
+				// Prefer farthest cell
+				if (dist > bestDist) {
+					bestDist = dist
+					bestCell = cell
+				}
+			}
+		}
+
+		return bestCell
+	}
+
 	// Map bulb type to single letter for display
 	static Map<integer, string> BULB_LETTERS = [
 		Entity.BULB_LIGHTNING: "L",
@@ -519,7 +592,6 @@ class MapSummon {
 		// Get offensive chips for this bulb type
 		Array<integer>? chipIds = BULB_OFFENSIVE_CHIPS[profile.bulbType]
 		if (chipIds == null || count(chipIds!) == 0) {
-			debugW("MapSummon: no offensive chips defined for bulb type: " + profile.bulbType)
 			return []
 		}
 
@@ -554,7 +626,7 @@ class MapSummon {
 
 		// Process each target (for-in on Map iterates values in LS4)
 		for (Entity target in targets) {
-			// Skip self for ally-targeting bulbs
+			// Skip self for ally-targeting bulbs (defensive bulbs use separate self-cast system)
 			if (targetsAllies && target.id == Fight.self.id) continue
 			// Skip invincible enemies
 			if (!targetsAllies && target.isInvincible) continue
