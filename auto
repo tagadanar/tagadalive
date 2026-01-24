@@ -126,7 +126,6 @@ include('AI/AI')
 
 function init() {
 	Benchmark.initTurn()
-	ActionKnapsack.resetStats()
 	Benchmark.start('init')
 	if(getTurn()==1) {
 		Benchmark.start('Map.init')
