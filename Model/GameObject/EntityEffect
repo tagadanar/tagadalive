@@ -4,7 +4,7 @@ class EntityEffect {
 	Entity caster
 	integer turns
 	boolean critical
-	Item item
+	Item? item //Power effect don't have item associated
 	Entity target
 	integer modifiers
 	constructor(Array<boolean|integer> effect){
@@ -17,7 +17,7 @@ class EntityEffect {
 		// TODO use Scoring.getEffectiveDuration(this.turns, this.caster, this.target) once init order is verified
 		if(this.turns==-1) this.turns = ScoringConfig.MAX_DURATION - 1
 		this.critical = effect[4] as boolean
-		this.item = Items.getItem(effect[5] as integer)!
+		this.item = Items.getItem(effect[5] as integer)
 		this.target = Fight.getEntity(effect[6] as integer)
 		// pas sur d'avoir besoin des modifiers ici, je save ocazou
 		this.modifiers = effect[7] as integer
