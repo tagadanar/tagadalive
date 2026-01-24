@@ -562,7 +562,7 @@ class ComboBuilder {
 		Map<integer, boolean> activeBuffChips = [:]
 		for (EntityEffect e in Fight.self.effects) {
 			if (e.type == EFFECT_BUFF_MP || e.type == EFFECT_RAW_BUFF_MP) {
-				if (e.item != null) activeBuffChips[e.item!.id] = true
+				activeBuffChips[e.item.id] = true
 			}
 		}
 

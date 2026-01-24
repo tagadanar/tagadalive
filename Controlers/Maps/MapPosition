@@ -176,7 +176,7 @@ class MapPosition {
 			for (Entity e in Fight.getEnemiesAlive()) {
 				_entity_has_covid[e] = false
 				for (EntityEffect eff in e.effects) {
-					if (eff.item != null && eff.item!.id == CHIP_COVID) {
+					if (eff.item.id == CHIP_COVID) {
 						_entity_has_covid[e] = true
 						break
 					}
