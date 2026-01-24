@@ -37,36 +37,6 @@ class ActionKnapsack {
 	static Map<Item, integer> weaponToIdx = [:]
 	static integer CHIP = -1  // Chips don't change weapon state
 
-	// Stats tracking (reset each turn)
-	static integer _calls = 0
-	static integer _totalItems = 0
-	static integer _totalTP = 0
-	static integer _totalSelected = 0
-	static integer _totalOps = 0
-
-	/*
-	 * Reset stats for new turn
-	 */
-	static void resetStats() {
-		_calls = 0
-		_totalItems = 0
-		_totalTP = 0
-		_totalSelected = 0
-		_totalOps = 0
-	}
-
-	/*
-	 * Log stats summary (call before Benchmark.display)
-	 */
-	static void logStats() {
-		if (_calls == 0) return;
-		integer avgItems = _totalItems / _calls
-		integer avgTP = _totalTP / _calls
-		integer avgSelected = _totalSelected / _calls
-		integer avgOps = _totalOps / _calls
-		debug("Knapsack: " + _calls + " calls, avg " + avgItems + " items, " + avgTP + " TP, " + avgSelected + " sel, " + avgOps + " ops")
-	}
-
 	/*
 	 * Select actions maximizing score within TP budget
 	 * Handles weapon switch costs and usage limits
@@ -78,8 +48,6 @@ class ActionKnapsack {
 	 */
 	static Array<Action> solve(Array<Action> pool, integer maxTP, Item? currentWeapon) {
 		if (count(pool) == 0 || maxTP <= 0) return []
-
-		integer startOps = getOperations()
 
 		// Build weapon index map
 		ActionKnapsack.buildWeaponMap(pool, currentWeapon)
@@ -167,14 +135,7 @@ class ActionKnapsack {
 			}
 		}
 
-		if (bestState == -1 || bestScore <= 0) {
-			// Track stats even for empty results
-			_calls++
-			_totalItems += count(items)
-			_totalTP += maxTP
-			_totalOps += getOperations() - startOps
-			return []
-		}
+		if (bestState == -1 || bestScore <= 0) return []
 
 		// Backtrack to find selected actions
 		Array<Action> selected = []
@@ -183,13 +144,6 @@ class ActionKnapsack {
 			push(selected, items[parent[state]].action)
 			state = parentState[state]
 		}
-
-		// Track stats
-		_calls++
-		_totalItems += count(items)
-		_totalTP += maxTP
-		_totalSelected += count(selected)
-		_totalOps += getOperations() - startOps
 
 		return selected
 	}
