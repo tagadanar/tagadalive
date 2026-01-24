@@ -171,9 +171,6 @@ class ComboExplorer {
 		ExplorationContext ctx = ExplorationContext()
 		ComboExplorer.ctx = ctx
 
-		// Refresh cell scoring
-		MapCellScore.refresh()
-
 		// Phase 0: Stay in place - ALWAYS runs (cheap baseline, guaranteed result)
 		ComboExplorer.phaseStay(ctx)
 

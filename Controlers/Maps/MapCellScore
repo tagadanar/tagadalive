@@ -115,8 +115,8 @@ class MapCellScore {
 			isInteresting[c] = true
 		}
 
-		// Color all reachable cells
-		for (Cell c : integer dist in Fight.self.reachableCells) {
+		// Color all reachable cells (including extended range with MP buffs)
+		for (Cell c : integer dist in Fight.self.extendedReachableCells) {
 			real? score = MapCellScore.cellScores[c]
 			if (isInteresting[c]) {
 				mark(c.id, getColor(0, 0, 255))

@@ -182,6 +182,10 @@ function init() {
 	MapAction.refresh()
 	Benchmark.stop('MapAction.refresh')
 
+	Benchmark.start('MapCellScore.refresh')
+	MapCellScore.refresh()
+	Benchmark.stop('MapCellScore.refresh')
+
 	Benchmark.stop('init')
 
 	// Debug ally maps (uncomment to test)
