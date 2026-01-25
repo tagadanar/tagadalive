@@ -56,10 +56,9 @@ class MapAction {
 			if (item.isSummon) {
 				Array<SummonCandidate> candidates = MapSummon.getBestCells(item.id, 5)
 
-				// If no candidates and this is a defensive summon, create self-cast action
-				// Defensive summons are delayed until after final position
-				if (count(candidates) == 0 && MapSummon.isDefensiveSummon(item.id)) {
-					// Self-cast: from current cell, to Fight.selfCell (marker for delayed spawn)
+				// If no candidates, create self-cast action (delayed spawn at final position)
+				// Works for both defensive and offensive summons - bulb spawns at farthest valid cell
+				if (count(candidates) == 0) {
 					MapAction.addSummonAction(item, Fight.self.cell, Fight.selfCell)
 					continue
 				}
