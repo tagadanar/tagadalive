@@ -28,6 +28,11 @@ class EffectSnapshot {
 	integer lastEffectTotalValue = 0
 	integer _currentEffectTotal = 0
 
+	// Conservative adjustment for self TP/MP buffs (min - avg, typically negative)
+	// Used by Consequences when materializing from snapshot
+	integer selfTPConservativeAdjustment = 0
+	integer selfMPConservativeAdjustment = 0
+
 	constructor() {
 		this.alterations = [:]
 		this.altEffects = [:]

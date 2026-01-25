@@ -315,6 +315,11 @@ class EffectHandlers {
 		integer value = EffectCalc.rawBuff(effect.avg, ratio)
 		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		ctx.add(target, Stats.TP, eot)
+		// Track conservative adjustment for self (min - avg, typically negative)
+		if (target == Fight.self) {
+			integer minValue = EffectCalc.rawBuff(effect.min, ratio)
+			ctx.selfTPConservativeAdjustment += (minValue - value)
+		}
 	}
 
 	static void rawBuffMP(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
@@ -322,6 +327,11 @@ class EffectHandlers {
 		integer value = EffectCalc.rawBuff(effect.avg, ratio)
 		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		ctx.add(target, Stats.MP, eot)
+		// Track conservative adjustment for self (min - avg, typically negative)
+		if (target == Fight.self) {
+			integer minValue = EffectCalc.rawBuff(effect.min, ratio)
+			ctx.selfMPConservativeAdjustment += (minValue - value)
+		}
 	}
 
 	static void rawBuffPower(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
@@ -365,6 +375,11 @@ class EffectHandlers {
 		integer value = EffectCalc.scaledBuff(effect.avg, srcSnc, ratio)
 		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		ctx.add(target, Stats.TP, eot)
+		// Track conservative adjustment for self (min - avg, typically negative)
+		if (target == Fight.self) {
+			integer minValue = EffectCalc.scaledBuff(effect.min, srcSnc, ratio)
+			ctx.selfTPConservativeAdjustment += (minValue - value)
+		}
 	}
 
 	static void buffMP(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, ctx) {
@@ -372,6 +387,11 @@ class EffectHandlers {
 		integer value = EffectCalc.scaledBuff(effect.avg, srcSnc, ratio)
 		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		ctx.add(target, Stats.MP, eot)
+		// Track conservative adjustment for self (min - avg, typically negative)
+		if (target == Fight.self) {
+			integer minValue = EffectCalc.scaledBuff(effect.min, srcSnc, ratio)
+			ctx.selfMPConservativeAdjustment += (minValue - value)
+		}
 	}
 
 	// ════════════════════════════════════════════════════════════════════════
