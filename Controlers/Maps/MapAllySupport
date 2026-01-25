@@ -53,27 +53,9 @@ class MapAllySupport {
 
 			_map_ally_item_heal[ally] = [:]
 			_ally_item_value[ally] = [:]
+			// Antidote gets DEATH_VALUE in computeSupportValue when enemyHasMgc,
+			// so it will naturally sort to top and be included
 			Array<Item> supportItems = Items.getOrderedSupportItems(ally, SUPPORT_ITEMS_LIMIT)
-
-			// Force include antidote if enemyHasMgc and ally has it
-			if (BattleState.enemyHasMgc) {
-				Item? antidoteItem = null
-				for (Item item in ally.items) {
-					if (item.id == CHIP_ANTIDOTE && getCooldown(item.id, ally.id) <= 1) {
-						antidoteItem = item
-						break
-					}
-				}
-				if (antidoteItem != null && !inArray(supportItems, antidoteItem)) {
-					// Replace last item or add if under limit
-					if (count(supportItems) >= SUPPORT_ITEMS_LIMIT) {
-						supportItems[SUPPORT_ITEMS_LIMIT - 1] = antidoteItem!
-					} else {
-						push(supportItems, antidoteItem!)
-					}
-				}
-			}
-
 			_ally_support_items[ally] = supportItems
 
 			// Pre-compute scored value for each item
