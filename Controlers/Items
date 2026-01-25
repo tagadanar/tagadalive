@@ -141,6 +141,13 @@ class Items {
 				real coef = Scoring.getDynamicCoef(Fight.self, Stats.RELSHIELD, null)
 				value += shieldValue * coef * mitigation
 			}
+			// === ANTIDOTE EFFECT ===
+			else if (e.type == EFFECT_ANTIDOTE) {
+				// When enemyHasMgc, use DEATH_VALUE to guarantee selection
+				if (BattleState.enemyHasMgc) {
+					value += ScoringConfig.DEATH_VALUE
+				}
+			}
 		}
 		return value
 	}
