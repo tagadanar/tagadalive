@@ -10,10 +10,6 @@
  */
 
 class MapCellScore {
-	// Top K cells for multi-cell exploration phases
-	// Complexity is O(K^2) for pairs, O(K^3) for triplets
-	static integer INTERESTING_CELLS_K = 10
-
 	// Cell -> total action score (sum of best actions per item)
 	static Map<Cell, real> cellScores = [:]
 
@@ -68,7 +64,7 @@ class MapCellScore {
 			return Sort.desc(MapCellScore.cellScores[a]!, MapCellScore.cellScores[b]!)
 		}) as Array<Cell>
 
-		integer k = min(MapCellScore.INTERESTING_CELLS_K, count(allCells))
+		integer k = min(ExplorerConfig.INTERESTING_CELLS_K_PHASE2, count(allCells))
 		for (integer i = 0; i < k; i++) {
 			push(MapCellScore.interestingCells, allCells[i])
 		}

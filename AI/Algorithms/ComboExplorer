@@ -29,9 +29,10 @@
 // ════════════════════════════════════════════════════════════════
 
 class ExplorerConfig {
-	// Top K cells for Phase 3 three-cell exploration (Phase 2 uses MapCellScore.INTERESTING_CELLS_K)
-	// Complexity is O(K^3 x 6): K=7 -> 210 combos, K=10 -> 720 combos
-	static integer INTERESTING_CELLS_K_PHASE3 = 7
+	// Top K cells for multi-cell exploration phases
+	// Complexity: O(K^2) for pairs, O(K^3 x 6) for triplets
+	static integer INTERESTING_CELLS_K_PHASE2 = 15
+	static integer INTERESTING_CELLS_K_PHASE3 = 10
 	// Operation buffer: dynamic for main leek (base + per bulb + potential summon), fixed for bulbs
 	static integer OPERATION_BUFFER_LEEK_BASE = 250000
 	static integer OPERATION_BUFFER_PER_BULB = 200000
