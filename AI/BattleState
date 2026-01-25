@@ -25,6 +25,7 @@ class BattleState {
 
 	// === Team Flags ===
 	static boolean enemyHasStr = false // any enemy has STR >= 100
+	static boolean enemyHasMgc = false // any enemy has MGC >= 100 (for antidote value)
 	static boolean allyHasStr = false  // any ally has STR >= 100 (for vuln value)
 
 	// === Global State Ratios ===
@@ -64,6 +65,7 @@ class BattleState {
 		countStrBulbs = 0
 		allyHasStr = false
 		enemyHasStr = false
+		enemyHasMgc = false
 		wsdReadyChips = [:]
 		rstReadyChips = [:]
 		allyDanger = [:]
@@ -149,6 +151,10 @@ class BattleState {
 			// Check for enemy with significant strength
 			if (!enemyHasStr && entity.str >= 100) {
 				enemyHasStr = true
+			}
+			// Check for enemy with significant magic (for antidote value)
+			if (!enemyHasMgc && entity.mgc >= 100) {
+				enemyHasMgc = true
 			}
 
 			// For leeks only: compute ratios
