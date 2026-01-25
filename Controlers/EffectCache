@@ -163,8 +163,13 @@ class EffectCache {
 			snap.nextEffect()
 
 			// modifCaster effects apply once to caster, not per-target
+			// For AOE items, caster still gets distance-based ratio
 			if (effect.modifCaster) {
-				EffectCache.applyEffect(snap, effect, Fight.self, Fight.self, 1.0)
+				real ratio = 1.0
+				if (item.isAOE && aimCell != null) {
+					ratio = 1 - (0.2 * getCellDistance(aimCell!.id, Fight.self.cell.id))
+				}
+				EffectCache.applyEffect(snap, effect, Fight.self, Fight.self, ratio)
 				continue
 			}
 

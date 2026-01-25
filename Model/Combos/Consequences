@@ -47,6 +47,11 @@ class Consequences {
 	integer lastEffectTotalValue = 0
 	integer _currentEffectTotal = 0
 
+	// Conservative adjustment for self TP/MP buffs (min - avg, typically negative)
+	// Used to track resources conservatively while scoring optimistically
+	integer selfTPConservativeAdjustment = 0
+	integer selfMPConservativeAdjustment = 0
+
 	// Shared effect snapshot (null = local mode, set = shared mode)
 	// In shared mode, effect data comes from _shared, local maps are empty
 	EffectSnapshot? _shared = null
@@ -209,6 +214,10 @@ class Consequences {
 		integer? boostMPbefore = this.getAlteration(Fight.self, Stats.MP)
 		integer? boostTPbefore = this.getAlteration(Fight.self, Stats.TP)
 
+		// Reset conservative adjustments for this action
+		this.selfTPConservativeAdjustment = 0
+		this.selfMPConservativeAdjustment = 0
+
 		// Apply effects
 		this.targets = Targets.getTargets(action)
 		Cell aoeCenterCell = (action.to == Fight.selfCell) ? this.currentCell : action.to
@@ -217,7 +226,12 @@ class Consequences {
 			this.nextEffect()
 
 			if (effect.modifCaster) {
-				this.updateConsequences(effect, Fight.self, Fight.self, 1.0)
+				// For AOE items, caster still gets distance-based ratio (not always 1.0)
+				real ratio = 1.0
+				if (action.item.isAOE) {
+					ratio = 1 - (0.2 * getCellDistance(aoeCenterCell.id, this.currentCell.id))
+				}
+				this.updateConsequences(effect, Fight.self, Fight.self, ratio)
 				continue
 			}
 
@@ -258,15 +272,15 @@ class Consequences {
 			}
 		}
 
-		// Apply MP/TP boost changes
+		// Apply MP/TP boost changes (with conservative adjustment for self buffs)
 		integer? boostMP = this.getAlteration(Fight.self, Stats.MP)
-		if(boostMP != boostMPbefore){
-			this.currentMP += boostMP - boostMPbefore
+		if (boostMP != boostMPbefore || this.selfMPConservativeAdjustment != 0) {
+			this.currentMP += (boostMP - boostMPbefore) + this.selfMPConservativeAdjustment
 		}
 
 		integer? boostTP = this.getAlteration(Fight.self, Stats.TP)
-		if(boostTP != boostTPbefore){
-			this.currentTP += boostTP - boostTPbefore
+		if (boostTP != boostTPbefore || this.selfTPConservativeAdjustment != 0) {
+			this.currentTP += (boostTP - boostTPbefore) + this.selfTPConservativeAdjustment
 		}
 
 		// Cooldown penalty
@@ -297,15 +311,14 @@ class Consequences {
 			this.currentWeapon = action.item
 		}
 
+		// Apply MP/TP boost from snapshot (with conservative adjustment for self buffs)
 		integer? boostMP = this._shared!.getAlteration(Fight.self, Stats.MP)
-		if (boostMP != null && boostMP != 0) {
-			this.currentMP += boostMP!
-		}
+		integer mpDelta = (boostMP != null ? boostMP! : 0) + this._shared!.selfMPConservativeAdjustment
+		if (mpDelta != 0) this.currentMP += mpDelta
 
 		integer? boostTP = this._shared!.getAlteration(Fight.self, Stats.TP)
-		if (boostTP != null && boostTP != 0) {
-			this.currentTP += boostTP!
-		}
+		integer tpDelta = (boostTP != null ? boostTP! : 0) + this._shared!.selfTPConservativeAdjustment
+		if (tpDelta != 0) this.currentTP += tpDelta
 	}
 
 	// ════════════════════════════════════════════════════════════════════════
