@@ -110,4 +110,14 @@ class ScoringModifiers {
 	static real getDMGReturnModifier(Entity entity) {
 		return 1.0
 	}
+
+	/*
+	 * PLACEHOLDER: Returns simple cooldown duration as opportunity cost.
+	 * Real implementation considers turns remaining in fight.
+	 */
+	static real getOpportunityCost(Action action) {
+		Item item = action.item
+		if (!item.haveCD) return 0
+		return item.cdDuration as real
+	}
 }
