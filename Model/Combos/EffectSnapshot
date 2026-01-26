@@ -21,9 +21,6 @@ class EffectSnapshot {
 	integer hashcode
 	boolean isAlteringDanger
 
-	// Item reference for CD penalty calculation
-	integer cdDuration
-
 	// Effect value tracking for STEAL_LIFE (tracks total value of preceding effect)
 	integer lastEffectTotalValue = 0
 	integer _currentEffectTotal = 0
@@ -43,7 +40,6 @@ class EffectSnapshot {
 		this.rawEnemyDamage = 0.0
 		this.hashcode = 17
 		this.isAlteringDanger = false
-		this.cdDuration = 0
 	}
 
 	/*

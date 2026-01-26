@@ -108,7 +108,9 @@ Consequences.registerHandlers([
 	},
 
 	EFFECT_ANTIDOTE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		// Removes poison effects (checks what's already been altered to avoid double-counting)
+		// Removes poison effects - score comes from HPTIME (negated poison damage), not from DEATH_VALUE
+		// (DEATH_VALUE in Items.computeSupportValue only guarantees antidote is included in support item set)
+		// If target has no poison, this produces zero score - which is correct (preemptive antidote = no value)
 		for (EntityEffect entityEffect in entityTarget.effects) {
 			if (entityEffect.type == EFFECT_POISON) {
 				integer alreadyAltered = conseq.getEffectTypeAlteration(entityTarget, EFFECT_POISON)

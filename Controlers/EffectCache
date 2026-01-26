@@ -153,7 +153,6 @@ class EffectCache {
 	static EffectSnapshot computeSnapshotWithTargets(Item item, Array<Entity> targets, Cell? aimCell) {
 		Benchmark.start("EffectCache.compute")
 		EffectSnapshot snap = EffectSnapshot()
-		snap.cdDuration = item.cdDuration
 		snap.targets = targets
 
 		// Effect-first loop order (matches game behavior)
