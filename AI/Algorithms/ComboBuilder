@@ -266,7 +266,7 @@ class ComboBuilder {
 		integer baseMP = ctx.initialMP
 		integer baseTP = ctx.initialTP
 		integer maxMPBuff = ctx.maxMPBuff
-		Array<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Array<Cell>
+		Set<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Set<Cell>
 
 		// Calculate total distance needed
 		integer totalDistance = ComboBuilder._calculatePathDistance(sequence, ignoreCells, baseMP + maxMPBuff)
@@ -421,7 +421,7 @@ class ComboBuilder {
 		if (csq.pendingBulbs[bulbCell] == null) return;
 
 		// Build ignoreCells: base + killed entities
-		Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
+		Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
 
 		// Generate buff actions for the newly created pendingBulb
 		Array<Action> buffActions = MapAction.getBulbBuffActions(
@@ -617,7 +617,7 @@ class ComboBuilder {
 	 * Calculate total path distance for a sequence of cells.
 	 * Returns -1 if any leg is unreachable.
 	 */
-	static integer _calculatePathDistance(Array<Cell> sequence, Array<Cell> ignoreCells, integer maxMP) {
+	static integer _calculatePathDistance(Array<Cell> sequence, Set<Cell> ignoreCells, integer maxMP) {
 		if (count(sequence) == 0) return 0
 
 		integer totalDist = 0
@@ -748,7 +748,7 @@ class ComboBuilder {
 
 			// Check reachability (cache may have cells beyond MP, must verify distance)
 			if (action!.from != Fight.selfCell) {
-				Array<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
+				Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
 				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
 					csq.currentCell, csq.currentMP, ignoreCells)
 				integer? dist = reachable[action!.from]
@@ -767,8 +767,8 @@ class ComboBuilder {
 	/*
 	 * Build ignoreCells array for pathfinding: base cells + killed entities
 	 */
-	static Array<Cell> buildIgnoreCells(ExplorationContext ctx, Consequences csq) {
-		Array<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Array<Cell>
+	static Set<Cell> buildIgnoreCells(ExplorationContext ctx, Consequences csq) {
+		Set<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Set<Cell>
 		csq.appendKilledCells(ignoreCells)
 		return ignoreCells
 	}
@@ -801,7 +801,7 @@ class ComboBuilder {
 	/*
 	 * Internal implementation of tryAddAction.
 	 */
-	static boolean _tryAddActionImpl(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP, Array<Cell> baseCellsToIgnore) {
+	static boolean _tryAddActionImpl(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP, Set<Cell> baseCellsToIgnore) {
 		// Check usage limit
 		integer uses = usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0
 		if (uses >= action.item.maxUse) return false
@@ -816,7 +816,7 @@ class ComboBuilder {
 		// Check reachability
 		if (action.from != Fight.selfCell) {
 			// Build ignore cells: base + killed entities (COW-aware)
-			Array<Cell> ignoreCells = clone(baseCellsToIgnore) as Array<Cell>
+			Set<Cell> ignoreCells = clone(baseCellsToIgnore) as Set<Cell>
 			csq.appendKilledCells(ignoreCells)
 			integer effectiveMP = max(0, csq.currentMP - reserveMP)
 			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(

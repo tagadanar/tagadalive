@@ -12,8 +12,8 @@ class EffectSnapshot {
 	Map<Entity, Map<integer, integer>> alterations
 	Map<Entity, Map<Item, Array<EffectOverTime>>> altEffects
 	Map<Entity, Map<integer, integer>> effectTypeAlterations
-	Map<Entity, Entity> killed
-	Array<Entity> targets
+	Set<Entity> killed
+	Set<Entity> targets
 
 	// Precomputed metadata
 	real effectScore          // Score from effects only (no CD penalty, no movement)
@@ -37,8 +37,8 @@ class EffectSnapshot {
 		this.alterations = [:]
 		this.altEffects = [:]
 		this.effectTypeAlterations = [:]
-		this.killed = [:]
-		this.targets = []
+		this.killed = <>
+		this.targets = <>
 		this.effectScore = 0.0
 		this.rawEnemyDamage = 0.0
 		this.hashcode = 17
@@ -65,7 +65,7 @@ class EffectSnapshot {
 	 * Check if an entity is killed in this snapshot
 	 */
 	boolean isKilled(Entity entity) {
-		return this.killed[entity] != null
+		return setContains(this.killed, entity)
 	}
 
 	/*
@@ -142,7 +142,7 @@ class EffectSnapshot {
 	void addKill(Entity entity) {
 		this.isAlteringDanger = true
 		this.hashcode = 31 * this.hashcode + entity.id
-		this.killed[entity] = entity
+		setPut(this.killed, entity)
 
 		// ─────────────────────────────────────────────────────────────────────
 		// INLINE KILL SCORING

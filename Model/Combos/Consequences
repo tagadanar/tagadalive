@@ -24,7 +24,7 @@ class Consequences {
 	Map<Entity, Map<integer, integer>> _alterations = [:]
 	Map<Entity, Map<Item, Array<EffectOverTime>>> _altEffects = [:]
 	Map<Entity, Map<integer, integer>> _effectTypeAlterations = [:]
-	Map<Entity, Entity> _killed = [:]
+	Set<Entity> _killed = <>
 
 	// Track which entities have local data (for efficient iteration)
 	Map<Entity, boolean> _localEntities = [:]
@@ -36,7 +36,7 @@ class Consequences {
 	real? score = null
 	boolean isAlteringDanger = false
 	integer hashcode = 17
-	Array<Entity> targets = []
+	Set<Entity> targets = <>
 	Cell currentCell
 	integer currentMP
 	integer currentTP
@@ -129,7 +129,7 @@ class Consequences {
 			this._alterations = clone(consequences._shared!.alterations, 2) as Map<Entity, Map<integer, integer>>
 			this._altEffects = clone(consequences._shared!.altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
 			this._effectTypeAlterations = clone(consequences._shared!.effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
-			this._killed = clone(consequences._shared!.killed) as Map<Entity, Entity>
+			this._killed = clone(consequences._shared!.killed) as Set<Entity>
 			// Mark all entities as local (since we materialized)
 			for (Entity e : Map<integer, integer> _ in this._alterations) {
 				this._localEntities[e] = true
@@ -179,7 +179,7 @@ class Consequences {
 
 	construct(Action action, boolean warnOnUnreachable){
 		// Build ignoreCells: our starting cell + cells of killed entities (can path through kills)
-		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+		Set<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Set<Cell>
 		// Use COW-aware iteration for killed entities
 		this.appendKilledCells(ignoreCells)
 
@@ -267,7 +267,7 @@ class Consequences {
 				this.updateConsequences(effect, Fight.self, target, ratioDmg)
 			}
 
-			if (count(this.targets) == 0 && this.pendingBulbs[aoeCenterCell] != null) {
+			if (setSize(this.targets) == 0 && this.pendingBulbs[aoeCenterCell] != null) {
 				this.handlePendingBulbBuff(effect, aoeCenterCell)
 			}
 		}
@@ -380,7 +380,7 @@ class Consequences {
 		this.hashcode = 31 * this.hashcode + entity.id
 
 		// Add to local killed map (no need to clone - kills don't override)
-		this._killed[entity]=entity
+		setPut(this._killed, entity)
 
 		this.score+= ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
 
@@ -446,14 +446,14 @@ class Consequences {
 	 * Check if entity is killed, walking parent chain.
 	 */
 	boolean isKilled(Entity entity){
-		if (_shared != null) return _shared!.isKilled(entity)
+		if (_shared != null) return setContains(_shared!.killed, entity)
 
 		// Check local kills
-		if (_killed[entity] != null) return true
+		if (setContains(_killed, entity)) return true
 
 		// Walk parent chain
 		if (_parent != null) {
-			return _parent!.isKilled(entity)
+			return setContains(_parent!._killed, entity)
 		}
 
 		return false
@@ -647,10 +647,10 @@ class Consequences {
 	 * Append killed entity cells to array (walks parent chain).
 	 * Public for use by ComboBuilder.buildIgnoreCells().
 	 */
-	void appendKilledCells(Array<Cell> cells) {
+	void appendKilledCells(Set<Cell> cells) {
 		// Add local kills
-		for (Entity e : Entity _ in this._killed) {
-			push(cells, e.cell)
+		for (Entity e in this._killed) {
+			setPut(cells, e.cell)
 		}
 		// Walk parent chain
 		if (_parent != null) {
@@ -833,7 +833,7 @@ class Consequences {
 			}
 		}
 		// Collect all kills (walks parent chain)
-		Array<Entity> allKilled = this._collectAllKilled()
+		Set<Entity> allKilled = this._collectAllKilled()
 		for(Entity entity in allKilled) str+= "\n|KILL: "+ entity
 		str+="\nhashcode:"+this.hashcode+">"
 		return str
@@ -842,17 +842,7 @@ class Consequences {
 	/*
 	 * Collect all killed entities from this node and parents.
 	 */
-	private Array<Entity> _collectAllKilled() {
-		Array<Entity> result = []
-		for (Entity e : Entity _ in this._killed) {
-			push(result, e)
-		}
-		if (_parent != null) {
-			Array<Entity> parentKilled = _parent!._collectAllKilled()
-			for (Entity e in parentKilled) {
-				if (!inArray(result, e)) push(result, e)
-			}
-		}
-		return result
+	private Set<Entity> _collectAllKilled() {
+		return setUnion(this._killed, this._parent?this._parent._killed:<>)
 	}
 }

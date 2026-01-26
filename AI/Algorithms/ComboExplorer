@@ -56,7 +56,7 @@ class ExplorationContext {
 	// Reachability maps (snapshot at exploration start)
 	Map<Cell, integer> reachableCells
 	Map<Cell, integer> extendedReachableCells
-	Array<Cell> cellsToIgnore
+	Set<Cell> cellsToIgnore
 
 	// Results tracking
 	Array<ExplorerResult> topResults
@@ -80,7 +80,7 @@ class ExplorationContext {
 		// Snapshot reachability
 		this.reachableCells = Fight.self.reachableCells
 		this.extendedReachableCells = Fight.self.extendedReachableCells
-		this.cellsToIgnore = clone(Fight.self.cellsToIgnore) as Array<Cell>
+		this.cellsToIgnore = clone(Fight.self.cellsToIgnore) as Set<Cell>
 
 		// Initialize results
 		this.topResults = []
