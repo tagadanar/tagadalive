@@ -168,7 +168,7 @@ class Consequences {
 		c.constructMovementOnly(action)
 
 		// Cooldown penalty
-		c.score -= ScoringModifiers.getOpportunityCost(action)
+		c.score -= ScoringModifiers.getOpportunityCost(action, c.score)
 		Benchmark.stop("Consequences.shared")
 		return c
 	}
@@ -284,7 +284,7 @@ class Consequences {
 		}
 
 		// Cooldown penalty
-		this.score -= ScoringModifiers.getOpportunityCost(action)
+		this.score -= ScoringModifiers.getOpportunityCost(action, this.score!)
 	}
 
 	/*
