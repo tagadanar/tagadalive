@@ -210,6 +210,9 @@ class Consequences {
 			this.currentWeapon = action.item
 		}
 
+		// Track score before effects (for opportunity cost calculation)
+		real scoreBefore = this.score != null ? this.score! : 0.0
+
 		// Track MP/TP boosts before applying effects
 		integer? boostMPbefore = this.getAlteration(Fight.self, Stats.MP)
 		integer? boostTPbefore = this.getAlteration(Fight.self, Stats.TP)
@@ -283,8 +286,9 @@ class Consequences {
 			this.currentTP += (boostTP - boostTPbefore) + this.selfTPConservativeAdjustment
 		}
 
-		// Cooldown penalty
-		this.score -= ScoringModifiers.getOpportunityCost(action, this.score!)
+		// Cooldown penalty (pass only current action's effect score, not cumulative)
+		real currentActionScore = this.score! - scoreBefore
+		this.score -= ScoringModifiers.getOpportunityCost(action, currentActionScore)
 	}
 
 	/*
