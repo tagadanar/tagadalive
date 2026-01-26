@@ -113,7 +113,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns simple cooldown duration as opportunity cost.
-	 * Real implementation considers turns remaining in fight.
 	 */
 	static real getOpportunityCost(Action action, real effectScore) {
 		Item item = action.item
