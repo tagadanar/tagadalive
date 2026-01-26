@@ -15,14 +15,14 @@ class MapPath{
 	 * @return  un tableau contenant pour chaque cellules accessible [Cell:distance]
 	 * 
 	 */
-	static Map<Cell, integer> getReachableCells(Map<Cell, integer> cells, integer mp, Set<Cell> ignoreCells){
+	static Map<Cell, integer> getReachableCells(Map<Cell, integer> cells, integer mp, Array<Cell> ignoreCells){
 		Map<Cell, integer> stack = clone(cells, 2) as Map<Cell, integer>
 		Map<Cell, integer> tmp = clone(cells, 2) as Map<Cell, integer>
 		Map<Cell, integer> next = [:]
 		while(mp-->0){
 			for(Cell currentWorkingCell: integer dist in tmp){
 				for(Cell c in currentWorkingCell.neighbors){
-					if(stack[c] == null && (!Board.entityCells[c] || setContains(ignoreCells, c))){
+					if(stack[c] == null && (!Board.entityCells[c] || inArray(ignoreCells, c))){
 						stack[c] = dist+1
 						next[c] = dist+1
 					}
@@ -34,7 +34,7 @@ class MapPath{
 		return stack
 	}
 	
-	static integer getHashcode(Cell from, Set<Cell> ignoreCells){
+	static integer getHashcode(Cell from, Array<Cell> ignoreCells){
 		integer hash = 31
 		hash = hash*37+from.id
 		for(Cell c in ignoreCells){
@@ -48,7 +48,7 @@ class MapPath{
 	 * WARNING: Cache may contain cells beyond requested mp if previously expanded.
 	 * Callers MUST check distance <= mp when iterating results!
 	 */
-	static Map<Cell, integer> getCachedReachableCells(Cell from, integer mp, Set<Cell> ignoreCells){
+	static Map<Cell, integer> getCachedReachableCells(Cell from, integer mp, Array<Cell> ignoreCells){
 		integer hash = MapPath.getHashcode(from, ignoreCells)
 		Map<Cell, integer>? result = MapPath._cache_reachable[hash]
 		if(result==null){

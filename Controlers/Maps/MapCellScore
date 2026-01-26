@@ -198,8 +198,11 @@ class MapCellScore {
 	 */
 	static boolean actionHitsTarget(Action action, Entity target) {
 		// Get cells affected by this AOE
-		Set<Cell> affectedCells = action.to.getAreaCells(action.item.area)
-		return setContains(affectedCells, target.cell)
+		Array<Cell> affectedCells = action.to.getAreaCells(action.item.area)
+		for (Cell c in affectedCells) {
+			if (c == target.cell) return true
+		}
+		return false
 	}
 
 	/*

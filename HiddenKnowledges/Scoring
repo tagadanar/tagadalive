@@ -1,0 +1,147 @@
+/*
+ * Scoring - Main facade for action scoring system
+ *
+ * Provides cached coefficients and duration calculations for action evaluation.
+ * Contains getDynamicCoef() which uses ScoringModifiers for coefficient adjustments.
+ *
+ * NOTE: This is a PUBLIC PLACEHOLDER with simplified logic.
+ * Real scoring logic is in a private repository.
+ *
+ * Used by: Consequences, MapAction, AI, MCTS
+ */
+class Scoring {
+
+	// === Caches (recomputed each turn) ===
+	static Map<Entity, Map<integer, real>> _cache_coef = [:]
+	static Map<Entity, Map<integer, real>> _cache_dynamic_coef = [:]
+	static Map<integer, integer> _cache_duration = [:]
+
+	// === Dynamic Position Weights ===
+	static real W_LOCK_BONUS = 1000.0
+	static integer IDEAL_DIST_RANGED = -1
+
+	/*
+	 * Initialize all scoring data for the current turn.
+	 */
+	static void refresh() {
+		BattleState.refresh()
+
+		_cache_coef = [:]
+		_cache_dynamic_coef = [:]
+		_cache_duration = [:]
+
+		// Compute dynamic position weights
+		W_LOCK_BONUS = 1000.0
+
+		if (IDEAL_DIST_RANGED == -1) {
+			integer longestRange = 0
+			for (Item item in Fight.self.items) {
+				if (item.maxRange > longestRange) {
+					longestRange = item.maxRange
+				}
+			}
+			IDEAL_DIST_RANGED = Fight.self.mp + longestRange
+		}
+		if (getTurn() % 5 == 0) IDEAL_DIST_RANGED--
+
+		// Pre-compute effective durations
+		integer turnsLeft = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
+		for (integer raw = -1; raw <= ScoringConfig.MAX_DURATION; raw++) {
+			integer base = raw == -1 ? turnsLeft : min(raw, turnsLeft)
+			base = min(base, ScoringConfig.MAX_DURATION)
+			_cache_duration[(raw + 1) * 2] = max(base, 0)
+			_cache_duration[(raw + 1) * 2 + 1] = max(base - 1, 0)
+		}
+
+		// Pre-compute coefficients for all entities
+		for (Entity entity in Fight.getAllAlive()) {
+			_cache_coef[entity] = [:]
+			for (integer stat in ScoringConfig.ALL_STATS) {
+				_cache_coef[entity]![stat] = EntityCoefs.getStatCoef(entity, stat)
+			}
+		}
+
+		if (!ScoringConfig.DYNAMIC_COEFS) {
+			for (Entity entity in Fight.getAllAlive()) {
+				_cache_dynamic_coef[entity] = [:]
+				for (integer stat in ScoringConfig.ALL_STATS) {
+					_cache_dynamic_coef[entity]![stat] = _computeDynamicCoef(entity, stat, null)
+				}
+			}
+		}
+	}
+
+	/*
+	 * Add a single entity to scoring caches (for mid-turn summons).
+	 */
+	static void _addEntityToCache(Entity entity) {
+		_cache_coef[entity] = [:]
+		for (integer stat in ScoringConfig.ALL_STATS) {
+			_cache_coef[entity]![stat] = EntityCoefs.getStatCoef(entity, stat)
+		}
+		_cache_dynamic_coef[entity] = [:]
+		for (integer stat in ScoringConfig.ALL_STATS) {
+			_cache_dynamic_coef[entity]![stat] = _computeDynamicCoef(entity, stat, null)
+		}
+	}
+
+	/*
+	 * Returns cached base coefficient for an entity and stat
+	 */
+	static real getCoef(Entity entity, integer key) {
+		if (_cache_coef[entity] == null) {
+			_addEntityToCache(entity)
+		}
+		return _cache_coef[entity]![key]!
+	}
+
+	/*
+	 * Checks if an ally might die before their next turn
+	 */
+	static boolean canDie(Entity entity, Consequences? consequences) {
+		real? danger = BattleState.allyDanger[entity]
+		if (danger == null) return false
+		integer currentHP = entity.getCurrentHP(consequences)
+		return currentHP < danger! * ScoringConfig.CANDIE_THRESHOLD
+	}
+
+	/*
+	 * Returns dynamic coefficient with all modifiers applied.
+	 */
+	static real getDynamicCoef(Entity entity, integer stat, Consequences? consequences) {
+		if (ScoringConfig.DYNAMIC_COEFS) {
+			return _computeDynamicCoef(entity, stat, consequences)
+		} else {
+			if (_cache_dynamic_coef[entity] == null) {
+				_addEntityToCache(entity)
+			}
+			return _cache_dynamic_coef[entity]![stat]!
+		}
+	}
+
+	/*
+	 * PLACEHOLDER: Simplified dynamic coefficient computation
+	 * Real version applies many situational modifiers
+	 */
+	static real _computeDynamicCoef(Entity entity, integer stat, Consequences? consequences) {
+		real base = getCoef(entity, stat)
+		// Placeholder: just apply life ratio modifier
+		if (stat == Stats.HP || stat == Stats.HPTIME) {
+			if (consequences != null) {
+				base *= ScoringModifiers.getLifeRatioModifierDynamic(entity, consequences!)
+			} else {
+				base *= ScoringModifiers.getLifeRatioModifier(entity)
+			}
+		}
+		return base
+	}
+
+	/*
+	 * Returns effective duration of an effect
+	 */
+	static integer getEffectiveDuration(integer rawDuration, Entity source, Entity target) {
+		integer cappedRaw = rawDuration == -1 ? -1 : min(rawDuration, ScoringConfig.MAX_DURATION)
+		integer key = (cappedRaw + 1) * 2 + (source.turnOrder > target.turnOrder ? 1 : 0)
+		return _cache_duration[key]!
+	}
+}

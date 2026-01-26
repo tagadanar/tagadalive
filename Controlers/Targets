@@ -1,19 +1,19 @@
-class Targets {
+class Targets{
 
-	static Set<Entity> getTargets(Action action) {
-		Set<Entity> targets = <>
+	static Array<Entity> getTargets(Action action){
+		Array<Entity> targets
 		if(action.to == Fight.selfCell) {
 			if(action.item.isAOE) {
 				// For AOE self-cast, get targets around actual caster position
 				Cell actualPosition = (action.from == Fight.selfCell) ? Fight.self.cell : action.from
 				targets = getItemTargets(action.item, actualPosition)
 				// Ensure self is included (may not be in entity list)
-				setPut(targets, Fight.self)
+				if(!inArray(targets, Fight.self)) push(targets, Fight.self)
 			} else {
-				targets = <Fight.self>
+				targets = [Fight.self]
 			}
 		}
-		else {
+		else{
 			if(action.item.area == AREA_LASER_LINE)
 				targets = Targets.getLazerTargetsFromCell(action.item, action.from, action.to)
 			else
@@ -23,7 +23,7 @@ class Targets {
 		if(action.item.isAOE && action.item.onCaster && action.to != Fight.selfCell){
 			for(Cell cell in action.to.getAreaCells(action.item.area)){
 				if(action.from == cell){
-					setPut(targets, Fight.self)
+					push(targets, Fight.self)
 					break;
 				}
 			}
@@ -74,8 +74,8 @@ class Targets {
 	/*
 	 * retourne la liste des <Entity> touchées par un tir de lazer avec @item depuis @from vers @to
 	 */
-	static Set<Entity> getLazerTargetsFromCell(Item item, Cell from, Cell to){
-		Set<Entity> result = <>
+	static Array<Entity> getLazerTargetsFromCell(Item item, Cell from, Cell to){
+		Array<Entity> result = []
 		integer inc = 0
 		integer maxInc = item.maxRange-getCellDistance(from.id, to.id)
 		Cell? tmpCell
@@ -85,7 +85,7 @@ class Targets {
 					tmpCell = Board.cellsXY[to.x]![to.y+inc]
 					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
-					if(entityOnCell != null) setPut(result, entityOnCell)
+					if(entityOnCell != null) push(result, entityOnCell)
 					inc++
 				}
 			}else{ // y--
@@ -93,7 +93,7 @@ class Targets {
 					tmpCell = Board.cellsXY[to.x]![to.y-inc]
 					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
-					if(entityOnCell != null) setPut(result, entityOnCell)
+					if(entityOnCell != null) push(result, entityOnCell)
 					inc++
 				}
 			}
@@ -103,7 +103,7 @@ class Targets {
 					tmpCell = Board.cellsXY[to.x+inc]![to.y]
 					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
-					if(entityOnCell != null) setPut(result, entityOnCell)
+					if(entityOnCell != null) push(result, entityOnCell)
 					inc++
 				}
 			}else{ // x--
@@ -111,7 +111,7 @@ class Targets {
 					tmpCell = Board.cellsXY[to.x-inc]![to.y]
 					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
-					if(entityOnCell!= null) setPut(result, entityOnCell)
+					if(entityOnCell!= null) push(result, entityOnCell)
 					inc++
 				}
 			}

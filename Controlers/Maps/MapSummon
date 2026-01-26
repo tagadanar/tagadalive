@@ -528,7 +528,7 @@ class MapSummon {
 		// Get all cells reachable from attackCell within bulbMP
 		// (reverse logic: if bulb can walk FROM spawn TO attack,
 		//  then attack is reachable FROM spawn, which means spawn is in this set)
-		Map<Cell, integer> reachable = MapPath.getReachableCells([attackCell: 0], bulbMP, <>)
+		Map<Cell, integer> reachable = MapPath.getReachableCells([attackCell: 0], bulbMP, [])
 
 		Array<Cell> result = []
 		for (Cell c : integer dist in reachable) {

@@ -1,0 +1,161 @@
+/*
+ * EntityCoefs - Base coefficients for scoring by entity type
+ *
+ * Contains the coefficient tables for different entity types and the
+ * base coefficient lookup function.
+ *
+ * NOTE: This is a PUBLIC PLACEHOLDER with neutral values (all 1.0).
+ * Real coefficients are in a private repository.
+ *
+ * Used by: Scoring
+ */
+class EntityCoefs {
+
+	// === Entity Type Coefficients (PLACEHOLDER - all 1.0) ===
+	static Map<integer, Map<integer, real>> baseCoefs = [
+		ENTITY_LEEK: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		ENTITY_BULB: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_HEALER: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_WIZARD: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_FIRE: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_ICED: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_LIGHTNING: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_METALLIC: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_ROCKY: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_PUNY: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_TACTICIAN: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		Entity.BULB_SAVANT: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		ENTITY_TURRET: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		ENTITY_CHEST: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		],
+		ENTITY_MOB: [
+			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
+			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
+			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
+			Stats.STR: 1.0, Stats.MGC: 1.0, Stats.RST: 1.0,
+			Stats.WSD: 1.0, Stats.AGI: 1.0,
+			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
+		]
+	]
+
+	/*
+	 * Returns coefficient for a stat based on entity type and allegiance
+	 * @param entity The entity to get coefficient for
+	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
+	 * @return Positive for allies, negative for enemies
+	 */
+	static real getStatCoef(Entity entity, integer stat) {
+		Map<integer, real>? coefs = baseCoefs[entity.extendedType]
+		if (coefs == null) {
+			if (entity.isBulb) {
+				coefs = baseCoefs[ENTITY_BULB]
+			} else {
+				coefs = baseCoefs[ENTITY_LEEK]
+			}
+		}
+		real base = coefs![stat]!
+
+		// KILL is inverted: killing enemy = good, losing ally = bad
+		if (stat == Stats.KILL) {
+			return entity.isFriend ? -base : base
+		}
+		return entity.isFriend ? base : -base
+	}
+}

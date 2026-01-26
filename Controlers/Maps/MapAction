@@ -209,7 +209,7 @@ class MapAction {
 
 			// For onCaster AOE: pre-compute area cells to check if fromCell is inside AOE
 			// (snapshot excludes self, but if fromCell is in AOE, self should be included)
-			Set<Cell>? aoeCells = null
+			Array<Cell>? aoeCells = null
 			if (baseSnapshot != null && item.onCaster) {
 				aoeCells = aimCell.getAreaCells(item.area)
 			}
@@ -218,7 +218,7 @@ class MapAction {
 			for (Cell c in cells) {
 				EffectSnapshot? snapshot = baseSnapshot
 				// Invalidate cache if this fromCell is inside AOE (self-damage not in snapshot)
-				if (aoeCells != null && setContains(aoeCells!, c)) {
+				if (aoeCells != null && inArray(aoeCells!, c)) {
 					snapshot = null
 				}
 				Action? action = MapAction.addActionWithSnapshot(item, c, aimCell, snapshot)
@@ -382,7 +382,7 @@ class MapAction {
 		integer remainingMP,
 		integer remainingTP,
 		Map<Item, integer> usesThisTurn,
-		Set<Cell> cellsToIgnore
+		Array<Cell> cellsToIgnore
 	) {
 		Array<Action> result = []
 

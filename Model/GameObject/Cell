@@ -7,11 +7,11 @@ class Cell {
 	integer id
 	boolean isWall
 	boolean isNotWall
-	Set<Cell> neighbors
-	Set<Cell> neighborsObstacles
+	Array<Cell> neighbors
+	Array<Cell> neighborsObstacles
 	integer x
 	integer y
-	Map<integer, Set<Cell>> _AREAS = [:]
+	Map<integer, Array<Cell>> _AREAS = [:]
 
 	constructor(integer id){
 		this.id = id
@@ -38,31 +38,31 @@ class Cell {
 	 * Initialise les cellules voisines
 	 */
 	void initNeighbors(){
-		Set<Cell> result = <>
+		Array<Cell> result = []
 
 		Cell? c = Board.cellsXY[this.x]![this.y-1];
-		if(c != null && c!.isNotWall) setPut(result, c);
+		if(c != null && c!.isNotWall) push(result, c);
 		c = Board.cellsXY[this.x]![this.y+1];
-		if(c != null && c!.isNotWall) setPut(result, c);
+		if(c != null && c!.isNotWall) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y];
-		if(c != null && c!.isNotWall) setPut(result, c);
+		if(c != null && c!.isNotWall) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y];
-		if(c != null && c!.isNotWall) setPut(result, c);
+		if(c != null && c!.isNotWall) push(result, c);
 
 		this.neighbors = result
 	}
 	
 	void initNeighborsObstacles(){
-		Set<Cell> result = <>
+		Array<Cell> result = []
 
 		Cell? c = Board.cellsXY[this.x]![this.y-1];
-		if(c != null) setPut(result, c);
+		if(c != null) push(result, c);
 		c = Board.cellsXY[this.x]![this.y+1];
-		if(c != null) setPut(result, c);
+		if(c != null) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y];
-		if(c != null) setPut(result, c);
+		if(c != null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y];
-		if(c != null) setPut(result, c);
+		if(c != null) push(result, c);
 
 		this.neighborsObstacles = result
 	}
@@ -70,7 +70,7 @@ class Cell {
 	/*
 	 * Retourne un tableau de Cell correspondant aux cases de l'@area en params depuis cette case
 	 */
-	Set<Cell> getAreaCells(integer area){
+	Array<Cell> getAreaCells(integer area){
 		if(!_AREAS[area]) debugE('unhandled AREA in Cell.getAreaCells(): '+ area)
 		return _AREAS[area]!
 	}
@@ -80,150 +80,150 @@ class Cell {
 	 * C'est long et pas joli, on pourrait faire plus concis avec des for surement, mais là c'est relativement opti en opération
 	 */
 	void initAreas(){
-		Set<Cell> result = <this>
+		Array<Cell> result = [this]
 		// AREA_POINT
-		_AREAS[AREA_POINT] = <this>
+		_AREAS[AREA_POINT] = [this]
 		
 		//AREA_FIRST_INLINE
-		_AREAS[AREA_FIRST_INLINE] = <this>
+		_AREAS[AREA_FIRST_INLINE] = [this]
 		
 		// AREA_CIRCLE_1
-		result = setUnion(result, this.neighborsObstacles)
-		_AREAS[AREA_CIRCLE_1] = clone(result) as Set<Cell>
+		pushAll(result, this.neighborsObstacles)
+		_AREAS[AREA_CIRCLE_1] = clone(result) as Array<Cell>
 		
 		// AREA_PLUS_2
 		Cell? c = Board.cellsXY[this.x]![this.y-2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x]![this.y+2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-2]![this.y];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+2]![this.y];
-		if(c!=null) setPut(result, c);
-		_AREAS[AREA_PLUS_2] = clone(result) as Set<Cell>
+		if(c!=null) push(result, c);
+		_AREAS[AREA_PLUS_2] = clone(result) as Array<Cell>
 		
 		// AREA_CIRCLE_2
 		c = Board.cellsXY[this.x+1]![this.y-1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y+1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y-1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y+1];
-		if(c!=null) setPut(result, c);
-		_AREAS[AREA_CIRCLE_2] = clone(result) as Set<Cell>
+		if(c!=null) push(result, c);
+		_AREAS[AREA_CIRCLE_2] = clone(result) as Array<Cell>
 		
 		// AREA_CIRCLE_3
 		c = Board.cellsXY[this.x+2]![this.y-1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+2]![this.y+1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y-2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y+2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y-2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y+2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-2]![this.y-1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-2]![this.y+1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x]![this.y-3];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x]![this.y+3];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-3]![this.y];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+3]![this.y];
-		if(c!=null) setPut(result, c);
-		_AREAS[AREA_CIRCLE_3] = clone(result) as Set<Cell>
+		if(c!=null) push(result, c);
+		_AREAS[AREA_CIRCLE_3] = clone(result) as Array<Cell>
 		
 		// AREA_PLUS_3
-		result = clone(_AREAS[AREA_PLUS_2]) as Set<Cell>
+		result = clone(_AREAS[AREA_PLUS_2]) as Array<Cell>
 		c = Board.cellsXY[this.x]![this.y-3];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x]![this.y+3];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-3]![this.y];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+3]![this.y];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		_AREAS[AREA_PLUS_3] = result
 		
 		// AREA_SQUARE_1
-		result = clone(_AREAS[AREA_CIRCLE_1]) as Set<Cell>
+		result = clone(_AREAS[AREA_CIRCLE_1]) as Array<Cell>
 		c = Board.cellsXY[this.x-1]![this.y+1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y+1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y-1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y-1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		_AREAS[AREA_SQUARE_1] = result
 		
 		// AREA_SQUARE_2
-		result = clone(_AREAS[AREA_CIRCLE_2]) as Set<Cell>
+		result = clone(_AREAS[AREA_CIRCLE_2]) as Array<Cell>
 		c = Board.cellsXY[this.x+2]![this.y-1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+2]![this.y+1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y-2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y+2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y-2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y+2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-2]![this.y-1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-2]![this.y+1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-2]![this.y+2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-2]![this.y-2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+2]![this.y-2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+2]![this.y+2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		_AREAS[AREA_SQUARE_2] = result
 
-		result = <this>
+		result = [this]
 		// AREA_X_1
 		c = Board.cellsXY[this.x-1]![this.y+1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y+1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+1]![this.y-1];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-1]![this.y-1];
-		if(c!=null) setPut(result, c);
-		_AREAS[AREA_X_1] = clone(result) as Set<Cell>
+		if(c!=null) push(result, c);
+		_AREAS[AREA_X_1] = clone(result) as Array<Cell>
 
 		// AREA_X_2
 		c = Board.cellsXY[this.x-2]![this.y+2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-2]![this.y-2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+2]![this.y-2];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+2]![this.y+2];
-		if(c!=null) setPut(result, c);
-		_AREAS[AREA_X_2] = clone(result) as Set<Cell>
+		if(c!=null) push(result, c);
+		_AREAS[AREA_X_2] = clone(result) as Array<Cell>
 
 		// AREA_X_3
 		c = Board.cellsXY[this.x-3]![this.y+3];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x-3]![this.y-3];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+3]![this.y-3];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		c = Board.cellsXY[this.x+3]![this.y+3];
-		if(c!=null) setPut(result, c);
+		if(c!=null) push(result, c);
 		_AREAS[AREA_X_3] = result
 	}
 

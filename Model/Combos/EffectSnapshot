@@ -12,17 +12,14 @@ class EffectSnapshot {
 	Map<Entity, Map<integer, integer>> alterations
 	Map<Entity, Map<Item, Array<EffectOverTime>>> altEffects
 	Map<Entity, Map<integer, integer>> effectTypeAlterations
-	Set<Entity> killed
-	Set<Entity> targets
+	Map<Entity, Entity> killed
+	Array<Entity> targets
 
 	// Precomputed metadata
 	real effectScore          // Score from effects only (no CD penalty, no movement)
 	real rawEnemyDamage       // Raw damage dealt to enemies before shield mitigation (for Liberation combo detection)
 	integer hashcode
 	boolean isAlteringDanger
-
-	// Item reference for CD penalty calculation
-	integer cdDuration
 
 	// Effect value tracking for STEAL_LIFE (tracks total value of preceding effect)
 	integer lastEffectTotalValue = 0
@@ -37,13 +34,12 @@ class EffectSnapshot {
 		this.alterations = [:]
 		this.altEffects = [:]
 		this.effectTypeAlterations = [:]
-		this.killed = <>
-		this.targets = <>
+		this.killed = [:]
+		this.targets = []
 		this.effectScore = 0.0
 		this.rawEnemyDamage = 0.0
 		this.hashcode = 17
 		this.isAlteringDanger = false
-		this.cdDuration = 0
 	}
 
 	/*
@@ -65,7 +61,7 @@ class EffectSnapshot {
 	 * Check if an entity is killed in this snapshot
 	 */
 	boolean isKilled(Entity entity) {
-		return setContains(this.killed, entity)
+		return this.killed[entity] != null
 	}
 
 	/*
@@ -142,7 +138,7 @@ class EffectSnapshot {
 	void addKill(Entity entity) {
 		this.isAlteringDanger = true
 		this.hashcode = 31 * this.hashcode + entity.id
-		setPut(this.killed, entity)
+		this.killed[entity] = entity
 
 		// ─────────────────────────────────────────────────────────────────────
 		// INLINE KILL SCORING

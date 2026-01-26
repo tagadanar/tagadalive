@@ -1,0 +1,123 @@
+/*
+ * ScoringModifiers - Pure modifier functions for action scoring
+ *
+ * Contains all modifier functions that adjust base coefficients based on
+ * situational context (life ratio, level, team composition, shields, etc.)
+ *
+ * NOTE: This is a PUBLIC PLACEHOLDER with neutral modifiers (all return 1.0).
+ * Real modifier logic is in a private repository.
+ *
+ * Used by: Scoring
+ */
+class ScoringModifiers {
+
+	static real LEVEL_RATIO_SCALE = 0.0876
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getLifeRatioModifier(Entity entity) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getLifeRatioModifierDynamic(Entity entity, Consequences consequences) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real _computeLifeRatioModifier(real lifeRatio, boolean isFriend) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getLevelRatioModifier(Entity entity) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getStatScalingModifier(integer currentStat) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getMaxHPComparisonModifier(Entity entity) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getChipReadyModifier(Entity entity, integer stat) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getWinningModifier() {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getShieldStatusModifier(Entity entity, integer stat) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getTeamCompModifier(Entity entity, integer stat) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getTPModifier(Entity entity) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getAGIModifier(Entity entity) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getMPModifier(Entity entity) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns neutral modifier
+	 */
+	static real getDMGReturnModifier(Entity entity) {
+		return 1.0
+	}
+
+	/*
+	 * PLACEHOLDER: Returns simple cooldown duration as opportunity cost.
+	 * Real implementation considers turns remaining in fight.
+	 */
+	static real getOpportunityCost(Action action, real effectScore) {
+		Item item = action.item
+		if (!item.haveCD) return 0
+		return item.cdDuration as real
+	}
+}

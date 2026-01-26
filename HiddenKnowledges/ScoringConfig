@@ -1,0 +1,111 @@
+/*
+ * ScoringConfig - Configuration and constants for the scoring system
+ *
+ * Contains all ML-tunable weights, thresholds, and duration mitigation tables.
+ * Centralizes configuration for easy tuning and experimentation.
+ *
+ * NOTE: This is a PUBLIC PLACEHOLDER with neutral values.
+ * Real weights are in a private repository.
+ *
+ * Used by: Scoring, ScoringModifiers, MapPosition, Position
+ */
+class ScoringConfig {
+
+	// === Performance vs Accuracy Trade-off ===
+	static boolean DYNAMIC_COEFS = false
+
+	// === Combat Values (PLACEHOLDER) ===
+	static integer KILL_VALUE = 1000
+	static integer DEATH_VALUE = -1000
+	static integer MAX_FIGHT_TURNS = 66
+	static integer MAX_DURATION = 8
+
+	// === CanDie Thresholds (PLACEHOLDER) ===
+	static real CANDIE_MODIFIER = 1.0
+	static real CANDIE_THRESHOLD = 1.0
+
+	static real getIgnoreDangerRatio(Entity entity) {
+		return 0.5
+	}
+
+	// === Ally Modifier (PLACEHOLDER) ===
+	static real ALLY_BUFF_MODIFIER = 1.0
+
+	// === All Stats (for iteration) ===
+	static Array<integer> ALL_STATS = [
+		Stats.HP, Stats.HPTIME, Stats.HPMAX, Stats.DEBUFF, Stats.ANTIDOTE,
+		Stats.ABSSHIELD, Stats.RELSHIELD, Stats.DMGRETURN,
+		Stats.STR, Stats.MGC, Stats.RST, Stats.WSD, Stats.AGI,
+		Stats.TP, Stats.MP, Stats.PWR, Stats.KILL
+	]
+
+	// === Chip Maps for WSD/RST Modifiers ===
+	static Map<integer, boolean> WSD_CHIPS = [CHIP_ELEVATION: true, CHIP_CURE: true, CHIP_VACCINE: true, CHIP_ARMORING: true, CHIP_REMISSION: true]
+	static Map<integer, boolean> RST_CHIPS = [CHIP_HELMET: true, CHIP_SHIELD: true, CHIP_ARMOR: true, CHIP_WALL: true, CHIP_FORTRESS: true]
+
+	// === Position Scoring Weights (PLACEHOLDER - all neutral) ===
+	static real W_DANGER_BASE = 1.0
+	static real W_DANGER_LOW_HP = 1.0
+	static real W_DANGER_CRITICAL = 1.0
+
+	static real LOW_HP_THRESHOLD = 0.5
+	static real CRITICAL_DANGER_RATIO = 0.5
+
+	static real W_PROXIMITY_AREA1 = 1.0
+	static real W_PROXIMITY_AREA2 = 1.0
+	static real W_PROXIMITY_AREA3 = 1.0
+
+	static real W_CAC_IN_RANGE = 1.0
+	static real W_COVID_LEEK = 1.0
+	static real W_COVID_SUMMON = 1.0
+
+	static real W_GRAVITY_ALLY_TURRET = 1.0
+	static real W_GRAVITY_ENEMY_TURRET = 1.0
+	static real W_GRAVITY_NEAREST_ENEMY = 1.0
+	static real W_GRAVITY_CENTER = 1.0
+
+	static integer THREAT_SNC_THRESHOLD = 100
+
+	// === Distance Weights (PLACEHOLDER) ===
+	static integer IDEAL_DIST_CAC = 1
+	static integer IDEAL_DIST_ALLY = 3
+	static integer IDEAL_DIST_CENTER = 4
+
+	// === Duration Mitigation Tables (PLACEHOLDER - linear) ===
+	static Map<integer, real> defensive_duration_mitigation = [
+		0 : 1.0, 1 : 1.0, 2 : 2.0, 3 : 3.0, 4 : 4.0, 5 : 5.0, 6 : 6.0, 7 : 7.0, 8 : 8.0
+	]
+
+	static Map<integer, real> offensive_duration_mitigation = [
+		0 : 1.0, 1 : 1.0, 2 : 2.0, 3 : 3.0, 4 : 4.0, 5 : 5.0, 6 : 6.0, 7 : 7.0, 8 : 8.0
+	]
+
+	// === Summon Values (PLACEHOLDER - all equal) ===
+	static real SUMMON_VALUE_DEFAULT = 100.0
+	static Map<integer, real> SUMMON_VALUES = [
+		Entity.BULB_FIRE: 100.0,
+		Entity.BULB_HEALER: 100.0,
+		Entity.BULB_METALLIC: 100.0,
+		Entity.BULB_ICED: 100.0,
+		Entity.BULB_LIGHTNING: 100.0,
+		Entity.BULB_ROCKY: 100.0,
+		Entity.BULB_WIZARD: 100.0,
+		Entity.BULB_PUNY: 100.0,
+		Entity.BULB_TACTICIAN: 100.0,
+		Entity.BULB_SAVANT: 100.0,
+	]
+
+	static integer getBulbTypeFromChip(integer chipId) {
+		if (chipId == CHIP_FIRE_BULB) return Entity.BULB_FIRE
+		if (chipId == CHIP_HEALER_BULB) return Entity.BULB_HEALER
+		if (chipId == CHIP_METALLIC_BULB) return Entity.BULB_METALLIC
+		if (chipId == CHIP_ICED_BULB) return Entity.BULB_ICED
+		if (chipId == CHIP_LIGHTNING_BULB) return Entity.BULB_LIGHTNING
+		if (chipId == CHIP_ROCKY_BULB) return Entity.BULB_ROCKY
+		if (chipId == CHIP_WIZARD_BULB) return Entity.BULB_WIZARD
+		if (chipId == CHIP_PUNY_BULB) return Entity.BULB_PUNY
+		if (chipId == CHIP_TACTICIAN_BULB) return Entity.BULB_TACTICIAN
+		if (chipId == CHIP_SAVANT_BULB) return Entity.BULB_SAVANT
+		return ENTITY_BULB
+	}
+}
