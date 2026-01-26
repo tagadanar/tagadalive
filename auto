@@ -89,11 +89,11 @@ include('Model/Combos/Effects/PassiveEffects')
 // Order: Config → EntityCoefs → BattleState → Modifiers → Scoring facade
 // Must be AFTER Consequences (Scoring uses Consequences? parameter type)
 // ────────────────────────────────────────────────────────────────────────────
-include('AI/ScoringConfig')
-include('AI/EntityCoefs')
-include('AI/BattleState')
-include('AI/ScoringModifiers')
-include('AI/Scoring')
+include('Controlers/BattleState')
+include('HiddenKnowledges/ScoringConfig')
+include('HiddenKnowledges/EntityCoefs')
+include('HiddenKnowledges/ScoringModifiers')
+include('HiddenKnowledges/Scoring')
 
 // ────────────────────────────────────────────────────────────────────────────
 // EFFECT CACHE: Caches EffectSnapshots for action pool creation
