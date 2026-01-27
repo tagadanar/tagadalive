@@ -51,7 +51,7 @@ class EffectCache {
 		// For onCaster AOE: only cache when fromCell is outside the AOE area
 		// When fromCell is inside, self gets added to targets - can't reuse snapshot
 		if (item.isAOE && item.onCaster) {
-			if (inArray(aimCell.getAreaCells(item.area), fromCell)) return null
+			if (setContains(aimCell.getAreaCells(item.area), fromCell)) return null
 		}
 
 		integer itemId = item.id
@@ -87,10 +87,10 @@ class EffectCache {
 		if (item.area != AREA_LASER_LINE) return null
 
 		// Get targets for this laser shot
-		Array<Entity> targets = Targets.getLazerTargetsFromCell(item, fromCell, toCell)
+		Set<Entity> targets = Targets.getLazerTargetsFromCell(item, fromCell, toCell)
 
 		// Empty target set - no point caching
-		if (count(targets) == 0) return null
+		if (setSize(targets) == 0) return null
 
 		// Compute hash of target set
 		integer targetsHash = EffectCache.computeTargetsHash(targets)
@@ -117,7 +117,7 @@ class EffectCache {
 	 * Compute a hash from a set of target entities.
 	 * Order-independent: sorts by entity ID first.
 	 */
-	static integer computeTargetsHash(Array<Entity> targets) {
+	static integer computeTargetsHash(Set<Entity> targets) {
 		// Sort by entity ID for order-independence
 		Array<integer> ids = []
 		for (Entity e in targets) {
@@ -138,7 +138,7 @@ class EffectCache {
 	 */
 	static EffectSnapshot computeSnapshot(Item item, Cell aimCell) {
 		// Get targets for this (item, aimCell)
-		Array<Entity> targets = EffectCache.getTargetsForAimCell(item, aimCell)
+		Set<Entity> targets = EffectCache.getTargetsForAimCell(item, aimCell)
 		return EffectCache.computeSnapshotWithTargets(item, targets, aimCell)
 	}
 
@@ -150,7 +150,7 @@ class EffectCache {
 	 * @param targets Pre-computed target list
 	 * @param aimCell The aim cell (null for laser - no AOE ratio)
 	 */
-	static EffectSnapshot computeSnapshotWithTargets(Item item, Array<Entity> targets, Cell? aimCell) {
+	static EffectSnapshot computeSnapshotWithTargets(Item item, Set<Entity> targets, Cell? aimCell) {
 		Benchmark.start("EffectCache.compute")
 		EffectSnapshot snap = EffectSnapshot()
 		snap.targets = targets
@@ -194,16 +194,16 @@ class EffectCache {
 	/*
 	 * Get targets for item aimed at aimCell (non-laser)
 	 */
-	static Array<Entity> getTargetsForAimCell(Item item, Cell aimCell) {
+	static Set<Entity> getTargetsForAimCell(Item item, Cell aimCell) {
 		// For AREA_POINT, target is entity on aimCell
 		if (item.area == AREA_POINT) {
 			Entity? entityOnCell = Board.entityCells[aimCell]
-			if (entityOnCell != null) return [entityOnCell!]
-			return []
+			if (entityOnCell != null) return <entityOnCell!>
+			return <>
 		}
 
 		// For other AOE types, get all entities in area
-		return getItemTargets(item, aimCell)
+		return Targets.getItemTargets(item, aimCell)
 	}
 
 	/*
