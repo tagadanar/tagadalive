@@ -249,11 +249,11 @@ class MapDanger {
 
 		// For each direct-hit, mark all cells in its AOE with decayed ratio
 		for(Cell hit in directHits){
-			Array<Cell> aoeCells = hit.getAreaCells(item.area)
+			Set<Cell> aoeCells = hit.getAreaCells(item.area)
 			for(Cell c in aoeCells){
 				if(c == hit) continue  // center already has 1.0
-				// Chebyshev distance for ratio decay
-				integer dist = max(abs(hit.x - c.x), abs(hit.y - c.y))
+				// Manhattan distance for ratio decay
+				integer dist = abs(hit.x - c.x) + abs(hit.y - c.y)
 				real ratio = max(0.2, 1.0 - 0.2 * dist)
 				// Keep higher ratio (protects direct hits and overlapping AOEs)
 				if(map[c] == null || map[c] < ratio){

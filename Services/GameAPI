@@ -1,16 +1,3 @@
 function getCellsToUseItemOnCell(Item item, Cell cell, Array<integer> ignoredCellsId) => Array<integer>? {
 	return item.isWeap ? getCellsToUseWeaponOnCell(item.id, cell.id, ignoredCellsId) : getCellsToUseChipOnCell(item.id, cell.id, ignoredCellsId)
 }
-
- function getItemTargets(Item item, Cell cell) => Array<Entity> {
-	Array<integer>? targetsId = item.isWeap ? getWeaponTargets(item.id, cell.id) : getChipTargets(item.id, cell.id)
-	Array<Entity> targets = []
-	if (targetsId != null) {
-		for(integer targetId in targetsId!){
-			if(targetId == Fight.self.id && cell != Fight.selfCell) continue // skip moi mm si c'est pas selfcast
-			// TODO better, handle minrange & fromcell ?
-			push(targets, Fight.getEntity(targetId))
-		}
-	}
-	return targets
-}

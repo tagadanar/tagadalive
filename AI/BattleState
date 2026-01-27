@@ -1,0 +1,236 @@
+/*
+ * BattleState - Combat context and team state
+ *
+ * Contains team composition, flags, ratios, and other contextual data
+ * that is computed once per turn and used by Scoring modifiers.
+ *
+ * The refresh() method optimizes by combining multiple iterations into fewer loops.
+ *
+ * Used by: Scoring, ScoringModifiers, MapPosition
+ */
+class BattleState {
+
+	// === Team Composition ===
+	static integer countFire = 0      // ally fire bulbs
+	static integer countMetal = 0     // ally metallic bulbs
+	static integer countHealer = 0    // ally healer bulbs
+	static integer countIced = 0      // ally iced bulbs
+	static integer countLightning = 0 // ally lightning bulbs
+	static integer countRocky = 0     // ally rocky bulbs
+	static integer countWizard = 0    // ally wizard bulbs
+	static integer countPuny = 0      // ally puny bulbs
+	static integer countTactician = 0 // ally tactician bulbs
+	static integer countSavant = 0    // ally savant bulbs
+	static integer countStrBulbs = 0  // ally offensive bulbs (fire + iced + lightning + rocky)
+
+	// === Team Flags ===
+	static boolean enemyHasStr = false // any enemy has STR >= 100
+	static boolean enemyHasMgc = false // any enemy has MGC >= 100 (for antidote value)
+	static boolean allyHasStr = false  // any ally has STR >= 100 (for vuln value)
+
+	// === Global State Ratios ===
+	static real ratioHP = 1.0    // sum(ally life) / sum(enemy life)
+	static real ratioCount = 1.0 // ally count / enemy count
+
+	// === Ally maxHP Range (for HPMAX modifier) ===
+	static integer minAllyMaxHP = 0
+	static integer maxAllyMaxHP = 0
+
+	// === Chip Readiness ===
+	// Ready chip counts per ally (0.5 for cooldown=1, 1.0 for cooldown=0)
+	static Map<integer, real> wsdReadyChips = [:] // entityId -> readyCount
+	static Map<integer, real> rstReadyChips = [:] // entityId -> readyCount
+
+	// === Ally Danger ===
+	static Map<Entity, real> allyDanger = [:] // [ally: expectedDamageBeforeTheirTurn]
+
+	/*
+	 * Refresh all battle state data.
+	 * Called once per turn before Scoring.refresh().
+	 *
+	 * Optimized: combines multiple loops into fewer iterations.
+	 */
+	static void refresh() {
+		// Reset all state
+		countFire = 0
+		countMetal = 0
+		countHealer = 0
+		countIced = 0
+		countLightning = 0
+		countRocky = 0
+		countWizard = 0
+		countPuny = 0
+		countTactician = 0
+		countSavant = 0
+		countStrBulbs = 0
+		allyHasStr = false
+		enemyHasStr = false
+		enemyHasMgc = false
+		wsdReadyChips = [:]
+		rstReadyChips = [:]
+		allyDanger = [:]
+		minAllyMaxHP = 999999
+		maxAllyMaxHP = 0
+
+		// === Combined ally loop ===
+		// Handles: bulb counting, allyHasStr flag, WSD/RST chips
+		real sumAllyLife = 0.0
+		integer allyLeekCount = 0
+
+		for (Entity entity in Fight.getAlliesAlive()) {
+			// Count bulb types
+			integer eType = entity.extendedType
+			if (eType == Entity.BULB_FIRE) {
+				countFire++
+				countStrBulbs++
+			} else if (eType == Entity.BULB_ICED) {
+				countIced++
+				countStrBulbs++
+			} else if (eType == Entity.BULB_LIGHTNING) {
+				countLightning++
+				countStrBulbs++
+			} else if (eType == Entity.BULB_METALLIC) {
+				countMetal++
+			} else if (eType == Entity.BULB_HEALER) {
+				countHealer++
+			} else if (eType == Entity.BULB_ROCKY) {
+				countRocky++
+				countStrBulbs++
+			} else if (eType == Entity.BULB_WIZARD) {
+				countWizard++
+			} else if (eType == Entity.BULB_PUNY) {
+				countPuny++
+			} else if (eType == Entity.BULB_TACTICIAN) {
+				countTactician++
+			} else if (eType == Entity.BULB_SAVANT) {
+				countSavant++
+			}
+
+			// Check for ally with significant strength
+			if (!allyHasStr && entity.str >= 100) {
+				allyHasStr = true
+			}
+
+			// Count WSD/RST chips for this ally
+			integer entityId = entity.id
+			real wsdCount = 0.0
+			real rstCount = 0.0
+			for (Item item in entity.items) {
+				if (item.isWeap) continue
+				integer chipId = item.id
+
+				if (ScoringConfig.WSD_CHIPS[chipId]) {
+					integer cd = getCooldown(chipId, entityId)!
+					if (cd == 0) wsdCount += 1.0
+					else if (cd == 1) wsdCount += 0.5
+				}
+				if (ScoringConfig.RST_CHIPS[chipId]) {
+					integer cd = getCooldown(chipId, entityId)!
+					if (cd == 0) rstCount += 1.0
+					else if (cd == 1) rstCount += 0.5
+				}
+			}
+			wsdReadyChips[entityId] = wsdCount
+			rstReadyChips[entityId] = rstCount
+
+			// For leeks only: compute ratios and maxHP range
+			if (!entity.isBulb) {
+				sumAllyLife += entity.life
+				allyLeekCount++
+				if (entity.totalLife < minAllyMaxHP) minAllyMaxHP = entity.totalLife
+				if (entity.totalLife > maxAllyMaxHP) maxAllyMaxHP = entity.totalLife
+			}
+		}
+
+		// === Combined enemy loop ===
+		// Handles: enemyHasStr flag, enemy life sum
+		real sumEnemyLife = 0.0
+		integer enemyLeekCount = 0
+
+		for (Entity entity in Fight.getEnemiesAlive()) {
+			// Check for enemy with significant strength
+			if (!enemyHasStr && entity.str >= 100) {
+				enemyHasStr = true
+			}
+			// Check for enemy with significant magic (for antidote value)
+			if (!enemyHasMgc && entity.mgc >= 100) {
+				enemyHasMgc = true
+			}
+
+			// For leeks only: compute ratios
+			if (!entity.isBulb) {
+				sumEnemyLife += entity.life
+				enemyLeekCount++
+			}
+		}
+
+		// Compute ratios
+		ratioHP = (sumEnemyLife > 0) ? sumAllyLife / sumEnemyLife : 1.0
+		ratioCount = (enemyLeekCount > 0) ? (allyLeekCount * 1.0) / enemyLeekCount : 1.0
+	}
+
+	/*
+	 * Returns the count of existing ally bulbs of a specific type.
+	 * Used by summon scoring to reduce value of duplicate bulbs.
+	 */
+	static integer getBulbCount(integer bulbType) {
+		if (bulbType == Entity.BULB_FIRE) return countFire
+		if (bulbType == Entity.BULB_METALLIC) return countMetal
+		if (bulbType == Entity.BULB_HEALER) return countHealer
+		if (bulbType == Entity.BULB_ICED) return countIced
+		if (bulbType == Entity.BULB_LIGHTNING) return countLightning
+		if (bulbType == Entity.BULB_ROCKY) return countRocky
+		if (bulbType == Entity.BULB_WIZARD) return countWizard
+		if (bulbType == Entity.BULB_PUNY) return countPuny
+		if (bulbType == Entity.BULB_TACTICIAN) return countTactician
+		if (bulbType == Entity.BULB_SAVANT) return countSavant
+		return 0
+	}
+
+	/*
+	 * Computes expected danger for an ally from enemies who play before them
+	 * Uses MapDanger's pre-computed damage maps
+	 * @param ally The ally entity
+	 * @return Expected damage the ally will take before their turn
+	 */
+	static real computeAllyDanger(Entity ally) {
+		real totalDanger = 0.0
+		// Get enemies who play before this ally
+		for (Entity entity in ally.entitiesWhoPlayBefore) {
+			if (entity.isFriend) continue // only enemies
+			// Check each offensive item the enemy has
+			Map<Item, Map<Cell, real>>? enemyMaps = MapDanger._map_entity_item_danger[entity]
+			if (enemyMaps == null) continue
+			integer tpLeft = entity.tp
+			for (Item item in entity.offensiveItems) {
+				Map<Cell, real>? itemMap = enemyMaps![item]
+				if (itemMap == null) continue
+				real? ratioDmg = itemMap![ally.cell]
+				if (ratioDmg == null || ratioDmg <= 0) continue
+				// Estimate damage from this item
+				real itemDmg = Damages.getDamage(entity, ally, item, ratioDmg!, null)
+				if (itemDmg > 0) {
+					integer uses = 0
+					while (item.cost <= tpLeft && uses < item.maxUse) {
+						totalDanger += itemDmg
+						tpLeft -= item.cost
+						uses++
+						if (item.haveCD) break
+					}
+				}
+			}
+		}
+		return totalDanger
+	}
+
+	/*
+	 * Compute ally danger for all allies (called after MapDanger is ready)
+	 */
+	static void computeAllAllyDanger() {
+		for (Entity entity in Fight.getAlliesAlive()) {
+			if (entity != Fight.self) {
+				allyDanger[entity] = computeAllyDanger(entity)
+			}
+		}
+	}
+}

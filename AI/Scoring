@@ -1,0 +1,274 @@
+/*
+ * Scoring - Main façade for action scoring system
+ *
+ * Provides cached coefficients and duration calculations for action evaluation.
+ * Contains getDynamicCoef() which uses ScoringModifiers for coefficient adjustments.
+ *
+ * Architecture:
+ * - ScoringConfig: ML-tunable constants and weights
+ * - Entity: Bulb type constants (BULB_FIRE, etc.) and extendedType field
+ * - EntityCoefs: Base coefficient tables per entity type
+ * - BattleState: Per-turn team state (composition, flags, ratios)
+ * - ScoringModifiers: Pure modifier functions
+ * - Scoring: This class - façade, caches, and getDynamicCoef
+ *
+ * Used by: Consequences, MapAction, AI, MCTS
+ */
+class Scoring {
+
+	// === Caches (recomputed each turn) ===
+	static Map<Entity, Map<integer, real>> _cache_coef = [:] // [entity:[stat:coef]]
+	static Map<Entity, Map<integer, real>> _cache_dynamic_coef = [:] // [entity:[stat:dynamicCoef]] (pre-computed when !DYNAMIC_COEFS)
+	static Map<integer, integer> _cache_duration = [:]       // [key:effectiveDuration]
+
+	// === Dynamic Position Weights (computed in refresh) ===
+	static real W_LOCK_BONUS = 1000.0         // bonus for locking enemy
+	static integer IDEAL_DIST_RANGED = -1     // calculated at first turn: self.mp + longest item range
+
+	/*
+	 * Initialize all scoring data for the current turn.
+	 * Delegates team state to BattleState, then computes local caches.
+	 * Called once per turn before action evaluation.
+	 */
+	static void refresh() {
+		// === Delegate team state computation to BattleState ===
+		BattleState.refresh()
+
+		// === Reset local caches ===
+		_cache_coef = [:]
+		_cache_dynamic_coef = [:]
+		_cache_duration = [:]
+
+		// === Compute dynamic position weights ===
+		// W_LOCK_BONUS: reduced when vulnerable (prioritize survival over locking)
+		boolean notShielded = Fight.self.absShield <= 0 && Fight.self.relShield <= 0
+		boolean notFullLife = Fight.self.life < Fight.self.totalLife
+		if ((notShielded && BattleState.enemyHasStr) || notFullLife) {
+			W_LOCK_BONUS = 500.0
+		} else {
+			W_LOCK_BONUS = 1000.0
+		}
+
+		// IDEAL_DIST_RANGED: calculated once at first turn, reduced every 5 turns
+		if (IDEAL_DIST_RANGED == -1) {
+			integer longestRange = 0
+			for (Item item in Fight.self.items) {
+				if (item.maxRange > longestRange) {
+					longestRange = item.maxRange
+				}
+			}
+			IDEAL_DIST_RANGED = Fight.self.mp + longestRange
+		}
+		if (getTurn() % 5 == 0) IDEAL_DIST_RANGED--
+
+		// === Pre-compute effective durations ===
+		// Key formula: (rawDuration + 1) * 2 + (sourceAfterTarget ? 1 : 0)
+		integer turnsLeft = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
+		for (integer raw = -1; raw <= ScoringConfig.MAX_DURATION; raw++) {
+			integer base = raw == -1 ? turnsLeft : min(raw, turnsLeft)
+			base = min(base, ScoringConfig.MAX_DURATION)
+			// source plays before target → target gets full duration
+			_cache_duration[(raw + 1) * 2] = max(base, 0)
+			// source plays after target → target gets 1 less turn
+			_cache_duration[(raw + 1) * 2 + 1] = max(base - 1, 0)
+		}
+
+		// === Pre-compute base and dynamic coefficients for all entities ===
+		for (Entity entity in Fight.getAllAlive()) {
+			_cache_coef[entity] = [:]
+			for (integer stat in ScoringConfig.ALL_STATS) {
+				_cache_coef[entity]![stat] = EntityCoefs.getStatCoef(entity, stat)
+			}
+		}
+
+		// Pre-compute dynamic coefficients (when DYNAMIC_COEFS is false)
+		// This saves ~4x operations during MCTS by avoiding repeated modifier calculations
+		if (!ScoringConfig.DYNAMIC_COEFS) {
+			for (Entity entity in Fight.getAllAlive()) {
+				_cache_dynamic_coef[entity] = [:]
+				for (integer stat in ScoringConfig.ALL_STATS) {
+					_cache_dynamic_coef[entity]![stat] = _computeDynamicCoef(entity, stat, null)
+				}
+			}
+		}
+	}
+
+	/*
+	 * Add a single entity to scoring caches (for mid-turn summons).
+	 * Populates both _cache_coef and _cache_dynamic_coef.
+	 */
+	static void _addEntityToCache(Entity entity) {
+		_cache_coef[entity] = [:]
+		for (integer stat in ScoringConfig.ALL_STATS) {
+			_cache_coef[entity]![stat] = EntityCoefs.getStatCoef(entity, stat)
+		}
+		_cache_dynamic_coef[entity] = [:]
+		for (integer stat in ScoringConfig.ALL_STATS) {
+			_cache_dynamic_coef[entity]![stat] = _computeDynamicCoef(entity, stat, null)
+		}
+	}
+
+	/*
+	 * Returns cached base coefficient for an entity and stat
+	 * @param entity The entity
+	 * @param key The stat type (Stats.HP, Stats.STR, etc.)
+	 * @return Base coefficient (positive for allies, negative for enemies)
+	 */
+	static real getCoef(Entity entity, integer key) {
+		if (_cache_coef[entity] == null) {
+			_addEntityToCache(entity)
+		}
+		return _cache_coef[entity]![key]!
+	}
+
+	/*
+	 * Checks if an ally might die before their next turn
+	 * Uses cached danger and current HP (accounting for consequences)
+	 * @param entity The ally to check
+	 * @param consequences Optional consequences for current HP calculation
+	 * @return true if entity might die before they can act
+	 */
+	static boolean canDie(Entity entity, Consequences? consequences) {
+		real? danger = BattleState.allyDanger[entity]
+		if (danger == null) return false
+		integer currentHP = entity.getCurrentHP(consequences)
+		return currentHP < danger! * ScoringConfig.CANDIE_THRESHOLD
+	}
+
+	/*
+	 * Returns dynamic coefficient with all modifiers applied.
+	 *
+	 * When DYNAMIC_COEFS=false (default): Pure cache lookup (includes canDie from turn start).
+	 * When DYNAMIC_COEFS=true: Computes everything dynamically using simulated HP from consequences.
+	 *
+	 * @param entity The entity to get coefficient for
+	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
+	 * @param consequences Optional consequences for simulated state (only used in dynamic mode)
+	 * @return Coefficient with dynamic modifiers applied
+	 */
+	static real getDynamicCoef(Entity entity, integer stat, Consequences? consequences) {
+		if (ScoringConfig.DYNAMIC_COEFS) {
+			// === DYNAMIC MODE: compute with simulated HP ===
+			return _computeDynamicCoef(entity, stat, consequences)
+		} else {
+			// === STATIC MODE: pure cache lookup (canDie evaluated at turn start) ===
+			// If entity not in cache (e.g., just-summoned bulb), add it
+			if (_cache_dynamic_coef[entity] == null) {
+				_addEntityToCache(entity)
+			}
+			return _cache_dynamic_coef[entity]![stat]!
+		}
+	}
+
+	/*
+	 * Computes dynamic coefficient with all modifiers applied.
+	 * Unified function handling both static (null consequences) and dynamic modes.
+	 *
+	 * @param entity The entity to get coefficient for
+	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
+	 * @param consequences Optional consequences for simulated HP (null = use turn-start state)
+	 * @return Coefficient with all modifiers applied
+	 */
+	static real _computeDynamicCoef(Entity entity, integer stat, Consequences? consequences) {
+		real base = getCoef(entity, stat)
+		boolean isAlly = entity.isFriend
+		boolean isOtherAlly = isAlly && entity != Fight.self
+
+		// === HP-related stats: lifeRatio modifier ===
+		if (stat == Stats.HP || stat == Stats.HPTIME) {
+			// Use dynamic or static lifeRatio based on consequences
+			if (consequences != null) {
+				base *= ScoringModifiers.getLifeRatioModifierDynamic(entity, consequences!)
+			} else {
+				base *= ScoringModifiers.getLifeRatioModifier(entity)
+			}
+		}
+
+		// === Shield stats: teamComp + shieldStatus (all entities) ===
+		if (stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
+			base *= ScoringModifiers.getTeamCompModifier(entity, stat)
+			base *= ScoringModifiers.getShieldStatusModifier(entity, stat)
+		}
+
+		// === Other ally modifiers (not self, not enemies) ===
+		if (isOtherAlly) {
+			// canDie: boost HP/shields when ally might die
+			if (stat == Stats.HP || stat == Stats.HPTIME || stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD) {
+				if (canDie(entity, consequences)) {
+					base *= ScoringConfig.CANDIE_MODIFIER
+				}
+			}
+
+			// levelRatio: scale by relative level
+			if (stat == Stats.HP || stat == Stats.HPMAX || stat == Stats.ANTIDOTE ||
+			    stat == Stats.ABSSHIELD || stat == Stats.RELSHIELD ||
+			    stat == Stats.MGC || stat == Stats.MP || stat == Stats.AGI ||
+			    stat == Stats.WSD || stat == Stats.RST) {
+				base *= ScoringModifiers.getLevelRatioModifier(entity)
+			}
+
+			// maxHP comparison for HPMAX stat
+			if (stat == Stats.HPMAX) {
+				base *= ScoringModifiers.getMaxHPComparisonModifier(entity)
+			}
+		}
+
+		// === Ally-specific stat modifiers (includes self) ===
+		if (isAlly) {
+			// STR/MGC scaling
+			if (stat == Stats.STR || stat == Stats.MGC) {
+				integer currentStat = (stat == Stats.STR) ? entity.str : entity.mgc
+				base *= ScoringModifiers.getStatScalingModifier(currentStat)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
+			}
+
+			// TP modifier
+			if (stat == Stats.TP) {
+				base *= ScoringModifiers.getTPModifier(entity)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
+			}
+
+			// AGI modifier
+			if (stat == Stats.AGI) {
+				base *= ScoringModifiers.getAGIModifier(entity)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
+			}
+
+			// WSD/RST chip readiness
+			if (stat == Stats.WSD || stat == Stats.RST) {
+				base *= ScoringModifiers.getChipReadyModifier(entity, stat)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
+			}
+
+			// MP modifier
+			if (stat == Stats.MP) {
+				base *= ScoringModifiers.getMPModifier(entity)
+				if (isOtherAlly) base *= ScoringConfig.ALLY_BUFF_MODIFIER
+			}
+
+			// DMGRETURN modifier
+			if (stat == Stats.DMGRETURN) {
+				base *= ScoringModifiers.getDMGReturnModifier(entity)
+			}
+		}
+
+		return base
+	}
+
+	/*
+	 * Returns effective duration of an effect considering:
+	 * - Infinite duration (-1) converted to remaining turns
+	 * - Turn order (source before/after target)
+	 * - Cap to ScoringConfig.MAX_DURATION for mitigation maps
+	 * @param rawDuration Raw effect duration (-1 = infinite, or 0-8)
+	 * @param source Entity applying the effect
+	 * @param target Entity receiving the effect
+	 * @return Effective duration (0 to ScoringConfig.MAX_DURATION)
+	 */
+	static integer getEffectiveDuration(integer rawDuration, Entity source, Entity target) {
+		// Cap rawDuration to valid cache range (handles raw > ScoringConfig.MAX_DURATION)
+		integer cappedRaw = rawDuration == -1 ? -1 : min(rawDuration, ScoringConfig.MAX_DURATION)
+		integer key = (cappedRaw + 1) * 2 + (source.turnOrder > target.turnOrder ? 1 : 0)
+		return _cache_duration[key]!
+	}
+}

@@ -12,7 +12,7 @@ function testCellInMapWith1Neighbors() {
 	var expected = [0, 17, 595, 612];
 	var result = []
 	for(var i = 0 ; i < 613 ; i++) {
-		if (count(Board.cells[i].neighborsObstacles) == 1) {
+		if (setSize(Board.cells[i].neighborsObstacles) == 1) {
 			//push(result, Map.getCell(Map.cells[i].id).id)
 			push(result, i);
 		}
@@ -30,7 +30,7 @@ function testCellInMapWith2Neighbors() {
 	
 	var result = []
 	for(var i = 0 ; i < 613 ; i++) {
-		if (count(Board.cells[i].neighborsObstacles) == 2) {
+		if (setSize(Board.cells[i].neighborsObstacles) == 2) {
 			//push(result, Map.getCell(Map.cells[i].id).id)
 			push(result, i);
 		}
@@ -74,7 +74,7 @@ function testCellInMapWith4Neighbors() {
 	
 	var result = []
 	for(var i = 0 ; i < 613 ; i++) {
-		if (count(Board.cells[i].neighborsObstacles) == 4) {
+		if (setSize(Board.cells[i].neighborsObstacles) == 4) {
 			//push(result, Map.getCell(Map.cells[i].id).id)
 			push(result, i);
 		}
