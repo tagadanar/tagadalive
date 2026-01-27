@@ -222,7 +222,8 @@ class Consequences {
 		this.selfMPConservativeAdjustment = 0
 
 		// Apply effects
-		this.targets = Targets.getTargets(action)
+		// Pass currentCell for self-cast AoE (combo may have moved us)
+		this.targets = Targets.getTargets(action, this.currentCell)
 		Cell aoeCenterCell = (action.to == Fight.selfCell) ? this.currentCell : action.to
 
 		for (ItemEffect effect in action.item.effects) {

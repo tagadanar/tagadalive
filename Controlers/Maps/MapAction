@@ -200,8 +200,16 @@ class MapAction {
 	 * AOE: area of effect actions (multiple aimCells per target)
 	 */
 	static void _populateAoeActions(Item item, Entity entity) {
-		// Can't AOE self
-		if (entity == Fight.self) return;
+		// Self-cast AoE only if minRange == 0 and item can target caster
+		if (entity == Fight.self) {
+			if (item.minRange == 0 && item.onCaster) {
+				Action? action = MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
+				if (action != null) {
+					MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell, action!.score!)
+				}
+			}
+			return;
+		}
 
 		for (Cell aimCell in entity.cell.getAreaCells(item.area)) {
 			// Pre-compute snapshot for efficiency (shared across all cells)

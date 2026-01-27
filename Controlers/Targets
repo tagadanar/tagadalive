@@ -1,14 +1,23 @@
 class Targets{
 
-	static Set<Entity> getTargets(Action action){
+	/*
+	 * Get targets for an action.
+	 * @param action The action to get targets for
+	 * @param simulatedSelfCell Optional: current cell in combo simulation (for self-cast AoE)
+	 *                          When null, uses Fight.self.cell
+	 */
+	static Set<Entity> getTargets(Action action, Cell? simulatedSelfCell = null){
 		Set<Entity> targets = <>
 		if(action.to == Fight.selfCell) {
 			if(action.item.isAOE) {
 				// For AOE self-cast, get targets around actual caster position
-				Cell actualPosition = (action.from == Fight.selfCell) ? Fight.self.cell : action.from
+				// Use simulatedSelfCell if provided (combo context), else Fight.self.cell
+				Cell actualPosition = simulatedSelfCell != null ? simulatedSelfCell! : Fight.self.cell
 				targets = Targets.getItemTargets(action.item, actualPosition)
-				// Ensure self is included (may not be in entity list)
-				setPut(targets, Fight.self)
+				// Only add self if item allows targeting caster
+				if(action.item.onCaster) {
+					setPut(targets, Fight.self)
+				}
 			} else {
 				targets = <Fight.self>
 			}

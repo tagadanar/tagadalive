@@ -197,6 +197,8 @@ class MapCellScore {
 	 * Check if an AOE action hits a specific target
 	 */
 	static boolean actionHitsTarget(Action action, Entity target) {
+		// Self-cast AoE doesn't hit targets at distance (scored separately during combo)
+		if (action.to == Fight.selfCell) return false
 		return setContains(action.to.getAreaCells(action.item.area), target.cell)
 	}
 
