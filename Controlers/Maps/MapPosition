@@ -76,7 +76,7 @@ class MapPosition {
 	static void _refreshNearestEnemyPathDist() {
 		if (_nearest_enemy != null) {
 			// Ignore all entities to get pure terrain path distance
-			_nearest_enemy_path_dist = MapPath.getCachedReachableCells(_nearest_enemy!.cell, 100, mapKeys(Board.entityCells) as Array<Cell>)
+			_nearest_enemy_path_dist = MapPath.getCachedReachableCells(_nearest_enemy!.cell, 100, arrayToSet(mapKeys(Board.entityCells)) as Set<Cell>)
 		} else {
 			_nearest_enemy_path_dist = null
 		}
@@ -277,7 +277,7 @@ class MapPosition {
 	/*
 	 * Compute proximity penalty for nearby allies (avoid AoE clustering)
 	 *
-	 * Optimization: Pre-compute area cells and use Map for O(1) lookup
+	 * Optimization: Use Set area cells and use setContains for O(1) lookup
 	 * instead of calling getAreaCells() + inArray() O(n) at each iteration.
 	 * Saves ~380 ops per call × ~50-100 positions = ~19k-38k ops per turn.
 	 */
@@ -285,16 +285,9 @@ class MapPosition {
 		real penalty = 0.0
 
 		// Pre-compute area cells ONCE (instead of recalculating each iteration)
-		Array<Cell> area1 = cell.getAreaCells(AREA_CIRCLE_1)
-		Array<Cell> area2 = cell.getAreaCells(AREA_CIRCLE_2)
-		Array<Cell> area3 = cell.getAreaCells(AREA_CIRCLE_3)
-
-		// Create Maps for O(1) lookup (instead of inArray O(n) scan)
-		Map<Cell, boolean> area1Set = [:]
-		for (Cell c in area1) area1Set[c] = true
-
-		Map<Cell, boolean> area2Set = [:]
-		for (Cell c in area2) area2Set[c] = true
+		Set<Cell> area1 = cell.getAreaCells(AREA_CIRCLE_1)
+		Set<Cell> area2 = cell.getAreaCells(AREA_CIRCLE_2)
+		Set<Cell> area3 = cell.getAreaCells(AREA_CIRCLE_3)
 
 		// Loop 1: AREA_CIRCLE_1 (innermost ring)
 		for (Cell c in area1) {
@@ -307,7 +300,7 @@ class MapPosition {
 
 		// Loop 2: AREA_CIRCLE_2 minus AREA_CIRCLE_1 (middle ring only)
 		for (Cell c in area2) {
-			if (area1Set[c]) continue  // O(1) lookup instead of inArray O(n)
+			if (setContains(area1, c)) continue  // O(1) lookup instead of inArray O(n)
 			Entity? entity = Board.entityCells[c]
 			if (entity != null && entity!.isFriend) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA2
@@ -316,7 +309,7 @@ class MapPosition {
 
 		// Loop 3: AREA_CIRCLE_3 minus AREA_CIRCLE_2 (outer ring only)
 		for (Cell c in area3) {
-			if (area2Set[c]) continue  // O(1) lookup instead of inArray O(n)
+			if (setContains(area2, c)) continue  // O(1) lookup instead of inArray O(n)
 			Entity? entity = Board.entityCells[c]
 			if (entity != null && entity!.isFriend) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA3
@@ -372,7 +365,7 @@ class MapPosition {
 
 		// Lock bonus
 		if (_nearest_enemy != null) {
-			Array<Cell> enemyAdjacent = _nearest_enemy!.cell.getAreaCells(AREA_CIRCLE_1)
+			Set<Cell> enemyAdjacent = _nearest_enemy!.cell.getAreaCells(AREA_CIRCLE_1)
 			integer walkableCount = 0
 			Cell? onlyWalkable = null
 			for (Cell c in enemyAdjacent) {
