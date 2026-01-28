@@ -40,6 +40,7 @@ class BattleState {
 	// Ready chip counts per ally (0.5 for cooldown=1, 1.0 for cooldown=0)
 	static Map<integer, real> wsdReadyChips = [:] // entityId -> readyCount
 	static Map<integer, real> rstReadyChips = [:] // entityId -> readyCount
+	static Map<integer, real> agiReadyChips = [:] // entityId -> readyCount (BRAMBLE counts double)
 
 	// === Ally Danger ===
 	static Map<Entity, real> allyDanger = [:] // [ally: expectedDamageBeforeTheirTurn]
@@ -68,6 +69,7 @@ class BattleState {
 		enemyHasMgc = false
 		wsdReadyChips = [:]
 		rstReadyChips = [:]
+		agiReadyChips = [:]
 		allyDanger = [:]
 		minAllyMaxHP = 999999
 		maxAllyMaxHP = 0
@@ -111,27 +113,40 @@ class BattleState {
 				allyHasStr = true
 			}
 
-			// Count WSD/RST chips for this ally
+			// Count WSD/RST/AGI chips for this ally
 			integer entityId = entity.id
 			real wsdCount = 0.0
 			real rstCount = 0.0
+			real agiCount = 0.0
 			for (Item item in entity.items) {
 				if (item.isWeap) continue
 				integer chipId = item.id
 
 				if (ScoringConfig.WSD_CHIPS[chipId]) {
 					integer cd = getCooldown(chipId, entityId)!
-					if (cd == 0) wsdCount += 1.0
-					else if (cd == 1) wsdCount += 0.5
+					// ELEVATION counts double
+					real weight = (chipId == CHIP_ELEVATION) ? 2.0 : 1.0
+					if (cd == 0) wsdCount += weight
+					else if (cd == 1) wsdCount += weight * 0.5
 				}
 				if (ScoringConfig.RST_CHIPS[chipId]) {
 					integer cd = getCooldown(chipId, entityId)!
-					if (cd == 0) rstCount += 1.0
-					else if (cd == 1) rstCount += 0.5
+					// DOME counts double
+					real weight = (chipId == CHIP_DOME) ? 2.0 : 1.0
+					if (cd == 0) rstCount += weight
+					else if (cd == 1) rstCount += weight * 0.5
+				}
+				if (ScoringConfig.AGI_CHIPS[chipId]) {
+					integer cd = getCooldown(chipId, entityId)!
+					// BRAMBLE counts triple
+					real weight = (chipId == CHIP_BRAMBLE) ? 3.0 : 1.0
+					if (cd == 0) agiCount += weight
+					else if (cd == 1) agiCount += weight * 0.5
 				}
 			}
 			wsdReadyChips[entityId] = wsdCount
 			rstReadyChips[entityId] = rstCount
+			agiReadyChips[entityId] = agiCount
 
 			// For leeks only: compute ratios and maxHP range
 			if (!entity.isBulb) {
