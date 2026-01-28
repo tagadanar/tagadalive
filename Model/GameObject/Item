@@ -227,6 +227,8 @@ class Item {
 			}
 		} else {
 			this.cdDuration = getChipCooldown(id)
+			// Handle infinite cooldown (-1) - can only use once per fight
+			if (this.cdDuration == -1) this.cdDuration = ScoringConfig.MAX_FIGHT_TURNS
 			this.haveCD = this.cdDuration != 0
 			this.minRange = getChipMinRange(id)!
 			this.maxRange = getChipMaxRange(id)!
