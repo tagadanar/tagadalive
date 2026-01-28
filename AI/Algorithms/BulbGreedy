@@ -27,7 +27,7 @@ class BulbGreedy {
 		Consequences? currentCsq = null
 
 		// Build ignoreCells for pathfinding
-		Array<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Array<Cell>
+		Set<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Set<Cell>
 
 		// GREEDY LOOP: find best action, add it, repeat
 		integer maxIterations = 10  // Safety limit

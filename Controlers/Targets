@@ -1,36 +1,46 @@
 class Targets{
 
-	static Array<Entity> getTargets(Action action){
-		Array<Entity> targets
+	static Set<Entity> getTargets(Action action){
+		Set<Entity> targets = <>
 		if(action.to == Fight.selfCell) {
 			if(action.item.isAOE) {
 				// For AOE self-cast, get targets around actual caster position
 				Cell actualPosition = (action.from == Fight.selfCell) ? Fight.self.cell : action.from
-				targets = getItemTargets(action.item, actualPosition)
+				targets = Targets.getItemTargets(action.item, actualPosition)
 				// Ensure self is included (may not be in entity list)
-				if(!inArray(targets, Fight.self)) push(targets, Fight.self)
+				setPut(targets, Fight.self)
 			} else {
-				targets = [Fight.self]
+				targets = <Fight.self>
 			}
-		}
-		else{
+		} else {
 			if(action.item.area == AREA_LASER_LINE)
 				targets = Targets.getLazerTargetsFromCell(action.item, action.from, action.to)
 			else
-				targets = getItemTargets(action.item, action.to)
+				targets = Targets.getItemTargets(action.item, action.to)
 		}
 		// ajout de moi même si je suis dans l'aoe (non-self-cast only)
-		if(action.item.isAOE && action.item.onCaster && action.to != Fight.selfCell){
-			for(Cell cell in action.to.getAreaCells(action.item.area)){
-				if(action.from == cell){
-					push(targets, Fight.self)
-					break;
-				}
+		if(action.item.isAOE 
+			&& action.item.onCaster 
+			&& action.to != Fight.selfCell 
+			&& setContains(action.to.getAreaCells(action.item.area), action.from)) {
+			setPut(targets, Fight.self)
+		}
+		return targets
+	}
+
+	static Set<Entity> getItemTargets(Item item, Cell cell) {
+		Array<integer>? targetsId = item.isWeap ? getWeaponTargets(item.id, cell.id) : getChipTargets(item.id, cell.id)
+		Set<Entity> targets = <>
+		if (targetsId != null) {
+			for(integer targetId in targetsId!){
+				if(targetId == Fight.self.id && cell != Fight.selfCell) continue // skip moi mm si c'est pas selfcast
+				// TODO better, handle minrange & fromcell ?
+				setPut(targets, Fight.getEntity(targetId))
 			}
 		}
 		return targets
 	}
-	
+		
 	/*
 	 * pour chaque direction, je parcours les cases et notes les cases depuis je pourrais tirer sur la cible
 	 */
@@ -74,8 +84,8 @@ class Targets{
 	/*
 	 * retourne la liste des <Entity> touchées par un tir de lazer avec @item depuis @from vers @to
 	 */
-	static Array<Entity> getLazerTargetsFromCell(Item item, Cell from, Cell to){
-		Array<Entity> result = []
+	static Set<Entity> getLazerTargetsFromCell(Item item, Cell from, Cell to){
+		Set<Entity> result = <>
 		integer inc = 0
 		integer maxInc = item.maxRange-getCellDistance(from.id, to.id)
 		Cell? tmpCell
@@ -85,7 +95,7 @@ class Targets{
 					tmpCell = Board.cellsXY[to.x]![to.y+inc]
 					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
-					if(entityOnCell != null) push(result, entityOnCell)
+					if(entityOnCell != null) setPut(result, entityOnCell)
 					inc++
 				}
 			}else{ // y--
@@ -93,7 +103,7 @@ class Targets{
 					tmpCell = Board.cellsXY[to.x]![to.y-inc]
 					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
-					if(entityOnCell != null) push(result, entityOnCell)
+					if(entityOnCell != null) setPut(result, entityOnCell)
 					inc++
 				}
 			}
@@ -103,7 +113,7 @@ class Targets{
 					tmpCell = Board.cellsXY[to.x+inc]![to.y]
 					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
-					if(entityOnCell != null) push(result, entityOnCell)
+					if(entityOnCell != null) setPut(result, entityOnCell)
 					inc++
 				}
 			}else{ // x--
@@ -111,7 +121,7 @@ class Targets{
 					tmpCell = Board.cellsXY[to.x-inc]![to.y]
 					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
 					Entity? entityOnCell = Board.entityCells[tmpCell!]
-					if(entityOnCell!= null) push(result, entityOnCell)
+					if(entityOnCell!= null) setPut(result, entityOnCell)
 					inc++
 				}
 			}

@@ -70,7 +70,7 @@ class Entity {
 	// play order
 	integer turnOrder
 	Array<Entity> entitiesWhoPlayBefore
-	Array<Cell> cellsToIgnore = []
+	Set<Cell> cellsToIgnore = <>
 	// booleans
 	boolean isFriend
 	boolean isBulb
@@ -268,7 +268,7 @@ class Entity {
 	void init(){
 		this.entitiesWhoPlayBefore = Fight.getEntitiesWhoPlayBefore(this)
 		for(Entity entity in this.entitiesWhoPlayBefore) {
-			push(this.cellsToIgnore, entity.cell)
+			setPut(this.cellsToIgnore, entity.cell)
 		}
 		this.reachableCells = MapPath.getCachedReachableCells(
 			this.cell,
