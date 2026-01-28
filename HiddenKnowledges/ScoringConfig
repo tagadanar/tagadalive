@@ -8,17 +8,26 @@
  * Real weights are in a private repository.
  *
  * Used by: Scoring, ScoringModifiers, MapPosition, Position
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────┐
+ * │ POSITION SCORING ARCHITECTURE (3-file split):                          │
+ * │  • AI/ScoringConfig (this file): Weight constants and thresholds       │
+ * │  • Model/Combos/Position: Position class with score components         │
+ * │  • Controlers/Maps/MapPosition: Search algorithm for best position     │
+ * └─────────────────────────────────────────────────────────────────────────┘
  */
 class ScoringConfig {
 
 	// === Performance vs Accuracy Trade-off ===
+	// When false: coefficients pre-computed at turn start (fast, ~4x fewer ops)
+	// When true: coefficients computed dynamically using simulated HP (accurate, slower)
 	static boolean DYNAMIC_COEFS = false
 
 	// === Combat Values (PLACEHOLDER) ===
 	static integer KILL_VALUE = 1000
 	static integer DEATH_VALUE = -1000
 	static integer MAX_FIGHT_TURNS = 66
-	static integer MAX_DURATION = 8
+	static integer MAX_DURATION = 8 // max index in duration_mitigation maps
 
 	// === CanDie Thresholds (PLACEHOLDER) ===
 	static real CANDIE_MODIFIER = 1.0
@@ -39,31 +48,39 @@ class ScoringConfig {
 		Stats.TP, Stats.MP, Stats.PWR, Stats.KILL
 	]
 
-	// === Chip Maps for WSD/RST Modifiers ===
-	static Map<integer, boolean> WSD_CHIPS = [CHIP_ELEVATION: true, CHIP_CURE: true, CHIP_VACCINE: true, CHIP_ARMORING: true, CHIP_REMISSION: true]
-	static Map<integer, boolean> RST_CHIPS = [CHIP_HELMET: true, CHIP_SHIELD: true, CHIP_ARMOR: true, CHIP_WALL: true, CHIP_FORTRESS: true]
+	// === Chip Maps for WSD/RST/AGI Modifiers (O(1) lookup) ===
+	static Map<integer, boolean> WSD_CHIPS = [CHIP_THERAPY: true, CHIP_ELEVATION: true, CHIP_ARMORING: true, CHIP_SERUM: true, CHIP_VACCINE: true, CHIP_REGENERATION: true, CHIP_FERTILIZER: true]
+	static Map<integer, boolean> RST_CHIPS = [CHIP_SHIELD: true, CHIP_ARMOR: true, CHIP_WALL: true, CHIP_RAMPART: true, CHIP_FORTRESS: true, CHIP_CARAPACE: true, CHIP_DOME: true]
+	static Map<integer, boolean> AGI_CHIPS = [CHIP_THORN: true, CHIP_MIRROR: true, CHIP_BRAMBLE: true]
 
 	// === Position Scoring Weights (PLACEHOLDER - all neutral) ===
+
+	// Danger weights - how much we penalize expected damage
 	static real W_DANGER_BASE = 1.0
 	static real W_DANGER_LOW_HP = 1.0
 	static real W_DANGER_CRITICAL = 1.0
 
+	// Life thresholds for danger scaling
 	static real LOW_HP_THRESHOLD = 0.5
 	static real CRITICAL_DANGER_RATIO = 0.5
 
+	// Proximity weights - penalty for nearby enemies
 	static real W_PROXIMITY_AREA1 = 1.0
 	static real W_PROXIMITY_AREA2 = 1.0
 	static real W_PROXIMITY_AREA3 = 1.0
 
+	// Tactical weights
 	static real W_CAC_IN_RANGE = 1.0
 	static real W_COVID_LEEK = 1.0
 	static real W_COVID_SUMMON = 1.0
 
+	// Gravity weights - attraction/repulsion to key targets
 	static real W_GRAVITY_ALLY_TURRET = 1.0
 	static real W_GRAVITY_ENEMY_TURRET = 1.0
 	static real W_GRAVITY_NEAREST_ENEMY = 1.0
 	static real W_GRAVITY_CENTER = 1.0
 
+	// Threat detection thresholds
 	static integer THREAT_SNC_THRESHOLD = 100
 
 	// === Distance Weights (PLACEHOLDER) ===
@@ -72,12 +89,30 @@ class ScoringConfig {
 	static integer IDEAL_DIST_CENTER = 4
 
 	// === Duration Mitigation Tables (PLACEHOLDER - linear) ===
+	// Maps effect duration to value multiplier
+
 	static Map<integer, real> defensive_duration_mitigation = [
-		0 : 1.0, 1 : 1.0, 2 : 2.0, 3 : 3.0, 4 : 4.0, 5 : 5.0, 6 : 6.0, 7 : 7.0, 8 : 8.0
+		0 : 1.0,
+		1 : 1.0,
+		2 : 2.0,
+		3 : 3.0,
+		4 : 4.0,
+		5 : 5.0,
+		6 : 6.0,
+		7 : 7.0,
+		8 : 8.0
 	]
 
 	static Map<integer, real> offensive_duration_mitigation = [
-		0 : 1.0, 1 : 1.0, 2 : 2.0, 3 : 3.0, 4 : 4.0, 5 : 5.0, 6 : 6.0, 7 : 7.0, 8 : 8.0
+		0 : 1.0,
+		1 : 1.0,
+		2 : 2.0,
+		3 : 3.0,
+		4 : 4.0,
+		5 : 5.0,
+		6 : 6.0,
+		7 : 7.0,
+		8 : 8.0
 	]
 
 	// === Summon Values (PLACEHOLDER - all equal) ===

@@ -2,7 +2,8 @@
  * EntityCoefs - Base coefficients for scoring by entity type
  *
  * Contains the coefficient tables for different entity types and the
- * base coefficient lookup function.
+ * base coefficient lookup function. These values determine how much
+ * each stat matters for different entities (leeks, bulbs, turrets, etc.)
  *
  * NOTE: This is a PUBLIC PLACEHOLDER with neutral values (all 1.0).
  * Real coefficients are in a private repository.
@@ -12,6 +13,9 @@
 class EntityCoefs {
 
 	// === Entity Type Coefficients (PLACEHOLDER - all 1.0) ===
+	// Map: entityType -> (stat -> baseCoef)
+	// Positive values for allies, negated for enemies in getStatCoef()
+	// Bulb types have individual entries for fine-grained control
 	static Map<integer, Map<integer, real>> baseCoefs = [
 		ENTITY_LEEK: [
 			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
@@ -21,7 +25,7 @@ class EntityCoefs {
 			Stats.WSD: 1.0, Stats.AGI: 1.0,
 			Stats.TP: 1.0, Stats.MP: 1.0, Stats.PWR: 1.0, Stats.KILL: 1.0
 		],
-		ENTITY_BULB: [
+		ENTITY_BULB: [ // Generic bulb fallback
 			Stats.HP: 1.0, Stats.HPTIME: 1.0, Stats.HPMAX: 1.0,
 			Stats.DEBUFF: 1.0, Stats.ANTIDOTE: 1.0,
 			Stats.ABSSHIELD: 1.0, Stats.RELSHIELD: 1.0, Stats.DMGRETURN: 1.0,
@@ -142,9 +146,12 @@ class EntityCoefs {
 	 * @return Positive for allies, negative for enemies
 	 */
 	static real getStatCoef(Entity entity, integer stat) {
+		// Direct lookup by entity type, fallback to ENTITY_BULB for unknown bulb types
 		Map<integer, real>? coefs = baseCoefs[entity.extendedType]
 		if (coefs == null) {
+			// Unknown type - use BULB as fallback for summons, LEEK otherwise
 			if (entity.isBulb) {
+				debugW("Unimplemented bulb type: " + entity.entityType + " (" + entity.name + ")")
 				coefs = baseCoefs[ENTITY_BULB]
 			} else {
 				coefs = baseCoefs[ENTITY_LEEK]
