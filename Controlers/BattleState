@@ -27,6 +27,7 @@ class BattleState {
 	static boolean enemyHasStr = false // any enemy has STR >= 100
 	static boolean enemyHasMgc = false // any enemy has MGC >= 100 (for antidote value)
 	static boolean allyHasStr = false  // any ally has STR >= 100 (for vuln value)
+	static boolean allyHasScience = false // any ally has SNC >= 200 (for rel vuln value)
 
 	// === Global State Ratios ===
 	static real ratioHP = 1.0    // sum(ally life) / sum(enemy life)
@@ -65,6 +66,7 @@ class BattleState {
 		countSavant = 0
 		countStrBulbs = 0
 		allyHasStr = false
+		allyHasScience = false
 		enemyHasStr = false
 		enemyHasMgc = false
 		wsdReadyChips = [:]
@@ -111,6 +113,10 @@ class BattleState {
 			// Check for ally with significant strength
 			if (!allyHasStr && entity.str >= 100) {
 				allyHasStr = true
+			}
+			// Check for ally with significant science (for rel vuln value)
+			if (!allyHasScience && entity.snc >= 200) {
+				allyHasScience = true
 			}
 
 			// Count WSD/RST/AGI chips for this ally
