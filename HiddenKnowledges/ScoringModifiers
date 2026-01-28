@@ -7,19 +7,14 @@
  * NOTE: This is a PUBLIC PLACEHOLDER with neutral modifiers (all return 1.0).
  * Real modifier logic is in a private repository.
  *
- * These are pure functions with no dependencies on Scoring class.
- * Used by Scoring.getDynamicCoef() to transform base coefficients.
- *
  * Used by: Scoring
  */
 class ScoringModifiers {
 
-	// Precomputed: 0.5 / log(301)
 	static real LEVEL_RATIO_SCALE = 0.0876
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: more valuable to heal/damage low HP targets
 	 */
 	static real getLifeRatioModifier(Entity entity) {
 		return 1.0
@@ -27,7 +22,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: uses simulated HP from consequences
 	 */
 	static real getLifeRatioModifierDynamic(Entity entity, Consequences consequences) {
 		return 1.0
@@ -35,7 +29,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: compute modifier from life ratio value
 	 */
 	static real _computeLifeRatioModifier(real lifeRatio, boolean isFriend) {
 		return 1.0
@@ -43,7 +36,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: more valuable to buff high-level allies
 	 */
 	static real getLevelRatioModifier(Entity entity) {
 		return 1.0
@@ -51,7 +43,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: STR/MGC scaling based on current stat level
 	 */
 	static real getStatScalingModifier(integer currentStat) {
 		return 1.0
@@ -59,7 +50,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: low maxHP allies benefit more from HPMAX boosts
 	 */
 	static real getMaxHPComparisonModifier(Entity entity) {
 		return 1.0
@@ -67,7 +57,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: WSD/RST scaling based on current stat level
 	 */
 	static real getWsdRstScalingModifier(Entity entity, integer stat) {
 		return 1.0
@@ -75,7 +64,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: chip readiness modifier for WSD, RST or AGI
 	 */
 	static real getChipReadyModifier(Entity entity, integer stat) {
 		return 1.0
@@ -83,7 +71,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: winning modifier based on global HP and count ratios
 	 */
 	static real getWinningModifier() {
 		return 1.0
@@ -91,7 +78,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: shield status modifier based on current shield levels
 	 */
 	static real getShieldStatusModifier(Entity entity, integer stat) {
 		return 1.0
@@ -99,7 +85,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: team composition modifier for shield stats
 	 */
 	static real getTeamCompModifier(Entity entity, integer stat) {
 		return 1.0
@@ -107,7 +92,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: TP modifier based on offensive stats (STR/MGC)
 	 */
 	static real getTPModifier(Entity entity) {
 		return 1.0
@@ -115,7 +99,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: AGI modifier based on current agility
 	 */
 	static real getAGIModifier(Entity entity) {
 		return 1.0
@@ -123,7 +106,6 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: MP modifier based on offensive stats AND current MP
 	 */
 	static real getMPModifier(Entity entity) {
 		return 1.0
@@ -131,39 +113,18 @@ class ScoringModifiers {
 
 	/*
 	 * PLACEHOLDER: Returns neutral modifier
-	 * Real version: DMGRETURN modifier based on current dmgReturn and enemy threat
 	 */
 	static real getDMGReturnModifier(Entity entity) {
 		return 1.0
 	}
 
-	// Item-specific opportunity cost handlers (PLACEHOLDER - empty map)
-	// Real version: contains handlers for CHIP_ANTIDOTE, CHIP_REGENERATION, etc.
 	static opportunityCostHandlers = [:]
 
 	/*
 	 * PLACEHOLDER: Returns simple cooldown duration as opportunity cost.
-	 * Real version: includes item-specific costs from opportunityCostHandlers.
-	 *
-	 * @param item The item being used
-	 * @param targetCell The cell being targeted
-	 * @param effectScore The score from effects before CD penalty
-	 * @return Opportunity cost to subtract from score
 	 */
 	static real getOpportunityCost(Item item, Cell targetCell, real effectScore) {
-		real cost = 0
-
-		// Base CD penalty
-		if (item.haveCD) {
-			cost = item.cdDuration
-		}
-
-		// Item-specific handling (placeholder: no special handlers)
-		var handler = opportunityCostHandlers[item.id]
-		if (handler != null) {
-			cost += handler(targetCell, effectScore)
-		}
-
-		return cost
+		if (!item.haveCD) return 0
+		return item.cdDuration
 	}
 }

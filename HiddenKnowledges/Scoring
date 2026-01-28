@@ -7,45 +7,32 @@
  * NOTE: This is a PUBLIC PLACEHOLDER with simplified logic.
  * Real scoring logic is in a private repository.
  *
- * Architecture:
- * - ScoringConfig: ML-tunable constants and weights
- * - Entity: Bulb type constants (BULB_FIRE, etc.) and extendedType field
- * - EntityCoefs: Base coefficient tables per entity type
- * - BattleState: Per-turn team state (composition, flags, ratios)
- * - ScoringModifiers: Pure modifier functions
- * - Scoring: This class - facade, caches, and getDynamicCoef
- *
  * Used by: Consequences, MapAction, AI, MCTS
  */
 class Scoring {
 
 	// === Caches (recomputed each turn) ===
-	static Map<Entity, Map<integer, real>> _cache_coef = [:] // [entity:[stat:coef]]
-	static Map<Entity, Map<integer, real>> _cache_dynamic_coef = [:] // [entity:[stat:dynamicCoef]] (pre-computed when !DYNAMIC_COEFS)
-	static Map<integer, integer> _cache_duration = [:]       // [key:effectiveDuration]
+	static Map<Entity, Map<integer, real>> _cache_coef = [:]
+	static Map<Entity, Map<integer, real>> _cache_dynamic_coef = [:]
+	static Map<integer, integer> _cache_duration = [:]
 
-	// === Dynamic Position Weights (computed in refresh) ===
-	static real W_LOCK_BONUS = 1000.0         // bonus for locking enemy
-	static integer IDEAL_DIST_RANGED = -1     // calculated at first turn: self.mp + longest item range
+	// === Dynamic Position Weights ===
+	static real W_LOCK_BONUS = 1000.0
+	static integer IDEAL_DIST_RANGED = -1
 
 	/*
 	 * Initialize all scoring data for the current turn.
-	 * Delegates team state to BattleState, then computes local caches.
-	 * Called once per turn before action evaluation.
 	 */
 	static void refresh() {
-		// === Delegate team state computation to BattleState ===
 		BattleState.refresh()
 
-		// === Reset local caches ===
 		_cache_coef = [:]
 		_cache_dynamic_coef = [:]
 		_cache_duration = [:]
 
-		// === Compute dynamic position weights (PLACEHOLDER - simplified) ===
+		// Compute dynamic position weights
 		W_LOCK_BONUS = 1000.0
 
-		// IDEAL_DIST_RANGED: calculated once at first turn, reduced every 5 turns
 		if (IDEAL_DIST_RANGED == -1) {
 			integer longestRange = 0
 			for (Item item in Fight.self.items) {
@@ -57,19 +44,16 @@ class Scoring {
 		}
 		if (getTurn() % 5 == 0) IDEAL_DIST_RANGED--
 
-		// === Pre-compute effective durations ===
-		// Key formula: (rawDuration + 1) * 2 + (sourceAfterTarget ? 1 : 0)
+		// Pre-compute effective durations
 		integer turnsLeft = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
 		for (integer raw = -1; raw <= ScoringConfig.MAX_DURATION; raw++) {
 			integer base = raw == -1 ? turnsLeft : min(raw, turnsLeft)
 			base = min(base, ScoringConfig.MAX_DURATION)
-			// source plays before target -> target gets full duration
 			_cache_duration[(raw + 1) * 2] = max(base, 0)
-			// source plays after target -> target gets 1 less turn
 			_cache_duration[(raw + 1) * 2 + 1] = max(base - 1, 0)
 		}
 
-		// === Pre-compute base and dynamic coefficients for all entities ===
+		// Pre-compute coefficients for all entities
 		for (Entity entity in Fight.getAllAlive()) {
 			_cache_coef[entity] = [:]
 			for (integer stat in ScoringConfig.ALL_STATS) {
@@ -77,8 +61,6 @@ class Scoring {
 			}
 		}
 
-		// Pre-compute dynamic coefficients (when DYNAMIC_COEFS is false)
-		// This saves ~4x operations during MCTS by avoiding repeated modifier calculations
 		if (!ScoringConfig.DYNAMIC_COEFS) {
 			for (Entity entity in Fight.getAllAlive()) {
 				_cache_dynamic_coef[entity] = [:]
@@ -91,7 +73,6 @@ class Scoring {
 
 	/*
 	 * Add a single entity to scoring caches (for mid-turn summons).
-	 * Populates both _cache_coef and _cache_dynamic_coef.
 	 */
 	static void _addEntityToCache(Entity entity) {
 		_cache_coef[entity] = [:]
@@ -106,9 +87,6 @@ class Scoring {
 
 	/*
 	 * Returns cached base coefficient for an entity and stat
-	 * @param entity The entity
-	 * @param key The stat type (Stats.HP, Stats.STR, etc.)
-	 * @return Base coefficient (positive for allies, negative for enemies)
 	 */
 	static real getCoef(Entity entity, integer key) {
 		if (_cache_coef[entity] == null) {
@@ -119,10 +97,6 @@ class Scoring {
 
 	/*
 	 * Checks if an ally might die before their next turn
-	 * Uses cached danger and current HP (accounting for consequences)
-	 * @param entity The ally to check
-	 * @param consequences Optional consequences for current HP calculation
-	 * @return true if entity might die before they can act
 	 */
 	static boolean canDie(Entity entity, Consequences? consequences) {
 		real? danger = BattleState.allyDanger[entity]
@@ -133,22 +107,11 @@ class Scoring {
 
 	/*
 	 * Returns dynamic coefficient with all modifiers applied.
-	 *
-	 * When DYNAMIC_COEFS=false (default): Pure cache lookup (includes canDie from turn start).
-	 * When DYNAMIC_COEFS=true: Computes everything dynamically using simulated HP from consequences.
-	 *
-	 * @param entity The entity to get coefficient for
-	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
-	 * @param consequences Optional consequences for simulated state (only used in dynamic mode)
-	 * @return Coefficient with dynamic modifiers applied
 	 */
 	static real getDynamicCoef(Entity entity, integer stat, Consequences? consequences) {
 		if (ScoringConfig.DYNAMIC_COEFS) {
-			// === DYNAMIC MODE: compute with simulated HP ===
 			return _computeDynamicCoef(entity, stat, consequences)
 		} else {
-			// === STATIC MODE: pure cache lookup (canDie evaluated at turn start) ===
-			// If entity not in cache (e.g., just-summoned bulb), add it
 			if (_cache_dynamic_coef[entity] == null) {
 				_addEntityToCache(entity)
 			}
@@ -157,18 +120,12 @@ class Scoring {
 	}
 
 	/*
-	 * PLACEHOLDER: Simplified dynamic coefficient computation.
-	 * Real version applies many situational modifiers from ScoringModifiers.
-	 *
-	 * @param entity The entity to get coefficient for
-	 * @param stat The stat type (Stats.HP, Stats.STR, etc.)
-	 * @param consequences Optional consequences for simulated HP (null = use turn-start state)
-	 * @return Coefficient with all modifiers applied
+	 * PLACEHOLDER: Simplified dynamic coefficient computation
+	 * Real version applies many situational modifiers
 	 */
 	static real _computeDynamicCoef(Entity entity, integer stat, Consequences? consequences) {
 		real base = getCoef(entity, stat)
-
-		// PLACEHOLDER: just apply life ratio modifier for HP stats
+		// Placeholder: just apply life ratio modifier
 		if (stat == Stats.HP || stat == Stats.HPTIME) {
 			if (consequences != null) {
 				base *= ScoringModifiers.getLifeRatioModifierDynamic(entity, consequences!)
@@ -176,22 +133,13 @@ class Scoring {
 				base *= ScoringModifiers.getLifeRatioModifier(entity)
 			}
 		}
-
 		return base
 	}
 
 	/*
-	 * Returns effective duration of an effect considering:
-	 * - Infinite duration (-1) converted to remaining turns
-	 * - Turn order (source before/after target)
-	 * - Cap to ScoringConfig.MAX_DURATION for mitigation maps
-	 * @param rawDuration Raw effect duration (-1 = infinite, or 0-8)
-	 * @param source Entity applying the effect
-	 * @param target Entity receiving the effect
-	 * @return Effective duration (0 to ScoringConfig.MAX_DURATION)
+	 * Returns effective duration of an effect
 	 */
 	static integer getEffectiveDuration(integer rawDuration, Entity source, Entity target) {
-		// Cap rawDuration to valid cache range (handles raw > ScoringConfig.MAX_DURATION)
 		integer cappedRaw = rawDuration == -1 ? -1 : min(rawDuration, ScoringConfig.MAX_DURATION)
 		integer key = (cappedRaw + 1) * 2 + (source.turnOrder > target.turnOrder ? 1 : 0)
 		return _cache_duration[key]!
