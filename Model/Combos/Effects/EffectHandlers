@@ -35,7 +35,7 @@ class EffectHandlers {
 	// ════════════════════════════════════════════════════════════════════════
 
 	static void damage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcStr, integer srcPwr, integer srcWsd, integer tgtRel, integer tgtAbs, integer tgtDmgRet, ctx) {
-		integer targetsCount = effect.multiplyByTarget ? count(ctx.targets) : 1
+		integer targetsCount = effect.multiplyByTarget ? setSize(ctx.targets) : 1
 		real beforeShield = EffectCalc.rawDamage(effect.avg, srcStr, srcPwr, ratio, targetsCount)
 		real value = EffectCalc.applyShields(beforeShield, tgtRel, tgtAbs)
 		integer damageDealt = round(value)
@@ -312,7 +312,7 @@ class EffectHandlers {
 
 	static void rawBuffTP(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
 		EffectHandlers.dedupeIfNeeded(effect, target, Stats.TP, ctx)
-		integer targetsCount = effect.multiplyByTarget ? count(ctx.targets) : 1
+		integer targetsCount = effect.multiplyByTarget ? setSize(ctx.targets) : 1
 		integer value = EffectCalc.rawBuff(effect.avg, ratio) * targetsCount
 		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		ctx.add(target, Stats.TP, eot)
@@ -325,7 +325,7 @@ class EffectHandlers {
 
 	static void rawBuffMP(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
 		EffectHandlers.dedupeIfNeeded(effect, target, Stats.MP, ctx)
-		integer targetsCount = effect.multiplyByTarget ? count(ctx.targets) : 1
+		integer targetsCount = effect.multiplyByTarget ? setSize(ctx.targets) : 1
 		integer value = EffectCalc.rawBuff(effect.avg, ratio) * targetsCount
 		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		ctx.add(target, Stats.MP, eot)
