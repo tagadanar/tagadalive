@@ -312,24 +312,26 @@ class EffectHandlers {
 
 	static void rawBuffTP(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
 		EffectHandlers.dedupeIfNeeded(effect, target, Stats.TP, ctx)
-		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		integer targetsCount = effect.multiplyByTarget ? count(ctx.targets) : 1
+		integer value = EffectCalc.rawBuff(effect.avg, ratio) * targetsCount
 		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		ctx.add(target, Stats.TP, eot)
 		// Track conservative adjustment for self (min - avg, typically negative)
 		if (target == Fight.self) {
-			integer minValue = EffectCalc.rawBuff(effect.min, ratio)
+			integer minValue = EffectCalc.rawBuff(effect.min, ratio) * targetsCount
 			ctx.selfTPConservativeAdjustment += (minValue - value)
 		}
 	}
 
 	static void rawBuffMP(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
 		EffectHandlers.dedupeIfNeeded(effect, target, Stats.MP, ctx)
-		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		integer targetsCount = effect.multiplyByTarget ? count(ctx.targets) : 1
+		integer value = EffectCalc.rawBuff(effect.avg, ratio) * targetsCount
 		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 		ctx.add(target, Stats.MP, eot)
 		// Track conservative adjustment for self (min - avg, typically negative)
 		if (target == Fight.self) {
-			integer minValue = EffectCalc.rawBuff(effect.min, ratio)
+			integer minValue = EffectCalc.rawBuff(effect.min, ratio) * targetsCount
 			ctx.selfMPConservativeAdjustment += (minValue - value)
 		}
 	}
