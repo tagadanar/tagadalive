@@ -139,7 +139,10 @@ class EffectCache {
 	static EffectSnapshot computeSnapshot(Item item, Cell aimCell) {
 		// Get targets for this (item, aimCell)
 		Set<Entity> targets = EffectCache.getTargetsForAimCell(item, aimCell)
-		return EffectCache.computeSnapshotWithTargets(item, targets, aimCell)
+		EffectSnapshot snap = EffectCache.computeSnapshotWithTargets(item, targets, aimCell)
+		// Compute opportunity cost (uses aimCell as targetCell for POINT items)
+		snap.opportunityCost = ScoringModifiers.getOpportunityCost(item, aimCell, snap.effectScore)
+		return snap
 	}
 
 	/*

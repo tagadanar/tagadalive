@@ -167,8 +167,8 @@ class Consequences {
 		// Apply movement cost only (effects already computed in snapshot)
 		c.constructMovementOnly(action)
 
-		// Cooldown penalty
-		c.score -= ScoringModifiers.getOpportunityCost(action, c.score)
+		// Cooldown penalty (pre-computed in snapshot)
+		c.score -= snapshot.opportunityCost
 		Benchmark.stop("Consequences.shared")
 		return c
 	}
@@ -289,7 +289,7 @@ class Consequences {
 
 		// Cooldown penalty (pass only current action's effect score, not cumulative)
 		real currentActionScore = this.score! - scoreBefore
-		this.score -= ScoringModifiers.getOpportunityCost(action, currentActionScore)
+		this.score -= ScoringModifiers.getOpportunityCost(action.item, action.to, currentActionScore)
 	}
 
 	/*

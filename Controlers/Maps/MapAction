@@ -117,7 +117,7 @@ class MapAction {
 			if (_actionsCreated >= 3 && getOperations() > actionBudget) {
 				MapAction._logEarlyExit(processed, totalTuples)
 				EffectCache.logStats()
-				return
+				return;
 			}
 
 			MapAction._populateActionsForTarget(tuple.item, tuple.target)
@@ -164,11 +164,16 @@ class MapAction {
 					MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell, action!.score!)
 				}
 			}
-			return
+			return;
 		}
 
 		// Pre-compute snapshot for efficiency (shared across all cells)
 		EffectSnapshot? snapshot = EffectCache.getOrCompute(item, entity.cell, Fight.selfCell)
+
+		// Early exit: if base score (before movement) is <= 0, skip all fromCells
+		// For POINT items, snapshot is only null for self-cast (handled above)
+		if (snapshot == null) return;
+		if (snapshot!.effectScore - snapshot!.opportunityCost <= 0) return;
 
 		// Get all cells from which we can hit this target
 		Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, entity.cell, [Fight.self.id])
@@ -215,10 +220,14 @@ class MapAction {
 			// Pre-compute snapshot for efficiency (shared across all cells)
 			EffectSnapshot? baseSnapshot = EffectCache.getOrCompute(item, aimCell, Fight.selfCell)
 
+			// Early exit: if snapshot exists and base score is <= 0, skip all fromCells
+			// Note: null snapshot means not cacheable (e.g., onCaster with self in AOE) - must still process
+			if (baseSnapshot != null && baseSnapshot!.effectScore - baseSnapshot!.opportunityCost <= 0) continue
+
 			// For onCaster AOE: pre-compute area cells to check if fromCell is inside AOE
 			// (snapshot excludes self, but if fromCell is in AOE, self should be included)
 			Set<Cell>? aoeCells = null
-			if (baseSnapshot != null && item.onCaster) {
+			if (item.onCaster) {
 				aoeCells = aimCell.getAreaCells(item.area)
 			}
 
@@ -296,6 +305,12 @@ class MapAction {
 			action = new Action(item, from, targetCell)
 		}
 
+		// Filter out actions with score <= 0 (not worth adding to maps)
+		if (action.score == null || action.score! <= 0) {
+			Benchmark.stop("addAction")
+			return null
+		}
+
 		// ajout dans la map par item puis cells
 		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]
 		if(!_item_cell_actions[item]![from]) _item_cell_actions[item]![from] = []
@@ -309,7 +324,7 @@ class MapAction {
 		// ici, je ne set sur chaque case, pour chaque item, que la meilleure action et pas les autres
 		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
 		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
-		else if(_cell_item_bestAction[from]![item]!.score < action.score) _cell_item_bestAction[from]![item] = action
+		else if(_cell_item_bestAction[from]![item]!.score! < action.score!) _cell_item_bestAction[from]![item] = action
 
 		_actionsCreated++
 		Benchmark.stop("addAction")
@@ -354,6 +369,12 @@ class MapAction {
 		// Set score directly from summon scoring logic (includes expected damage)
 		action.score = EffectHandlers.summon(item, Fight.self.level, targetCell)
 
+		// Filter out actions with score <= 0 (not worth adding to maps)
+		if (action.score! <= 0) {
+			Benchmark.stop("addAction")
+			return null
+		}
+
 		// Add to maps (same as addActionCore)
 		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]
 		if(!_item_cell_actions[item]![from]) _item_cell_actions[item]![from] = []
@@ -365,7 +386,7 @@ class MapAction {
 
 		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
 		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
-		else if(_cell_item_bestAction[from]![item]!.score < action.score) _cell_item_bestAction[from]![item] = action
+		else if(_cell_item_bestAction[from]![item]!.score! < action.score!) _cell_item_bestAction[from]![item] = action
 
 		_actionsCreated++
 		Benchmark.stop("addAction")
