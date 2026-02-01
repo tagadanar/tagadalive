@@ -1,0 +1,24 @@
+/*
+ * RepottingCandidate - Result of CHIP_REPOTTING target evaluation
+ * Represents a valid allied bulb swap target with the closest cell to cast from.
+ * Unlike InversionCandidate, no score is computed - danger is evaluated at combo end.
+ */
+class RepottingCandidate {
+	Cell fromCell       // Cell to stand on to cast repotting
+	Entity target       // Allied bulb to swap positions with
+	Cell targetCell     // Bulb's cell (where self ends up after swap)
+	integer mpCost      // MP to reach fromCell (0 if already in range)
+	integer bulbDamage  // Damage dealt to bulb by repotting chip
+
+	constructor(Cell fromCell, Entity target, Cell targetCell, integer mpCost, integer bulbDamage) {
+		this.fromCell = fromCell
+		this.target = target
+		this.targetCell = targetCell
+		this.mpCost = mpCost
+		this.bulbDamage = bulbDamage
+	}
+
+	string string() {
+		return "<Repotting from c" + this.fromCell.id + " -> " + this.target.name + "@c" + this.targetCell.id + " mp=" + this.mpCost + " dmg=" + this.bulbDamage + ">"
+	}
+}

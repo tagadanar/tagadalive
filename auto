@@ -35,8 +35,9 @@ include('Model/Summons/BulbSimulator')
 include('Model/Summons/SummonCandidate')
 include('Model/Summons/PendingBulb')
 
-// Tactical models (Inversion, etc.)
+// Tactical models (Inversion, Repotting, etc.)
 include('Model/Tactical/InversionCandidate')
+include('Model/Tactical/RepottingCandidate')
 include('Model/Tactical/PostInversionCellData')
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -56,7 +57,7 @@ include('Controlers/Maps/MapPosition')
 include('Controlers/Targets')
 include('Controlers/Maps/MapAction')
 include('Controlers/Maps/MapSummon')
-include('Controlers/Maps/MapTactical')    // Tactical chips (Inversion, etc.)
+include('Controlers/Maps/MapTactical')    // Tactical chips (Inversion, Repotting, etc.)
 include('Controlers/Maps/MapCellScore')   // Cell-centric action aggregation (uses MapAction, Sort)
 
 // ────────────────────────────────────────────────────────────────────────────

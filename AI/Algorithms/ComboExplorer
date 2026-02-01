@@ -198,6 +198,11 @@ class ComboExplorer {
 			debug("PhaseI best: " + bestInv!.name + " score=" + round(bestInv!.score) + " " + bestInv!.combo)
 		}
 
+		// Phase R: Repotting strategies (swap with allied bulbs)
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phaseRepotting(ctx)
+		}
+
 		// Phase 1: Single-cell MP sampling
 		if (!ctx.shouldStop()) {
 			ComboExplorer.phaseSingleCell(ctx)
@@ -329,6 +334,30 @@ class ComboExplorer {
 		debug("  PhaseI: " + explored + "/" + count(MapTactical.getInversionCandidates()) + " candidates")
 
 		Benchmark.stop("ComboExplorer.phaseInversion")
+	}
+
+	/*
+	 * Explore repotting (swap with allied bulb) as a strategy.
+	 * Similar to phaseInversion but for bulb swaps only.
+	 */
+	static void phaseRepotting(ExplorationContext ctx) {
+		if (!Fight.repottingReady || Fight.repottingItem == null) return;
+
+		Benchmark.start("ComboExplorer.phaseRepotting")
+
+		integer explored = 0
+		for (RepottingCandidate candidate in MapTactical.getRepottingCandidates()) {
+			if (ctx.shouldStop()) break
+			explored++
+
+			Combo? combo = ComboBuilder.buildWithRepotting(ctx, candidate)
+			if (combo != null && count(combo!.actions) > 0) {
+				ctx.recordResult(ExplorerResult(combo!, "R:" + candidate.target.name, "R"))
+			}
+		}
+		debug("  PhaseR: " + explored + "/" + count(MapTactical.getRepottingCandidates()) + " bulb candidates")
+
+		Benchmark.stop("ComboExplorer.phaseRepotting")
 	}
 
 	// ════════════════════════════════════════════════════════════

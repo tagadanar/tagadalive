@@ -25,6 +25,9 @@ class Fight {
 	// Inversion availability for tactical positioning (computed in refresh)
 	static boolean inversionReady = false
 	static Item? inversionItem = null
+	// Repotting availability for bulb swap positioning (computed in refresh)
+	static boolean repottingReady = false
+	static Item? repottingItem = null
 	// Summon availability for operation buffer calculation (computed in refresh)
 	static boolean canSummon = false
 
@@ -81,6 +84,8 @@ class Fight {
 		antidoteItem = null
 		inversionReady = false
 		inversionItem = null
+		repottingReady = false
+		repottingItem = null
 		canSummon = false
 		for (Item item in self.items) {
 			if (item.id == CHIP_LIBERATION && getCooldown(item.id, self.id) == 0) {
@@ -94,6 +99,10 @@ class Fight {
 			if (item.id == CHIP_INVERSION && getCooldown(item.id, self.id) == 0) {
 				inversionReady = true
 				inversionItem = item
+			}
+			if (item.id == CHIP_REPOTTING && getCooldown(item.id, self.id) == 0) {
+				repottingReady = true
+				repottingItem = item
 			}
 			if (item.isSummon && getCooldown(item.id, self.id) == 0 && self.tp >= item.cost) {
 				canSummon = true

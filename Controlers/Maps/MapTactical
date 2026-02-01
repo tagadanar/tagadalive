@@ -2,16 +2,21 @@
  * MapTactical - Intelligent tactical chip selection
  *
  * Handles tactical chips that affect positioning or game state in ways
- * beyond simple damage/healing. V1 focuses on CHIP_INVERSION (position swap).
+ * beyond simple damage/healing:
+ *   - CHIP_INVERSION: Position swap with any entity (ally or enemy)
+ *   - CHIP_REPOTTING: Position swap with allied bulb (deals damage to bulb)
  *
  * Usage:
- *   // After init(), check available inversions
  *   MapTactical.refresh()
+ *
+ *   // Inversion (any entity)
  *   if (Fight.inversionReady) {
  *       Array<InversionCandidate> targets = MapTactical.getInversionCandidates()
- *       for (InversionCandidate c in targets) {
- *           debug("Can swap with " + c.target.name + " from c" + c.fromCell.id + " (mp=" + c.mpCost + ")")
- *       }
+ *   }
+ *
+ *   // Repotting (allied bulbs only)
+ *   if (Fight.repottingReady) {
+ *       Array<RepottingCandidate> bulbs = MapTactical.getRepottingCandidates()
  *   }
  */
 
@@ -30,6 +35,12 @@ class MapTactical {
 	// Best candidates by score (for action generation)
 	static InversionCandidate? _bestAllyCandidate = null
 	static InversionCandidate? _bestEnemyCandidate = null
+
+	// Sorted array of valid repotting targets (allied bulbs only, by mpCost ascending)
+	static Array<RepottingCandidate> _repottingCandidates = []
+
+	// O(1) lookup: targetId -> RepottingCandidate
+	static Map<integer, RepottingCandidate> _repottingCandidateByTargetId = [:]
 
 	// Team barycentres (center of mass)
 	static Cell? _allyBarycentre = null
@@ -56,24 +67,36 @@ class MapTactical {
 		_candidateByTargetId = [:]
 		_bestAllyCandidate = null
 		_bestEnemyCandidate = null
+		_repottingCandidates = []
+		_repottingCandidateByTargetId = [:]
 
 		// Compute team barycentres
 		_allyBarycentre = _computeBarycentre(Fight.getAlliesAlive())
 		_enemyBarycentre = _computeBarycentre(Fight.getEnemiesAlive())
 
-		// Exit early if chip not available (checked in Fight.refresh)
-		if (!Fight.inversionReady || Fight.inversionItem == null) {
-			_opsUsed = getOperations() - startOps
-			return;
+		// Initialize inversion candidates if chip is available
+		if (Fight.inversionReady && Fight.inversionItem != null) {
+			_initInversionCandidates()
 		}
 
+		// Initialize repotting candidates if chip is available
+		if (Fight.repottingReady && Fight.repottingItem != null) {
+			_initRepottingCandidates()
+		}
+
+		_opsUsed = getOperations() - startOps
+	}
+
+	/*
+	 * Initialize inversion candidates for current turn.
+	 * Computes valid targets, scores, and best candidates.
+	 * Called only when Fight.inversionReady && Fight.inversionItem != null.
+	 */
+	static void _initInversionCandidates() {
 		Item invItem = Fight.inversionItem!
 
 		// Check TP (cooldown already checked in Fight.refresh)
-		if (Fight.self.tp < invItem.cost) {
-			_opsUsed = getOperations() - startOps
-			return;
-		}
+		if (Fight.self.tp < invItem.cost) return;
 
 		// Get self's extended reachable cells (includes MP buff potential)
 		Map<Cell, integer> reachable = Fight.self.extendedReachableCells
@@ -191,8 +214,90 @@ class MapTactical {
 				}
 			}
 		}
+	}
 
-		_opsUsed = getOperations() - startOps
+	/*
+	 * Initialize repotting candidates for current turn.
+	 * Only considers allied bulbs. Filters out bulbs that would die from the damage.
+	 * Called only when Fight.repottingReady && Fight.repottingItem != null.
+	 */
+	static void _initRepottingCandidates() {
+		Item repItem = Fight.repottingItem!
+
+		// Check TP (cooldown already checked in Fight.refresh)
+		if (Fight.self.tp < repItem.cost) return;
+
+		// Get self's extended reachable cells
+		Map<Cell, integer> reachable = Fight.self.extendedReachableCells
+		Cell selfCell = Fight.self.cell
+
+		// Process only allied bulbs
+		for (integer entityId : Entity entity in Fight.getAlliesBulbsAlive()) {
+			// Skip self (shouldn't happen for bulbs, but safe)
+			if (entityId == Fight.self.id) continue
+
+			// Get cells from which we can cast repotting on this bulb
+			Array<Cell> fromCells = Targets.getCellsToUseItemOnCell(repItem, entity.cell, [Fight.self.id])
+
+			// Find best cast position (same logic as inversion)
+			Cell? bestFrom = null
+			integer bestCost = 9999
+
+			// First check if selfCell is in the valid cast cells
+			for (Cell fromCell in fromCells) {
+				if (fromCell.id == selfCell.id) {
+					bestFrom = selfCell
+					bestCost = 0
+					break
+				}
+			}
+
+			// If not in range, find closest reachable cell
+			if (bestFrom == null) {
+				for (Cell fromCell in fromCells) {
+					integer? cost = reachable[fromCell]
+					if (cost != null && cost! < bestCost) {
+						bestCost = cost!
+						bestFrom = fromCell
+					}
+				}
+			}
+
+			// Skip if no reachable cast position
+			if (bestFrom == null) continue
+
+			// Estimate damage to bulb
+			integer bulbDamage = _estimateRepottingDamage(repItem, entity)
+
+			// Skip if repotting would kill the bulb
+			if (bulbDamage >= entity.life) continue
+
+			// Create candidate (no score - danger evaluated at combo end)
+			RepottingCandidate candidate = RepottingCandidate(
+				bestFrom!,
+				entity,
+				entity.cell,
+				bestCost,
+				bulbDamage
+			)
+
+			push(_repottingCandidates, candidate)
+			_repottingCandidateByTargetId[entityId] = candidate
+		}
+
+		// Sort by mpCost ascending (cheapest first)
+		_repottingCandidates = arraySort(_repottingCandidates, (RepottingCandidate a, RepottingCandidate b) -> integer {
+			return a.mpCost - b.mpCost
+		}) as Array<RepottingCandidate>
+	}
+
+	/*
+	 * Estimate damage dealt to bulb by CHIP_REPOTTING.
+	 * TODO: Implement proper damage calculation when needed.
+	 */
+	static integer _estimateRepottingDamage(Item repItem, Entity bulb) {
+		// For now, ignore damage - assume bulb survives
+		return 0
 	}
 
 	/*
@@ -261,15 +366,31 @@ class MapTactical {
 	}
 
 	/*
-	 * Display inversion targets and team barycentres on the map (for debugging).
+	 * Get all valid repotting candidates (allied bulbs), sorted by MP cost ascending.
+	 */
+	static Array<RepottingCandidate> getRepottingCandidates() {
+		return _repottingCandidates
+	}
+
+	/*
+	 * Get the repotting candidate for a specific bulb, or null if not valid.
+	 */
+	static RepottingCandidate? getRepottingCandidateForTarget(integer targetId) {
+		return _repottingCandidateByTargetId[targetId]
+	}
+
+	/*
+	 * Display inversion/repotting targets and team barycentres on the map (for debugging).
 	 * White = team barycentres
 	 * Blue = ally inversion targets
 	 * Red = enemy inversion targets
+	 * Green = repotting targets (allied bulbs)
 	 */
 	static void showTactical() {
 		integer white = getColor(255, 255, 255)
 		integer blue = getColor(100, 149, 237)   // Cornflower blue for allies
 		integer red = getColor(220, 80, 80)      // Red for enemies
+		integer green = getColor(100, 200, 100)  // Green for repotting
 
 		// Display team barycentres
 		if (_allyBarycentre != null) {
@@ -293,6 +414,13 @@ class MapTactical {
 
 			// Text label with score
 			markText(c.fromCell.id, "I:" + round(c.score))
+		}
+
+		// Display repotting candidates
+		for (RepottingCandidate c in _repottingCandidates) {
+			mark(c.fromCell.id, green)
+			mark(c.targetCell.id, green)
+			markText(c.fromCell.id, "R:" + c.target.name)
 		}
 	}
 
@@ -538,7 +666,171 @@ class MapTactical {
 	}
 
 	/*
-	 * Debug output: show all computed inversion targets and barycentres
+	 * Generate action pool for post-repotting phase.
+	 * Creates actions with correct `from` cells relative to new position after swap with bulb.
+	 * Similar to getPostInversionPool but for allied bulb swaps.
+	 *
+	 * @param candidate The repotting candidate (defines new position)
+	 * @param remainingTP TP available after repotting
+	 * @param remainingMP MP available after moving to cast repotting
+	 * @return Array of actions playable from new position
+	 */
+	static Array<Action> getPostRepottingPool(
+		RepottingCandidate candidate,
+		integer remainingTP,
+		integer remainingMP
+	) {
+		Array<Action> postPool = []
+
+		// New position after swap: we end up at bulb's cell
+		Cell newSelfCell = candidate.targetCell
+		// Bulb ends up at our cast position (fromCell)
+		Cell bulbNewCell = candidate.fromCell
+
+		// Create repotting action to get its consequences (damage to bulb)
+		Item repItem = Fight.repottingItem!
+		Action repAction = Action(repItem, candidate.fromCell, candidate.targetCell)
+		Consequences repConseq = repAction.consequences
+
+		// Compute reachability from new position
+		// Bulb is at bulbNewCell now
+		Set<Cell> newObstacles = <bulbNewCell>
+		Map<Cell, integer> newReachable = MapPath.getCachedReachableCells(
+			newSelfCell, remainingMP, Fight.self.cellsToIgnore, newObstacles)
+
+		// For each offensive item, find actions on enemies
+		for (Item item in Fight.self.items) {
+			if (!item.isOffensive) continue
+			if (getCooldown(item.id, Fight.self.id) > 0) continue
+			if (item.id == repItem.id) continue  // Skip repotting itself
+
+			for (Entity enemy in Fight.getEnemiesAlive()) {
+				if (enemy.isInvincible) continue
+
+				// Use shared cache - verify LOS lazily with DDA
+				Array<Cell> castCells = MapDanger.getCachedTargetableCells(item, enemy.cell)
+
+				// Build set for O(1) lookup
+				Set<integer> castSet = <>
+				for (Cell c in castCells) setPut(castSet, c.id)
+
+				// Find closest reachable cast cell with lazy LOS check
+				Cell? bestCast = null
+
+				// Check if newSelfCell is valid (no movement needed)
+				if (setContains(castSet, newSelfCell.id)) {
+					if (_hasValidLOS(newSelfCell, enemy.cell, candidate.target, bulbNewCell)) {
+						bestCast = newSelfCell
+					}
+				}
+
+				// If not, iterate reachable in BFS order
+				if (bestCast == null) {
+					for (Cell c : integer dist in newReachable) {
+						if (!setContains(castSet, c.id)) continue
+						if (_hasValidLOS(c, enemy.cell, candidate.target, bulbNewCell)) {
+							bestCast = c
+							break  // BFS order guarantees first match is closest
+						}
+					}
+				}
+
+				if (bestCast == null) continue
+
+				// Create action with correct from cell
+				EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemy.cell, repConseq)
+				Action action = Action(item, bestCast!, enemy.cell, snapshot)
+				action.overrideTargets = snapshot.targets
+				if (action.score != null && action.score! > 0) {
+					push(postPool, action)
+				}
+			}
+		}
+
+		// Add self-cast buffs (always available from any position)
+		for (Item item in Fight.self.items) {
+			if (item.isSummon || item.isTactical) continue
+			if (getCooldown(item.id, Fight.self.id) > 0) continue
+			if (item.minRange > 0) continue  // Not self-castable
+
+			// Check if item has buff effects
+			boolean hasBuff = false
+			for (ItemEffect e in item.effects) {
+				integer t = e.type
+				if (t == EFFECT_BUFF_STRENGTH || t == EFFECT_RAW_BUFF_STRENGTH ||
+					t == EFFECT_BUFF_AGILITY || t == EFFECT_RAW_BUFF_AGILITY ||
+					t == EFFECT_BUFF_TP || t == EFFECT_RAW_BUFF_TP ||
+					t == EFFECT_BUFF_MP || t == EFFECT_RAW_BUFF_MP ||
+					t == EFFECT_ABSOLUTE_SHIELD || t == EFFECT_RAW_ABSOLUTE_SHIELD ||
+					t == EFFECT_RELATIVE_SHIELD || t == EFFECT_RAW_RELATIVE_SHIELD ||
+					t == EFFECT_HEAL || t == EFFECT_BOOST_MAX_LIFE) {
+					hasBuff = true
+					break
+				}
+			}
+
+			if (hasBuff) {
+				Action action = Action(item, Fight.selfCell, Fight.selfCell)
+				if (action.score != null && action.score! > 0) {
+					push(postPool, action)
+				}
+			}
+		}
+
+		return postPool
+	}
+
+	/*
+	 * Compute cell scores for post-repotting state.
+	 * Uses ONLY the post-repotting pool because bulb can block LOS.
+	 *
+	 * @param candidate The repotting candidate (defines swap target)
+	 * @param newSelfCell Where we land after swap (= candidate.targetCell)
+	 * @param reachableCells Cells reachable from newSelfCell with remaining MP
+	 * @param postByCell Actions from getPostRepottingPool() grouped by fromCell
+	 * @return PostInversionCellData with scores, actions, and MP costs per cell
+	 */
+	static PostInversionCellData getPostRepottingCellScores(
+		RepottingCandidate candidate,
+		Cell newSelfCell,
+		Map<Cell, integer> reachableCells,
+		Map<Cell, Array<Action>> postByCell
+	) {
+		PostInversionCellData result = PostInversionCellData()
+
+		// Only use post-repotting pool (already has LOS blocking handled)
+		for (Cell cell : Array<Action> postActions in postByCell) {
+			// Compute MP cost
+			integer mpCost = 0
+			if (cell != newSelfCell) {
+				integer? cost = reachableCells[cell]
+				if (cost == null) continue  // Unreachable
+				mpCost = cost!
+			}
+
+			// Collect valid actions
+			Array<Action> validActions = []
+			real score = 0
+
+			for (Action a in postActions) {
+				if (a.score != null && a.score! > 0) {
+					score += a.score!
+					push(validActions, a)
+				}
+			}
+
+			if (score <= 0) continue  // No useful actions
+
+			result.scores[cell] = score
+			result.actions[cell] = validActions
+			result.mpCosts[cell] = mpCost
+		}
+
+		return result
+	}
+
+	/*
+	 * Debug output: show all computed inversion/repotting targets and barycentres
 	 */
 	static void debugAll() {
 		debug("=== MapTactical Results (ops=" + _opsUsed + ") ===")
@@ -556,6 +848,16 @@ class MapTactical {
 			for (InversionCandidate c in _inversionCandidates) {
 				string tag = c.target.isFriend ? "ALLY" : "ENEMY"
 				debug("    [" + tag + "] " + c)
+			}
+		}
+
+		// Repotting candidates
+		if (!Fight.repottingReady) {
+			debug("  CHIP_REPOTTING: not available")
+		} else {
+			debug("  CHIP_REPOTTING: " + count(_repottingCandidates) + " valid bulb targets")
+			for (RepottingCandidate c in _repottingCandidates) {
+				debug("    [BULB] " + c)
 			}
 		}
 		debug("=== End MapTactical ===")
