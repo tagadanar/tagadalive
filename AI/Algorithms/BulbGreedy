@@ -34,8 +34,9 @@ class BulbGreedy {
 		integer iteration = 0
 
 		while (iteration++ < maxIterations) {
-			// Get reachable cells from current position
-			Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells)
+			// Get reachable cells from current position (with new obstacles from position swaps)
+			Set<Cell> newObstacles = currentCsq != null ? currentCsq!._newObstacles : <>
+			Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, newObstacles)
 
 			// Find best action among all items and targets
 			Action? bestAction = BulbGreedy.findBestAction(
@@ -56,8 +57,9 @@ class BulbGreedy {
 			currentTP = currentCsq!.currentTP
 			currentMP = currentCsq!.currentMP
 
-			// Update ignoreCells with any killed entities
+			// Update ignoreCells with killed entities and freed cells
 			currentCsq!.appendKilledCells(ignoreCells)
+			currentCsq!.appendFreedCells(ignoreCells)
 		}
 
 		// FINAL POSITIONING: find best end-of-turn position

@@ -47,6 +47,11 @@ class BattleState {
 	// === Ally Danger ===
 	static Map<Entity, real> allyDanger = [:] // [ally: expectedDamageBeforeTheirTurn]
 
+	// === Enemy Turn Position (relative to self) ===
+	// Maps enemy → position index (0 = plays first after self, higher = later)
+	static Map<Entity, integer> enemyTurnPosition = [:]
+	static integer enemyCount = 0
+
 	/*
 	 * Refresh all battle state data.
 	 * Called once per turn before Scoring.refresh().
@@ -194,6 +199,17 @@ class BattleState {
 		// Compute ratios
 		ratioHP = (sumEnemyLife > 0) ? sumAllyLife / sumEnemyLife : 1.0
 		ratioCount = (enemyLeekCount > 0) ? (allyLeekCount * 1.0) / enemyLeekCount : 1.0
+
+		// Cache enemy turn positions relative to self (0 = plays first after self)
+		enemyTurnPosition = [:]
+		integer pos = 0
+		for (Entity e in Fight.getEntitiesAfterSelfInOrder()) {
+			if (!e.isFriend) {
+				enemyTurnPosition[e] = pos
+				pos++
+			}
+		}
+		enemyCount = pos
 	}
 
 	/*
@@ -252,11 +268,15 @@ class BattleState {
 
 	/*
 	 * Compute ally danger for all allies (called after MapDanger is ready)
+	 * Also sets canDie flag on each ally based on danger vs life threshold
 	 */
 	static void computeAllAllyDanger() {
 		for (Entity entity in Fight.getAlliesAlive()) {
 			if (entity != Fight.self) {
-				allyDanger[entity] = computeAllyDanger(entity)
+				real danger = computeAllyDanger(entity)
+				allyDanger[entity] = danger
+				// Set canDie flag: danger * threshold >= life means ally might die
+				entity.canDie = (danger * ScoringConfig.CANDIE_THRESHOLD >= entity.life)
 			}
 		}
 	}

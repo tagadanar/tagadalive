@@ -195,6 +195,65 @@ class EffectCache {
 	}
 
 	/*
+	 * Compute EffectSnapshot for a single known target at a simulated position.
+	 * Used for post-inversion actions where entity position differs from game state.
+	 *
+	 * Unlike computeSnapshot which queries getChipTargets() for entity detection,
+	 * this method takes the target directly - essential when the target's actual
+	 * position differs from where we're simulating them to be.
+	 *
+	 * @param item The item being used
+	 * @param target The known target entity
+	 * @param simulatedTargetCell Where the target will be (for AOE ratio calculation)
+	 * @param baseConseq Optional consequences to chain from (e.g., inversion effects)
+	 *                   When provided, handlers use consequence-aware stats for damage calc
+	 * @return EffectSnapshot with computed effects and opportunityCost
+	 */
+	static EffectSnapshot computeSnapshotForTarget(Item item, Entity target, Cell simulatedTargetCell, Consequences? baseConseq = null) {
+		Benchmark.start("EffectCache.computeTarget")
+		EffectSnapshot snap = EffectSnapshot()
+		snap.targets = <target>
+		snap.baseConseq = baseConseq  // Store for handlers to use
+
+		// For single target offensive, aimCell == simulatedTargetCell
+		Cell aimCell = simulatedTargetCell
+
+		for (ItemEffect effect in item.effects) {
+			snap.nextEffect()
+
+			// modifCaster effects apply once to caster
+			if (effect.modifCaster) {
+				real ratio = 1.0
+				if (item.isAOE) {
+					ratio = 1 - (0.2 * getCellDistance(aimCell.id, Fight.self.cell.id))
+				}
+				EffectCache.applyEffect(snap, effect, Fight.self, Fight.self, ratio)
+				continue
+			}
+
+			if (snap.isKilled(target)) continue
+
+			// Calculate damage ratio using SIMULATED target position (not target.cell)
+			real ratioDmg = 1.0
+			if (item.isAOE) {
+				ratioDmg = 1 - (0.2 * getCellDistance(aimCell.id, simulatedTargetCell.id))
+				if (ratioDmg <= 0) {
+					Benchmark.stop("EffectCache.computeTarget")
+					return snap  // Target too far from AOE center
+				}
+			}
+
+			EffectCache.applyEffect(snap, effect, Fight.self, target, ratioDmg)
+		}
+
+		// Compute opportunity cost
+		snap.opportunityCost = ScoringModifiers.getOpportunityCost(item, aimCell, snap.effectScore)
+
+		Benchmark.stop("EffectCache.computeTarget")
+		return snap
+	}
+
+	/*
 	 * Get targets for item aimed at aimCell (non-laser)
 	 */
 	static Set<Entity> getTargetsForAimCell(Item item, Cell aimCell) {

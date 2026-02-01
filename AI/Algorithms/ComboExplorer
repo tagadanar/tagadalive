@@ -180,6 +180,24 @@ class ComboExplorer {
 			ComboExplorer.phaseTargetFocus(ctx)
 		}
 
+		// Phase I: Inversion strategies
+		integer opsBeforeInv = getOperations()
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phaseInversion(ctx)
+		}
+		debug("PhaseI cost: " + Benchmark.format(getOperations() - opsBeforeInv))
+
+		// Debug best inversion combo
+		ExplorerResult? bestInv = null
+		for (ExplorerResult r in ctx.topResults) {
+			if (r.phase == "I" && (bestInv == null || r.score > bestInv!.score)) {
+				bestInv = r
+			}
+		}
+		if (bestInv != null) {
+			debug("PhaseI best: " + bestInv!.name + " score=" + round(bestInv!.score) + " " + bestInv!.combo)
+		}
+
 		// Phase 1: Single-cell MP sampling
 		if (!ctx.shouldStop()) {
 			ComboExplorer.phaseSingleCell(ctx)
@@ -281,6 +299,36 @@ class ComboExplorer {
 		if (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0) {
 			ctx.recordResult(ExplorerResult(combo!, name, "T"))
 		}
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE I: INVERSION STRATEGIES
+	// ════════════════════════════════════════════════════════════
+
+	/*
+	 * Explore inversion as a first-class strategy.
+	 * Tries all inversion candidates, letting the scoring decide.
+	 */
+	static void phaseInversion(ExplorationContext ctx) {
+		if (!Fight.inversionReady || Fight.inversionItem == null) return;
+
+		Benchmark.start("ComboExplorer.phaseInversion")
+
+		// Consider all inversion candidates, let the scoring decide
+		integer explored = 0
+		for (InversionCandidate candidate in MapTactical.getInversionCandidates()) {
+			if (ctx.shouldStop()) break
+			explored++
+
+			Combo? combo = ComboBuilder.buildWithInversion(ctx, candidate)
+			if (combo != null && count(combo!.actions) > 0) {
+				string tag = candidate.target.isFriend ? "Ally" : "Enemy"
+				ctx.recordResult(ExplorerResult(combo!, "I:" + tag + "_" + candidate.target.name, "I"))
+			}
+		}
+		debug("  PhaseI: " + explored + "/" + count(MapTactical.getInversionCandidates()) + " candidates")
+
+		Benchmark.stop("ComboExplorer.phaseInversion")
 	}
 
 	// ════════════════════════════════════════════════════════════
@@ -508,7 +556,8 @@ class ComboExplorer {
 		// Log summary
 		debug("ComboExplorer: " + ctx.combosEvaluated + " combos, best=" +
 			(ctx.bestResult != null ? ctx.bestResult!.name : "none") +
-			" score=" + (ctx.bestResult != null ? round(ctx.bestResult!.score) : 0))
+			" score=" + (ctx.bestResult != null ? round(ctx.bestResult!.score) : 0) +
+			(ctx.bestResult != null ? " " + ctx.bestResult!.combo : ""))
 	}
 
 	/*

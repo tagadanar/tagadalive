@@ -22,16 +22,18 @@ class MapDanger {
 	/*
 	 * Actualise les informations en fonctions des enemies et alliés encore vivant.
 	 * Orchestre le round-robin avec priorité:
-	 *   Phase 1: Enemy[0] + Ally[0] → minimum info guaranteed
+	 *   Phase 1: Enemy[0] + AllySupport[0] + AllyDamage[0] → minimum info guaranteed
 	 *   Phase 2: Enemy[1..n] → danger priority, check after each round
-	 *   Phase 3: Ally[1..n] → heal completion, check after each round
+	 *   Phase 3: AllySupport[1..n] → heal completion, check after each round
+	 *   Phase 4: AllyDamage[1..n] → ally offensive completion (lowest priority)
 	 */
 	static void refresh(){
-		// Reset caches (both danger and heal)
+		// Reset caches (danger, support, and ally damage)
 		_danger = [:]
 		_hash_danger = [:]
 		_map_entity_item_danger = [:]
-		MapAllySupport.resetCaches()
+		MapSupport.resetCaches()
+		MapDamage.resetCaches()
 
 		// Collect enemies and prepare their offensive items
 		Array<Entity> enemies = []
@@ -44,28 +46,34 @@ class MapDanger {
 			if(itemCount > maxEnemyItems) maxEnemyItems = itemCount
 		}
 
-		// Collect allies and prepare their heal items
-		integer maxAllyItems = MapAllySupport.collectAllies()
+		// Collect allies and prepare their support/offensive items
+		integer maxAllySupport = MapSupport.collectAllies()
+		integer maxAllyDamage = MapDamage.collectAllies()
 
 		integer dangerBudget = (getMaxOperations() * 0.4) as integer
 		integer enemyRound = 0
-		integer allyRound = 0
+		integer allySupportRound = 0
+		integer allyDamageRound = 0
 
 		// ═══════════════════════════════════════════════════════════════════
-		// PHASE 1: Minimum info - Enemy[0] + Ally[0] (guaranteed)
+		// PHASE 1: Minimum info - Enemy[0] + AllySupport[0] + AllyDamage[0]
 		// ═══════════════════════════════════════════════════════════════════
 		if(maxEnemyItems > 0){
 			MapDanger._processEnemyRound(enemies, 0)
 			enemyRound = 1
 		}
-		if(maxAllyItems > 0){
-			MapAllySupport.processRound(0)
-			allyRound = 1
+		if(maxAllySupport > 0){
+			MapSupport.processRound(0)
+			allySupportRound = 1
+		}
+		if(maxAllyDamage > 0){
+			MapDamage.processRound(0)
+			allyDamageRound = 1
 		}
 
 		// Check budget after Phase 1
 		if(getOperations() > dangerBudget){
-			MapDanger._logEarlyExit("Phase1", enemyRound, maxEnemyItems, allyRound, maxAllyItems, enemies)
+			MapDanger._logEarlyExit("Phase1", enemyRound, maxEnemyItems, allySupportRound, maxAllySupport, allyDamageRound, maxAllyDamage, enemies)
 			return
 		}
 
@@ -77,20 +85,33 @@ class MapDanger {
 			enemyRound = i + 1
 
 			if(getOperations() > dangerBudget){
-				MapDanger._logEarlyExit("Phase2", enemyRound, maxEnemyItems, allyRound, maxAllyItems, enemies)
+				MapDanger._logEarlyExit("Phase2", enemyRound, maxEnemyItems, allySupportRound, maxAllySupport, allyDamageRound, maxAllyDamage, enemies)
 				return
 			}
 		}
 
 		// ═══════════════════════════════════════════════════════════════════
-		// PHASE 3: Ally heal completion
+		// PHASE 3: Ally support completion
 		// ═══════════════════════════════════════════════════════════════════
-		for(integer i = 1; i < maxAllyItems; i++){
-			MapAllySupport.processRound(i)
-			allyRound = i + 1
+		for(integer i = 1; i < maxAllySupport; i++){
+			MapSupport.processRound(i)
+			allySupportRound = i + 1
 
 			if(getOperations() > dangerBudget){
-				MapDanger._logEarlyExit("Phase3", enemyRound, maxEnemyItems, allyRound, maxAllyItems, enemies)
+				MapDanger._logEarlyExit("Phase3", enemyRound, maxEnemyItems, allySupportRound, maxAllySupport, allyDamageRound, maxAllyDamage, enemies)
+				return
+			}
+		}
+
+		// ═══════════════════════════════════════════════════════════════════
+		// PHASE 4: Ally damage completion (lowest priority)
+		// ═══════════════════════════════════════════════════════════════════
+		for(integer i = 1; i < maxAllyDamage; i++){
+			MapDamage.processRound(i)
+			allyDamageRound = i + 1
+
+			if(getOperations() > dangerBudget){
+				MapDanger._logEarlyExit("Phase4", enemyRound, maxEnemyItems, allySupportRound, maxAllySupport, allyDamageRound, maxAllyDamage, enemies)
 				return
 			}
 		}
@@ -111,22 +132,25 @@ class MapDanger {
 	/*
 	 * Log early exit with phase info and stats
 	 */
-	static void _logEarlyExit(string phase, integer enemyRound, integer maxEnemy, integer allyRound, integer maxAlly, Array<Entity> enemies){
+	static void _logEarlyExit(string phase, integer enemyRound, integer maxEnemy, integer allySupportRound, integer maxAllySupport, integer allyDamageRound, integer maxAllyDamage, Array<Entity> enemies){
 		string enemyStats = ""
 		for(Entity e in enemies){
 			integer done = min(enemyRound, count(e.offensiveItems))
 			if(enemyStats != "") enemyStats += " "
 			enemyStats += e.name + ":" + done + "/" + count(e.offensiveItems)
 		}
-		// allyRound is 1-indexed (rounds completed), getEarlyExitStats expects 0-indexed (last round index)
-		string allyStats = allyRound > 0 ? MapAllySupport.getEarlyExitStats(allyRound - 1) : ""
+		// Round is 1-indexed (rounds completed), getEarlyExitStats expects 0-indexed (last round index)
+		string supportStats = allySupportRound > 0 ? MapSupport.getEarlyExitStats(allySupportRound - 1) : ""
+		string damageStats = allyDamageRound > 0 ? MapDamage.getEarlyExitStats(allyDamageRound - 1) : ""
 
 		string entity = Fight.self.isBulb ? "bulb" : "leek"
 		string msg = entity + " T" + getTurn() + " MapDanger " + phase + " early exit @" + Benchmark.format(getOperations())
 		msg += " | E:" + enemyRound + "/" + maxEnemy
 		if(enemyStats != "") msg += " (" + enemyStats + ")"
-		msg += " | A:" + allyRound + "/" + maxAlly
-		if(allyStats != "") msg += " (" + allyStats + ")"
+		msg += " | S:" + allySupportRound + "/" + maxAllySupport
+		if(supportStats != "") msg += " (" + supportStats + ")"
+		msg += " | D:" + allyDamageRound + "/" + maxAllyDamage
+		if(damageStats != "") msg += " (" + damageStats + ")"
 		debugW(msg)
 	}
 	

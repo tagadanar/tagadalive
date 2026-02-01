@@ -72,15 +72,15 @@ class Damages {
 			} else {
 				// === ALLY: Subtract healing and add shields ===
 				// Check if ally can support this cell (from ally support map)
-				if (MapAllySupport._map_ally_item_heal[e] == null) continue
+				if (MapSupport._map_ally_item_heal[e] == null) continue
 
-				Array<Item>? supportItems = MapAllySupport._ally_support_items[e]
+				Array<Item>? supportItems = MapSupport._ally_support_items[e]
 				if (supportItems == null) continue
 
 				integer tpLeft = e.getCurrentTP(consequences)
 
 				for (Item item in supportItems!) {
-					Map<Cell, real>? itemMap = MapAllySupport._map_ally_item_heal[e]![item]
+					Map<Cell, real>? itemMap = MapSupport._map_ally_item_heal[e]![item]
 					if (itemMap == null) continue
 
 					real? ratio = itemMap![cell]

@@ -31,6 +31,10 @@ class EffectSnapshot {
 	integer selfTPConservativeAdjustment = 0
 	integer selfMPConservativeAdjustment = 0
 
+	// Optional base consequences for chained scoring (e.g., post-inversion actions)
+	// When set, handlers should use target.getCurrentX(baseConseq) instead of target.x
+	Consequences? baseConseq = null
+
 	constructor() {
 		this.alterations = [:]
 		this.altEffects = [:]

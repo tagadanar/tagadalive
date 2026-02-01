@@ -22,6 +22,9 @@ class Fight {
 	// Antidote availability for danger evaluation (computed in refresh)
 	static boolean antidoteReady = false
 	static Item? antidoteItem = null
+	// Inversion availability for tactical positioning (computed in refresh)
+	static boolean inversionReady = false
+	static Item? inversionItem = null
 	// Summon availability for operation buffer calculation (computed in refresh)
 	static boolean canSummon = false
 
@@ -71,11 +74,13 @@ class Fight {
 		}
 		self = _aliveAll[getEntity()]!
 
-		// Compute Liberation, Antidote, and summon availability
+		// Compute Liberation, Antidote, Inversion, and summon availability
 		liberationReady = false
 		liberationItem = null
 		antidoteReady = false
 		antidoteItem = null
+		inversionReady = false
+		inversionItem = null
 		canSummon = false
 		for (Item item in self.items) {
 			if (item.id == CHIP_LIBERATION && getCooldown(item.id, self.id) == 0) {
@@ -85,6 +90,10 @@ class Fight {
 			if (item.id == CHIP_ANTIDOTE && getCooldown(item.id, self.id) == 0) {
 				antidoteReady = true
 				antidoteItem = item
+			}
+			if (item.id == CHIP_INVERSION && getCooldown(item.id, self.id) == 0) {
+				inversionReady = true
+				inversionItem = item
 			}
 			if (item.isSummon && getCooldown(item.id, self.id) == 0 && self.tp >= item.cost) {
 				canSummon = true

@@ -37,7 +37,7 @@ class MapCellScore {
 			Array<Action> actions = []
 
 			for (Item item : Action action in itemActions) {
-				if (action.score == null || action.score! <= 0) continue
+				if (action.score <= 0) continue
 				totalScore += action.score!
 				push(actions, action)
 			}
@@ -159,7 +159,7 @@ class MapCellScore {
 
 		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
 			for (Item item : Action action in itemActions) {
-				if (action.score == null || action.score! <= 0) continue
+				if (action.score <= 0) continue
 				// Check if this action targets the enemy
 				if (action.to == target.cell || (action.item.isAOE && MapCellScore.actionHitsTarget(action, target))) {
 					push(result, action)
@@ -179,7 +179,7 @@ class MapCellScore {
 
 		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
 			for (Item item : Action action in itemActions) {
-				if (action.score == null || action.score! <= 0) continue
+				if (action.score <= 0) continue
 				// Check if this action targets the ally (heal/buff)
 				if (action.to == ally.cell) {
 					// Only include if it's a helpful action (check item effects)

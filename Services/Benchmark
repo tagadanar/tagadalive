@@ -317,7 +317,7 @@ class Benchmark{
 	// Category definitions for grouped display
 	static Array<Array<string>> CATEGORIES = [
 		["INIT", "init", "Map.init", "Items.init"],
-		["REFRESH", "MapPath.refresh", "Fight.refresh", "Map.refresh", "Scoring.refresh", "MapDanger.refresh", "MapAllySupport.refresh", "MapAllyDamage.refresh", "MapPosition.refresh", "MapAction.refresh"],
+		["REFRESH", "MapPath.refresh", "Fight.refresh", "Map.refresh", "Scoring.refresh", "MapDanger.refresh", "MapPosition.refresh", "MapAction.refresh", "MapSummon.refresh", "MapTactical.refresh", "MapCellScore.refresh"],
 		["MCTS", "MCTS.iter", "Hybrid.runMCTSFull"],
 		["BEAM", "BeamSearch.search", "Hybrid.runBeamFull"],
 		["POSITION", "MP.evalPos", "MP.findBest"],

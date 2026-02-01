@@ -106,20 +106,21 @@ class MapPosition {
 	/*
 	 * Compute gravity cells - attraction/repulsion targets with ideal distances
 	 *
-	 * Simplified gravity system:
-	 * - Team fight: only turret attraction (weight 3)
-	 * - Other fights: nearest enemy (weight 2) + center (weight 1)
+	 * Gravity system by fight type:
+	 * - Team fight: ally turret + enemy turret
+	 * - Farmer fight: nearest enemy + ally barycentre
+	 * - Solo/default: nearest enemy + center
 	 *
-	 * Ally attraction is now handled by the support map (MapAllySupport) which provides
+	 * Ally attraction is now handled by the support map (MapSupport) which provides
 	 * more accurate positioning based on actual support potential (heal + shields).
 	 */
 	static void _refreshGravityCells() {
 		_gravity_distance = [:]
 		_gravity_coef = [:]
 
-		boolean isTeamFight = getFightType() == FIGHT_TYPE_TEAM
+		integer fightType = getFightType()
 
-		if (isTeamFight) {
+		if (fightType == FIGHT_TYPE_TEAM) {
 			// Team fight: attract to ally turret (protect) and enemy turret (attack)
 			for (Entity ally in Fight.getAlliesAlive()) {
 				if (ally.entityType == ENTITY_TURRET) {
@@ -136,8 +137,24 @@ class MapPosition {
 					break  // Only one turret per team
 				}
 			}
+		} else if (fightType == FIGHT_TYPE_FARMER) {
+			// Farmer fight: nearest enemy + ally barycentre
+
+			// Nearest enemy
+			if (_nearest_enemy != null) {
+				integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
+				_gravity_distance[_nearest_enemy!.cell] = distToEnemy
+				_gravity_coef[_nearest_enemy!.cell] = ScoringConfig.W_GRAVITY_NEAREST_ENEMY
+			}
+
+			// Ally barycentre (team cohesion)
+			Cell? allyBar = MapTactical.getAllyBarycentre()
+			if (allyBar != null) {
+				_gravity_distance[allyBar!] = ScoringConfig.IDEAL_DIST_ALLY
+				_gravity_coef[allyBar!] = ScoringConfig.W_GRAVITY_ALLY_BARYCENTRE
+			}
 		} else {
-			// Solo/Farmer fight: nearest enemy + center
+			// Solo/default: nearest enemy + center
 
 			// Nearest enemy
 			if (_nearest_enemy != null) {

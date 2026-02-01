@@ -23,6 +23,10 @@ class MapAction {
 	static Map<Item, Map<integer, Map<Cell, Cell>>> _item_entityId_attackCells
 	// Score index: stores best score per (item, entityId, attackCell) - keeps best aimCell
 	static Map<Item, Map<integer, Map<Cell, real>>> _item_entityId_scores
+	// Entity target index: entityId -> Set of actions targeting that entity (for inversion filtering)
+	static Map<integer, Set<Action>> _entityTargetedActions
+	// Entity items index: entityId -> Set of items that can target this entity (for post-inversion pool)
+	static Map<integer, Set<Item>> _entityTargetedItems
 
 	// Budget: 80% of max operations
 	static real BUDGET_RATIO = 0.8
@@ -36,6 +40,8 @@ class MapAction {
 		_cell_item_bestAction = [:]
 		_item_entityId_attackCells = [:]
 		_item_entityId_scores = [:]
+		_entityTargetedActions = [:]
+		_entityTargetedItems = [:]
 		_actionsCreated = 0
 		// Clear effect cache for new turn
 		EffectCache.clear()
@@ -88,6 +94,9 @@ class MapAction {
 				continue
 			}
 
+			// Skip tactical chips (handled by MapTactical)
+			if (item.isTactical) continue
+
 			// Score each valid target for this item
 			for (Entity entity in item.targetSet()) {
 				// Skip invincible enemies
@@ -126,6 +135,7 @@ class MapAction {
 
 		// Log cache stats at end of action pool creation
 		EffectCache.logStats()
+
 	}
 
 	/*
@@ -251,6 +261,22 @@ class MapAction {
 	}
 
 	/*
+	 * Get all actions that target a specific entity.
+	 * Used by ComboBuilder to invalidate actions after inversion.
+	 */
+	static Set<Action>? getActionsTargetingEntity(Entity entity) {
+		return _entityTargetedActions[entity.id]
+	}
+
+	/*
+	 * Get all items that can target a specific entity.
+	 * Used by MapTactical for post-inversion pool generation.
+	 */
+	static Set<Item>? getItemsTargetingEntity(Entity entity) {
+		return _entityTargetedItems[entity.id]
+	}
+
+	/*
 	 * Add entity index for PTS O(1) lookup
 	 * @param item The item being used
 	 * @param entityId The target entity's ID
@@ -306,7 +332,7 @@ class MapAction {
 		}
 
 		// Filter out actions with score <= 0 (not worth adding to maps)
-		if (action.score == null || action.score! <= 0) {
+		if (action.score <= 0) {
 			Benchmark.stop("addAction")
 			return null
 		}
@@ -325,6 +351,19 @@ class MapAction {
 		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
 		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
 		else if(_cell_item_bestAction[from]![item]!.score! < action.score!) _cell_item_bestAction[from]![item] = action
+
+		// Index action and item by target entities (for inversion filtering)
+		for (Entity target in action.consequences.targets) {
+			if (_entityTargetedActions[target.id] == null) {
+				_entityTargetedActions[target.id] = <>
+			}
+			setPut(_entityTargetedActions[target.id]!, action)
+
+			if (_entityTargetedItems[target.id] == null) {
+				_entityTargetedItems[target.id] = <>
+			}
+			setPut(_entityTargetedItems[target.id]!, item)
+		}
 
 		_actionsCreated++
 		Benchmark.stop("addAction")

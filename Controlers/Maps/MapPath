@@ -11,18 +11,21 @@ class MapPath{
 	 * Renvoie l'ensemble de cellules accessibles depuis la cellule (cells) avec la quantité de points de mouvements (mp) en utilisant les voisins.
 	 * @param cells -> cellule à partir de laquelle je veux checker (format [Cell:distance]) donc par exemple ma [cellule courante:0]
 	 * @param mp -> les points de mouvements
-	 * @param ignoreCells -> cellules à ignorer par l'algorithme
+	 * @param ignoreCells -> cellules à ignorer par l'algorithme (treat as walkable even if occupied)
+	 * @param newObstacles -> cellules à bloquer (entities moved here during combo simulation)
 	 * @return  un tableau contenant pour chaque cellules accessible [Cell:distance]
-	 * 
+	 *
 	 */
-	static Map<Cell, integer> getReachableCells(Map<Cell, integer> cells, integer mp, Set<Cell> ignoreCells){
+	static Map<Cell, integer> getReachableCells(Map<Cell, integer> cells, integer mp, Set<Cell> ignoreCells, Set<Cell> newObstacles = <>){
 		Map<Cell, integer> stack = clone(cells, 2) as Map<Cell, integer>
 		Map<Cell, integer> tmp = clone(cells, 2) as Map<Cell, integer>
 		Map<Cell, integer> next = [:]
 		while(mp-->0){
 			for(Cell currentWorkingCell: integer dist in tmp){
 				for(Cell c in currentWorkingCell.neighbors){
-					if(stack[c] == null && (!Board.entityCells[c] || setContains(ignoreCells, c))){
+					if(stack[c] == null
+					   && (!Board.entityCells[c] || setContains(ignoreCells, c))
+					   && !setContains(newObstacles, c)){
 						stack[c] = dist+1
 						next[c] = dist+1
 					}
@@ -34,11 +37,14 @@ class MapPath{
 		return stack
 	}
 	
-	static integer getHashcode(Cell from, Set<Cell> ignoreCells){
+	static integer getHashcode(Cell from, Set<Cell> ignoreCells, Set<Cell> newObstacles = <>){
 		integer hash = 31
 		hash = hash*37+from.id
 		for(Cell c in ignoreCells){
 			hash = hash*37+c.id
+		}
+		for(Cell c in newObstacles){
+			hash = hash*41+c.id
 		}
 		return hash
 	}
@@ -47,16 +53,18 @@ class MapPath{
 	 * Returns cached reachable cells from a position.
 	 * WARNING: Cache may contain cells beyond requested mp if previously expanded.
 	 * Callers MUST check distance <= mp when iterating results!
+	 *
+	 * @param newObstacles Cells blocked by position swaps (e.g., after inversion)
 	 */
-	static Map<Cell, integer> getCachedReachableCells(Cell from, integer mp, Set<Cell> ignoreCells){
-		integer hash = MapPath.getHashcode(from, ignoreCells)
+	static Map<Cell, integer> getCachedReachableCells(Cell from, integer mp, Set<Cell> ignoreCells, Set<Cell> newObstacles = <>){
+		integer hash = MapPath.getHashcode(from, ignoreCells, newObstacles)
 		Map<Cell, integer>? result = MapPath._cache_reachable[hash]
 		if(result==null){
-			result = MapPath.getReachableCells([from:0], mp, ignoreCells)
+			result = MapPath.getReachableCells([from:0], mp, ignoreCells, newObstacles)
 			MapPath._cache_reachable_size[hash] = mp
 			MapPath._cache_reachable[hash] = result
 		}else if(MapPath._cache_reachable_size[hash] < mp){
-			result = MapPath.getReachableCells(MapPath._cache_reachable[hash]!, mp-MapPath._cache_reachable_size[hash], ignoreCells)
+			result = MapPath.getReachableCells(MapPath._cache_reachable[hash]!, mp-MapPath._cache_reachable_size[hash], ignoreCells, newObstacles)
 			MapPath._cache_reachable_size[hash] = mp
 			MapPath._cache_reachable[hash] = result
 		}

@@ -20,6 +20,18 @@ Consequences.registerHandlers([
 
 	EFFECT_INVERT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Swaps positions between caster and target
+		// Track position changes for pathfinding in subsequent actions:
+		// - Our old cell becomes an obstacle (target moves there)
+		// - Target's old cell becomes walkable (we move there)
+		conseq.addNewObstacle(conseq.currentCell)
+		conseq.addFreedCell(entityTarget.cell)
+		conseq.currentCell = entityTarget.cell
+
+		// Score from pre-computed candidate (ally damage delta + vulnerability impact)
+		// This is the full tactical value of the position swap
+		if (conseq.invCandidate != null) {
+			conseq.score += conseq.invCandidate!.score
+		}
 	},
 
 	EFFECT_PUSH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {

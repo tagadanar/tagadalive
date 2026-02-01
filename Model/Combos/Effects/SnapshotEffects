@@ -23,7 +23,11 @@ function snapshotHasItemEffect(Entity target, Item item) {
 EffectCache.registerHandlers([
 	EFFECT_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
-		EffectHandlers.damage(effect, entitySource, entityTarget, ratioDmg, entitySource.str, entitySource.pwr, entitySource.wsd, entityTarget.relShield, entityTarget.absShield, entityTarget.dmgReturn, snap)
+		// Use consequence-aware stats when baseConseq is set (e.g., post-inversion scoring)
+		integer targetRel = entityTarget.getCurrentRel(snap.baseConseq)
+		integer targetAbs = entityTarget.getCurrentAbs(snap.baseConseq)
+		integer targetDmgRet = entityTarget.getCurrentDmgReturn(snap.baseConseq)
+		EffectHandlers.damage(effect, entitySource, entityTarget, ratioDmg, entitySource.str, entitySource.pwr, entitySource.wsd, targetRel, targetAbs, targetDmgRet, snap)
 	},
 
 	EFFECT_POISON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
@@ -33,7 +37,11 @@ EffectCache.registerHandlers([
 
 	EFFECT_LIFE_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
-		EffectHandlers.lifeDamage(effect, entitySource, entityTarget, ratioDmg, entitySource.life, entitySource.pwr, entityTarget.relShield, entityTarget.absShield, entityTarget.dmgReturn, snap)
+		// Use consequence-aware stats when baseConseq is set
+		integer targetRel = entityTarget.getCurrentRel(snap.baseConseq)
+		integer targetAbs = entityTarget.getCurrentAbs(snap.baseConseq)
+		integer targetDmgRet = entityTarget.getCurrentDmgReturn(snap.baseConseq)
+		EffectHandlers.lifeDamage(effect, entitySource, entityTarget, ratioDmg, entitySource.life, entitySource.pwr, targetRel, targetAbs, targetDmgRet, snap)
 	},
 
 	EFFECT_NOVA_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {

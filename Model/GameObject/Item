@@ -23,6 +23,7 @@ class Item {
 	integer targetKey
 	boolean targetEmptyCell = false
 	boolean isSummon = false
+	boolean isTactical = false
 
 	static integer ALL = 0
 	static integer ALLLEEKS = 1
@@ -55,7 +56,18 @@ class Item {
 		CHIP_ANTIDOTE: -1,           // Before Liberation - full poison removal
 		CHIP_MANUMISSION: -1,		 // hmmm avant ou après libe ? xD
 		CHIP_LIBERATION: 0,          // Removes debuffs (after Antidote)
-		CHIP_REFLEXES: 2,            // Agility buffs (crits)
+		CHIP_INVERSION: 1,           // Position swap (before summons)
+		CHIP_LIGHTNING_BULB: 2,      // Summons early (so bulb can receive buffs)
+		CHIP_WIZARD_BULB: 2,
+		CHIP_FIRE_BULB: 2,
+		CHIP_METALLIC_BULB: 2,
+		CHIP_HEALER_BULB: 2,
+		CHIP_ICED_BULB: 2,
+		CHIP_ROCKY_BULB: 2,
+		CHIP_PUNY_BULB: 2,
+		CHIP_TACTICIAN_BULB: 2,
+		CHIP_SAVANT_BULB: 2,
+		CHIP_REFLEXES: 3,            // Agility buffs (crits)
 		CHIP_STRETCHING: 3,
 		CHIP_WARM_UP: 3,
 		CHIP_RAGE: 4,                // TP generation
@@ -170,18 +182,7 @@ class Item {
 		CHIP_MIRROR: 20,             // Damage reflection
 		CHIP_THORN: 20,
 		CHIP_BRAMBLE: 20,
-		CHIP_LIGHTNING_BULB: 1,      // Summons early (so bulb can receive buffs)
-		CHIP_WIZARD_BULB: 1,
-		CHIP_FIRE_BULB: 1,
-		CHIP_METALLIC_BULB: 1,
-		CHIP_HEALER_BULB: 1,
-		CHIP_ICED_BULB: 1,
-		CHIP_ROCKY_BULB: 1,
-		CHIP_PUNY_BULB: 1,
-		CHIP_TACTICIAN_BULB: 1,
-		CHIP_SAVANT_BULB: 1,
 		CHIP_JUMP: 22,
-		CHIP_INVERSION: 22,
 		CHIP_REPOTTING: 22,
 		CHIP_GRAPPLE: 22,
 		CHIP_BOXING_GLOVE: 22,
@@ -244,11 +245,17 @@ class Item {
 			}
 		}
 
-		// Detect summon chips
+		// Detect summon and tactical chips
 		for (ItemEffect e in this.effects) {
-			if (e.type == EFFECT_SUMMON) {
+			if (e.type == EFFECT_SUMMON || e.type == EFFECT_RESURRECT) {
 				this.isSummon = true
-				break
+			}
+			if (e.type == EFFECT_INVERT ||
+				e.type == EFFECT_TELEPORT ||
+				e.type == EFFECT_PUSH ||
+				e.type == EFFECT_ATTRACT ||
+				e.type == EFFECT_REPEL) {
+				this.isTactical = true
 			}
 		}
 
