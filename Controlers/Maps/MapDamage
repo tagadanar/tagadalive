@@ -19,10 +19,6 @@ class MapDamage {
 	static Map<Cell, AllyDamagePotential> _dmg = [:] // [cell:AllyDamagePotential]
 	static Map<integer, Map<Cell, AllyDamagePotential>> _hash_dmg = [:] // [consequences.hash:[cell:AllyDamagePotential]]
 
-	// Cache contenant pour chaque item, pour chaque case, les cases ciblables
-	// Ignore les entites dans la LOS (comme MapDanger) - cache global car le resultat ne depend pas de l'allie
-	static Map<Item, Map<Cell, Array<Cell>>> _cache_item_targetableCells = [:] // [item:[fromCell:[targetCells]]]
-
 	// Cache pour chaque allie des maps des cases ou il peut faire des degats
 	// Refresh a chaque tour
 	static Map<Entity, Map<Item, Map<Cell, real>>> _map_ally_item_dmg = [:] // [ally:[item:[cell:ratio]]]
@@ -182,21 +178,13 @@ class MapDamage {
 
 	/*
 	 * Retourne les Cells pouvant etre ciblees depuis la @cell avec l'@item (ignore les entites dans la LOS)
+	 * Utilise le cache partagé de MapDanger.
 	 * @param item Item offensif
 	 * @param cell Cellule depuis laquelle l'allie tire
 	 * @return Array de cellules ciblables
 	 */
 	static Array<Cell> getAllyTargetableCells(Item item, Cell cell) {
-		// Init du cache si necessaire
-		if (_cache_item_targetableCells[item] == null) {
-			_cache_item_targetableCells[item] = [:]
-		}
-		if (_cache_item_targetableCells[item]![cell] == null) {
-			// Ignore toutes les entites dans la LOS (comme MapDanger.getEnemiesTargetableCells)
-			_cache_item_targetableCells[item]![cell] = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
-		}
-
-		return _cache_item_targetableCells[item]![cell]!
+		return MapDanger.getCachedTargetableCells(item, cell)
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════

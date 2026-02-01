@@ -350,40 +350,31 @@ class MapTactical {
 				// Enemy cell: swapped enemy is at enemyNewCell, others at their original cell
 				Cell enemyCell = (enemy == candidate.target) ? enemyNewCell : enemy.cell
 
-				// Get cells from which we can cast this item on enemy (include occupied cells
-				// since newSelfCell appears occupied in current state but we'll be there after swap)
-				// Ignore both self and target in LOS check (neither at their current position after swap)
-				Array<Cell> castCells = Targets.getTargetableCells(item, enemyCell, [Fight.self.id, candidate.target.id])
+				// Use shared cache (ignores ALL entities) - we'll verify LOS lazily with DDA
+				Array<Cell> castCells = MapDanger.getCachedTargetableCells(item, enemyCell)
 
-				// For non-swapped enemies, check if swapped entity blocks LOS
-				// Use getCellsLine ONCE to get cells on LOS path, then check if obstacle is on it
-				boolean needsLOSCheck = (enemy != candidate.target)
-				Set<integer>? blockedCastCells = null
-				if (needsLOSCheck) {
-					blockedCastCells = MapTactical._getBlockedCastCells(castCells, enemyCell, enemyNewCell)
-				}
+				// Build set for O(1) lookup
+				Set<integer> castSet = <>
+				for (Cell c in castCells) setPut(castSet, c.id)
 
-				// Build set of valid cast cells (not blocked) for O(1) lookup
-				Set<integer> validCastSet = <>
-				boolean newSelfCellValid = false
-				for (Cell c in castCells) {
-					if (blockedCastCells != null && setContains(blockedCastCells!, c.id)) continue
-					setPut(validCastSet, c.id)
-					if (c == newSelfCell) newSelfCellValid = true
-				}
-
-				// Find closest reachable cast cell
+				// Find closest reachable cast cell with lazy LOS check
 				Cell? bestCast = null
 				integer bestDist = 9999
 
 				// Check if newSelfCell is valid (no movement needed)
-				if (newSelfCellValid) {
-					bestCast = newSelfCell
-					bestDist = 0
-				} else {
-					// Iterate reachable in BFS order - first match is closest (early exit!)
+				if (setContains(castSet, newSelfCell.id)) {
+					if (MapTactical._hasValidLOS(newSelfCell, enemyCell, candidate.target, enemyNewCell)) {
+						bestCast = newSelfCell
+						bestDist = 0
+					}
+				}
+
+				// If not, iterate reachable in BFS order - first valid is closest
+				if (bestCast == null) {
 					for (Cell c : integer dist in newReachable) {
-						if (setContains(validCastSet, c.id)) {
+						if (!setContains(castSet, c.id)) continue
+						// Lazy LOS check via DDA
+						if (MapTactical._hasValidLOS(c, enemyCell, candidate.target, enemyNewCell)) {
 							bestCast = c
 							bestDist = dist
 							break  // BFS order guarantees first match is closest
@@ -394,16 +385,11 @@ class MapTactical {
 				if (bestCast == null) continue
 
 				// Create action with correct from cell
-				// Use EffectCache.computeSnapshotForTarget to bypass getChipTargets()
-				// which queries game state where enemy hasn't moved yet
-				// Pass invConseq so damage is scored with inversion effects applied
-				if (item.isOffensive) {
-					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, invConseq)
-					Action action = Action(item, bestCast!, enemyCell, snapshot)
-					action.overrideTargets = snapshot.targets  // Bypass game API for simulated position
-					if (action.score != null && action.score! > 0) {
-						push(postPool, action)
-					}
+				EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, invConseq)
+				Action action = Action(item, bestCast!, enemyCell, snapshot)
+				action.overrideTargets = snapshot.targets
+				if (action.score != null && action.score! > 0) {
+					push(postPool, action)
 				}
 			}
 		}
@@ -450,31 +436,34 @@ class MapTactical {
 					// NOTE: Don't filter by TP - let combo builder decide
 					if (getCooldown(item.id, Fight.self.id) > 0) continue
 
-					// Get cast cells for ally's NEW position
-					Array<Cell> castCells = Targets.getTargetableCells(item, allyNewCell, [Fight.self.id, candidate.target.id])
+					// Use shared cache (ignores ALL entities) - verify LOS lazily
+					Array<Cell> castCells = MapDanger.getCachedTargetableCells(item, allyNewCell)
 
-					// Build set of valid cast cells for O(1) lookup
-					Set<integer> validCastSet = <>
-					boolean newSelfCellValid = false
-					for (Cell c in castCells) {
-						setPut(validCastSet, c.id)
-						if (c == newSelfCell) newSelfCellValid = true
-					}
+					// Build set for O(1) lookup
+					Set<integer> castSet = <>
+					for (Cell c in castCells) setPut(castSet, c.id)
 
-					// Find closest reachable cast cell
+					// Find closest reachable cast cell with lazy LOS check
 					Cell? bestCast = null
 					integer bestDist = 9999
 
-					if (newSelfCellValid) {
-						bestCast = newSelfCell
-						bestDist = 0
-					} else {
-						// Iterate reachable in BFS order - first match is closest (early exit!)
+					// Check if newSelfCell is valid (no movement needed)
+					// For ally support, swapped entity IS the target, so no extra blocking
+					if (setContains(castSet, newSelfCell.id)) {
+						if (MapTactical._hasValidLOS(newSelfCell, allyNewCell, candidate.target, allyNewCell)) {
+							bestCast = newSelfCell
+							bestDist = 0
+						}
+					}
+
+					// If not, iterate reachable in BFS order
+					if (bestCast == null) {
 						for (Cell c : integer dist in newReachable) {
-							if (setContains(validCastSet, c.id)) {
+							if (!setContains(castSet, c.id)) continue
+							if (MapTactical._hasValidLOS(c, allyNewCell, candidate.target, allyNewCell)) {
 								bestCast = c
 								bestDist = dist
-								break  // BFS order guarantees first match is closest
+								break
 							}
 						}
 					}
@@ -484,7 +473,7 @@ class MapTactical {
 					// Create action targeting ally at new position
 					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, candidate.target, allyNewCell, invConseq)
 					Action action = Action(item, bestCast!, allyNewCell, snapshot)
-					action.overrideTargets = snapshot.targets  // Bypass game API for simulated position
+					action.overrideTargets = snapshot.targets
 					if (action.score != null && action.score! > 0) {
 						push(postPool, action)
 					}
@@ -571,6 +560,46 @@ class MapTactical {
 	}
 
 	/*
+	 * Check if LOS is valid from castCell to targetCell after inversion.
+	 * Uses DDA to trace the line and checks for blockers:
+	 * - Walls block LOS
+	 * - Entities block LOS (except self and swapTarget who moved)
+	 * - swapTarget at their NEW position (swapTargetNewCell) blocks LOS
+	 *
+	 * @param castCell Cell we're casting from
+	 * @param targetCell Cell we're targeting
+	 * @param swapTarget Entity that swapped (ignore at original position)
+	 * @param swapTargetNewCell Where swapTarget is now (check as blocker)
+	 * @return true if LOS is clear, false if blocked
+	 */
+	static boolean _hasValidLOS(Cell castCell, Cell targetCell, Entity swapTarget, Cell swapTargetNewCell) {
+		// Same cell = always valid
+		if (castCell == targetCell) return true
+
+		// Get cells on the line (cached DDA)
+		Array<Cell> line = _getCellsLineOfSight(castCell, targetCell)
+
+		// Check each cell on the line (skip endpoints)
+		for (Cell c in line) {
+			if (c == castCell || c == targetCell) continue
+
+			// Wall blocks LOS
+			if (c.isWall) return false
+
+			// Swapped entity at new position blocks LOS
+			if (c == swapTargetNewCell) return false
+
+			// Other entities block LOS (except self and swapTarget who moved)
+			Entity? entityOnCell = Board.entityCells[c]
+			if (entityOnCell != null && entityOnCell != Fight.self && entityOnCell != swapTarget) {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	/*
 	 * Get cells on line of sight between two cells (DDA algorithm).
 	 * Uses doubled coordinates to avoid floating point.
 	 * Results are cached (grid is static for the fight).
@@ -610,7 +639,9 @@ class MapTactical {
 		integer tStepX = ady << 1
 		integer tStepY = adx << 1
 
-		push(cells, Board.cellsXY[x]![y]!)
+		// DDA can step through coordinates with no cell (e.g. corner of diamond board)
+		Cell? c = Board.cellsXY[x]![y]
+		if (c != null) push(cells, c!)
 
 		while (x != to.x || y != to.y) {
 			if (tMaxX < tMaxY) {
@@ -620,7 +651,8 @@ class MapTactical {
 				y += sy
 				tMaxY += tStepY
 			}
-			push(cells, Board.cellsXY[x]![y]!)
+			c = Board.cellsXY[x]![y]
+			if (c != null) push(cells, c!)
 		}
 
 		// Store in cache

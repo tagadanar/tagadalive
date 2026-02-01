@@ -11,10 +11,6 @@ class MapSupport {
 	static Map<Cell, HealPotential> _heal = [:] // [cell:HealPotential]
 	static Map<integer, Map<Cell, HealPotential>> _hash_heal = [:] // [consequences.hash:[cell:HealPotential]]
 
-	// Cache contenant pour chaque item, pour chaque case, les cases ciblables
-	// Ignore les entités dans la LOS (comme MapDanger) - cache global car le résultat ne dépend pas de l'allié
-	static Map<Item, Map<Cell, Array<Cell>>> _cache_item_targetableCells = [:] // [item:[fromCell:[targetCells]]]
-
 	// Cache pour chaque allié des maps des cases où il peut heal
 	// Refresh à chaque tour
 	static Map<Entity, Map<Item, Map<Cell, real>>> _map_ally_item_heal = [:] // [ally:[item:[cell:ratio]]]
@@ -30,7 +26,6 @@ class MapSupport {
 
 	/*
 	 * Reset per-turn caches. Called by MapDanger.refresh() at start.
-	 * Note: _cache_item_targetableCells is NOT reset (valid across turns)
 	 */
 	static void resetCaches() {
 		_heal = [:]
@@ -161,21 +156,13 @@ class MapSupport {
 
 	/*
 	 * Retourne les Cells pouvant être ciblées depuis la @cell avec l'@item (ignore les entités dans la LOS)
+	 * Utilise le cache partagé de MapDanger.
 	 * @param item Item de support (heal ou shield)
 	 * @param cell Cellule depuis laquelle l'allié tire
 	 * @return Array de cellules ciblables
 	 */
 	static Array<Cell> getAllyTargetableCells(Item item, Cell cell) {
-		// Init du cache si nécessaire
-		if (_cache_item_targetableCells[item] == null) {
-			_cache_item_targetableCells[item] = [:]
-		}
-		if (_cache_item_targetableCells[item]![cell] == null) {
-			// Ignore toutes les entités dans la LOS (comme MapDanger.getEnemiesTargetableCells)
-			_cache_item_targetableCells[item]![cell] = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
-		}
-
-		return _cache_item_targetableCells[item]![cell]!
+		return MapDanger.getCachedTargetableCells(item, cell)
 	}
 
 	/*

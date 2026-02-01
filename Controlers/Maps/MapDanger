@@ -241,7 +241,7 @@ class MapDanger {
 		Map<Cell, real> map = [:]//, map_mp = []
 		for(Cell cell:integer dist in enemy.reachableCells){
 			if(dist > enemy.mp) break
-			Array<Cell> targetableCells = MapDanger.getEnemiesTargetableCells(item, cell);
+			Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell);
 			for(Cell c in targetableCells){
 				if(map[c]==null){
 					map[c]=1.0;//coef
@@ -288,15 +288,15 @@ class MapDanger {
 	}
 
 	/*
-	 * Retourne les Cells pouvant être touché avec le parametre item par les ennemis, ignore la los
-	 * ce qui permet de garder en cache le résultat pour des bonnes perfs
-	 * @see getAlliesTargetableCells
-	 * @param item Item
-	 * @param cell une Cellule accesible par l'entité en question
+	 * Retourne les Cells depuis lesquelles on peut cibler `cell` avec `item`, en ignorant toutes les entités.
+	 * Cache persistent pour toute la durée du combat (le résultat ne dépend que de la map).
+	 * Utilisé par: MapDanger, MapDamage, MapSupport, MapTactical
+	 *
+	 * @param item Item à utiliser
+	 * @param cell Cellule ciblée
+	 * @return Array de cellules depuis lesquelles on peut cibler `cell`
 	 */
-	// TODO memoisé lineOfSight ignoring allEntitiesId
-	// fonction avec cache qui considère que los est tjr pareil.
-	static Array<Cell> getEnemiesTargetableCells(Item item, Cell cell){
+	static Array<Cell> getCachedTargetableCells(Item item, Cell cell){
 		// init du cache si nécessaire
 		if(MapDanger._cache_item_targetableCells[item]==null) 
 			MapDanger._cache_item_targetableCells[item] = [:]
