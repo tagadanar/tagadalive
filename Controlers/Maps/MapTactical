@@ -1,0 +1,612 @@
+/*
+ * MapTactical - Intelligent tactical chip selection
+ *
+ * Handles tactical chips that affect positioning or game state in ways
+ * beyond simple damage/healing. V1 focuses on CHIP_INVERSION (position swap).
+ *
+ * Usage:
+ *   // After init(), check available inversions
+ *   MapTactical.refresh()
+ *   if (Fight.inversionReady) {
+ *       Array<InversionCandidate> targets = MapTactical.getInversionCandidates()
+ *       for (InversionCandidate c in targets) {
+ *           debug("Can swap with " + c.target.name + " from c" + c.fromCell.id + " (mp=" + c.mpCost + ")")
+ *       }
+ *   }
+ */
+
+class MapTactical {
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// CACHED RESULTS - Populated by refresh()
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	// Sorted array of valid inversion targets (by mpCost ascending)
+	static Array<InversionCandidate> _inversionCandidates = []
+
+	// O(1) lookup: targetId -> InversionCandidate
+	static Map<integer, InversionCandidate> _candidateByTargetId = [:]
+
+	// Best candidates by score (for action generation)
+	static InversionCandidate? _bestAllyCandidate = null
+	static InversionCandidate? _bestEnemyCandidate = null
+
+	// Team barycentres (center of mass)
+	static Cell? _allyBarycentre = null
+	static Cell? _enemyBarycentre = null
+
+	// Operation counter for this module
+	static integer _opsUsed = 0
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// PUBLIC API
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Refresh tactical analysis for current turn.
+	 * Computes valid inversion targets and best cast positions.
+	 * Requires Fight.refresh() to be called first (sets inversionReady/inversionItem).
+	 */
+	static void refresh() {
+		integer startOps = getOperations()
+		_inversionCandidates = []
+		_candidateByTargetId = [:]
+		_bestAllyCandidate = null
+		_bestEnemyCandidate = null
+
+		// Compute team barycentres
+		_allyBarycentre = _computeBarycentre(Fight.getAlliesAlive())
+		_enemyBarycentre = _computeBarycentre(Fight.getEnemiesAlive())
+
+		// Exit early if chip not available (checked in Fight.refresh)
+		if (!Fight.inversionReady || Fight.inversionItem == null) {
+			_opsUsed = getOperations() - startOps
+			return;
+		}
+
+		Item invItem = Fight.inversionItem!
+
+		// Check TP (cooldown already checked in Fight.refresh)
+		if (Fight.self.tp < invItem.cost) {
+			_opsUsed = getOperations() - startOps
+			return;
+		}
+
+		// Get self's extended reachable cells (includes MP buff potential)
+		Map<Cell, integer> reachable = Fight.self.extendedReachableCells
+		Cell selfCell = Fight.self.cell
+
+		// Process all entities (allies + enemies, excluding self)
+		Map<integer, Entity> allEntities = Fight.getAllAlive()
+
+		for (integer entityId : Entity entity in allEntities) {
+			// Skip self
+			if (entityId == Fight.self.id) continue
+
+			// Get cells from which we can cast inversion on this target
+			Array<Cell> fromCells = Targets.getCellsToUseItemOnCell(invItem, entity.cell, [Fight.self.id])
+
+			// Check if selfCell is already in range (no movement needed)
+			Cell? bestFrom = null
+			integer bestCost = 9999
+
+			// First check if selfCell is in the valid cast cells
+			for (Cell fromCell in fromCells) {
+				if (fromCell.id == selfCell.id) {
+					bestFrom = selfCell
+					bestCost = 0
+					break
+				}
+			}
+
+			// If not in range, find closest reachable cell
+			if (bestFrom == null) {
+				for (Cell fromCell in fromCells) {
+					integer? cost = reachable[fromCell]
+					if (cost != null && cost! < bestCost) {
+						bestCost = cost!
+						bestFrom = fromCell
+					}
+				}
+			}
+
+			// Skip if no reachable cast position
+			if (bestFrom == null) continue
+
+			// Score swaps
+			real score = 0
+			if (entity.isFriend) {
+				// Ally swaps: danger reduction treated as "virtual heal"
+				// After swap: ally ends up on fromCell (where we stand to cast), we end up on entity.cell
+				Danger oldDanger = MapDanger.getCellDanger(entity.cell)
+				Danger newDanger = MapDanger.getCellDanger(bestFrom!)
+				real oldTotal = oldDanger.dmg + oldDanger.psnDmg
+				real newTotal = newDanger.dmg + newDanger.psnDmg
+				real dangerReduction = oldTotal - newTotal
+				real coef = Scoring.getDynamicCoef(entity, Stats.HP, null)
+				score = dangerReduction * coef
+
+				// DEATH bonus if swap saves ally from death
+				// DEATH_VALUE (-10000) * ally KILL coef (-1.0) = +10000
+				boolean stillCanDie = (newTotal * ScoringConfig.CANDIE_THRESHOLD >= entity.life)
+				if (entity.canDie && !stillCanDie) {
+					score += ScoringConfig.DEATH_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, null)
+				}
+			} else {
+				// Enemy swaps: pull enemy to fromCell where allies can hit them
+				// After swap: enemy ends up at fromCell (our cast position), we end up at entity.cell
+				// Score = delta in ally damage potential (new position vs current position)
+				// dmgDelta positive = more damage at new pos = GOOD for us
+				// coef is negative for enemies, so negate to get positive score for good swaps
+
+				// Create inversion action to get consequences (e.g., vulnerability effect)
+				Action invAction = Action(invItem, bestFrom!, entity.cell)
+				Consequences invConseq = invAction.consequences
+
+				// Use consequences for new pos (vulnerability applied), but not for current pos (before inversion)
+				real dmgAtNewPos = MapDamage.getDamageBeforeEnemy(bestFrom!, entity, invConseq)
+				real dmgAtCurrentPos = MapDamage.getDamageBeforeEnemy(entity.cell, entity, null)
+				real dmgDelta = dmgAtNewPos - dmgAtCurrentPos
+				real coef = Scoring.getDynamicCoef(entity, Stats.HP, invConseq)
+				score = dmgDelta * (-coef)  // Negate: more damage to enemy = positive score
+
+				// KILL bonus if allies can kill enemy at new position
+				if (dmgAtNewPos >= entity.life) {
+					score += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, invConseq)
+				}
+			}
+
+			// Create candidate
+			InversionCandidate candidate = InversionCandidate(
+				bestFrom!,
+				entity,
+				entity.cell,
+				bestCost,
+				score
+			)
+
+			push(_inversionCandidates, candidate)
+			_candidateByTargetId[entityId] = candidate
+		}
+
+		// Sort by mpCost ascending (cheapest first)
+		_inversionCandidates = arraySort(_inversionCandidates, (InversionCandidate a, InversionCandidate b) -> integer {
+			return a.mpCost - b.mpCost
+		}) as Array<InversionCandidate>
+
+		// Select best ally and best enemy candidates (by score)
+		for (InversionCandidate c in _inversionCandidates) {
+			if (c.target.isFriend) {
+				if (_bestAllyCandidate == null || c.score > _bestAllyCandidate!.score) {
+					_bestAllyCandidate = c
+				}
+			} else {
+				if (_bestEnemyCandidate == null || c.score > _bestEnemyCandidate!.score) {
+					_bestEnemyCandidate = c
+				}
+			}
+		}
+
+		_opsUsed = getOperations() - startOps
+	}
+
+	/*
+	 * Compute barycentre (center of mass) for a set of entities.
+	 * Returns the cell at the rounded average position, or null if empty.
+	 */
+	static Cell? _computeBarycentre(Map<integer, Entity> entities) {
+		integer n = mapSize(entities)
+		if (n == 0) return null
+
+		real sumX = 0
+		real sumY = 0
+
+		for (integer id : Entity e in entities) {
+			sumX += e.cell.x
+			sumY += e.cell.y
+		}
+
+		integer avgX = round(sumX / n)
+		integer avgY = round(sumY / n)
+
+		// Direct lookup - may be null or wall, that's ok for visualization
+		return Board.cellsXY[avgX]![avgY]
+	}
+
+	/*
+	 * Get ally team barycentre, or null if no allies.
+	 */
+	static Cell? getAllyBarycentre() {
+		return _allyBarycentre
+	}
+
+	/*
+	 * Get enemy team barycentre, or null if no enemies.
+	 */
+	static Cell? getEnemyBarycentre() {
+		return _enemyBarycentre
+	}
+
+	/*
+	 * Get all valid inversion candidates, sorted by MP cost ascending.
+	 */
+	static Array<InversionCandidate> getInversionCandidates() {
+		return _inversionCandidates
+	}
+
+	/*
+	 * Get the inversion candidate for a specific target, or null if not valid.
+	 */
+	static InversionCandidate? getCandidateForTarget(integer targetId) {
+		return _candidateByTargetId[targetId]
+	}
+
+	/*
+	 * Get the best ally inversion candidate (highest score), or null if none.
+	 */
+	static InversionCandidate? getBestAllyCandidate() {
+		return _bestAllyCandidate
+	}
+
+	/*
+	 * Get the best enemy inversion candidate (highest score), or null if none.
+	 */
+	static InversionCandidate? getBestEnemyCandidate() {
+		return _bestEnemyCandidate
+	}
+
+	/*
+	 * Display inversion targets and team barycentres on the map (for debugging).
+	 * White = team barycentres
+	 * Blue = ally inversion targets
+	 * Red = enemy inversion targets
+	 */
+	static void showTactical() {
+		integer white = getColor(255, 255, 255)
+		integer blue = getColor(100, 149, 237)   // Cornflower blue for allies
+		integer red = getColor(220, 80, 80)      // Red for enemies
+
+		// Display team barycentres
+		if (_allyBarycentre != null) {
+			mark(_allyBarycentre!.id, white)
+			markText(_allyBarycentre!.id, "A-BAR")
+		}
+		if (_enemyBarycentre != null) {
+			mark(_enemyBarycentre!.id, white)
+			markText(_enemyBarycentre!.id, "E-BAR")
+		}
+
+		// Display inversion candidates
+		for (InversionCandidate c in _inversionCandidates) {
+			integer color = c.target.isFriend ? blue : red
+
+			// Mark fromCell (cast position)
+			mark(c.fromCell.id, color)
+
+			// Mark targetCell (destination after swap)
+			mark(c.targetCell.id, color)
+
+			// Text label with score
+			markText(c.fromCell.id, "I:" + round(c.score))
+		}
+	}
+
+	/*
+	 * Generate action pool for post-inversion phase.
+	 * Creates actions with correct `from` cells relative to new position after swap.
+	 * Actions are scored with inversion consequences applied (e.g., shield reductions).
+	 *
+	 * @param candidate The inversion candidate (defines new position)
+	 * @param remainingTP TP available after inversion
+	 * @param remainingMP MP available after moving to cast inversion
+	 * @param ignoreCells Cells to ignore in pathfinding (dead entities, etc.)
+	 * @return Array of actions playable from new position
+	 */
+	static Array<Action> getPostInversionPool(
+		InversionCandidate candidate,
+		integer remainingTP,
+		integer remainingMP,
+		Set<Cell> ignoreCells
+	) {
+		Array<Action> postPool = []
+
+		// New position after swap: we end up at target's cell
+		Cell newSelfCell = candidate.targetCell
+		// Enemy ends up at our cast position (fromCell)
+		Cell enemyNewCell = candidate.fromCell
+
+		// Create inversion action to get its consequences
+		// Post-inversion actions will be scored with these effects applied
+		// (e.g., if inversion reduces relshield, damage actions score higher)
+		Item invItem = Fight.inversionItem!
+		Action invAction = Action(invItem, candidate.fromCell, candidate.targetCell)
+		Consequences invConseq = invAction.consequences
+
+		// Compute reachability from new position
+		// Add enemyNewCell as obstacle (swapped entity is there now)
+		Set<Cell> newObstacles = <enemyNewCell>
+		Map<Cell, integer> newReachable = MapPath.getCachedReachableCells(
+			newSelfCell, remainingMP, ignoreCells, newObstacles)
+
+		// For each offensive item, find actions on enemies
+		for (Item item in Fight.self.items) {
+			// Skip non-offensive, summons, tactical
+			if (item.isSummon || item.isTactical) continue
+			if (item.cost > remainingTP) continue
+			if (getCooldown(item.id, Fight.self.id) > 0) continue
+			// Skip inversion itself (already used)
+			if (item.id == Fight.inversionItem!.id) continue
+
+			// Check if item has offensive effects
+			boolean hasOffensive = false
+			for (ItemEffect e in item.effects) {
+				if (e.type == EFFECT_DAMAGE || e.type == EFFECT_POISON || e.type == EFFECT_LIFE_DAMAGE) {
+					hasOffensive = true
+					break
+				}
+			}
+
+			// For each enemy, find closest reachable cast cell
+			for (Entity enemy in Fight.getEnemiesAlive()) {
+				if (enemy.isInvincible) continue
+
+				// Enemy cell: swapped enemy is at enemyNewCell, others at their original cell
+				Cell enemyCell = (enemy == candidate.target) ? enemyNewCell : enemy.cell
+
+				// Get cells from which we can cast this item on enemy (include occupied cells
+				// since newSelfCell appears occupied in current state but we'll be there after swap)
+				// Ignore both self and target in LOS check (neither at their current position after swap)
+				Array<Cell> castCells = Targets.getTargetableCells(item, enemyCell, [Fight.self.id, candidate.target.id])
+
+				// Find closest reachable cast cell
+				Cell? bestCast = null
+				integer bestDist = 9999
+
+				// Check if newSelfCell is a valid cast cell (no movement needed)
+				for (Cell c in castCells) {
+					if (c == newSelfCell) {
+						bestCast = newSelfCell
+						bestDist = 0
+						break
+					}
+				}
+
+				// Otherwise find closest reachable
+				if (bestCast == null) {
+					for (Cell c in castCells) {
+						integer? dist = newReachable[c]
+						if (dist != null && dist! <= remainingMP && dist! < bestDist) {
+							bestDist = dist!
+							bestCast = c
+						}
+					}
+				}
+
+				if (bestCast == null) continue
+
+				// Create action with correct from cell
+				// Use EffectCache.computeSnapshotForTarget to bypass getChipTargets()
+				// which queries game state where enemy hasn't moved yet
+				// Pass invConseq so damage is scored with inversion effects applied
+				if (hasOffensive) {
+					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, invConseq)
+					Action action = Action(item, bestCast!, enemyCell, snapshot)
+					if (action.score != null && action.score! > 0) {
+						push(postPool, action)
+					}
+				}
+			}
+		}
+
+		// Add self-cast buffs (always available from any position)
+		for (Item item in Fight.self.items) {
+			if (item.isSummon || item.isTactical) continue
+			if (item.cost > remainingTP) continue
+			if (getCooldown(item.id, Fight.self.id) > 0) continue
+			if (item.minRange > 0) continue  // Not self-castable
+
+			// Check if item has buff effects (not pure damage)
+			boolean hasBuff = false
+			for (ItemEffect e in item.effects) {
+				integer t = e.type
+				if (t == EFFECT_BUFF_STRENGTH || t == EFFECT_RAW_BUFF_STRENGTH ||
+					t == EFFECT_BUFF_AGILITY || t == EFFECT_RAW_BUFF_AGILITY ||
+					t == EFFECT_BUFF_TP || t == EFFECT_RAW_BUFF_TP ||
+					t == EFFECT_BUFF_MP || t == EFFECT_RAW_BUFF_MP ||
+					t == EFFECT_ABSOLUTE_SHIELD || t == EFFECT_RAW_ABSOLUTE_SHIELD ||
+					t == EFFECT_RELATIVE_SHIELD || t == EFFECT_RAW_RELATIVE_SHIELD ||
+					t == EFFECT_HEAL || t == EFFECT_BOOST_MAX_LIFE) {
+					hasBuff = true
+					break
+				}
+			}
+
+			if (hasBuff) {
+				Action action = Action(item, Fight.selfCell, Fight.selfCell)
+				if (action.score != null && action.score! > 0) {
+					push(postPool, action)
+				}
+			}
+		}
+
+		// Add support actions for swapped ally (reuse MapAction's item filtering)
+		if (candidate.target.isFriend) {
+			Set<Item>? targetingItems = MapAction.getItemsTargetingEntity(candidate.target)
+			if (targetingItems != null) {
+				// Ally's new position after swap
+				Cell allyNewCell = candidate.fromCell
+
+				for (Item item in targetingItems!) {
+					if (item.cost > remainingTP) continue
+					if (getCooldown(item.id, Fight.self.id) > 0) continue
+
+					// Get cast cells for ally's NEW position
+					Array<Cell> castCells = Targets.getTargetableCells(item, allyNewCell, [Fight.self.id, candidate.target.id])
+
+					// Find best reachable cast cell
+					Cell? bestCast = null
+					integer bestDist = 9999
+
+					for (Cell c in castCells) {
+						if (c == newSelfCell) {
+							bestCast = newSelfCell
+							bestDist = 0
+							break
+						}
+					}
+
+					if (bestCast == null) {
+						for (Cell c in castCells) {
+							integer? dist = newReachable[c]
+							if (dist != null && dist! <= remainingMP && dist! < bestDist) {
+								bestDist = dist!
+								bestCast = c
+							}
+						}
+					}
+
+					if (bestCast == null) continue
+
+					// Create action targeting ally at new position
+					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, candidate.target, allyNewCell, invConseq)
+					Action action = Action(item, bestCast!, allyNewCell, snapshot)
+					if (action.score != null && action.score! > 0) {
+						push(postPool, action)
+					}
+				}
+			}
+		}
+
+		return postPool
+	}
+
+	/*
+	 * Compute cell scores for post-inversion state.
+	 * Combines filtered base scores (excluding actions targeting swapped entity)
+	 * with post-inversion bonus scores (new attacks enabled by the swap).
+	 *
+	 * @param candidate The inversion candidate (defines swap target)
+	 * @param newSelfCell Where we land after swap (= candidate.targetCell)
+	 * @param reachableCells Cells reachable from newSelfCell with remaining MP
+	 * @param postPool Actions from getPostInversionPool() grouped by fromCell
+	 * @return PostInversionCellData with scores, actions, and MP costs per cell
+	 */
+	static PostInversionCellData getPostInversionCellScores(
+		InversionCandidate candidate,
+		Cell newSelfCell,
+		Map<Cell, integer> reachableCells,
+		Map<Cell, Array<Action>> postByCell
+	) {
+		PostInversionCellData result = PostInversionCellData()
+
+		// Get actions targeting swapped entity - these are INVALID after inversion
+		Set<Action>? invalidActions = MapAction.getActionsTargetingEntity(candidate.target)
+
+		// Track processed cells to avoid duplicates
+		Map<Cell, boolean> processed = [:]
+
+		// FIRST PASS: cells with post-inversion actions
+		for (Cell cell : Array<Action> postActions in postByCell) {
+			// Compute MP cost
+			integer mpCost = 0
+			if (cell != newSelfCell) {
+				integer? cost = reachableCells[cell]
+				if (cost == null) continue  // Unreachable
+				mpCost = cost!
+			}
+
+			// Compute filtered base score and collect valid actions
+			// Use cellActions directly (not getActionsForCell) to skip self-cast actions
+			// which are already handled in getPostInversionPool() and have wrong from/to cells
+			real baseScore = 0
+			Array<Action> validActions = []
+			Array<Action>? cellActions = MapCellScore.cellActions[cell]
+
+			if (cellActions != null) {
+				for (Action a in cellActions!) {
+					if (invalidActions != null && setContains(invalidActions!, a)) continue
+					if (a.score != null && a.score! > 0) {
+						baseScore += a.score!
+						push(validActions, a)
+					}
+				}
+			}
+
+			// Add post-inversion actions (targeting swapped entity at new pos)
+			real postScore = 0
+			for (Action a in postActions) {
+				if (a.score != null && a.score! > 0) {
+					postScore += a.score!
+					push(validActions, a)
+				}
+			}
+
+			result.scores[cell] = baseScore + postScore
+			result.actions[cell] = validActions
+			result.mpCosts[cell] = mpCost
+			processed[cell] = true
+		}
+
+		// SECOND PASS: cells with only base actions (no post bonus)
+		for (Cell cell : real score in MapCellScore.cellScores) {
+			if (processed[cell]) continue  // Already handled
+
+			// Compute MP cost
+			integer mpCost = 0
+			if (cell != newSelfCell) {
+				integer? cost = reachableCells[cell]
+				if (cost == null) continue  // Unreachable
+				mpCost = cost!
+			}
+
+			// Compute filtered base score
+			// Use cellActions directly (not getActionsForCell) to skip self-cast actions
+			real filteredScore = 0
+			Array<Action> validActions = []
+			Array<Action>? cellActions = MapCellScore.cellActions[cell]
+
+			if (cellActions != null) {
+				for (Action a in cellActions!) {
+					if (invalidActions != null && setContains(invalidActions!, a)) continue
+					if (a.score != null && a.score! > 0) {
+						filteredScore += a.score!
+						push(validActions, a)
+					}
+				}
+			}
+
+			if (filteredScore <= 0) continue  // No useful actions after filtering
+
+			result.scores[cell] = filteredScore
+			result.actions[cell] = validActions
+			result.mpCosts[cell] = mpCost
+		}
+
+		return result
+	}
+
+	/*
+	 * Debug output: show all computed inversion targets and barycentres
+	 */
+	static void debugAll() {
+		debug("=== MapTactical Results (ops=" + _opsUsed + ") ===")
+
+		// Barycentres
+		string allyBar = _allyBarycentre != null ? "c" + _allyBarycentre!.id : "none"
+		string enemyBar = _enemyBarycentre != null ? "c" + _enemyBarycentre!.id : "none"
+		debug("  Barycentres: ally=" + allyBar + " enemy=" + enemyBar)
+
+		// Inversion candidates
+		if (!Fight.inversionReady) {
+			debug("  CHIP_INVERSION: not available")
+		} else {
+			debug("  CHIP_INVERSION: " + count(_inversionCandidates) + " valid targets")
+			for (InversionCandidate c in _inversionCandidates) {
+				string tag = c.target.isFriend ? "ALLY" : "ENEMY"
+				debug("    [" + tag + "] " + c)
+			}
+		}
+		debug("=== End MapTactical ===")
+	}
+
+}
