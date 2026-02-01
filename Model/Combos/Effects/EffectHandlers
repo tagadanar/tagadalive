@@ -187,15 +187,16 @@ class EffectHandlers {
 	// ════════════════════════════════════════════════════════════════════════
 
 	static void heal(ItemEffect effect, Entity source, Entity target, real ratio, integer srcWsd, integer tgtHPMiss, ctx) {
+		integer targetsCount = effect.multiplyByTarget ? setSize(ctx.targets) : 1
 		if (effect.duration > 1) {
 			// Heal over time - de-dupe if non-stackable
 			EffectHandlers.dedupeIfNeeded(effect, target, Stats.HPTIME, ctx)
-			integer value = EffectCalc.healValue(effect.avg, srcWsd, ratio)
+			integer value = EffectCalc.healValue(effect.avg, srcWsd, ratio) * targetsCount
 			EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
 			ctx.add(target, Stats.HPTIME, eot)
 		} else {
 			// Instant heal - no de-dupe needed
-			integer value = EffectCalc.healCapped(effect.avg, srcWsd, ratio, tgtHPMiss)
+			integer value = EffectCalc.healCapped(effect.avg, srcWsd, ratio, tgtHPMiss) * targetsCount
 			if (value > 0) ctx.add(target, Stats.HP, value)
 		}
 	}
