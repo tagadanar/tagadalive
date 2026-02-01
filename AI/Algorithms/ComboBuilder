@@ -334,6 +334,242 @@ class ComboBuilder {
 		return combo
 	}
 
+	/*
+	 * Build combo with inversion as first-class strategy.
+	 * Simplified design: greedy pre-actions, then phase-2-style post-inversion cell selection.
+	 *
+	 * @param ctx Exploration context with initial resources
+	 * @param candidate Inversion candidate to use
+	 * @return Combo with inversion, or null if not worthwhile
+	 */
+	static Combo? buildWithInversion(ExplorationContext ctx, InversionCandidate candidate) {
+		if (Fight.inversionItem == null) return null
+
+		Item invItem = Fight.inversionItem!
+		Cell startCell = Fight.self.cell
+		Cell invCastCell = candidate.fromCell
+		Cell newSelfCell = candidate.targetCell  // Where we land after swap
+
+		integer invCost = invItem.cost
+		integer mpToInvCast = candidate.mpCost
+
+		// Check basic feasibility
+		if (ctx.initialTP < invCost) return null
+
+		// Calculate MP buff needed to reach inversion cast cell
+		integer neededMPBuff = max(0, mpToInvCast - ctx.initialMP)
+		Array<Action> mpBuffActions = []
+		integer mpBuffTPCost = 0
+
+		if (neededMPBuff > 0) {
+			// Check if reachable even with max buffs
+			if (mpToInvCast > ctx.initialMP + ctx.maxMPBuff) return null
+
+			// Calculate minimal MP buffs (reserve TP for inversion)
+			Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededMPBuff, ctx.initialTP - invCost)
+			if (buffs == null) return null
+			mpBuffActions = buffs!
+
+			// Sum TP cost of buffs
+			for (Action buff in mpBuffActions) {
+				mpBuffTPCost += buff.item.cost
+			}
+		}
+
+		// Total reserved TP = inversion + MP buffs
+		integer reservedTP = invCost + mpBuffTPCost
+
+		Set<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Set<Cell>
+
+		// === PRE-INVERSION: gather actions at start cell ===
+		Array<Action> preSelfCast = []
+		Array<Action> preStartCell = []
+
+		Array<Action> startActions = MapCellScore.getActionsForCell(startCell)
+		for (Action a in startActions) {
+			if (a.score <= 0) continue
+			if (a.from == Fight.selfCell) {
+				push(preSelfCast, a)
+			} else {
+				push(preStartCell, a)
+			}
+		}
+
+		preSelfCast = MapCellScore.sortByPriority(preSelfCast)
+		preStartCell = MapCellScore.sortByPriority(preStartCell)
+
+		// === BUILD COMBO ===
+		Combo combo = Combo()
+		Map<Item, integer> usesThisTurn = [:]
+
+		// 0. MP buffs first (needed to reach inversion cast cell)
+		ComboBuilder._applyBuffs(combo, mpBuffActions, usesThisTurn)
+
+		// Verify we have enough MP after buffs
+		Consequences buffedCsq = combo.getCurrentConsequences()
+		if (buffedCsq.currentMP < mpToInvCast) {
+			return null  // Buffs didn't provide enough MP
+		}
+
+		// 1. Self-cast at start (reserve TP for inversion)
+		for (Action a in preSelfCast) {
+			ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, invCost)
+		}
+
+		// 2. Actions at startCell (reserve TP for inversion)
+		for (Action a in preStartCell) {
+			ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, invCost)
+		}
+
+		// 3. Inversion action - create with combo's current state
+		Consequences priorCsq = combo.getCurrentConsequences()
+		Action invAction = Action(invItem, invCastCell, candidate.targetCell)
+		invAction.invCandidate = candidate
+
+		// Actualize with current consequences and add tactical score
+		Action actualizedInv = Action(invAction, priorCsq)
+		actualizedInv.consequences.score += candidate.score
+		actualizedInv.score = actualizedInv.consequences.getScore()
+
+		if (actualizedInv.score! <= priorCsq.score!) {
+			return null  // Inversion doesn't improve score
+		}
+		push(combo.actions, actualizedInv)
+		usesThisTurn[invItem] = 1
+
+		// === POST-INVERSION: cell selection via MapTactical ===
+		Consequences csq = combo.getCurrentConsequences()
+		integer postMP = csq.currentMP
+		integer postTP = csq.currentTP
+
+		// Compute reachable cells from new position (swapped entity blocks invCastCell)
+		Set<Cell> postObstacles = <invCastCell>
+		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
+			newSelfCell, postMP, ignoreCells, postObstacles)
+
+		// Get post-pool from MapTactical and group by fromCell
+		Array<Action> postPool = MapTactical.getPostInversionPool(candidate, postTP, postMP, ignoreCells)
+		Map<Cell, Array<Action>> postByCell = [:]
+		for (Action a in postPool) {
+			Cell fromCell = a.from
+			if (fromCell == Fight.selfCell) fromCell = newSelfCell
+			if (postByCell[fromCell] == null) postByCell[fromCell] = []
+			push(postByCell[fromCell]!, a)
+		}
+
+		// Get merged cell scores from MapTactical
+		PostInversionCellData cellData = MapTactical.getPostInversionCellScores(
+			candidate, newSelfCell, reachable, postByCell)
+
+		// Select best cells (pair if reachable, else single)
+		Array<Cell> selectedCells = ComboBuilder._selectBestCellSequence(
+			cellData, postMP, ignoreCells, postObstacles)
+
+		// Add actions cell by cell in sequence (like buildAcrossCells)
+		// This ensures combo moves to cell 1, executes cell 1's actions, then moves to cell 2, etc.
+		// Mixing actions from different cells causes unreachable cell errors.
+		if (count(selectedCells) > 0) {
+			Map<integer, boolean> seen = [:]
+
+			for (Cell cell in selectedCells) {
+				Array<Action>? actions = cellData.actions[cell]
+				if (actions == null) continue
+
+				// Sort this cell's actions by priority before adding
+				Array<Action> sorted = MapCellScore.sortByPriority(actions!)
+				for (Action a in sorted) {
+					integer hash = a.item.id * 10000 + a.to.id
+					if (seen[hash]) continue
+					seen[hash] = true
+					ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
+				}
+			}
+		}
+
+		// Final position
+		csq = combo.getCurrentConsequences()
+		Position pos = MapPosition.findBestPosition(csq.currentCell, csq.currentMP, csq)
+		combo.addFinalPosition(pos)
+
+		return combo
+	}
+
+	/*
+	 * Select best cell sequence from post-inversion cell data.
+	 * Tries pairs first (top 3 by score), falls back to single best.
+	 *
+	 * @param cellData Cell scores and MP costs from MapTactical
+	 * @param availableMP MP available after inversion
+	 * @param ignoreCells Cells to ignore in pathfinding
+	 * @param obstacles Additional obstacles (swapped entity position)
+	 * @return Array of 1-2 cells to visit, empty if no valid cells
+	 */
+	static Array<Cell> _selectBestCellSequence(
+		PostInversionCellData cellData,
+		integer availableMP,
+		Set<Cell> ignoreCells,
+		Set<Cell> obstacles
+	) {
+		// Build sorted list of cells by score
+		Array<Cell> sortedCells = []
+		for (Cell c : real score in cellData.scores) {
+			push(sortedCells, c)
+		}
+
+		if (count(sortedCells) == 0) return []
+
+		sortedCells = arraySort(sortedCells, (Cell a, Cell b) -> integer {
+			return Sort.desc(cellData.scores[a]!, cellData.scores[b]!)
+		}) as Array<Cell>
+
+		// Take top K (K=3)
+		integer K = min(3, count(sortedCells))
+
+		// Try pairs first
+		if (K >= 2) {
+			for (integer i = 0; i < K; i++) {
+				for (integer j = i + 1; j < K; j++) {
+					Cell c1 = sortedCells[i]
+					Cell c2 = sortedCells[j]
+					integer cost1 = cellData.mpCosts[c1]!
+
+					// Check if we can reach c2 from c1
+					integer mpAfterC1 = availableMP - cost1
+					if (mpAfterC1 <= 0) continue
+
+					Map<Cell, integer> fromC1 = MapPath.getCachedReachableCells(
+						c1, mpAfterC1, ignoreCells, obstacles)
+
+					if (fromC1[c2] != null) {
+						return [c1, c2]
+					}
+				}
+			}
+		}
+
+		// Fall back to single best cell
+		return [sortedCells[0]]
+	}
+
+	/*
+	 * Try to add action with reserved TP (for inversion actions that must leave room for inversion chip)
+	 */
+	static boolean _tryAddActionWithReserve(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveTP) {
+		integer uses = usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0
+		if (uses >= action.item.maxUse) return false
+
+		Consequences csq = combo.getCurrentConsequences()
+		integer switchCost = (action.item.isWeap && action.item != csq.currentWeapon) ? 1 : 0
+		// Check we have enough TP for action + reserved TP (for inversion)
+		if (csq.currentTP < action.item.cost + switchCost + reserveTP) return false
+
+		boolean added = combo.add(action)
+		if (added) {
+			usesThisTurn[action.item] = uses + 1
+		}
+		return added
+	}
+
 	// ════════════════════════════════════════════════════════════
 	// PRIVATE CORE METHODS
 	// ════════════════════════════════════════════════════════════
@@ -444,6 +680,7 @@ class ComboBuilder {
 		}
 	}
 
+
 	/*
 	 * Apply MP buff actions to combo.
 	 */
@@ -470,7 +707,7 @@ class ComboBuilder {
 		Consequences csq = combo.getCurrentConsequences()
 
 		for (Action a in pool) {
-			if (a.score == null || a.score! <= 0) continue
+			if (a.score <= 0) continue
 			if (restrictToCell && a.from != Fight.selfCell && a.from != csq.currentCell) continue
 			push(filtered, a)
 		}
@@ -555,9 +792,6 @@ class ComboBuilder {
 	static Array<Action>? _calculateMPBuffs(integer neededMP, integer availableTP) {
 		if (neededMP <= 0) return []
 
-		// Base MP comes from action consequences (which are computed relative to initial state)
-		integer baseMP = Fight.self.mp
-
 		// Build set of already-active MP buff chips
 		Map<integer, boolean> activeBuffChips = [:]
 		for (EntityEffect e in Fight.self.effects) {
@@ -566,27 +800,43 @@ class ComboBuilder {
 			}
 		}
 
-		// Collect affordable MP buff actions
+		// Collect MP buff actions directly from entity items (not selfCastActions)
+		// This matches computeMaxMPBuff() logic to avoid mismatch
 		Array<Action> allBuffs = []
-		for (Action a in MapCellScore.selfCastActions) {
-			if (a.item.cost > availableTP) continue
-			if (activeBuffChips[a.item.id]) continue  // Already active
+		real sncMultiplier = 1 + Fight.self.snc / 100.0
 
-			boolean hasMPBuff = false
-			for (ItemEffect effect in a.item.effects) {
-				if (effect.type == EFFECT_BUFF_MP || effect.type == EFFECT_RAW_BUFF_MP) {
-					hasMPBuff = true
+		for (Item item in Fight.self.items) {
+			// Skip if not self-castable
+			if (item.minRange > 0) continue
+			// Skip if on cooldown
+			if (item.haveCD && getCooldown(item.id, Fight.self.id) > 0) continue
+			// Skip if can't afford
+			if (item.cost > availableTP) continue
+			// Skip if already active
+			if (activeBuffChips[item.id]) continue
+
+			// Check for MP buff effect and compute gain
+			integer mpGain = 0
+			for (ItemEffect effect in item.effects) {
+				if (effect.type == EFFECT_RAW_BUFF_MP) {
+					mpGain = round(effect.avg)
+					break
+				} else if (effect.type == EFFECT_BUFF_MP) {
+					mpGain = round(effect.avg * sncMultiplier)
 					break
 				}
 			}
-			if (!hasMPBuff) continue
+			if (mpGain <= 0) continue
 
-			push(allBuffs, a)
+			// Create self-cast action for this buff
+			Action buffAction = Action(item, Fight.selfCell, Fight.selfCell)
+			push(allBuffs, buffAction)
 		}
 
 		if (count(allBuffs) == 0) return null
 
 		// Sort by efficiency (MP gain / TP cost) descending
+		integer baseMP = Fight.self.mp
 		allBuffs = arraySort(allBuffs, (Action a, Action b) => integer|real {
 			integer gainA = a.consequences.currentMP - baseMP
 			integer gainB = b.consequences.currentMP - baseMP
@@ -750,7 +1000,7 @@ class ComboBuilder {
 			if (action!.from != Fight.selfCell) {
 				Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
 				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
-					csq.currentCell, csq.currentMP, ignoreCells)
+					csq.currentCell, csq.currentMP, ignoreCells, csq._newObstacles)
 				integer? dist = reachable[action!.from]
 				if (dist == null || dist! > csq.currentMP) continue
 			}
@@ -765,11 +1015,12 @@ class ComboBuilder {
 	// ════════════════════════════════════════════════════════════
 
 	/*
-	 * Build ignoreCells array for pathfinding: base cells + killed entities
+	 * Build ignoreCells array for pathfinding: base cells + killed entities + freed cells
 	 */
 	static Set<Cell> buildIgnoreCells(ExplorationContext ctx, Consequences csq) {
 		Set<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Set<Cell>
 		csq.appendKilledCells(ignoreCells)
+		csq.appendFreedCells(ignoreCells)
 		return ignoreCells
 	}
 
@@ -809,18 +1060,22 @@ class ComboBuilder {
 		// Get current state
 		Consequences csq = combo.getCurrentConsequences()
 
+		// Check if action was invalidated by inversion (targets moved)
+		if (csq.invalidatedActions != null && setContains(csq.invalidatedActions!, action)) return false
+
 		// Check TP (including weapon switch cost)
 		integer switchCost = (action.item.isWeap && action.item != csq.currentWeapon) ? 1 : 0
 		if (csq.currentTP < action.item.cost + switchCost) return false
 
 		// Check reachability
 		if (action.from != Fight.selfCell) {
-			// Build ignore cells: base + killed entities (COW-aware)
+			// Build ignore cells: base + killed entities + freed cells (COW-aware)
 			Set<Cell> ignoreCells = clone(baseCellsToIgnore) as Set<Cell>
 			csq.appendKilledCells(ignoreCells)
+			csq.appendFreedCells(ignoreCells)
 			integer effectiveMP = max(0, csq.currentMP - reserveMP)
 			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
-				csq.currentCell, effectiveMP, ignoreCells)
+				csq.currentCell, effectiveMP, ignoreCells, csq._newObstacles)
 			if (reachable[action.from] == null || reachable[action.from]! > effectiveMP) return false
 		}
 
