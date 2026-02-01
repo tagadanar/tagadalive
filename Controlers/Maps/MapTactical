@@ -336,21 +336,12 @@ class MapTactical {
 		// For each offensive item, find actions on enemies
 		// NOTE: Don't filter by TP here - let the combo builder/knapsack decide what fits
 		for (Item item in Fight.self.items) {
-			// Skip non-offensive, summons, tactical
-			if (item.isSummon || item.isTactical) continue
+			// Skip non-offensive items (O(1) check via precomputed flag)
+			if (!item.isOffensive) continue
 			// Skip items on cooldown (they're truly unavailable)
 			if (getCooldown(item.id, Fight.self.id) > 0) continue
 			// Skip inversion itself (already used)
 			if (item.id == Fight.inversionItem!.id) continue
-
-			// Check if item has offensive effects
-			boolean hasOffensive = false
-			for (ItemEffect e in item.effects) {
-				if (e.type == EFFECT_DAMAGE || e.type == EFFECT_POISON || e.type == EFFECT_LIFE_DAMAGE) {
-					hasOffensive = true
-					break
-				}
-			}
 
 			// For each enemy, find closest reachable cast cell
 			for (Entity enemy in Fight.getEnemiesAlive()) {
@@ -372,28 +363,30 @@ class MapTactical {
 					blockedCastCells = MapTactical._getBlockedCastCells(castCells, enemyCell, enemyNewCell)
 				}
 
-				// Find closest reachable cast cell (not blocked)
+				// Build set of valid cast cells (not blocked) for O(1) lookup
+				Set<integer> validCastSet = <>
+				boolean newSelfCellValid = false
+				for (Cell c in castCells) {
+					if (blockedCastCells != null && setContains(blockedCastCells!, c.id)) continue
+					setPut(validCastSet, c.id)
+					if (c == newSelfCell) newSelfCellValid = true
+				}
+
+				// Find closest reachable cast cell
 				Cell? bestCast = null
 				integer bestDist = 9999
 
-				// Check if newSelfCell is a valid cast cell (no movement needed)
-				for (Cell c in castCells) {
-					if (c == newSelfCell) {
-						if (blockedCastCells != null && setContains(blockedCastCells!, c.id)) continue
-						bestCast = newSelfCell
-						bestDist = 0
-						break
-					}
-				}
-
-				// Otherwise find closest reachable
-				if (bestCast == null) {
-					for (Cell c in castCells) {
-						if (blockedCastCells != null && setContains(blockedCastCells!, c.id)) continue
-						integer? dist = newReachable[c]
-						if (dist != null && dist! <= remainingMP && dist! < bestDist) {
-							bestDist = dist!
+				// Check if newSelfCell is valid (no movement needed)
+				if (newSelfCellValid) {
+					bestCast = newSelfCell
+					bestDist = 0
+				} else {
+					// Iterate reachable in BFS order - first match is closest (early exit!)
+					for (Cell c : integer dist in newReachable) {
+						if (setContains(validCastSet, c.id)) {
 							bestCast = c
+							bestDist = dist
+							break  // BFS order guarantees first match is closest
 						}
 					}
 				}
@@ -404,7 +397,7 @@ class MapTactical {
 				// Use EffectCache.computeSnapshotForTarget to bypass getChipTargets()
 				// which queries game state where enemy hasn't moved yet
 				// Pass invConseq so damage is scored with inversion effects applied
-				if (hasOffensive) {
+				if (item.isOffensive) {
 					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, invConseq)
 					Action action = Action(item, bestCast!, enemyCell, snapshot)
 					action.overrideTargets = snapshot.targets  // Bypass game API for simulated position
@@ -460,24 +453,28 @@ class MapTactical {
 					// Get cast cells for ally's NEW position
 					Array<Cell> castCells = Targets.getTargetableCells(item, allyNewCell, [Fight.self.id, candidate.target.id])
 
-					// Find best reachable cast cell
+					// Build set of valid cast cells for O(1) lookup
+					Set<integer> validCastSet = <>
+					boolean newSelfCellValid = false
+					for (Cell c in castCells) {
+						setPut(validCastSet, c.id)
+						if (c == newSelfCell) newSelfCellValid = true
+					}
+
+					// Find closest reachable cast cell
 					Cell? bestCast = null
 					integer bestDist = 9999
 
-					for (Cell c in castCells) {
-						if (c == newSelfCell) {
-							bestCast = newSelfCell
-							bestDist = 0
-							break
-						}
-					}
-
-					if (bestCast == null) {
-						for (Cell c in castCells) {
-							integer? dist = newReachable[c]
-							if (dist != null && dist! <= remainingMP && dist! < bestDist) {
-								bestDist = dist!
+					if (newSelfCellValid) {
+						bestCast = newSelfCell
+						bestDist = 0
+					} else {
+						// Iterate reachable in BFS order - first match is closest (early exit!)
+						for (Cell c : integer dist in newReachable) {
+							if (setContains(validCastSet, c.id)) {
 								bestCast = c
+								bestDist = dist
+								break  // BFS order guarantees first match is closest
 							}
 						}
 					}

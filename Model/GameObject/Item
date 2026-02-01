@@ -24,6 +24,7 @@ class Item {
 	boolean targetEmptyCell = false
 	boolean isSummon = false
 	boolean isTactical = false
+	boolean isOffensive = false  // Can deal damage/debuff to enemies (O(1) check)
 
 	static integer ALL = 0
 	static integer ALLLEEKS = 1
@@ -319,6 +320,9 @@ class Item {
 			this.targetKey = Item.NONE
 			targetEmptyCell = true // TODO handle this param in IA
 		}
+
+		// Set isOffensive: can deal damage/debuff to enemies (used for O(1) filtering)
+		this.isOffensive = enemies && !this.isSummon && !this.isTactical
 	}
 	
 	Map<integer, Entity> targetSet(){
