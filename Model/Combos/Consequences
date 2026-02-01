@@ -59,6 +59,16 @@ class Consequences {
 	// Pending bulbs from summon actions in this consequence chain
 	Map<Cell, PendingBulb> pendingBulbs = [:]
 
+	// Actions invalidated by inversion (targets moved, would hit self now)
+	Set<Action>? invalidatedActions = null
+
+	// Position swap tracking for inversion (COW - reference parent, clone on write)
+	Set<Cell> _newObstacles = <>    // Cells blocked by swapped entities
+	Set<Cell> _freedCells = <>       // Cells freed (we moved there, now walkable)
+
+	// Inversion candidate (set after Action construction for later reference)
+	InversionCandidate? invCandidate = null
+
 	// ════════════════════════════════════════════════════════════════════════
 	// EFFECT VALUE TRACKING
 	// ════════════════════════════════════════════════════════════════════════
@@ -146,6 +156,13 @@ class Consequences {
 			this.pendingBulbs[c] = bulb.clone()
 		}
 
+		// Propagate invalidated actions through chain (set once, persists)
+		this.invalidatedActions = consequences.invalidatedActions
+
+		// Propagate position swap data (reference - clone on write)
+		this._newObstacles = consequences._newObstacles
+		this._freedCells = consequences._freedCells
+
 		construct(action, true)  // Warn during combo building (catches actual bugs)
 		Benchmark.stop("Consequences.fromConseq")
 	}
@@ -179,11 +196,13 @@ class Consequences {
 
 	construct(Action action, boolean warnOnUnreachable){
 		// Build ignoreCells: our starting cell + cells of killed entities (can path through kills)
+		// Also include freed cells from position swaps (e.g., after inversion)
 		Set<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Set<Cell>
 		// Use COW-aware iteration for killed entities
 		this.appendKilledCells(ignoreCells)
+		this.appendFreedCells(ignoreCells)
 
-		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, ignoreCells)
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, ignoreCells, this._newObstacles)
 
 		// Movement to action cell
 		if(action.from != Fight.selfCell){
@@ -297,7 +316,13 @@ class Consequences {
 	 * Note: Cache may contain cells beyond MP, must verify distance.
 	 */
 	void constructMovementOnly(Action action) {
-		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, Fight.self.cellsToIgnore)
+		// Build ignoreCells with freed cells from position swaps
+		Set<Cell> ignoreCells = Fight.self.cellsToIgnore
+		if (setSize(this._freedCells) > 0) {
+			ignoreCells = clone(ignoreCells) as Set<Cell>
+			this.appendFreedCells(ignoreCells)
+		}
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, ignoreCells, this._newObstacles)
 
 		if (action.from != Fight.selfCell) {
 			integer? moveCost = reachableCells[action.from]
@@ -661,6 +686,36 @@ class Consequences {
 		if (_parent != null) {
 			_parent!.appendKilledCells(cells)
 		}
+	}
+
+	/*
+	 * Append freed cells from position swaps (e.g., after inversion).
+	 * These cells are now walkable because we moved there.
+	 */
+	void appendFreedCells(Set<Cell> cells) {
+		for (Cell c in this._freedCells) {
+			setPut(cells, c)
+		}
+	}
+
+	/*
+	 * Add a new obstacle cell (COW - clones on first write).
+	 * Used when an entity moves to a cell during combo simulation.
+	 */
+	void addNewObstacle(Cell cell) {
+		if (setContains(this._newObstacles, cell)) return;
+		this._newObstacles = clone(this._newObstacles) as Set<Cell>
+		setPut(this._newObstacles, cell)
+	}
+
+	/*
+	 * Add a freed cell (COW - clones on first write).
+	 * Used when we move to a cell during combo simulation (it becomes walkable).
+	 */
+	void addFreedCell(Cell cell) {
+		if (setContains(this._freedCells, cell)) return;
+		this._freedCells = clone(this._freedCells) as Set<Cell>
+		setPut(this._freedCells, cell)
 	}
 
 	/*

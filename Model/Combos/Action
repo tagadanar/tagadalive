@@ -7,6 +7,7 @@ class Action {
 	public Item item
 	public Consequences consequences
 	public real? score
+	public InversionCandidate? invCandidate = null  // Set for inversion actions only
 
 	constructor(Item item, Cell from, Cell to){
 		this.item = item
@@ -32,6 +33,7 @@ class Action {
 		this.item = action.item
 		this.from = action.from
 		this.to = action.to
+		this.invCandidate = action.invCandidate  // Preserve inversion candidate info
 		this.consequences = Consequences(this, consequences)
 		this.score = this.consequences.getScore()
 	}
