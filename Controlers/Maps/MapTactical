@@ -85,6 +85,8 @@ class MapTactical {
 		for (integer entityId : Entity entity in allEntities) {
 			// Skip self
 			if (entityId == Fight.self.id) continue
+			// Skip static entities (turrets) - can't swap positions
+			if (entity.isStatic) continue
 
 			// Get cells from which we can cast inversion on this target
 			Array<Cell> fromCells = Targets.getCellsToUseItemOnCell(invItem, entity.cell, [Fight.self.id])
