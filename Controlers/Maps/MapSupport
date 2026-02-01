@@ -2,7 +2,7 @@
  * Ensemble de méthodes et d'algorithmes permettant de calculer le support potentiel des alliés sur chaque case
  * (heal + shields). Similaire à MapDanger mais pour le support allié (ignore les entités dans la LOS, comme MapDanger)
  */
-class MapAllySupport {
+class MapSupport {
 	// === Configuration ===
 	// Nombre max d'items de support par allié à considérer (0 = illimité/tous les items)
 	static integer SUPPORT_ITEMS_LIMIT = 4
@@ -80,7 +80,7 @@ class MapAllySupport {
 			Array<Item>? supportItems = _ally_support_items[ally]
 			if (supportItems != null && i < count(supportItems!)) {
 				Item item = supportItems![i]
-				_map_ally_item_heal[ally]![item] = MapAllySupport.getAllySupportMap(ally, item)
+				_map_ally_item_heal[ally]![item] = MapSupport.getAllySupportMap(ally, item)
 			}
 		}
 	}
@@ -108,10 +108,10 @@ class MapAllySupport {
 	 * In production, MapDanger.refresh() orchestrates both maps.
 	 */
 	static void refresh() {
-		MapAllySupport.resetCaches()
-		integer maxItems = MapAllySupport.collectAllies()
+		MapSupport.resetCaches()
+		integer maxItems = MapSupport.collectAllies()
 		for (integer i = 0; i < maxItems; i++) {
-			MapAllySupport.processRound(i)
+			MapSupport.processRound(i)
 		}
 	}
 
@@ -127,7 +127,7 @@ class MapAllySupport {
 
 		for (Cell cell : integer dist in ally.reachableCells) {
 			if (dist > ally.mp) break
-			Array<Cell> targetableCells = MapAllySupport.getAllyTargetableCells(item, cell)
+			Array<Cell> targetableCells = MapSupport.getAllyTargetableCells(item, cell)
 			for (Cell c in targetableCells) {
 				if (map[c] == null) {
 					map[c] = 1.0 // ratio
@@ -184,7 +184,7 @@ class MapAllySupport {
 	 * @return HealPotential (TODO: rename to SupportPotential)
 	 */
 	static HealPotential getCellSupport(Cell cell) {
-		return MapAllySupport.getCellSupport(cell, null)
+		return MapSupport.getCellSupport(cell, null)
 	}
 
 	/*
@@ -199,12 +199,12 @@ class MapAllySupport {
 				_hash_heal[consequences!.hashcode] = [:]
 			}
 			if (!_hash_heal[consequences!.hashcode]![cell]) {
-				_hash_heal[consequences!.hashcode]![cell] = MapAllySupport.computeSupport(cell, consequences)
+				_hash_heal[consequences!.hashcode]![cell] = MapSupport.computeSupport(cell, consequences)
 			}
 			return _hash_heal[consequences!.hashcode]![cell]!
 		} else {
 			if (!_heal[cell]) {
-				_heal[cell] = MapAllySupport.computeSupport(cell, null)
+				_heal[cell] = MapSupport.computeSupport(cell, null)
 			}
 			return _heal[cell]!
 		}
@@ -236,7 +236,7 @@ class MapAllySupport {
 				real? ratio = itemMap![cell]
 				if (ratio == null || ratio <= 0) continue
 
-				real itemSupport = MapAllySupport.getSupport(ally, item, ratio!)
+				real itemSupport = MapSupport.getSupport(ally, item, ratio!)
 				if (itemSupport > 0) {
 					integer uses = 0
 					while (item.cost <= tpLeft && uses < item.maxUse) {
@@ -274,7 +274,7 @@ class MapAllySupport {
 	static void showSupport(Cell from, integer mpLeft, Consequences? consequences) {
 		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpLeft, Fight.self.cellsToIgnore)
 		for (Cell c : integer d in reachableCells) {
-			HealPotential hp = MapAllySupport.getCellSupport(c, consequences)
+			HealPotential hp = MapSupport.getCellSupport(c, consequences)
 			integer green = ((hp.heal * 255) / Fight.self.totalLife) as integer
 			if (green > 255) green = 255
 			mark(c.id, getColor(0, green, 255 - green))
@@ -288,7 +288,7 @@ class MapAllySupport {
 	static void showSupportAll() {
 		for (integer id : Cell c in Board.cells) {
 			if (c.isWall) continue
-			HealPotential hp = MapAllySupport.getCellSupport(c, null)
+			HealPotential hp = MapSupport.getCellSupport(c, null)
 			if (hp.heal > 0) {
 				integer green = ((hp.heal * 255) / Fight.self.totalLife) as integer
 				if (green > 255) green = 255
@@ -303,8 +303,8 @@ class MapAllySupport {
 	 * Utile pour vérifier que les items sont bien détectés
 	 */
 	static void debugAllySupportItems() {
-		debug("=== MapAllySupport Debug ===")
-		debug("Config: SUPPORT_ITEMS_LIMIT = " + MapAllySupport.SUPPORT_ITEMS_LIMIT)
+		debug("=== MapSupport Debug ===")
+		debug("Config: SUPPORT_ITEMS_LIMIT = " + MapSupport.SUPPORT_ITEMS_LIMIT)
 		debug("")
 
 		for (Entity ally in Fight.getAlliesAlive()) {
@@ -339,7 +339,7 @@ class MapAllySupport {
 	static void debugAllyCellSupport() {
 		debug("=== Support sur positions alliés ===")
 		for (Entity ally in Fight.getAlliesAlive()) {
-			HealPotential hp = MapAllySupport.getCellSupport(ally.cell, null)
+			HealPotential hp = MapSupport.getCellSupport(ally.cell, null)
 			debug(ally.name + " @" + ally.cell.id + ": " + round(hp.heal) + " support potentiel" + (hp.combo != "" ? " (" + hp.combo + ")" : ""))
 		}
 		debug("====================================")

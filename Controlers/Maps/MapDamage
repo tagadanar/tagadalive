@@ -1,0 +1,524 @@
+/*
+ * Ensemble de methodes et d'algorithmes permettant de calculer les dommages potentiels des allies sur chaque case
+ * Similaire a MapSupport mais pour les dommages (ignore les entites dans la LOS, comme MapDanger)
+ * Utilise Items.getOrderedOffensiveItems (armes + chips offensifs)
+ *
+ * Usage (integrated in MapDanger.refresh):
+ *   MapDamage.resetCaches()
+ *   integer maxItems = MapDamage.collectAllies()
+ *   for (integer i = 0; i < maxItems; i++) {
+ *       MapDamage.processRound(i)
+ *   }
+ */
+class MapDamage {
+	// === Configuration ===
+	// Nombre max d'items offensifs par allie a considerer (top N by damage/TP)
+	static integer OFFENSIVE_ITEMS_LIMIT = 3
+
+	// Cache des dommages estimes sur la case, reset a chaque tour
+	static Map<Cell, AllyDamagePotential> _dmg = [:] // [cell:AllyDamagePotential]
+	static Map<integer, Map<Cell, AllyDamagePotential>> _hash_dmg = [:] // [consequences.hash:[cell:AllyDamagePotential]]
+
+	// Cache contenant pour chaque item, pour chaque case, les cases ciblables
+	// Ignore les entites dans la LOS (comme MapDanger) - cache global car le resultat ne depend pas de l'allie
+	static Map<Item, Map<Cell, Array<Cell>>> _cache_item_targetableCells = [:] // [item:[fromCell:[targetCells]]]
+
+	// Cache pour chaque allie des maps des cases ou il peut faire des degats
+	// Refresh a chaque tour
+	static Map<Entity, Map<Item, Map<Cell, real>>> _map_ally_item_dmg = [:] // [ally:[item:[cell:ratio]]]
+
+	// Items offensifs par allie
+	static Map<Entity, Array<Item>> _ally_offensive_items = [:] // [ally:[items]]
+
+	// === Allies array (populated by collectAllies, used by processRound) ===
+	static Array<Entity> _allies = []
+
+	// Reference enemy for damage calculation
+	static Entity? _referenceEnemy = null
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// INTERLEAVED REFRESH API (matches MapSupport pattern)
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Reset per-turn caches. Called by MapDanger.refresh() at start.
+	 * Note: _cache_item_targetableCells is NOT reset (valid across turns)
+	 */
+	static void resetCaches() {
+		_dmg = [:]
+		_hash_dmg = [:]
+		_map_ally_item_dmg = [:]
+		_ally_offensive_items = [:]
+		_allies = []
+		_referenceEnemy = null
+	}
+
+	/*
+	 * Collect allies and prepare their offensive items.
+	 * Called by MapDanger.refresh() during Phase 1.
+	 * @return maxItems - maximum number of offensive items across all allies
+	 */
+	static integer collectAllies() {
+		// Get reference enemy for damage calculation
+		for (Entity e in Fight.getEnemiesAlive()) {
+			_referenceEnemy = e
+			break
+		}
+		if (_referenceEnemy == null) return 0
+
+		integer maxItems = 0
+		for (Entity ally in Fight.getAlliesAlive()) {
+			if (ally == Fight.self) continue
+
+			_map_ally_item_dmg[ally] = [:]
+
+			// Use existing getOrderedOffensiveItems with reference enemy, then slice to limit
+			Array<Item> allItems = Items.getOrderedOffensiveItems(ally, _referenceEnemy!)
+			Array<Item> offensiveItems = []
+			for (integer i = 0; i < count(allItems) && i < OFFENSIVE_ITEMS_LIMIT; i++) {
+				push(offensiveItems, allItems[i])
+			}
+			_ally_offensive_items[ally] = offensiveItems
+
+			push(_allies, ally)
+			integer itemCount = count(offensiveItems)
+			if (itemCount > maxItems) maxItems = itemCount
+		}
+		return maxItems
+	}
+
+	/*
+	 * Process round i: compute damage map for item[i] of all allies.
+	 * Called by MapDanger.refresh() in interleaved round-robin.
+	 * @param i - item index to process
+	 */
+	static void processRound(integer i) {
+		for (Entity ally in _allies) {
+			Array<Item>? offensiveItems = _ally_offensive_items[ally]
+			if (offensiveItems != null && i < count(offensiveItems!)) {
+				Item item = offensiveItems![i]
+				_map_ally_item_dmg[ally]![item] = MapDamage.getAllyDmgMap(ally, item)
+			}
+		}
+	}
+
+	/*
+	 * Build early exit stats string for allies.
+	 * Called by MapDanger.refresh() when budget exceeded.
+	 * @param round - current round number (0-indexed)
+	 * @return stats string like "Bulb1:2/3 Bulb2:2/3"
+	 */
+	static string getEarlyExitStats(integer round) {
+		string stats = ""
+		for (Entity ally in _allies) {
+			Array<Item>? items = _ally_offensive_items[ally]
+			integer total = items != null ? count(items!) : 0
+			integer done = min(round + 1, total)
+			if (stats != "") stats += " "
+			stats += ally.name + ":" + done + "/" + total
+		}
+		return stats
+	}
+
+	/*
+	 * Standalone refresh (for testing or when not using interleaved mode).
+	 * In production, MapDanger.refresh() orchestrates all maps.
+	 */
+	static void refresh() {
+		MapDamage.resetCaches()
+		integer maxItems = MapDamage.collectAllies()
+		for (integer i = 0; i < maxItems; i++) {
+			MapDamage.processRound(i)
+		}
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DAMAGE MAP COMPUTATION
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Pour les cellules accessibles par l'allie, initialise un tableau contenant les cases qu'il peut cibler avec l'item
+	 * @info Ignore les entites dans la LOS (comme MapDanger.getEnemiesDmgMap)
+	 * @param ally Entity allie
+	 * @param item Item offensif
+	 * @return map de Cells ciblables avec ratio (1.0 pour hit direct)
+	 */
+	static Map<Cell, real> getAllyDmgMap(Entity ally, Item item) {
+		Map<Cell, real> map = [:]
+
+		for (Cell cell : integer dist in ally.reachableCells) {
+			if (dist > ally.mp) break
+			Array<Cell> targetableCells = MapDamage.getAllyTargetableCells(item, cell)
+			for (Cell c in targetableCells) {
+				if (map[c] == null) {
+					map[c] = 1.0 // ratio
+				}
+			}
+		}
+
+		// Expansion AOE pour les items de zone
+		if (item.area == AREA_CIRCLE_1 || item.area == AREA_CIRCLE_2 || item.area == AREA_CIRCLE_3) {
+			for (integer distance = 1; distance <= item.area - 2; distance++) {
+				real ratio = 1 - 0.2 * distance
+				if (ratio <= 0) break
+				Array<Cell> circle = []
+				for (Cell c : real value in map) {
+					if (value > 0) {
+						for (Cell neighbor in c.neighborsObstacles) {
+							if (map[neighbor] == null || map[neighbor] == 0) {
+								push(circle, neighbor)
+							}
+						}
+					}
+				}
+				for (Cell cell in circle) {
+					map[cell] = ratio
+				}
+			}
+		}
+
+		return map
+	}
+
+	/*
+	 * Retourne les Cells pouvant etre ciblees depuis la @cell avec l'@item (ignore les entites dans la LOS)
+	 * @param item Item offensif
+	 * @param cell Cellule depuis laquelle l'allie tire
+	 * @return Array de cellules ciblables
+	 */
+	static Array<Cell> getAllyTargetableCells(Item item, Cell cell) {
+		// Init du cache si necessaire
+		if (_cache_item_targetableCells[item] == null) {
+			_cache_item_targetableCells[item] = [:]
+		}
+		if (_cache_item_targetableCells[item]![cell] == null) {
+			// Ignore toutes les entites dans la LOS (comme MapDanger.getEnemiesTargetableCells)
+			_cache_item_targetableCells[item]![cell] = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
+		}
+
+		return _cache_item_targetableCells[item]![cell]!
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// CELL DAMAGE LOOKUP
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Calcule les dommages potentiels d'une Cell, version sans Consequences
+	 * @param cell la case sur laquelle on veut les dommages potentiels
+	 * @return AllyDamagePotential
+	 */
+	static AllyDamagePotential getCellDamage(Cell cell) {
+		return MapDamage.getCellDamage(cell, null)
+	}
+
+	/*
+	 * Renvoie le cache des dommages potentiels d'une Cell, le calcule si pas deja calcule
+	 * @param cell Cellule sur laquelle les dommages vont etre calcules
+	 * @param consequences Consequences qui contient les alterations de la serie d'action precedente
+	 * @return un objet AllyDamagePotential
+	 */
+	static AllyDamagePotential getCellDamage(Cell cell, Consequences? consequences) {
+		if (consequences && consequences!.isAlteringDanger) {
+			if (!_hash_dmg[consequences!.hashcode]) {
+				_hash_dmg[consequences!.hashcode] = [:]
+			}
+			if (!_hash_dmg[consequences!.hashcode]![cell]) {
+				_hash_dmg[consequences!.hashcode]![cell] = MapDamage.computeDamage(cell, consequences)
+			}
+			return _hash_dmg[consequences!.hashcode]![cell]!
+		} else {
+			if (!_dmg[cell]) {
+				_dmg[cell] = MapDamage.computeDamage(cell, null)
+			}
+			return _dmg[cell]!
+		}
+	}
+
+	/*
+	 * Pour chaque allie vivant, somme les dommages de leurs items en fonction des TP et cooldowns
+	 * @param cell Cellule sur laquelle les dommages vont etre calcules
+	 * @param consequences Consequences qui contient les alterations
+	 * @return un objet AllyDamagePotential
+	 */
+	static AllyDamagePotential computeDamage(Cell cell, Consequences? consequences) {
+		real totalDmg = 0.0
+		string str = ""
+
+		for (Entity ally in Fight.getAlliesAlive()) {
+			if (ally == Fight.self) continue
+			if (consequences && consequences!.isKilled(ally)) continue
+
+			Array<Item>? items = _ally_offensive_items[ally]
+			if (items == null) continue
+
+			integer tpLeft = ally.getCurrentTP(consequences)
+
+			for (Item item in items!) {
+				Map<Cell, real>? itemMap = _map_ally_item_dmg[ally]![item]
+				if (itemMap == null) continue
+
+				real? ratioDmg = itemMap![cell]
+				if (ratioDmg == null || ratioDmg <= 0) continue
+
+				// Calcule les dommages sur un ennemi moyen (on prend le premier ennemi vivant comme reference)
+				Entity? target = null
+				for (Entity e in Fight.getEnemiesAlive()) {
+					if (consequences == null || !consequences!.isKilled(e)) {
+						target = e
+						break
+					}
+				}
+				if (target == null) continue
+
+				real itemDmg = MapDamage.getDamage(ally, target!, item, ratioDmg!, consequences)
+				if (itemDmg > 0) {
+					integer uses = 0
+					while (item.cost <= tpLeft && uses < item.maxUse) {
+						str += " " + item.name
+						totalDmg += itemDmg
+						tpLeft -= item.cost
+						uses++
+						if (item.haveCD) break
+					}
+				}
+			}
+		}
+
+		return AllyDamagePotential(cell, totalDmg, str)
+	}
+
+	/*
+	 * Calcule les dommages que peut faire allySource avec un item sur une cible
+	 * @param allySource Allie qui attaque
+	 * @param target Cible ennemie
+	 * @param item Item offensif
+	 * @param ratioDmg Ratio de distance (1.0 pour adjacent, moins pour AOE)
+	 * @param consequences Consequences optionnelles
+	 * @return dommages calcules
+	 */
+	static real getDamage(Entity allySource, Entity target, Item item, real ratioDmg, Consequences? consequences) {
+		real dmg = 0.0
+
+		for (ItemEffect e in item.effects) {
+			if (e.type == EFFECT_DAMAGE) {
+				real tmp = e.avgmax * (1 + (allySource.getCurrentStr(consequences) / 100)) * (1 + (allySource.pwr / 100))
+				tmp = tmp * ratioDmg * (1 - (target.getCurrentRel(consequences) / 100)) - (target.getCurrentAbs(consequences))
+				dmg += tmp > 0 ? tmp : 0
+			}
+			else if (e.type == EFFECT_POISON) {
+				real duration = ScoringConfig.defensive_duration_mitigation[e.duration]!
+				dmg += e.avgmax * (1 + (allySource.getCurrentMgc(consequences) / 100)) * (1 + (allySource.pwr / 100)) * ratioDmg * duration
+			}
+		}
+
+		return dmg
+	}
+
+	/*
+	 * Compute ally damage on a cell, but only from allies that play BEFORE the given enemy.
+	 * Used for scoring enemy inversion: after swap, only allies playing before the enemy
+	 * can hit them at their new position before they move away.
+	 *
+	 * Follows same pattern as Damages.computeDanger:
+	 * - Processes allies in turn order (sorted)
+	 * - Tracks TP per ally across ALL their items
+	 * - Uses enemy shields for damage calculation (consequence-aware)
+	 *
+	 * @param cell Cell where enemy will be (fromCell after inversion)
+	 * @param enemy The enemy being swapped - only allies before this entity in turn order count
+	 * @param consequences Optional consequences (e.g., from inversion applying vulnerability)
+	 * @return total damage from allies that can hit this cell AND play before the enemy
+	 */
+	static real getDamageBeforeEnemy(Cell cell, Entity enemy, Consequences? consequences = null) {
+		// Get allies that play between self and enemy, sorted by turn order
+		Array<Entity> alliesBeforeEnemy = MapDamage._getAlliesBeforeEnemy(enemy)
+
+		real totalDmg = 0.0
+
+		// Process allies in turn order (like Damages.computeDanger)
+		for (Entity ally in alliesBeforeEnemy) {
+			// Check if this ally has offensive items computed
+			Array<Item>? items = _ally_offensive_items[ally]
+			if (items == null) continue
+
+			// Track TP across ALL items for this ally
+			integer tpLeft = ally.tp
+
+			for (Item item in items!) {
+				Map<Cell, real>? itemMap = _map_ally_item_dmg[ally]![item]
+				if (itemMap == null) continue
+
+				real? ratioDmg = itemMap![cell]
+				if (ratioDmg == null || ratioDmg <= 0) continue
+
+				// Calculate damage on the enemy target (uses consequence-aware shields)
+				real itemDmg = MapDamage.getDamage(ally, enemy, item, ratioDmg!, consequences)
+				if (itemDmg > 0) {
+					integer uses = 0
+					while (item.cost <= tpLeft && uses < item.maxUse) {
+						totalDmg += itemDmg
+						tpLeft -= item.cost
+						uses++
+						if (item.haveCD) break
+					}
+				}
+			}
+		}
+
+		return totalDmg
+	}
+
+	/*
+	 * Get allies that play between self and enemy, sorted by turn order.
+	 * Uses Fight.getEntitiesWhoPlayBefore() and filters to allies only.
+	 */
+	static Array<Entity> _getAlliesBeforeEnemy(Entity enemy) {
+		Array<Entity> entitiesBeforeEnemy = Fight.getEntitiesWhoPlayBefore(enemy)
+
+		// Filter to allies only (exclude self and enemies)
+		Array<Entity> allies = []
+		for (Entity e in entitiesBeforeEnemy) {
+			if (e.isFriend && e != Fight.self) {
+				push(allies, e)
+			}
+		}
+
+		// Sort by turn order (ascending) for proper sequential processing
+		return arraySort(allies, (Entity a, Entity b) -> a.turnOrder - b.turnOrder)
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// DEBUG UTILITIES
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/*
+	 * Debug: affiche la map de dommages allies sur le terrain
+	 * Rouge = dommages eleves, Vert = dommages faibles
+	 */
+	static void showDamage(Cell from, integer mpLeft, Consequences? consequences) {
+		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpLeft, Fight.self.cellsToIgnore)
+		for (Cell c : integer d in reachableCells) {
+			AllyDamagePotential adp = MapDamage.getCellDamage(c, consequences)
+			// Utilise la vie max d'un ennemi moyen pour normaliser
+			Entity? enemy = null
+			for (Entity e in Fight.getEnemiesAlive()) {
+				enemy = e
+				break
+			}
+			integer maxLife = enemy != null ? enemy!.totalLife : 1000
+			integer red = ((adp.dmg * 255) / maxLife) as integer
+			if (red > 255) red = 255
+			mark(c.id, getColor(red, 255 - red, 0))
+			markText(c.id, round(adp.dmg))
+		}
+	}
+
+	/*
+	 * Debug: affiche la map de dommages allies sur TOUT le terrain
+	 */
+	static void showDamageAll() {
+		Entity? enemy = null
+		for (Entity e in Fight.getEnemiesAlive()) {
+			enemy = e
+			break
+		}
+		integer maxLife = enemy != null ? enemy!.totalLife : 1000
+
+		for (integer id : Cell c in Board.cells) {
+			if (c.isWall) continue
+			AllyDamagePotential adp = MapDamage.getCellDamage(c, null)
+			if (adp.dmg > 0) {
+				integer red = ((adp.dmg * 255) / maxLife) as integer
+				if (red > 255) red = 255
+				mark(c.id, getColor(red, 255 - red, 0))
+				markText(c.id, round(adp.dmg))
+			}
+		}
+	}
+
+	/*
+	 * Debug: affiche les infos des allies et leurs items offensifs
+	 */
+	static void debugAllyItems() {
+		debug("=== MapDamage Debug ===")
+		debug("Config: OFFENSIVE_ITEMS_LIMIT = " + MapDamage.OFFENSIVE_ITEMS_LIMIT)
+		debug("")
+
+		for (Entity ally in Fight.getAlliesAlive()) {
+			if (ally == Fight.self) continue
+
+			Array<Item>? items = _ally_offensive_items[ally]
+			if (items == null || count(items!) == 0) {
+				debug(ally.name + " (STR:" + ally.str + ", MGC:" + ally.mgc + ", TP:" + ally.tp + ", MP:" + ally.mp + "): NO OFFENSIVE ITEMS")
+				continue
+			}
+
+			string itemsStr = ""
+			for (Item item in items!) {
+				// Calcul des dommages de l'item (sans cible specifique)
+				real itemDmg = 0.0
+				for (ItemEffect e in item.effects) {
+					if (e.type == EFFECT_DAMAGE) {
+						itemDmg += e.avgmax * (1 + (ally.str / 100)) * (1 + (ally.pwr / 100))
+					}
+					else if (e.type == EFFECT_POISON) {
+						itemDmg += e.avgmax * (1 + (ally.mgc / 100)) * (1 + (ally.pwr / 100))
+					}
+				}
+				itemsStr += item.name + "(" + round(itemDmg) + "dmg/" + item.cost + "tp) "
+			}
+			debug(ally.name + " (STR:" + ally.str + ", MGC:" + ally.mgc + ", TP:" + ally.tp + ", MP:" + ally.mp + "): " + itemsStr)
+
+			// Affiche le nombre de cases couvertes par chaque item
+			for (Item item in items!) {
+				Map<Cell, real>? itemMap = _map_ally_item_dmg[ally]![item]
+				if (itemMap != null) {
+					debug("  - " + item.name + ": " + mapSize(itemMap!) + " cells couvertes")
+				}
+			}
+		}
+		debug("============================")
+	}
+
+	/*
+	 * Debug: affiche les dommages potentiels sur la case de chaque ennemi
+	 */
+	static void debugEnemyCellDamage() {
+		debug("=== Dommages allies sur positions ennemis ===")
+		for (Entity enemy in Fight.getEnemiesAlive()) {
+			AllyDamagePotential adp = MapDamage.getCellDamage(enemy.cell, null)
+			debug(enemy.name + " @" + enemy.cell.id + ": " + round(adp.dmg) + " dmg potentiel" + (adp.combo != "" ? " (" + adp.combo + ")" : ""))
+		}
+		debug("=============================================")
+	}
+
+	/*
+	 * Debug: marque sur la map les cases qu'un allie specifique peut toucher
+	 * @param ally L'allie dont on veut voir la couverture
+	 */
+	static void showAllyDamageCoverage(Entity ally) {
+		if (ally == Fight.self) {
+			debug("Cannot show damage coverage for self")
+			return
+		}
+
+		Array<Item>? items = _ally_offensive_items[ally]
+		if (items == null) {
+			debug(ally.name + " has no offensive items")
+			return
+		}
+
+		debug("Showing damage coverage for " + ally.name)
+		for (Item item in items!) {
+			Map<Cell, real>? itemMap = _map_ally_item_dmg[ally]![item]
+			if (itemMap == null) continue
+
+			for (Cell c : real ratio in itemMap!) {
+				integer red = (ratio * 200) as integer + 55
+				mark(c.id, getColor(red, 0, 0))
+				markText(c.id, item.name)
+			}
+		}
+	}
+}
