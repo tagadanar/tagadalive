@@ -35,6 +35,10 @@ include('Model/Summons/BulbSimulator')
 include('Model/Summons/SummonCandidate')
 include('Model/Summons/PendingBulb')
 
+// Tactical models (Inversion, etc.)
+include('Model/Tactical/InversionCandidate')
+include('Model/Tactical/PostInversionCellData')
+
 // ────────────────────────────────────────────────────────────────────────────
 // SERVICES: Utilities (no dependencies, needed early)
 // ────────────────────────────────────────────────────────────────────────────
@@ -46,12 +50,13 @@ include('Services/Benchmark')
 // ────────────────────────────────────────────────────────────────────────────
 include('Controlers/Maps/MapPath')
 include('Controlers/Maps/MapDanger')
-include('Controlers/Maps/MapAllySupport')
-include('Controlers/Maps/MapAllyDamage')
+include('Controlers/Maps/MapSupport')
+include('Controlers/Maps/MapDamage')
 include('Controlers/Maps/MapPosition')
 include('Controlers/Targets')
 include('Controlers/Maps/MapAction')
 include('Controlers/Maps/MapSummon')
+include('Controlers/Maps/MapTactical')    // Tactical chips (Inversion, etc.)
 include('Controlers/Maps/MapCellScore')   // Cell-centric action aggregation (uses MapAction, Sort)
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -165,9 +170,7 @@ function init() {
 	// If you call Scoring.refresh() alone, you must also call this afterward.
 	BattleState.computeAllAllyDanger()
 
-	/*Benchmark.start('MapAllyDamage.refresh')
-	MapAllyDamage.refresh()
-	Benchmark.stop('MapAllyDamage.refresh')*/
+	// MapDamage is now integrated into MapDanger.refresh() (Phase 4)
 
 	Benchmark.start('MapPosition.refresh')
 	MapPosition.refresh()
@@ -177,6 +180,11 @@ function init() {
 	Benchmark.start('MapSummon.refresh')
 	MapSummon.refresh()
 	Benchmark.stop('MapSummon.refresh')
+
+	// MapTactical: compute valid inversion targets (BEFORE MapAction)
+	Benchmark.start('MapTactical.refresh')
+	MapTactical.refresh()
+	Benchmark.stop('MapTactical.refresh')
 
 	Benchmark.start('MapAction.refresh')
 	MapAction.refresh()
@@ -189,8 +197,8 @@ function init() {
 	Benchmark.stop('init')
 
 	// Debug ally maps (uncomment to test)
-	/*MapAllySupport.debugAllySupportItems()
-	MapAllySupport.showSupportAll()
-	MapAllyDamage.debugAllyWeapons()
-	MapAllyDamage.showDamageAll()*/
+	/*MapSupport.debugAllySupportItems()
+	MapSupport.showSupportAll()
+	MapDamage.debugAllyItems()
+	MapDamage.showDamageAll()*/
 }
