@@ -23,8 +23,6 @@ class MapAction {
 	static Map<Item, Map<integer, Map<Cell, Cell>>> _item_entityId_attackCells
 	// Score index: stores best score per (item, entityId, attackCell) - keeps best aimCell
 	static Map<Item, Map<integer, Map<Cell, real>>> _item_entityId_scores
-	// Entity target index: entityId -> Set of actions targeting that entity (for inversion filtering)
-	static Map<integer, Set<Action>> _entityTargetedActions
 	// Entity items index: entityId -> Set of items that can target this entity (for post-inversion pool)
 	static Map<integer, Set<Item>> _entityTargetedItems
 
@@ -40,7 +38,6 @@ class MapAction {
 		_cell_item_bestAction = [:]
 		_item_entityId_attackCells = [:]
 		_item_entityId_scores = [:]
-		_entityTargetedActions = [:]
 		_entityTargetedItems = [:]
 		_actionsCreated = 0
 		// Clear effect cache for new turn
@@ -261,14 +258,6 @@ class MapAction {
 	}
 
 	/*
-	 * Get all actions that target a specific entity.
-	 * Used by ComboBuilder to invalidate actions after inversion.
-	 */
-	static Set<Action>? getActionsTargetingEntity(Entity entity) {
-		return _entityTargetedActions[entity.id]
-	}
-
-	/*
 	 * Get all items that can target a specific entity.
 	 * Used by MapTactical for post-inversion pool generation.
 	 */
@@ -353,12 +342,8 @@ class MapAction {
 		else if(_cell_item_bestAction[from]![item]!.score! < action.score!) _cell_item_bestAction[from]![item] = action
 
 		// Index action and item by target entities (for inversion filtering)
+		// Index items by target entity (for post-inversion ally support)
 		for (Entity target in action.consequences.targets) {
-			if (_entityTargetedActions[target.id] == null) {
-				_entityTargetedActions[target.id] = <>
-			}
-			setPut(_entityTargetedActions[target.id]!, action)
-
 			if (_entityTargetedItems[target.id] == null) {
 				_entityTargetedItems[target.id] = <>
 			}

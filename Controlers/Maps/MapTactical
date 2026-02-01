@@ -38,6 +38,9 @@ class MapTactical {
 	// Operation counter for this module
 	static integer _opsUsed = 0
 
+	// LOS cache: key = (fromId << 10) | toId -> cells on line (persistent across turns)
+	static Map<integer, Array<Cell>> _losCache = [:]
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PUBLIC API
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -299,16 +302,17 @@ class MapTactical {
 	 * @param candidate The inversion candidate (defines new position)
 	 * @param remainingTP TP available after inversion
 	 * @param remainingMP MP available after moving to cast inversion
-	 * @param ignoreCells Cells to ignore in pathfinding (dead entities, etc.)
 	 * @return Array of actions playable from new position
 	 */
 	static Array<Action> getPostInversionPool(
 		InversionCandidate candidate,
 		integer remainingTP,
-		integer remainingMP,
-		Set<Cell> ignoreCells
+		integer remainingMP
 	) {
 		Array<Action> postPool = []
+
+		// Debug: show target
+		debug("INV_POOL>target=" + candidate.target.name)
 
 		// New position after swap: we end up at target's cell
 		Cell newSelfCell = candidate.targetCell
@@ -324,15 +328,17 @@ class MapTactical {
 
 		// Compute reachability from new position
 		// Add enemyNewCell as obstacle (swapped entity is there now)
+		// IMPORTANT: Use Fight.self.cellsToIgnore directly for consistency with Consequences.construct()
 		Set<Cell> newObstacles = <enemyNewCell>
 		Map<Cell, integer> newReachable = MapPath.getCachedReachableCells(
-			newSelfCell, remainingMP, ignoreCells, newObstacles)
+			newSelfCell, remainingMP, Fight.self.cellsToIgnore, newObstacles)
 
 		// For each offensive item, find actions on enemies
+		// NOTE: Don't filter by TP here - let the combo builder/knapsack decide what fits
 		for (Item item in Fight.self.items) {
 			// Skip non-offensive, summons, tactical
 			if (item.isSummon || item.isTactical) continue
-			if (item.cost > remainingTP) continue
+			// Skip items on cooldown (they're truly unavailable)
 			if (getCooldown(item.id, Fight.self.id) > 0) continue
 			// Skip inversion itself (already used)
 			if (item.id == Fight.inversionItem!.id) continue
@@ -358,13 +364,22 @@ class MapTactical {
 				// Ignore both self and target in LOS check (neither at their current position after swap)
 				Array<Cell> castCells = Targets.getTargetableCells(item, enemyCell, [Fight.self.id, candidate.target.id])
 
-				// Find closest reachable cast cell
+				// For non-swapped enemies, check if swapped entity blocks LOS
+				// Use getCellsLine ONCE to get cells on LOS path, then check if obstacle is on it
+				boolean needsLOSCheck = (enemy != candidate.target)
+				Set<integer>? blockedCastCells = null
+				if (needsLOSCheck) {
+					blockedCastCells = MapTactical._getBlockedCastCells(castCells, enemyCell, enemyNewCell)
+				}
+
+				// Find closest reachable cast cell (not blocked)
 				Cell? bestCast = null
 				integer bestDist = 9999
 
 				// Check if newSelfCell is a valid cast cell (no movement needed)
 				for (Cell c in castCells) {
 					if (c == newSelfCell) {
+						if (blockedCastCells != null && setContains(blockedCastCells!, c.id)) continue
 						bestCast = newSelfCell
 						bestDist = 0
 						break
@@ -374,6 +389,7 @@ class MapTactical {
 				// Otherwise find closest reachable
 				if (bestCast == null) {
 					for (Cell c in castCells) {
+						if (blockedCastCells != null && setContains(blockedCastCells!, c.id)) continue
 						integer? dist = newReachable[c]
 						if (dist != null && dist! <= remainingMP && dist! < bestDist) {
 							bestDist = dist!
@@ -391,6 +407,7 @@ class MapTactical {
 				if (hasOffensive) {
 					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, invConseq)
 					Action action = Action(item, bestCast!, enemyCell, snapshot)
+					action.overrideTargets = snapshot.targets  // Bypass game API for simulated position
 					if (action.score != null && action.score! > 0) {
 						push(postPool, action)
 					}
@@ -399,9 +416,9 @@ class MapTactical {
 		}
 
 		// Add self-cast buffs (always available from any position)
+		// NOTE: Don't filter by TP - let combo builder decide
 		for (Item item in Fight.self.items) {
 			if (item.isSummon || item.isTactical) continue
-			if (item.cost > remainingTP) continue
 			if (getCooldown(item.id, Fight.self.id) > 0) continue
 			if (item.minRange > 0) continue  // Not self-castable
 
@@ -437,7 +454,7 @@ class MapTactical {
 				Cell allyNewCell = candidate.fromCell
 
 				for (Item item in targetingItems!) {
-					if (item.cost > remainingTP) continue
+					// NOTE: Don't filter by TP - let combo builder decide
 					if (getCooldown(item.id, Fight.self.id) > 0) continue
 
 					// Get cast cells for ally's NEW position
@@ -470,6 +487,7 @@ class MapTactical {
 					// Create action targeting ally at new position
 					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, candidate.target, allyNewCell, invConseq)
 					Action action = Action(item, bestCast!, allyNewCell, snapshot)
+					action.overrideTargets = snapshot.targets  // Bypass game API for simulated position
 					if (action.score != null && action.score! > 0) {
 						push(postPool, action)
 					}
@@ -477,18 +495,19 @@ class MapTactical {
 			}
 		}
 
+		debug("INV_POOL>pool=" + count(postPool))
 		return postPool
 	}
 
 	/*
 	 * Compute cell scores for post-inversion state.
-	 * Combines filtered base scores (excluding actions targeting swapped entity)
-	 * with post-inversion bonus scores (new attacks enabled by the swap).
+	 * Uses ONLY the post-inversion pool (not base MapAction actions) because
+	 * the swapped entity can block LOS to any enemy, not just itself.
 	 *
 	 * @param candidate The inversion candidate (defines swap target)
 	 * @param newSelfCell Where we land after swap (= candidate.targetCell)
 	 * @param reachableCells Cells reachable from newSelfCell with remaining MP
-	 * @param postPool Actions from getPostInversionPool() grouped by fromCell
+	 * @param postByCell Actions from getPostInversionPool() grouped by fromCell
 	 * @return PostInversionCellData with scores, actions, and MP costs per cell
 	 */
 	static PostInversionCellData getPostInversionCellScores(
@@ -499,13 +518,7 @@ class MapTactical {
 	) {
 		PostInversionCellData result = PostInversionCellData()
 
-		// Get actions targeting swapped entity - these are INVALID after inversion
-		Set<Action>? invalidActions = MapAction.getActionsTargetingEntity(candidate.target)
-
-		// Track processed cells to avoid duplicates
-		Map<Cell, boolean> processed = [:]
-
-		// FIRST PASS: cells with post-inversion actions
+		// Only use post-inversion pool (already has LOS blocking handled)
 		for (Cell cell : Array<Action> postActions in postByCell) {
 			// Compute MP cost
 			integer mpCost = 0
@@ -515,69 +528,20 @@ class MapTactical {
 				mpCost = cost!
 			}
 
-			// Compute filtered base score and collect valid actions
-			// Use cellActions directly (not getActionsForCell) to skip self-cast actions
-			// which are already handled in getPostInversionPool() and have wrong from/to cells
-			real baseScore = 0
+			// Collect valid actions
 			Array<Action> validActions = []
-			Array<Action>? cellActions = MapCellScore.cellActions[cell]
+			real score = 0
 
-			if (cellActions != null) {
-				for (Action a in cellActions!) {
-					if (invalidActions != null && setContains(invalidActions!, a)) continue
-					if (a.score != null && a.score! > 0) {
-						baseScore += a.score!
-						push(validActions, a)
-					}
-				}
-			}
-
-			// Add post-inversion actions (targeting swapped entity at new pos)
-			real postScore = 0
 			for (Action a in postActions) {
 				if (a.score != null && a.score! > 0) {
-					postScore += a.score!
+					score += a.score!
 					push(validActions, a)
 				}
 			}
 
-			result.scores[cell] = baseScore + postScore
-			result.actions[cell] = validActions
-			result.mpCosts[cell] = mpCost
-			processed[cell] = true
-		}
+			if (score <= 0) continue  // No useful actions
 
-		// SECOND PASS: cells with only base actions (no post bonus)
-		for (Cell cell : real score in MapCellScore.cellScores) {
-			if (processed[cell]) continue  // Already handled
-
-			// Compute MP cost
-			integer mpCost = 0
-			if (cell != newSelfCell) {
-				integer? cost = reachableCells[cell]
-				if (cost == null) continue  // Unreachable
-				mpCost = cost!
-			}
-
-			// Compute filtered base score
-			// Use cellActions directly (not getActionsForCell) to skip self-cast actions
-			real filteredScore = 0
-			Array<Action> validActions = []
-			Array<Action>? cellActions = MapCellScore.cellActions[cell]
-
-			if (cellActions != null) {
-				for (Action a in cellActions!) {
-					if (invalidActions != null && setContains(invalidActions!, a)) continue
-					if (a.score != null && a.score! > 0) {
-						filteredScore += a.score!
-						push(validActions, a)
-					}
-				}
-			}
-
-			if (filteredScore <= 0) continue  // No useful actions after filtering
-
-			result.scores[cell] = filteredScore
+			result.scores[cell] = score
 			result.actions[cell] = validActions
 			result.mpCosts[cell] = mpCost
 		}
@@ -607,6 +571,102 @@ class MapTactical {
 			}
 		}
 		debug("=== End MapTactical ===")
+	}
+
+	/*
+	 * Get cells on line of sight between two cells (DDA algorithm).
+	 * Uses doubled coordinates to avoid floating point.
+	 * Results are cached (grid is static for the fight).
+	 *
+	 * @param from Starting cell
+	 * @param to Target cell
+	 * @return Array of cells on the line (includes from and to)
+	 */
+	static Array<Cell> _getCellsLineOfSight(Cell from, Cell to) {
+		// Cache key: pack two cell IDs into one integer (cell IDs < 613, so << 10 is safe)
+		integer key = (from.id << 10) | to.id
+
+		// Check cache first
+		Array<Cell>? cached = _losCache[key]
+		if (cached != null) return cached!
+
+		// Compute LOS line
+		Array<Cell> cells = []
+		integer x = from.x
+		integer y = from.y
+
+		// Centers *2 (avoids .5)
+		integer cx0 = (x << 1) + 1
+		integer cy0 = (y << 1) + 1
+		integer cx1 = (to.x << 1) + 1
+		integer cy1 = (to.y << 1) + 1
+
+		integer adx = abs(cx1 - cx0)
+		integer ady = abs(cy1 - cy0)
+		integer sx = cx0 < cx1 ? 1 : -1
+		integer sy = cy0 < cy1 ? 1 : -1
+
+		// Parameter t as numerator (common denominator = adx*ady)
+		integer tMaxX = ady
+		integer tMaxY = adx
+
+		integer tStepX = ady << 1
+		integer tStepY = adx << 1
+
+		push(cells, Board.cellsXY[x]![y]!)
+
+		while (x != to.x || y != to.y) {
+			if (tMaxX < tMaxY) {
+				x += sx
+				tMaxX += tStepX
+			} else {
+				y += sy
+				tMaxY += tStepY
+			}
+			push(cells, Board.cellsXY[x]![y]!)
+		}
+
+		// Store in cache
+		_losCache[key] = cells
+		return cells
+	}
+
+	/*
+	 * Get set of cast cells that would have LOS blocked by obstacle.
+	 * Uses DDA line tracing - exact and efficient (no game API calls).
+	 *
+	 * @param castCells Potential cast cells for this item/enemy
+	 * @param targetCell Where the enemy is (target of attack)
+	 * @param obstacle Cell that might block LOS (swapped entity position)
+	 * @return Set of cell IDs that are blocked, or null if none blocked
+	 */
+	static Set<integer>? _getBlockedCastCells(Array<Cell> castCells, Cell targetCell, Cell obstacle) {
+		// Quick check: if obstacle is the target, nothing is blocked
+		if (obstacle == targetCell) return null
+
+		Set<integer> blocked = <>
+
+		for (Cell c in castCells) {
+			// Skip if cast cell is the obstacle itself
+			if (c == obstacle) {
+				setPut(blocked, c.id)
+				continue
+			}
+
+			// Skip if cast cell is the target (no LOS needed)
+			if (c == targetCell) continue
+
+			// Trace LOS from cast cell to target, check if obstacle is on the line
+			Array<Cell> losLine = _getCellsLineOfSight(c, targetCell)
+			for (Cell lineCell in losLine) {
+				if (lineCell == obstacle) {
+					setPut(blocked, c.id)
+					break
+				}
+			}
+		}
+
+		return setSize(blocked) > 0 ? blocked : null
 	}
 
 }

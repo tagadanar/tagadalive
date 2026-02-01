@@ -336,7 +336,15 @@ class ComboBuilder {
 
 	/*
 	 * Build combo with inversion as first-class strategy.
-	 * Simplified design: greedy pre-actions, then phase-2-style post-inversion cell selection.
+	 * Follows buildAcrossCells pattern: select best cells, single knapsack, execute in path order.
+	 *
+	 * Flow:
+	 * 1. Calculate MP buffs needed to reach inversion cast cell
+	 * 2. Compute post-inversion cell scores and reachability
+	 * 3. Select best 1-2 cells with MP-valid path (like Phase 2)
+	 * 4. Pool ALL actions from selected cells
+	 * 5. Single knapsack on combined pool
+	 * 6. Partition actions back to cells, execute in path order
 	 *
 	 * @param ctx Exploration context with initial resources
 	 * @param candidate Inversion candidate to use
@@ -356,199 +364,352 @@ class ComboBuilder {
 		// Check basic feasibility
 		if (ctx.initialTP < invCost) return null
 
-		// Calculate MP buff needed to reach inversion cast cell
+		// ═══════════════════════════════════════════════════════════════════════════
+		// PHASE 1: Calculate MP buffs and resources
+		// ═══════════════════════════════════════════════════════════════════════════
+
 		integer neededMPBuff = max(0, mpToInvCast - ctx.initialMP)
 		Array<Action> mpBuffActions = []
 		integer mpBuffTPCost = 0
 
 		if (neededMPBuff > 0) {
-			// Check if reachable even with max buffs
 			if (mpToInvCast > ctx.initialMP + ctx.maxMPBuff) return null
-
-			// Calculate minimal MP buffs (reserve TP for inversion)
 			Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededMPBuff, ctx.initialTP - invCost)
 			if (buffs == null) return null
 			mpBuffActions = buffs!
-
-			// Sum TP cost of buffs
 			for (Action buff in mpBuffActions) {
 				mpBuffTPCost += buff.item.cost
 			}
 		}
 
-		// Total reserved TP = inversion + MP buffs
-		integer reservedTP = invCost + mpBuffTPCost
+		integer totalAvailableTP = ctx.initialTP - mpBuffTPCost - invCost
+		integer postMP = ctx.initialMP + ComboBuilder._sumMPGain(mpBuffActions) - mpToInvCast
 
-		Set<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Set<Cell>
+		// ═══════════════════════════════════════════════════════════════════════════
+		// PHASE 2: Select best cells with MP-valid path (like buildAcrossCells)
+		// ═══════════════════════════════════════════════════════════════════════════
 
-		// === PRE-INVERSION: gather actions at start cell ===
-		Array<Action> preSelfCast = []
-		Array<Action> preStartCell = []
+		// Get post-inversion pool and group by cell
+		Array<Action> postPool = MapTactical.getPostInversionPool(candidate, totalAvailableTP, postMP)
 
-		Array<Action> startActions = MapCellScore.getActionsForCell(startCell)
-		for (Action a in startActions) {
-			if (a.score <= 0) continue
-			if (a.from == Fight.selfCell) {
-				push(preSelfCast, a)
-			} else {
-				push(preStartCell, a)
-			}
-		}
+		// Group actions by fromCell and compute cell scores
+		Map<Cell, Array<Action>> cellActions = [:]
+		Map<Cell, real> cellScores = [:]
+		Cell enemyNewCell = invCastCell  // Swapped entity ends up here
 
-		preSelfCast = MapCellScore.sortByPriority(preSelfCast)
-		preStartCell = MapCellScore.sortByPriority(preStartCell)
-
-		// === BUILD COMBO ===
-		Combo combo = Combo()
-		Map<Item, integer> usesThisTurn = [:]
-
-		// 0. MP buffs first (needed to reach inversion cast cell)
-		ComboBuilder._applyBuffs(combo, mpBuffActions, usesThisTurn)
-
-		// Verify we have enough MP after buffs
-		Consequences buffedCsq = combo.getCurrentConsequences()
-		if (buffedCsq.currentMP < mpToInvCast) {
-			return null  // Buffs didn't provide enough MP
-		}
-
-		// 1. Self-cast at start (reserve TP for inversion)
-		for (Action a in preSelfCast) {
-			ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, invCost)
-		}
-
-		// 2. Actions at startCell (reserve TP for inversion)
-		for (Action a in preStartCell) {
-			ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, invCost)
-		}
-
-		// 3. Inversion action - create with combo's current state
-		Consequences priorCsq = combo.getCurrentConsequences()
-		Action invAction = Action(invItem, invCastCell, candidate.targetCell)
-		invAction.invCandidate = candidate
-
-		// Actualize with current consequences and add tactical score
-		Action actualizedInv = Action(invAction, priorCsq)
-		actualizedInv.consequences.score += candidate.score
-		actualizedInv.score = actualizedInv.consequences.getScore()
-
-		if (actualizedInv.score! <= priorCsq.score!) {
-			return null  // Inversion doesn't improve score
-		}
-		push(combo.actions, actualizedInv)
-		usesThisTurn[invItem] = 1
-
-		// === POST-INVERSION: cell selection via MapTactical ===
-		Consequences csq = combo.getCurrentConsequences()
-		integer postMP = csq.currentMP
-		integer postTP = csq.currentTP
-
-		// Compute reachable cells from new position (swapped entity blocks invCastCell)
-		Set<Cell> postObstacles = <invCastCell>
-		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
-			newSelfCell, postMP, ignoreCells, postObstacles)
-
-		// Get post-pool from MapTactical and group by fromCell
-		Array<Action> postPool = MapTactical.getPostInversionPool(candidate, postTP, postMP, ignoreCells)
-		Map<Cell, Array<Action>> postByCell = [:]
 		for (Action a in postPool) {
 			Cell fromCell = a.from
 			if (fromCell == Fight.selfCell) fromCell = newSelfCell
-			if (postByCell[fromCell] == null) postByCell[fromCell] = []
-			push(postByCell[fromCell]!, a)
+			if (cellActions[fromCell] == null) {
+				cellActions[fromCell] = []
+				cellScores[fromCell] = 0
+			}
+			push(cellActions[fromCell]!, a)
+			if (a.score != null) cellScores[fromCell] += a.score!
 		}
 
-		// Get merged cell scores from MapTactical
-		PostInversionCellData cellData = MapTactical.getPostInversionCellScores(
-			candidate, newSelfCell, reachable, postByCell)
+		// Sort cells by score descending
+		Array<Cell> sortedCells = []
+		for (Cell c : real score in cellScores) {
+			push(sortedCells, c)
+		}
+		sortedCells = arraySort(sortedCells, (Cell a, Cell b) -> integer {
+			return Sort.desc(cellScores[a]!, cellScores[b]!)
+		}) as Array<Cell>
 
-		// Select best cells (pair if reachable, else single)
-		Array<Cell> selectedCells = ComboBuilder._selectBestCellSequence(
-			cellData, postMP, ignoreCells, postObstacles)
+		// Compute reachability from newSelfCell
+		Set<Cell> newObstacles = <enemyNewCell>
+		Map<Cell, integer> reachableFromNew = MapPath.getCachedReachableCells(
+			newSelfCell, postMP, Fight.self.cellsToIgnore, newObstacles)
 
-		// Add actions cell by cell in sequence (like buildAcrossCells)
-		// This ensures combo moves to cell 1, executes cell 1's actions, then moves to cell 2, etc.
-		// Mixing actions from different cells causes unreachable cell errors.
-		if (count(selectedCells) > 0) {
-			Map<integer, boolean> seen = [:]
+		// Find best cell sequence (1 or 2 cells) with valid MP path
+		Array<Cell> selectedCells = ComboBuilder._selectInversionCellSequence(
+			sortedCells, cellScores, newSelfCell, postMP, reachableFromNew, newObstacles)
 
-			for (Cell cell in selectedCells) {
-				Array<Action>? actions = cellData.actions[cell]
-				if (actions == null) continue
+		if (count(selectedCells) == 0) {
+			// No valid cells - just do inversion with position
+			selectedCells = [newSelfCell]
+		}
 
-				// Sort this cell's actions by priority before adding
-				Array<Action> sorted = MapCellScore.sortByPriority(actions!)
-				for (Action a in sorted) {
-					integer hash = a.item.id * 10000 + a.to.id
-					if (seen[hash]) continue
-					seen[hash] = true
-					ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
+		debug("INV_BUILD>cells=" + count(selectedCells) + ">postPool=" + count(postPool))
+
+		// ═══════════════════════════════════════════════════════════════════════════
+		// PHASE 3: Pool actions from selected cells, single knapsack
+		// ═══════════════════════════════════════════════════════════════════════════
+
+		// Pool actions from selected cells (deduplicated)
+		Array<Action> combinedPool = []
+		Map<integer, boolean> seenKeys = [:]
+		for (Cell cell in selectedCells) {
+			Array<Action>? actions = cellActions[cell]
+			if (actions == null) continue
+			for (Action a in actions!) {
+				integer key = ComboBuilder.actionKey(a)
+				if (!seenKeys[key]) {
+					push(combinedPool, a)
+					seenKeys[key] = true
 				}
 			}
 		}
 
+		// Single knapsack on combined pool
+		Array<Action> selectedPost = ActionKnapsack.solve(combinedPool, totalAvailableTP, ctx.initialWeapon)
+		integer postTPUsed = ComboBuilder._sumTPCost(selectedPost, ctx.initialWeapon)
+
+		// Pre-inversion pool (actions at start cell)
+		Array<Action> prePool = []
+		Array<Action> startActions = MapCellScore.getActionsForCell(startCell)
+		for (Action a in startActions) {
+			if (a.score != null && a.score! > 0) {
+				push(prePool, a)
+			}
+		}
+
+		// Remaining TP for pre-actions
+		integer preTP = totalAvailableTP - postTPUsed
+		Array<Action> selectedPre = []
+		if (preTP > 0) {
+			Map<Item, integer> postUsage = ComboBuilder._countUsage(selectedPost)
+			Array<Action> filteredPre = ComboBuilder._filterByUsage(prePool, postUsage)
+			selectedPre = ActionKnapsack.solve(filteredPre, preTP, ctx.initialWeapon)
+		}
+
+		debug("INV_BUILD>postSelected=" + count(selectedPost) + ">preSelected=" + count(selectedPre))
+
+		// ═══════════════════════════════════════════════════════════════════════════
+		// PHASE 4: Partition selected actions back to cells
+		// ═══════════════════════════════════════════════════════════════════════════
+
+		Map<Cell, Array<Action>> partitioned = [:]
+		for (Cell cell in selectedCells) {
+			partitioned[cell] = []
+		}
+
+		for (Action a in selectedPost) {
+			Cell fromCell = a.from
+			if (fromCell == Fight.selfCell) fromCell = newSelfCell
+			if (partitioned[fromCell] != null) {
+				push(partitioned[fromCell]!, a)
+			} else {
+				// Action from unselected cell - put in first cell
+				push(partitioned[selectedCells[0]]!, a)
+			}
+		}
+
+		// Sort each cell's actions by priority
+		for (Cell cell in selectedCells) {
+			partitioned[cell] = MapCellScore.sortByPriority(partitioned[cell]!)
+		}
+
+		// ═══════════════════════════════════════════════════════════════════════════
+		// PHASE 5: Build combo in sequence order (guaranteed valid path)
+		// ═══════════════════════════════════════════════════════════════════════════
+
+		Combo combo = Combo()
+		Map<Item, integer> usesThisTurn = [:]
+
+		// 0. MP buffs first
+		ComboBuilder._applyBuffs(combo, mpBuffActions, usesThisTurn)
+
+		Consequences buffedCsq = combo.getCurrentConsequences()
+		if (buffedCsq.currentMP < mpToInvCast) return null
+
+		// 1. Pre-actions (sorted by priority)
+		selectedPre = MapCellScore.sortByPriority(selectedPre)
+		for (Action a in selectedPre) {
+			ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, invCost)
+		}
+
+		// 2. Inversion action
+		Consequences priorCsq = combo.getCurrentConsequences()
+		if (priorCsq.currentMP < mpToInvCast) return null
+
+		Action invAction = Action(invItem, invCastCell, candidate.targetCell)
+		invAction.invCandidate = candidate
+
+		Action actualizedInv = Action(invAction, priorCsq)
+		actualizedInv.consequences.score += candidate.score
+		actualizedInv.score = actualizedInv.consequences.getScore()
+
+		if (actualizedInv.score! <= priorCsq.score!) return null
+		push(combo.actions, actualizedInv)
+		usesThisTurn[invItem] = 1
+
+		// 3. Post-actions in sequence order (path is guaranteed valid)
+		for (Cell cell in selectedCells) {
+			Array<Action>? actions = partitioned[cell]
+			if (actions == null) continue
+
+			for (Action a in actions!) {
+				ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
+			}
+		}
+
 		// Final position
-		csq = combo.getCurrentConsequences()
-		Position pos = MapPosition.findBestPosition(csq.currentCell, csq.currentMP, csq)
+		Consequences finalCsq = combo.getCurrentConsequences()
+		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
 		combo.addFinalPosition(pos)
 
 		return combo
 	}
 
 	/*
-	 * Select best cell sequence from post-inversion cell data.
-	 * Tries pairs first (top 3 by score), falls back to single best.
+	 * Select best 1-2 cell sequence for post-inversion with valid MP path.
+	 * Tries pairs in score order, checks both orderings, falls back to single cell.
 	 *
-	 * @param cellData Cell scores and MP costs from MapTactical
+	 * @param sortedCells Cells sorted by score descending
+	 * @param cellScores Score per cell
+	 * @param newSelfCell Where we start after inversion
 	 * @param availableMP MP available after inversion
-	 * @param ignoreCells Cells to ignore in pathfinding
-	 * @param obstacles Additional obstacles (swapped entity position)
-	 * @return Array of 1-2 cells to visit, empty if no valid cells
+	 * @param reachableFromNew Reachability map from newSelfCell
+	 * @param obstacles Obstacles for pathfinding (swapped entity position)
+	 * @return Array of 1-2 cells in valid path order
 	 */
-	static Array<Cell> _selectBestCellSequence(
-		PostInversionCellData cellData,
+	static Array<Cell> _selectInversionCellSequence(
+		Array<Cell> sortedCells,
+		Map<Cell, real> cellScores,
+		Cell newSelfCell,
 		integer availableMP,
-		Set<Cell> ignoreCells,
+		Map<Cell, integer> reachableFromNew,
 		Set<Cell> obstacles
 	) {
-		// Build sorted list of cells by score
-		Array<Cell> sortedCells = []
-		for (Cell c : real score in cellData.scores) {
-			push(sortedCells, c)
-		}
+		integer n = count(sortedCells)
+		if (n == 0) return []
 
-		if (count(sortedCells) == 0) return []
+		// Try pairs: best+2nd, best+3rd, 2nd+3rd, etc.
+		// For each pair, try both orderings
+		for (integer i = 0; i < min(n, 5); i++) {
+			for (integer j = i + 1; j < min(n, 5); j++) {
+				Cell cellA = sortedCells[i]
+				Cell cellB = sortedCells[j]
 
-		sortedCells = arraySort(sortedCells, (Cell a, Cell b) -> integer {
-			return Sort.desc(cellData.scores[a]!, cellData.scores[b]!)
-		}) as Array<Cell>
+				// Try order A -> B
+				Array<Cell>? seqAB = ComboBuilder._tryPairOrder(
+					cellA, cellB, newSelfCell, availableMP, reachableFromNew, obstacles)
+				if (seqAB != null) return seqAB!
 
-		// Take top K (K=3)
-		integer K = min(3, count(sortedCells))
-
-		// Try pairs first
-		if (K >= 2) {
-			for (integer i = 0; i < K; i++) {
-				for (integer j = i + 1; j < K; j++) {
-					Cell c1 = sortedCells[i]
-					Cell c2 = sortedCells[j]
-					integer cost1 = cellData.mpCosts[c1]!
-
-					// Check if we can reach c2 from c1
-					integer mpAfterC1 = availableMP - cost1
-					if (mpAfterC1 <= 0) continue
-
-					Map<Cell, integer> fromC1 = MapPath.getCachedReachableCells(
-						c1, mpAfterC1, ignoreCells, obstacles)
-
-					if (fromC1[c2] != null) {
-						return [c1, c2]
-					}
-				}
+				// Try order B -> A
+				Array<Cell>? seqBA = ComboBuilder._tryPairOrder(
+					cellB, cellA, newSelfCell, availableMP, reachableFromNew, obstacles)
+				if (seqBA != null) return seqBA!
 			}
 		}
 
-		// Fall back to single best cell
-		return [sortedCells[0]]
+		// No valid pair - use single best reachable cell
+		for (Cell cell in sortedCells) {
+			if (cell == newSelfCell) return [cell]  // Already there
+			integer? dist = reachableFromNew[cell]
+			if (dist != null && dist! <= availableMP) return [cell]
+		}
+
+		// Nothing reachable - just stay at newSelfCell
+		return [newSelfCell]
+	}
+
+	/*
+	 * Try a specific pair ordering: first -> second
+	 * Returns the sequence if MP-valid, null otherwise.
+	 */
+	static Array<Cell>? _tryPairOrder(
+		Cell first,
+		Cell second,
+		Cell newSelfCell,
+		integer availableMP,
+		Map<Cell, integer> reachableFromNew,
+		Set<Cell> obstacles
+	) {
+		// Cost to reach first cell
+		integer costToFirst = 0
+		if (first != newSelfCell) {
+			integer? dist = reachableFromNew[first]
+			if (dist == null || dist! > availableMP) return null
+			costToFirst = dist!
+		}
+
+		// MP remaining after reaching first cell
+		integer mpAfterFirst = availableMP - costToFirst
+
+		// Cost to reach second cell from first
+		if (second == first) return [first]  // Same cell, just use single
+
+		Map<Cell, integer> reachableFromFirst = MapPath.getCachedReachableCells(
+			first, mpAfterFirst, Fight.self.cellsToIgnore, obstacles)
+
+		integer? costToSecond = reachableFromFirst[second]
+		if (costToSecond == null || costToSecond! > mpAfterFirst) return null
+
+		// Valid path!
+		return [first, second]
+	}
+
+	/*
+	 * Sum TP cost of actions, accounting for weapon switches.
+	 */
+	static integer _sumTPCost(Array<Action> actions, Item? startWeapon) {
+		integer total = 0
+		Item? currentWeapon = startWeapon
+		for (Action a in actions) {
+			if (a.item.isWeap && a.item != currentWeapon) {
+				total += 1  // Weapon switch cost
+				currentWeapon = a.item
+			}
+			total += a.item.cost
+		}
+		return total
+	}
+
+	/*
+	 * Sum MP gain from buff actions.
+	 * Each buff action's consequences is computed independently (base + that buff's gain),
+	 * so we sum individual gains (each is consequences.currentMP - baseMP).
+	 */
+	static integer _sumMPGain(Array<Action> buffs) {
+		integer baseMP = Fight.self.mp
+		integer totalGain = 0
+		for (Action a in buffs) {
+			totalGain += a.consequences.currentMP - baseMP
+		}
+		return totalGain
+	}
+
+	/*
+	 * Count item usage in an action array.
+	 */
+	static Map<Item, integer> _countUsage(Array<Action> actions) {
+		Map<Item, integer> usage = [:]
+		for (Action a in actions) {
+			integer count = usage[a.item] != null ? usage[a.item]! : 0
+			usage[a.item] = count + 1
+		}
+		return usage
+	}
+
+	/*
+	 * Filter actions by remaining usage (after some items already used).
+	 */
+	static Array<Action> _filterByUsage(Array<Action> pool, Map<Item, integer> usedCounts) {
+		Array<Action> filtered = []
+		Map<Item, integer> remaining = [:]
+		for (Action a in pool) {
+			integer used = usedCounts[a.item] != null ? usedCounts[a.item]! : 0
+			integer seen = remaining[a.item] != null ? remaining[a.item]! : 0
+			if (used + seen < a.item.maxUse) {
+				push(filtered, a)
+				remaining[a.item] = seen + 1
+			}
+		}
+		return filtered
+	}
+
+	/*
+	 * Sum scores of actions in an array.
+	 */
+	static real _sumActionScores(Array<Action> actions) {
+		real total = 0
+		for (Action a in actions) {
+			if (a.score != null) total += a.score!
+		}
+		return total
 	}
 
 	/*

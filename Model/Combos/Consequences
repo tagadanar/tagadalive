@@ -206,14 +206,17 @@ class Consequences {
 
 		// Movement to action cell
 		if(action.from != Fight.selfCell){
-			if(reachableCells[action.from] != null) {
-				integer moveCost = reachableCells[action.from]!
-				if(warnOnUnreachable && moveCost > 0 && moveCost > max(0, this.currentMP)) {
-					debugW('Impossible action: move cost ' + moveCost + ' > effective MP ' + max(0, this.currentMP) + '\n' + action + '\n' + this)
+			// Skip reachability check if we're already at the target cell
+			if(action.from != this.currentCell) {
+				if(reachableCells[action.from] != null) {
+					integer moveCost = reachableCells[action.from]!
+					if(warnOnUnreachable && moveCost > 0 && moveCost > max(0, this.currentMP)) {
+						debugW('Impossible action: move cost ' + moveCost + ' > effective MP ' + max(0, this.currentMP) + '\n' + action + '\n' + this)
+					}
+					this.currentMP = this.currentMP - moveCost
+				} else if(warnOnUnreachable) {
+					debugW('Impossible action: unreachable cell !!\n'+action+'\n'+this)
 				}
-				this.currentMP = this.currentMP - moveCost
-			} else if(warnOnUnreachable) {
-				debugW('Impossible action: unreachable cell !!\n'+action+'\n'+this)
 			}
 			this.currentCell = action.from
 		}
@@ -242,7 +245,12 @@ class Consequences {
 
 		// Apply effects
 		// Pass currentCell for self-cast AoE (combo may have moved us)
-		this.targets = Targets.getTargets(action, this.currentCell)
+		// Use overrideTargets for simulated positions (e.g., post-inversion actions)
+		if (action.overrideTargets != null) {
+			this.targets = action.overrideTargets!
+		} else {
+			this.targets = Targets.getTargets(action, this.currentCell)
+		}
 		Cell aoeCenterCell = (action.to == Fight.selfCell) ? this.currentCell : action.to
 
 		for (ItemEffect effect in action.item.effects) {
@@ -280,7 +288,14 @@ class Consequences {
 
 			for (Entity target in this.targets) {
 				if (this.isKilled(target)) continue
-				integer targetCellId = (target == Fight.self) ? this.currentCell.id : target.cell.id
+				// For overrideTargets (simulated positions), use action.to as target cell
+				// Normal case: use target's actual cell (or currentCell for self)
+				integer targetCellId
+				if (action.overrideTargets != null && target != Fight.self) {
+					targetCellId = action.to.id  // Simulated position
+				} else {
+					targetCellId = (target == Fight.self) ? this.currentCell.id : target.cell.id
+				}
 				real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(aoeCenterCell.id, targetCellId)) : 1.0
 				if (ratioDmg <= 0) {
 					debugE('Bug in Consequences: ratioDmg<=0 for target ' + target + ' at cell ' + targetCellId)

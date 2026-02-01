@@ -157,7 +157,9 @@ class Combo {
 
 			// Regular actions
 			if(action.to == Fight.selfCell){
-				action.item.useItemOnCell(Fight.self.cell)
+				// Use getCell() for current position (Fight.self.cell is cached at turn start,
+				// doesn't update after inversion swaps positions)
+				action.item.useItemOnCell(Board.cells[getCell()!]!)
 				Benchmark.logBuff(action.item.name)
 			} else {
 				integer result = action.item.useItemOnCellWithResult(action.to)
