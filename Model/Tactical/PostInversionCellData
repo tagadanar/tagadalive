@@ -1,0 +1,19 @@
+/*
+ * PostInversionCellData - Aggregated cell scoring for post-inversion state
+ *
+ * Combines filtered base scores (excluding actions on swapped entity) with
+ * post-inversion bonus scores (new actions enabled by the swap).
+ * Used by ComboBuilder.buildWithInversion() to select optimal post-swap cells.
+ */
+class PostInversionCellData {
+	// Cell -> total score (filtered base + post bonus)
+	Map<Cell, real> scores = [:]
+
+	// Cell -> merged action list (base actions minus invalid + post actions)
+	Map<Cell, Array<Action>> actions = [:]
+
+	// Cell -> MP cost to reach from new position
+	Map<Cell, integer> mpCosts = [:]
+
+	constructor() {}
+}
