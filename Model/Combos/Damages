@@ -49,6 +49,12 @@ class Damages {
 							tmp = tmp * ratioDmg! * (1 - relShield / 100) - absShield
 							if (tmp > 0) itemDmg += tmp
 						}
+						else if (ef.type == EFFECT_LIFE_DAMAGE) {
+							// Life damage: sourceLife * (avg%/100) * (1+pwr/100), then shields
+							real tmp = e.getCurrentHP(consequences) * (ef.avgmax / 100) * (1 + e.pwr / 100)
+							tmp = tmp * ratioDmg! * (1 - relShield / 100) - absShield
+							if (tmp > 0) itemDmg += tmp
+						}
 						else if (ef.type == EFFECT_POISON) {
 							real duration = ScoringConfig.defensive_duration_mitigation[ef.duration]!
 							// If self can antidote, treat poison as 1-turn (can cure next turn)
@@ -202,6 +208,12 @@ class Damages {
 		for (ItemEffect e in item.effects) {
 			if (e.type == EFFECT_DAMAGE) {
 				real tmp = e.avgmax * (1 + eSource.getCurrentStr(conseq) / 100) * (1 + eSource.pwr / 100)
+				tmp = tmp * ratioDmg * (1 - eTarget.getCurrentRel(conseq) / 100) - eTarget.getCurrentAbs(conseq)
+				if (tmp > 0) dmg += tmp
+			}
+			else if (e.type == EFFECT_LIFE_DAMAGE) {
+				// Life damage: sourceLife * (avg%/100) * (1+pwr/100), then shields
+				real tmp = eSource.getCurrentHP(conseq) * (e.avgmax / 100) * (1 + eSource.pwr / 100)
 				tmp = tmp * ratioDmg * (1 - eTarget.getCurrentRel(conseq) / 100) - eTarget.getCurrentAbs(conseq)
 				if (tmp > 0) dmg += tmp
 			}

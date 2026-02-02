@@ -89,6 +89,10 @@ class Items {
 				else if(e.type == EFFECT_POISON){
 					dmg += e.avg*(1+(entity.mgc/100))*(1+(entity.pwr/100))*e.duration;
 				}
+				else if(e.type == EFFECT_LIFE_DAMAGE){
+					// Life damage: sourceLife * (avg%/100) * (1+pwr/100), then shields
+					dmg += (entity.life*(e.avg/100)*(1+(entity.pwr/100))*(1-(relShield/100)))-absShield;
+				}
 				else if(e.type == EFFECT_HEAL){
 					dmg -= e.avg*(1+(entity.wsd/100));
 				}
