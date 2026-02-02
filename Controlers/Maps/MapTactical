@@ -88,6 +88,40 @@ class MapTactical {
 	}
 
 	/*
+	 * Find the best cell to cast an item on a target.
+	 * Returns [Cell, integer] with best cast cell and MP cost, or null if unreachable.
+	 *
+	 * @param item The item to cast
+	 * @param targetCell The target's cell
+	 * @param reachable Reachable cells map (cell -> MP cost)
+	 * @param selfCell Current position (checked first for 0-cost cast)
+	 * @return [bestFromCell, mpCost] or null if no valid cast position
+	 */
+	static Array<any>? _findBestCastCell(Item item, Cell targetCell, Map<Cell, integer> reachable, Cell selfCell) {
+		Array<Cell> fromCells = Targets.getCellsToUseItemOnCell(item, targetCell, [Fight.self.id])
+
+		// First check if selfCell is in the valid cast cells (0 MP cost)
+		for (Cell fromCell in fromCells) {
+			if (fromCell.id == selfCell.id) {
+				return [selfCell, 0]
+			}
+		}
+
+		// Find closest reachable cell
+		Cell? bestFrom = null
+		integer bestCost = 9999
+		for (Cell fromCell in fromCells) {
+			integer? cost = reachable[fromCell]
+			if (cost != null && cost! < bestCost) {
+				bestCost = cost!
+				bestFrom = fromCell
+			}
+		}
+
+		return bestFrom != null ? [bestFrom!, bestCost] : null
+	}
+
+	/*
 	 * Initialize inversion candidates for current turn.
 	 * Computes valid targets, scores, and best candidates.
 	 * Called only when Fight.inversionReady && Fight.inversionItem != null.
@@ -111,35 +145,12 @@ class MapTactical {
 			// Skip static entities (turrets) - can't swap positions
 			if (entity.isStatic) continue
 
-			// Get cells from which we can cast inversion on this target
-			Array<Cell> fromCells = Targets.getCellsToUseItemOnCell(invItem, entity.cell, [Fight.self.id])
+			// Find best cast position
+			Array<any>? castResult = _findBestCastCell(invItem, entity.cell, reachable, selfCell)
+			if (castResult == null) continue
 
-			// Check if selfCell is already in range (no movement needed)
-			Cell? bestFrom = null
-			integer bestCost = 9999
-
-			// First check if selfCell is in the valid cast cells
-			for (Cell fromCell in fromCells) {
-				if (fromCell.id == selfCell.id) {
-					bestFrom = selfCell
-					bestCost = 0
-					break
-				}
-			}
-
-			// If not in range, find closest reachable cell
-			if (bestFrom == null) {
-				for (Cell fromCell in fromCells) {
-					integer? cost = reachable[fromCell]
-					if (cost != null && cost! < bestCost) {
-						bestCost = cost!
-						bestFrom = fromCell
-					}
-				}
-			}
-
-			// Skip if no reachable cast position
-			if (bestFrom == null) continue
+			Cell bestFrom = castResult![0] as Cell
+			integer bestCost = castResult![1] as integer
 
 			// Score swaps
 			real score = 0
@@ -147,7 +158,7 @@ class MapTactical {
 				// Ally swaps: danger reduction treated as "virtual heal"
 				// After swap: ally ends up on fromCell (where we stand to cast), we end up on entity.cell
 				Danger oldDanger = MapDanger.getCellDanger(entity.cell)
-				Danger newDanger = MapDanger.getCellDanger(bestFrom!)
+				Danger newDanger = MapDanger.getCellDanger(bestFrom)
 				real oldTotal = oldDanger.dmg + oldDanger.psnDmg
 				real newTotal = newDanger.dmg + newDanger.psnDmg
 				real dangerReduction = oldTotal - newTotal
@@ -168,25 +179,25 @@ class MapTactical {
 				// coef is negative for enemies, so negate to get positive score for good swaps
 
 				// Create inversion action to get consequences (e.g., vulnerability effect)
-				Action invAction = Action(invItem, bestFrom!, entity.cell)
+				Action invAction = Action(invItem, bestFrom, entity.cell)
 				Consequences invConseq = invAction.consequences
 
 				// Use consequences for new pos (vulnerability applied), but not for current pos (before inversion)
-				real dmgAtNewPos = MapDamage.getDamageBeforeEnemy(bestFrom!, entity, invConseq)
+				real dmgAtNewPos = MapDamage.getDamageBeforeEnemy(bestFrom, entity, invConseq)
 				real dmgAtCurrentPos = MapDamage.getDamageBeforeEnemy(entity.cell, entity, null)
 				real dmgDelta = dmgAtNewPos - dmgAtCurrentPos
 				real coef = Scoring.getDynamicCoef(entity, Stats.HP, invConseq)
 				score = dmgDelta * (-coef)  // Negate: more damage to enemy = positive score
 
-				// KILL bonus if allies can kill enemy at new position
-				if (dmgAtNewPos >= entity.life) {
-					score += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, invConseq)
-				}
+				// // KILL bonus if allies can kill enemy at new position
+				// if (dmgAtNewPos >= entity.life) {
+				// 	score += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, invConseq)
+				// }
 			}
 
 			// Create candidate
 			InversionCandidate candidate = InversionCandidate(
-				bestFrom!,
+				bestFrom,
 				entity,
 				entity.cell,
 				bestCost,
@@ -236,35 +247,12 @@ class MapTactical {
 			// Skip self (shouldn't happen for bulbs, but safe)
 			if (entityId == Fight.self.id) continue
 
-			// Get cells from which we can cast repotting on this bulb
-			Array<Cell> fromCells = Targets.getCellsToUseItemOnCell(repItem, entity.cell, [Fight.self.id])
+			// Find best cast position (reuses helper from inversion)
+			Array<any>? castResult = _findBestCastCell(repItem, entity.cell, reachable, selfCell)
+			if (castResult == null) continue
 
-			// Find best cast position (same logic as inversion)
-			Cell? bestFrom = null
-			integer bestCost = 9999
-
-			// First check if selfCell is in the valid cast cells
-			for (Cell fromCell in fromCells) {
-				if (fromCell.id == selfCell.id) {
-					bestFrom = selfCell
-					bestCost = 0
-					break
-				}
-			}
-
-			// If not in range, find closest reachable cell
-			if (bestFrom == null) {
-				for (Cell fromCell in fromCells) {
-					integer? cost = reachable[fromCell]
-					if (cost != null && cost! < bestCost) {
-						bestCost = cost!
-						bestFrom = fromCell
-					}
-				}
-			}
-
-			// Skip if no reachable cast position
-			if (bestFrom == null) continue
+			Cell bestFrom = castResult![0] as Cell
+			integer bestCost = castResult![1] as integer
 
 			// Estimate damage to bulb
 			integer bulbDamage = _estimateRepottingDamage(repItem, entity)
@@ -274,7 +262,7 @@ class MapTactical {
 
 			// Create candidate (no score - danger evaluated at combo end)
 			RepottingCandidate candidate = RepottingCandidate(
-				bestFrom!,
+				bestFrom,
 				entity,
 				entity.cell,
 				bestCost,
@@ -425,62 +413,96 @@ class MapTactical {
 	}
 
 	/*
-	 * Generate action pool for post-inversion phase.
-	 * Creates actions with correct `from` cells relative to new position after swap.
-	 * Actions are scored with inversion consequences applied (e.g., shield reductions).
-	 *
-	 * @param candidate The inversion candidate (defines new position)
-	 * @param remainingTP TP available after inversion
-	 * @param remainingMP MP available after moving to cast inversion
-	 * @return Array of actions playable from new position
+	 * Generate action pool for post-inversion phase (wrapper for backward compatibility).
+	 * @see getPostSwapPool for implementation
 	 */
 	static Array<Action> getPostInversionPool(
 		InversionCandidate candidate,
 		integer remainingTP,
 		integer remainingMP
 	) {
+		Item swapItem = Fight.inversionItem!
+		boolean includeAllySupport = candidate.target.isFriend
+		return getPostSwapPool(
+			candidate.target,
+			candidate.targetCell,  // newSelfCell
+			candidate.fromCell,    // swapTargetNewCell
+			swapItem,
+			remainingMP,
+			includeAllySupport
+		)
+	}
+
+	/*
+	 * Generate action pool for post-repotting phase (wrapper for backward compatibility).
+	 * @see getPostSwapPool for implementation
+	 */
+	static Array<Action> getPostRepottingPool(
+		RepottingCandidate candidate,
+		integer remainingTP,
+		integer remainingMP
+	) {
+		Item swapItem = Fight.repottingItem!
+		return getPostSwapPool(
+			candidate.target,
+			candidate.targetCell,  // newSelfCell
+			candidate.fromCell,    // swapTargetNewCell (bulb's new position)
+			swapItem,
+			remainingMP,
+			false  // Repotting never includes ally support (target IS the ally bulb)
+		)
+	}
+
+	/*
+	 * Unified action pool generation for post-swap phase.
+	 * Creates actions with correct `from` cells relative to new position after swap.
+	 * Actions are scored with swap consequences applied (e.g., shield reductions).
+	 *
+	 * @param swapTarget Entity we swapped with (for LOS blocking)
+	 * @param newSelfCell Where we land after swap (target's original cell)
+	 * @param swapTargetNewCell Where the swapped entity ends up (our cast position)
+	 * @param swapItem The swap chip (CHIP_INVERSION or CHIP_REPOTTING)
+	 * @param remainingMP MP available after moving to cast the swap
+	 * @param includeAllySupport If true, add support actions for swapped ally
+	 * @return Array of actions playable from new position
+	 */
+	static Array<Action> getPostSwapPool(
+		Entity swapTarget,
+		Cell newSelfCell,
+		Cell swapTargetNewCell,
+		Item swapItem,
+		integer remainingMP,
+		boolean includeAllySupport
+	) {
 		Array<Action> postPool = []
 
 		// Debug: show target
-		debug("INV_POOL>target=" + candidate.target.name)
+		debug("SWAP_POOL>target=" + swapTarget.name)
 
-		// New position after swap: we end up at target's cell
-		Cell newSelfCell = candidate.targetCell
-		// Enemy ends up at our cast position (fromCell)
-		Cell enemyNewCell = candidate.fromCell
-
-		// Create inversion action to get its consequences
-		// Post-inversion actions will be scored with these effects applied
-		// (e.g., if inversion reduces relshield, damage actions score higher)
-		Item invItem = Fight.inversionItem!
-		Action invAction = Action(invItem, candidate.fromCell, candidate.targetCell)
-		Consequences invConseq = invAction.consequences
+		// Create swap action to get its consequences
+		// Post-swap actions will be scored with these effects applied
+		Action swapAction = Action(swapItem, swapTargetNewCell, newSelfCell)
+		Consequences swapConseq = swapAction.consequences
 
 		// Compute reachability from new position
-		// Add enemyNewCell as obstacle (swapped entity is there now)
-		// IMPORTANT: Use Fight.self.cellsToIgnore directly for consistency with Consequences.construct()
-		Set<Cell> newObstacles = <enemyNewCell>
+		// swapTargetNewCell is an obstacle (swapped entity is there now)
+		Set<Cell> newObstacles = <swapTargetNewCell>
 		Map<Cell, integer> newReachable = MapPath.getCachedReachableCells(
 			newSelfCell, remainingMP, Fight.self.cellsToIgnore, newObstacles)
 
 		// For each offensive item, find actions on enemies
-		// NOTE: Don't filter by TP here - let the combo builder/knapsack decide what fits
 		for (Item item in Fight.self.items) {
-			// Skip non-offensive items (O(1) check via precomputed flag)
 			if (!item.isOffensive) continue
-			// Skip items on cooldown (they're truly unavailable)
 			if (getCooldown(item.id, Fight.self.id) > 0) continue
-			// Skip inversion itself (already used)
-			if (item.id == Fight.inversionItem!.id) continue
+			if (item.id == swapItem.id) continue  // Skip swap chip itself
 
-			// For each enemy, find closest reachable cast cell
 			for (Entity enemy in Fight.getEnemiesAlive()) {
 				if (enemy.isInvincible) continue
 
-				// Enemy cell: swapped enemy is at enemyNewCell, others at their original cell
-				Cell enemyCell = (enemy == candidate.target) ? enemyNewCell : enemy.cell
+				// Enemy cell: if swapped enemy, use new position; otherwise original
+				Cell enemyCell = (enemy == swapTarget) ? swapTargetNewCell : enemy.cell
 
-				// Use shared cache (ignores ALL entities) - we'll verify LOS lazily with DDA
+				// Use shared cache - verify LOS lazily with DDA
 				Array<Cell> castCells = MapDanger.getCachedTargetableCells(item, enemyCell)
 
 				// Build set for O(1) lookup
@@ -489,13 +511,11 @@ class MapTactical {
 
 				// Find closest reachable cast cell with lazy LOS check
 				Cell? bestCast = null
-				integer bestDist = 9999
 
 				// Check if newSelfCell is valid (no movement needed)
 				if (setContains(castSet, newSelfCell.id)) {
-					if (MapTactical._hasValidLOS(newSelfCell, enemyCell, candidate.target, enemyNewCell)) {
+					if (_hasValidLOS(newSelfCell, enemyCell, swapTarget, swapTargetNewCell)) {
 						bestCast = newSelfCell
-						bestDist = 0
 					}
 				}
 
@@ -503,10 +523,8 @@ class MapTactical {
 				if (bestCast == null) {
 					for (Cell c : integer dist in newReachable) {
 						if (!setContains(castSet, c.id)) continue
-						// Lazy LOS check via DDA
-						if (MapTactical._hasValidLOS(c, enemyCell, candidate.target, enemyNewCell)) {
+						if (_hasValidLOS(c, enemyCell, swapTarget, swapTargetNewCell)) {
 							bestCast = c
-							bestDist = dist
 							break  // BFS order guarantees first match is closest
 						}
 					}
@@ -515,7 +533,7 @@ class MapTactical {
 				if (bestCast == null) continue
 
 				// Create action with correct from cell
-				EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, invConseq)
+				EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, swapConseq)
 				Action action = Action(item, bestCast!, enemyCell, snapshot)
 				action.overrideTargets = snapshot.targets
 				if (action.score != null && action.score! > 0) {
@@ -525,7 +543,6 @@ class MapTactical {
 		}
 
 		// Add self-cast buffs (always available from any position)
-		// NOTE: Don't filter by TP - let combo builder decide
 		for (Item item in Fight.self.items) {
 			if (item.isSummon || item.isTactical) continue
 			if (getCooldown(item.id, Fight.self.id) > 0) continue
@@ -555,18 +572,17 @@ class MapTactical {
 			}
 		}
 
-		// Add support actions for swapped ally (reuse MapAction's item filtering)
-		if (candidate.target.isFriend) {
-			Set<Item>? targetingItems = MapAction.getItemsTargetingEntity(candidate.target)
+		// Add support actions for swapped ally (inversion with ally target only)
+		if (includeAllySupport) {
+			Set<Item>? targetingItems = MapAction.getItemsTargetingEntity(swapTarget)
 			if (targetingItems != null) {
 				// Ally's new position after swap
-				Cell allyNewCell = candidate.fromCell
+				Cell allyNewCell = swapTargetNewCell
 
 				for (Item item in targetingItems!) {
-					// NOTE: Don't filter by TP - let combo builder decide
 					if (getCooldown(item.id, Fight.self.id) > 0) continue
 
-					// Use shared cache (ignores ALL entities) - verify LOS lazily
+					// Use shared cache - verify LOS lazily
 					Array<Cell> castCells = MapDanger.getCachedTargetableCells(item, allyNewCell)
 
 					// Build set for O(1) lookup
@@ -575,14 +591,12 @@ class MapTactical {
 
 					// Find closest reachable cast cell with lazy LOS check
 					Cell? bestCast = null
-					integer bestDist = 9999
 
 					// Check if newSelfCell is valid (no movement needed)
 					// For ally support, swapped entity IS the target, so no extra blocking
 					if (setContains(castSet, newSelfCell.id)) {
-						if (MapTactical._hasValidLOS(newSelfCell, allyNewCell, candidate.target, allyNewCell)) {
+						if (_hasValidLOS(newSelfCell, allyNewCell, swapTarget, allyNewCell)) {
 							bestCast = newSelfCell
-							bestDist = 0
 						}
 					}
 
@@ -590,9 +604,8 @@ class MapTactical {
 					if (bestCast == null) {
 						for (Cell c : integer dist in newReachable) {
 							if (!setContains(castSet, c.id)) continue
-							if (MapTactical._hasValidLOS(c, allyNewCell, candidate.target, allyNewCell)) {
+							if (_hasValidLOS(c, allyNewCell, swapTarget, allyNewCell)) {
 								bestCast = c
-								bestDist = dist
 								break
 							}
 						}
@@ -601,7 +614,7 @@ class MapTactical {
 					if (bestCast == null) continue
 
 					// Create action targeting ally at new position
-					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, candidate.target, allyNewCell, invConseq)
+					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, swapTarget, allyNewCell, swapConseq)
 					Action action = Action(item, bestCast!, allyNewCell, snapshot)
 					action.overrideTargets = snapshot.targets
 					if (action.score != null && action.score! > 0) {
@@ -611,20 +624,13 @@ class MapTactical {
 			}
 		}
 
-		debug("INV_POOL>pool=" + count(postPool))
+		debug("SWAP_POOL>pool=" + count(postPool))
 		return postPool
 	}
 
 	/*
-	 * Compute cell scores for post-inversion state.
-	 * Uses ONLY the post-inversion pool (not base MapAction actions) because
-	 * the swapped entity can block LOS to any enemy, not just itself.
-	 *
-	 * @param candidate The inversion candidate (defines swap target)
-	 * @param newSelfCell Where we land after swap (= candidate.targetCell)
-	 * @param reachableCells Cells reachable from newSelfCell with remaining MP
-	 * @param postByCell Actions from getPostInversionPool() grouped by fromCell
-	 * @return PostInversionCellData with scores, actions, and MP costs per cell
+	 * Compute cell scores for post-swap state (inversion wrapper for backward compatibility).
+	 * @see getPostSwapCellScores for implementation
 	 */
 	static PostInversionCellData getPostInversionCellScores(
 		InversionCandidate candidate,
@@ -632,163 +638,12 @@ class MapTactical {
 		Map<Cell, integer> reachableCells,
 		Map<Cell, Array<Action>> postByCell
 	) {
-		PostInversionCellData result = PostInversionCellData()
-
-		// Only use post-inversion pool (already has LOS blocking handled)
-		for (Cell cell : Array<Action> postActions in postByCell) {
-			// Compute MP cost
-			integer mpCost = 0
-			if (cell != newSelfCell) {
-				integer? cost = reachableCells[cell]
-				if (cost == null) continue  // Unreachable
-				mpCost = cost!
-			}
-
-			// Collect valid actions
-			Array<Action> validActions = []
-			real score = 0
-
-			for (Action a in postActions) {
-				if (a.score != null && a.score! > 0) {
-					score += a.score!
-					push(validActions, a)
-				}
-			}
-
-			if (score <= 0) continue  // No useful actions
-
-			result.scores[cell] = score
-			result.actions[cell] = validActions
-			result.mpCosts[cell] = mpCost
-		}
-
-		return result
+		return getPostSwapCellScores(newSelfCell, reachableCells, postByCell)
 	}
 
 	/*
-	 * Generate action pool for post-repotting phase.
-	 * Creates actions with correct `from` cells relative to new position after swap with bulb.
-	 * Similar to getPostInversionPool but for allied bulb swaps.
-	 *
-	 * @param candidate The repotting candidate (defines new position)
-	 * @param remainingTP TP available after repotting
-	 * @param remainingMP MP available after moving to cast repotting
-	 * @return Array of actions playable from new position
-	 */
-	static Array<Action> getPostRepottingPool(
-		RepottingCandidate candidate,
-		integer remainingTP,
-		integer remainingMP
-	) {
-		Array<Action> postPool = []
-
-		// New position after swap: we end up at bulb's cell
-		Cell newSelfCell = candidate.targetCell
-		// Bulb ends up at our cast position (fromCell)
-		Cell bulbNewCell = candidate.fromCell
-
-		// Create repotting action to get its consequences (damage to bulb)
-		Item repItem = Fight.repottingItem!
-		Action repAction = Action(repItem, candidate.fromCell, candidate.targetCell)
-		Consequences repConseq = repAction.consequences
-
-		// Compute reachability from new position
-		// Bulb is at bulbNewCell now
-		Set<Cell> newObstacles = <bulbNewCell>
-		Map<Cell, integer> newReachable = MapPath.getCachedReachableCells(
-			newSelfCell, remainingMP, Fight.self.cellsToIgnore, newObstacles)
-
-		// For each offensive item, find actions on enemies
-		for (Item item in Fight.self.items) {
-			if (!item.isOffensive) continue
-			if (getCooldown(item.id, Fight.self.id) > 0) continue
-			if (item.id == repItem.id) continue  // Skip repotting itself
-
-			for (Entity enemy in Fight.getEnemiesAlive()) {
-				if (enemy.isInvincible) continue
-
-				// Use shared cache - verify LOS lazily with DDA
-				Array<Cell> castCells = MapDanger.getCachedTargetableCells(item, enemy.cell)
-
-				// Build set for O(1) lookup
-				Set<integer> castSet = <>
-				for (Cell c in castCells) setPut(castSet, c.id)
-
-				// Find closest reachable cast cell with lazy LOS check
-				Cell? bestCast = null
-
-				// Check if newSelfCell is valid (no movement needed)
-				if (setContains(castSet, newSelfCell.id)) {
-					if (_hasValidLOS(newSelfCell, enemy.cell, candidate.target, bulbNewCell)) {
-						bestCast = newSelfCell
-					}
-				}
-
-				// If not, iterate reachable in BFS order
-				if (bestCast == null) {
-					for (Cell c : integer dist in newReachable) {
-						if (!setContains(castSet, c.id)) continue
-						if (_hasValidLOS(c, enemy.cell, candidate.target, bulbNewCell)) {
-							bestCast = c
-							break  // BFS order guarantees first match is closest
-						}
-					}
-				}
-
-				if (bestCast == null) continue
-
-				// Create action with correct from cell
-				EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemy.cell, repConseq)
-				Action action = Action(item, bestCast!, enemy.cell, snapshot)
-				action.overrideTargets = snapshot.targets
-				if (action.score != null && action.score! > 0) {
-					push(postPool, action)
-				}
-			}
-		}
-
-		// Add self-cast buffs (always available from any position)
-		for (Item item in Fight.self.items) {
-			if (item.isSummon || item.isTactical) continue
-			if (getCooldown(item.id, Fight.self.id) > 0) continue
-			if (item.minRange > 0) continue  // Not self-castable
-
-			// Check if item has buff effects
-			boolean hasBuff = false
-			for (ItemEffect e in item.effects) {
-				integer t = e.type
-				if (t == EFFECT_BUFF_STRENGTH || t == EFFECT_RAW_BUFF_STRENGTH ||
-					t == EFFECT_BUFF_AGILITY || t == EFFECT_RAW_BUFF_AGILITY ||
-					t == EFFECT_BUFF_TP || t == EFFECT_RAW_BUFF_TP ||
-					t == EFFECT_BUFF_MP || t == EFFECT_RAW_BUFF_MP ||
-					t == EFFECT_ABSOLUTE_SHIELD || t == EFFECT_RAW_ABSOLUTE_SHIELD ||
-					t == EFFECT_RELATIVE_SHIELD || t == EFFECT_RAW_RELATIVE_SHIELD ||
-					t == EFFECT_HEAL || t == EFFECT_BOOST_MAX_LIFE) {
-					hasBuff = true
-					break
-				}
-			}
-
-			if (hasBuff) {
-				Action action = Action(item, Fight.selfCell, Fight.selfCell)
-				if (action.score != null && action.score! > 0) {
-					push(postPool, action)
-				}
-			}
-		}
-
-		return postPool
-	}
-
-	/*
-	 * Compute cell scores for post-repotting state.
-	 * Uses ONLY the post-repotting pool because bulb can block LOS.
-	 *
-	 * @param candidate The repotting candidate (defines swap target)
-	 * @param newSelfCell Where we land after swap (= candidate.targetCell)
-	 * @param reachableCells Cells reachable from newSelfCell with remaining MP
-	 * @param postByCell Actions from getPostRepottingPool() grouped by fromCell
-	 * @return PostInversionCellData with scores, actions, and MP costs per cell
+	 * Compute cell scores for post-swap state (repotting wrapper for backward compatibility).
+	 * @see getPostSwapCellScores for implementation
 	 */
 	static PostInversionCellData getPostRepottingCellScores(
 		RepottingCandidate candidate,
@@ -796,9 +651,26 @@ class MapTactical {
 		Map<Cell, integer> reachableCells,
 		Map<Cell, Array<Action>> postByCell
 	) {
+		return getPostSwapCellScores(newSelfCell, reachableCells, postByCell)
+	}
+
+	/*
+	 * Compute cell scores for post-swap state.
+	 * Uses ONLY the post-swap pool (not base MapAction actions) because
+	 * the swapped entity can block LOS to any enemy.
+	 *
+	 * @param newSelfCell Where we land after swap
+	 * @param reachableCells Cells reachable from newSelfCell with remaining MP
+	 * @param postByCell Actions from getPostSwapPool() grouped by fromCell
+	 * @return PostInversionCellData with scores, actions, and MP costs per cell
+	 */
+	static PostInversionCellData getPostSwapCellScores(
+		Cell newSelfCell,
+		Map<Cell, integer> reachableCells,
+		Map<Cell, Array<Action>> postByCell
+	) {
 		PostInversionCellData result = PostInversionCellData()
 
-		// Only use post-repotting pool (already has LOS blocking handled)
 		for (Cell cell : Array<Action> postActions in postByCell) {
 			// Compute MP cost
 			integer mpCost = 0
