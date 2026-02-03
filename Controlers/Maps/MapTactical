@@ -790,9 +790,9 @@ class MapTactical {
 		real coef = Scoring.getDynamicCoef(enemy, Stats.HP, null)
 		real score = dmgDelta * (-coef)  // Negate: more damage to enemy = positive score
 
-		// Bonus for distance moved (further = more repositioning value)
+		// Tiebreaker: when damage delta is similar, prefer pushing further
 		integer distMoved = getCellDistance(originalCell.id, finalCell.id)
-		score += distMoved * 10  // Small bonus per cell moved
+		score += distMoved
 
 		return score
 	}

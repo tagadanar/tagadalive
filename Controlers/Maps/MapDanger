@@ -278,7 +278,7 @@ class MapDanger {
 				if(c == hit) continue  // center already has 1.0
 				// Manhattan distance for ratio decay
 				integer dist = abs(hit.x - c.x) + abs(hit.y - c.y)
-				real ratio = max(0.2, 1.0 - 0.2 * dist)
+				real ratio = 1 - ScoringConfig.AOE_DECAY_RATE * dist
 				// Keep higher ratio (protects direct hits and overlapping AOEs)
 				if(map[c] == null || map[c] < ratio){
 					map[c] = ratio
