@@ -625,12 +625,13 @@ class ComboBuilder {
 	/*
 	 * Unified move combo builder for attract (grapple) and push (boxing glove).
 	 * Unlike swap, we stay at cast position - only target moves.
+	 * Uses same cell-sequence pattern as _buildWithSwap for optimal ordering.
 	 *
 	 * Flow:
 	 * 1. Calculate MP buffs to reach cast position
-	 * 2. Execute: [buffs] → move action
-	 * 3. Fill remaining TP with actions from post-move pool
-	 * 4. Final positioning
+	 * 2. Get post-move pool and group by fromCell
+	 * 3. Find valid cell sequences (optimal ordering)
+	 * 4. Build combo for each sequence, keep the best
 	 *
 	 * @param ctx Exploration context with initial resources
 	 * @param candidate Movement candidate (attract or push type)
@@ -638,7 +639,7 @@ class ComboBuilder {
 	 */
 	static Combo? _buildWithMove(ExplorationContext ctx, MovementCandidate candidate) {
 		Item moveItem = candidate.item
-		Cell castCell = candidate.fromCell  // Where we cast from (and stay)
+		Cell castCell = candidate.fromCell  // Where we cast from (and stay after move)
 
 		integer moveCost = moveItem.cost
 		integer mpToCast = candidate.mpCost
@@ -664,11 +665,11 @@ class ComboBuilder {
 			}
 		}
 
-		integer remainingTP = ctx.initialTP - mpBuffTPCost - moveCost
-		integer remainingMP = ctx.initialMP + ComboBuilder._sumMPGain(mpBuffActions) - mpToCast
+		integer totalAvailableTP = ctx.initialTP - mpBuffTPCost - moveCost
+		integer postMP = ctx.initialMP + ComboBuilder._sumMPGain(mpBuffActions) - mpToCast
 
 		// ═══════════════════════════════════════════════════════════════════════════
-		// PHASE 2: Get post-move pool
+		// PHASE 2: Get post-move pool and group by fromCell
 		// ═══════════════════════════════════════════════════════════════════════════
 
 		Array<Action> postPool = MapTactical.getPostMovePool(
@@ -676,12 +677,133 @@ class ComboBuilder {
 			candidate.selfNewCell,
 			candidate.targetNewCell,
 			candidate.item,
-			remainingMP,
+			postMP,
 			candidate.target.isFriend
 		)
 
+		// Group actions by fromCell and compute cell scores
+		Map<Cell, Array<Action>> cellActions = [:]
+		Map<Cell, real> cellScores = [:]
+		Cell targetNewCell = candidate.targetNewCell  // Moved entity ends up here (obstacle)
+
+		for (Action a in postPool) {
+			Cell fromCell = a.from
+			// Actions with from=selfCell should map to castCell (where we are after move)
+			if (fromCell == Fight.selfCell) fromCell = castCell
+			if (cellActions[fromCell] == null) {
+				cellActions[fromCell] = []
+				cellScores[fromCell] = 0
+			}
+			push(cellActions[fromCell]!, a)
+			if (a.score != null) cellScores[fromCell] += a.score!
+		}
+
+		// Sort cells by score descending
+		Array<Cell> sortedCells = []
+		for (Cell c : real score in cellScores) {
+			push(sortedCells, c)
+		}
+		sortedCells = arraySort(sortedCells, (Cell a, Cell b) -> integer {
+			return Sort.desc(cellScores[a]!, cellScores[b]!)
+		}) as Array<Cell>
+
+		// Compute reachability from castCell (where we are after move)
+		Set<Cell> newObstacles = <targetNewCell>
+		Map<Cell, integer> reachableFromCast = MapPath.getCachedReachableCells(
+			castCell, postMP, Fight.self.cellsToIgnore, newObstacles)
+
+		// Get all valid cell sequences (both orderings if both valid)
+		Array<Array<Cell>> validSequences = ComboBuilder._getValidCellSequences(
+			sortedCells, cellScores, castCell, postMP, reachableFromCast, newObstacles)
+
+		if (count(validSequences) == 0) {
+			validSequences = [[castCell]]
+		}
+
 		// ═══════════════════════════════════════════════════════════════════════════
-		// PHASE 3: Build combo
+		// PHASE 3: Build combo for each valid sequence, keep the best
+		// ═══════════════════════════════════════════════════════════════════════════
+
+		Combo? bestCombo = null
+		for (Array<Cell> selectedCells in validSequences) {
+			Combo? combo = ComboBuilder._buildMoveComboForSequence(
+				ctx, candidate, selectedCells, cellActions,
+				mpBuffActions, totalAvailableTP,
+				castCell, moveItem, moveCost, mpToCast)
+
+			if (combo != null) {
+				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+					bestCombo = combo
+				}
+			}
+		}
+
+		return bestCombo
+	}
+
+	/*
+	 * Build move combo for a specific cell sequence.
+	 * Unified helper for attract (grapple) and push (boxing glove).
+	 */
+	static Combo? _buildMoveComboForSequence(
+		ExplorationContext ctx,
+		MovementCandidate candidate,
+		Array<Cell> selectedCells,
+		Map<Cell, Array<Action>> cellActions,
+		Array<Action> mpBuffActions,
+		integer totalAvailableTP,
+		Cell castCell,
+		Item moveItem,
+		integer moveCost,
+		integer mpToCast
+	) {
+		// ═══════════════════════════════════════════════════════════════════════════
+		// Pool actions from selected cells, single knapsack
+		// ═══════════════════════════════════════════════════════════════════════════
+
+		Array<Action> combinedPool = []
+		Map<integer, boolean> seenKeys = [:]
+		for (Cell cell in selectedCells) {
+			Array<Action>? actions = cellActions[cell]
+			if (actions == null) continue
+			for (Action a in actions!) {
+				integer key = ComboBuilder.actionKey(a)
+				if (!seenKeys[key]) {
+					push(combinedPool, a)
+					seenKeys[key] = true
+				}
+			}
+		}
+
+		Array<Action> selectedPost = ActionKnapsack.solve(combinedPool, totalAvailableTP, ctx.initialWeapon)
+
+		// ═══════════════════════════════════════════════════════════════════════════
+		// Partition selected actions back to cells
+		// ═══════════════════════════════════════════════════════════════════════════
+
+		Map<Cell, Array<Action>> partitioned = [:]
+		for (Cell cell in selectedCells) {
+			partitioned[cell] = []
+		}
+
+		for (Action a in selectedPost) {
+			Cell fromCell = a.from
+			if (fromCell == Fight.selfCell) fromCell = castCell
+			if (partitioned[fromCell] != null) {
+				push(partitioned[fromCell]!, a)
+			} else {
+				// Fallback: assign to first cell in sequence
+				push(partitioned[selectedCells[0]]!, a)
+			}
+		}
+
+		// Sort each cell's actions by priority
+		for (Cell cell in selectedCells) {
+			partitioned[cell] = MapCellScore.sortByPriority(partitioned[cell]!)
+		}
+
+		// ═══════════════════════════════════════════════════════════════════════════
+		// Build combo in sequence order
 		// ═══════════════════════════════════════════════════════════════════════════
 
 		Combo combo = Combo()
@@ -690,8 +812,10 @@ class ComboBuilder {
 		// 0. MP buffs first
 		ComboBuilder._applyBuffs(combo, mpBuffActions, usesThisTurn)
 
-		// 1. Move action - target destination cell
-		// LOS is validated in MapTactical candidate generation
+		Consequences buffedCsq = combo.getCurrentConsequences()
+		if (buffedCsq.currentMP < mpToCast) return null
+
+		// 1. Move action (grapple/push) - we end up at castCell
 		Consequences priorCsq = combo.getCurrentConsequences()
 		Action moveAction = Action(moveItem, castCell, candidate.targetNewCell)
 		moveAction.movementCandidate = candidate
@@ -705,16 +829,14 @@ class ComboBuilder {
 		push(combo.actions, actualizedMove)
 		usesThisTurn[moveItem] = 1
 
-		// Update position: we moved to castCell
-		Consequences postMoveCsq = combo.getCurrentConsequences()
-		postMoveCsq.currentCell = castCell
-		postMoveCsq.currentMP = remainingMP
+		// 2. Post-move actions in cell sequence order
+		for (Cell cell in selectedCells) {
+			Array<Action>? actions = partitioned[cell]
+			if (actions == null) continue
 
-		// 2. Post-move actions from pool
-		Array<Action> selected = ActionKnapsack.solve(postPool, remainingTP, postMoveCsq.currentWeapon)
-		selected = MapCellScore.sortByPriority(selected)
-		for (Action a in selected) {
-			ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
+			for (Action a in actions!) {
+				ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
+			}
 		}
 
 		// Final position
@@ -831,15 +953,10 @@ class ComboBuilder {
 			false  // enemy target, no ally support
 		)
 
-		// Knapsack and add
-		Consequences postCsq = combo.getCurrentConsequences()
-		if (remainingTP > 0 && count(postPool) > 0) {
-			Array<Action> selected = ActionKnapsack.solve(postPool, remainingTP, postCsq.currentWeapon)
-			selected = MapCellScore.sortByPriority(selected)
-			for (Action a in selected) {
-				ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
-			}
-		}
+		// Fill with cell-sequenced actions
+		ComboBuilder._fillWithCellSequencing(
+			combo, postPool, candidate.boxingFromCell, candidate.finalCell,
+			remainingTP, remainingMP, usesThisTurn, ctx.initialWeapon)
 
 		// ═══════════════════════════════════════════════════════════════════════════
 		// PHASE 4: Final position
@@ -972,15 +1089,10 @@ class ComboBuilder {
 			false  // enemy target, no ally support
 		)
 
-		// Knapsack and add
-		Consequences postCsq = combo.getCurrentConsequences()
-		if (remainingTP > 0 && count(postPool) > 0) {
-			Array<Action> selected = ActionKnapsack.solve(postPool, remainingTP, postCsq.currentWeapon)
-			selected = MapCellScore.sortByPriority(selected)
-			for (Action a in selected) {
-				ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
-			}
-		}
+		// Fill with cell-sequenced actions
+		ComboBuilder._fillWithCellSequencing(
+			combo, postPool, candidate.pushFromCell, candidate.finalCell,
+			remainingTP, remainingMP, usesThisTurn, ctx.initialWeapon)
 
 		// ═══════════════════════════════════════════════════════════════════════════
 		// PHASE 4: Final position
@@ -1085,6 +1197,142 @@ class ComboBuilder {
 
 		// Valid path!
 		return [first, second]
+	}
+
+	/*
+	 * Fill combo with post-actions using cell-sequence optimization.
+	 * Groups actions by fromCell, finds valid sequences, adds actions in optimal order.
+	 * Used by attract-push and pull-inversion-push combo builders.
+	 *
+	 * @param combo Combo to add actions to
+	 * @param postPool Pool of available post-actions
+	 * @param startCell Current position (where we are after tactical sequence)
+	 * @param obstacleCell Cell occupied by moved entity (obstacle for pathfinding)
+	 * @param remainingTP TP available for fill actions
+	 * @param remainingMP MP available for movement between cells
+	 * @param usesThisTurn Item usage tracking map
+	 * @param startWeapon Current weapon for TP cost calculation
+	 */
+	static void _fillWithCellSequencing(
+		Combo combo,
+		Array<Action> postPool,
+		Cell startCell,
+		Cell obstacleCell,
+		integer remainingTP,
+		integer remainingMP,
+		Map<Item, integer> usesThisTurn,
+		Item? startWeapon
+	) {
+		if (remainingTP <= 0 || count(postPool) == 0) return;
+
+		// Group actions by fromCell and compute cell scores
+		Map<Cell, Array<Action>> cellActions = [:]
+		Map<Cell, real> cellScores = [:]
+
+		for (Action a in postPool) {
+			Cell fromCell = a.from
+			// Actions with from=selfCell should map to startCell
+			if (fromCell == Fight.selfCell) fromCell = startCell
+			if (cellActions[fromCell] == null) {
+				cellActions[fromCell] = []
+				cellScores[fromCell] = 0
+			}
+			push(cellActions[fromCell]!, a)
+			if (a.score != null) cellScores[fromCell] += a.score!
+		}
+
+		// Sort cells by score descending
+		Array<Cell> sortedCells = []
+		for (Cell c : real score in cellScores) {
+			push(sortedCells, c)
+		}
+		sortedCells = arraySort(sortedCells, (Cell a, Cell b) -> integer {
+			return Sort.desc(cellScores[a]!, cellScores[b]!)
+		}) as Array<Cell>
+
+		// Compute reachability from startCell
+		Set<Cell> newObstacles = <obstacleCell>
+		Map<Cell, integer> reachableFromStart = MapPath.getCachedReachableCells(
+			startCell, remainingMP, Fight.self.cellsToIgnore, newObstacles)
+
+		// Get valid cell sequences
+		Array<Array<Cell>> validSequences = ComboBuilder._getValidCellSequences(
+			sortedCells, cellScores, startCell, remainingMP, reachableFromStart, newObstacles)
+
+		if (count(validSequences) == 0) {
+			validSequences = [[startCell]]
+		}
+
+		// Find best sequence by trying each and computing total score
+		Array<Cell>? bestSequence = null
+		real bestScore = -999999
+		Array<Action>? bestSelected = null
+
+		for (Array<Cell> selectedCells in validSequences) {
+			// Pool actions from this sequence
+			Array<Action> combinedPool = []
+			Map<integer, boolean> seenKeys = [:]
+			for (Cell cell in selectedCells) {
+				Array<Action>? actions = cellActions[cell]
+				if (actions == null) continue
+				for (Action a in actions!) {
+					integer key = ComboBuilder.actionKey(a)
+					if (!seenKeys[key]) {
+						push(combinedPool, a)
+						seenKeys[key] = true
+					}
+				}
+			}
+
+			// Knapsack solve
+			Array<Action> selected = ActionKnapsack.solve(combinedPool, remainingTP, startWeapon)
+
+			// Compute total score
+			real totalScore = 0
+			for (Action a in selected) {
+				if (a.score != null) totalScore += a.score!
+			}
+
+			if (totalScore > bestScore) {
+				bestScore = totalScore
+				bestSequence = selectedCells
+				bestSelected = selected
+			}
+		}
+
+		if (bestSequence == null || bestSelected == null) return;
+
+		// Partition selected actions back to cells
+		Map<Cell, Array<Action>> partitioned = [:]
+		for (Cell cell in bestSequence!) {
+			partitioned[cell] = []
+		}
+
+		for (Action a in bestSelected!) {
+			Cell fromCell = a.from
+			if (fromCell == Fight.selfCell) fromCell = startCell
+			if (partitioned[fromCell] != null) {
+				push(partitioned[fromCell]!, a)
+			} else {
+				// Fallback: assign to first cell in sequence
+				push(partitioned[bestSequence![0]]!, a)
+			}
+		}
+
+		// Sort each cell's actions by priority
+		for (Cell cell in bestSequence!) {
+			partitioned[cell] = MapCellScore.sortByPriority(partitioned[cell]!)
+		}
+
+		// Add actions in cell sequence order
+		for (Cell cell in bestSequence!) {
+			Array<Action>? actions = partitioned[cell]
+			if (actions == null) continue
+
+			for (Action a in actions!) {
+				ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
+			}
+		}
 	}
 
 	/*

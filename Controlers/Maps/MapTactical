@@ -101,6 +101,7 @@ class MapTactical {
 	// Team barycentres (center of mass)
 	static Cell? _allyBarycentre = null
 	static Cell? _enemyBarycentre = null
+	static Entity? _farthestAllyFromBarycentre = null  // Most isolated ally leek
 
 	// Operation counter for this module
 	static integer _opsUsed = 0
@@ -144,6 +145,7 @@ class MapTactical {
 		// Compute team barycentres
 		_allyBarycentre = _computeBarycentre(Fight.getAlliesAlive())
 		_enemyBarycentre = _computeBarycentre(Fight.getEnemiesAlive())
+		_farthestAllyFromBarycentre = _computeFarthestAllyFromBarycentre()
 
 		// Initialize inversion candidates if chip is available
 		if (Fight.inversionReady && Fight.inversionItem != null) {
@@ -257,6 +259,9 @@ class MapTactical {
 				Consequences invConseq = invAction.consequences
 				score = _scoreMoveEnemy(entity, entity.cell, bestFrom, invConseq)
 			}
+
+			// Only keep candidates with positive score (actual benefit)
+			if (score <= 0) continue
 
 			// Create candidate using factory method
 			MovementCandidate candidate = MovementCandidate.forInversion(
@@ -534,7 +539,8 @@ class MapTactical {
 				}
 			}
 
-			if (bestCandidate != null) {
+			// Only keep candidates with positive score (actual benefit)
+			if (bestCandidate != null && bestCandidate!.score > 0) {
 				push(_grappleCandidates, bestCandidate!)
 				_grappleCandidateByTargetId[entityId] = bestCandidate!
 			}
@@ -611,7 +617,8 @@ class MapTactical {
 				}
 			}
 
-			if (bestCandidate != null) {
+			// Only keep candidates with positive score (actual benefit)
+			if (bestCandidate != null && bestCandidate!.score > 0) {
 				push(_boxingGloveCandidates, bestCandidate!)
 				_boxingGloveCandidateByTargetId[entityId] = bestCandidate!
 			}
@@ -756,7 +763,8 @@ class MapTactical {
 				}
 			}
 
-			if (bestCombo != null) {
+			// Only keep combos with positive score (actual benefit)
+			if (bestCombo != null && bestCombo!.score > 0) {
 				push(_attractPushCombos, bestCombo!)
 				_attractPushByTargetId[enemy.id] = bestCombo!
 			}
@@ -885,6 +893,9 @@ class MapTactical {
 
 			// Score the combo (score added via movementCandidate in ComboBuilder)
 			real score = _scoreAttractPushCombo(enemy, enemy.cell, finalDest!)
+
+			// Only keep combos with positive score (actual benefit)
+			if (score <= 0) continue
 
 			// Create candidate
 			PullInversionPushCandidate combo = PullInversionPushCandidate(
@@ -1160,6 +1171,36 @@ class MapTactical {
 	}
 
 	/*
+	 * Find the ally leek farthest from the ally barycentre.
+	 * Only considers leeks (not bulbs/turrets). Returns null if no allies or no barycentre.
+	 */
+	static Entity? _computeFarthestAllyFromBarycentre() {
+		if (_allyBarycentre == null) return null
+
+		Entity? farthest = null
+		integer maxDist = -1
+
+		for (Entity ally in Fight.getAlliesAlive()) {
+			if (ally.entityType != ENTITY_LEEK) continue
+			integer dist = getCellDistance(ally.cell.id, _allyBarycentre!.id)
+			if (dist > maxDist) {
+				maxDist = dist
+				farthest = ally
+			}
+		}
+
+		return farthest
+	}
+
+	/*
+	 * Get the ally leek farthest from the team barycentre, or null.
+	 * Useful for gravity towards isolated teammates.
+	 */
+	static Entity? getFarthestAllyFromBarycentre() {
+		return _farthestAllyFromBarycentre
+	}
+
+	/*
 	 * Get ally team barycentre, or null if no allies.
 	 */
 	static Cell? getAllyBarycentre() {
@@ -1387,8 +1428,6 @@ class MapTactical {
 	) {
 		Array<Action> postPool = []
 
-		// Debug: show target
-		debug("MOVE_POOL>target=" + moveTarget.name + ">newCell=" + targetNewCell.id)
 
 		// Create move action to get its consequences (e.g., vulnerability)
 		Action moveAction = Action(moveItem, selfCell, moveTarget.cell)
@@ -1531,7 +1570,6 @@ class MapTactical {
 			}
 		}
 
-		debug("MOVE_POOL>pool=" + count(postPool))
 		return postPool
 	}
 
@@ -1558,8 +1596,6 @@ class MapTactical {
 	) {
 		Array<Action> postPool = []
 
-		// Debug: show target
-		debug("SWAP_POOL>target=" + swapTarget.name)
 
 		// Create swap action to get its consequences
 		// Post-swap actions will be scored with these effects applied
@@ -1706,7 +1742,6 @@ class MapTactical {
 			}
 		}
 
-		debug("SWAP_POOL>pool=" + count(postPool))
 		return postPool
 	}
 

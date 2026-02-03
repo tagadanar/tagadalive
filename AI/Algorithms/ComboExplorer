@@ -34,10 +34,10 @@ class ExplorerConfig {
 	static integer INTERESTING_CELLS_K_PHASE2 = 15
 	static integer INTERESTING_CELLS_K_PHASE3 = 10
 	// Operation buffer: dynamic for main leek (base + per bulb + potential summon), fixed for bulbs
-	static integer OPERATION_BUFFER_LEEK_BASE = 250000
-	static integer OPERATION_BUFFER_PER_BULB = 200000
-	static integer OPERATION_BUFFER_POTENTIAL_SUMMON = 200000
-	static integer OPERATION_BUFFER_BULB = 200000
+	static integer OPERATION_BUFFER_LEEK_BASE = 300000
+	static integer OPERATION_BUFFER_BULB_RESERVE = 200000   // Leek reserves this per existing bulb
+	static integer OPERATION_BUFFER_SUMMON_RESERVE = 200000 // Leek reserves this if can summon
+	static integer OPERATION_BUFFER_BULB_SELF = 200000      // Buffer when bulb itself explores
 	static integer MAX_RESULTS_KEPT = 5
 }
 
@@ -90,13 +90,13 @@ class ExplorationContext {
 
 		// Calculate operation buffer based on entity type
 		if (Fight.self.isBulb) {
-			this.operationBuffer = ExplorerConfig.OPERATION_BUFFER_BULB
+			this.operationBuffer = ExplorerConfig.OPERATION_BUFFER_BULB_SELF
 		} else {
 			integer bulbCount = count(getSummons())
 			this.operationBuffer = ExplorerConfig.OPERATION_BUFFER_LEEK_BASE
-				+ bulbCount * ExplorerConfig.OPERATION_BUFFER_PER_BULB
+				+ bulbCount * ExplorerConfig.OPERATION_BUFFER_BULB_RESERVE
 			if (Fight.canSummon) {
-				this.operationBuffer += ExplorerConfig.OPERATION_BUFFER_POTENTIAL_SUMMON
+				this.operationBuffer += ExplorerConfig.OPERATION_BUFFER_SUMMON_RESERVE
 			}
 		}
 	}
@@ -181,11 +181,9 @@ class ComboExplorer {
 		}
 
 		// Phase I: Inversion strategies
-		integer opsBeforeInv = getOperations()
 		if (!ctx.shouldStop()) {
 			ComboExplorer.phaseInversion(ctx)
 		}
-		debug("PhaseI cost: " + Benchmark.format(getOperations() - opsBeforeInv))
 
 		// Debug best inversion combo
 		ExplorerResult? bestInv = null
@@ -338,6 +336,7 @@ class ComboExplorer {
 		if (!Fight.inversionReady || Fight.inversionItem == null) return;
 
 		Benchmark.start("ComboExplorer.phaseInversion")
+		integer startOps = getOperations()
 
 		// Consider all inversion candidates, let the scoring decide
 		integer explored = 0
@@ -351,7 +350,7 @@ class ComboExplorer {
 				ctx.recordResult(ExplorerResult(combo!, "I:" + tag + "_" + candidate.target.name, "I"))
 			}
 		}
-		debug("  PhaseI: " + explored + "/" + count(MapTactical.getInversionCandidates()) + " candidates")
+		debug("PhaseI: " + explored + "/" + count(MapTactical.getInversionCandidates()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 
 		Benchmark.stop("ComboExplorer.phaseInversion")
 	}
@@ -364,6 +363,7 @@ class ComboExplorer {
 		if (!Fight.repottingReady || Fight.repottingItem == null) return;
 
 		Benchmark.start("ComboExplorer.phaseRepotting")
+		integer startOps = getOperations()
 
 		integer explored = 0
 		for (MovementCandidate candidate in MapTactical.getRepottingCandidates()) {
@@ -375,7 +375,7 @@ class ComboExplorer {
 				ctx.recordResult(ExplorerResult(combo!, "R:" + candidate.target.name, "R"))
 			}
 		}
-		debug("  PhaseR: " + explored + "/" + count(MapTactical.getRepottingCandidates()) + " bulb candidates")
+		debug("PhaseR: " + explored + "/" + count(MapTactical.getRepottingCandidates()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 
 		Benchmark.stop("ComboExplorer.phaseRepotting")
 	}
@@ -392,6 +392,7 @@ class ComboExplorer {
 		if (!Fight.grappleReady || Fight.grappleItem == null) return;
 
 		Benchmark.start("ComboExplorer.phaseAttract")
+		integer startOps = getOperations()
 
 		integer explored = 0
 		Combo? bestCombo = null
@@ -410,7 +411,7 @@ class ComboExplorer {
 				}
 			}
 		}
-		debug("  PhaseA: " + explored + "/" + count(MapTactical.getGrappleCandidates()) + " attract candidates")
+		debug("PhaseA: " + explored + "/" + count(MapTactical.getGrappleCandidates()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 		if (bestCombo != null) {
 			debug("PhaseA best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
 		}
@@ -430,6 +431,7 @@ class ComboExplorer {
 		if (!Fight.boxingGloveReady || Fight.boxingGloveItem == null) return;
 
 		Benchmark.start("ComboExplorer.phasePush")
+		integer startOps = getOperations()
 
 		integer explored = 0
 		Combo? bestCombo = null
@@ -448,7 +450,7 @@ class ComboExplorer {
 				}
 			}
 		}
-		debug("  PhaseP: " + explored + "/" + count(MapTactical.getBoxingGloveCandidates()) + " push candidates")
+		debug("PhaseP: " + explored + "/" + count(MapTactical.getBoxingGloveCandidates()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 		if (bestCombo != null) {
 			debug("PhaseP best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
 		}
@@ -470,6 +472,7 @@ class ComboExplorer {
 		if (Fight.grappleItem == null || Fight.boxingGloveItem == null) return;
 
 		Benchmark.start("ComboExplorer.phaseAttractPush")
+		integer startOps = getOperations()
 
 		integer explored = 0
 		Combo? bestCombo = null
@@ -488,7 +491,7 @@ class ComboExplorer {
 				}
 			}
 		}
-		debug("  PhaseAP: " + explored + "/" + count(MapTactical.getAttractPushCombos()) + " attract-push combos")
+		debug("PhaseAP: " + explored + "/" + count(MapTactical.getAttractPushCombos()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 		if (bestCombo != null) {
 			debug("PhaseAP best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
 		}
@@ -509,6 +512,7 @@ class ComboExplorer {
 		if (Fight.grappleItem == null || Fight.inversionItem == null || Fight.boxingGloveItem == null) return;
 
 		Benchmark.start("ComboExplorer.phasePullInvPush")
+		integer startOps = getOperations()
 
 		integer explored = 0
 		Combo? bestCombo = null
@@ -527,7 +531,7 @@ class ComboExplorer {
 				}
 			}
 		}
-		debug("  PhasePIP: " + explored + "/" + count(MapTactical.getPullInversionPushCombos()) + " pull-inv-push combos")
+		debug("PhasePIP: " + explored + "/" + count(MapTactical.getPullInversionPushCombos()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 		if (bestCombo != null) {
 			debug("PhasePIP best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
 		}
