@@ -76,6 +76,7 @@ class Entity {
 	boolean isBulb
 	boolean isStatic = false     // ADD_STATE value 11 - no STATE_STATIC constant in leekwars api
 	boolean isInvincible = false // ADD_STATE value STATE_INVINCIBLE (3)
+	boolean hasCovid = false     // Has COVID effect active (propagates to nearby entities)
 	boolean canDie = false       // Set by BattleState: danger >= life * CANDIE_THRESHOLD
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
 	integer extendedType  // Cached: for bulbs, specific type (101-108); otherwise same as entityType
@@ -210,6 +211,7 @@ class Entity {
 		this.altMP = 0
 		this.isStatic = false
 		this.isInvincible = false
+		this.hasCovid = false
 		this.loadEffects()
 		this.psnlife = this.life - this.psnTurn
 	}
@@ -233,6 +235,8 @@ class Entity {
 			push(effects, effect)
 			if(!this.items_effectOverTime[effect.item]) this.items_effectOverTime[effect.item] = []
 			push(this.items_effectOverTime[effect.item]!, EffectOverTime(effect))
+			// COVID detection (propagates to nearby entities)
+			if (effect.item.id == CHIP_COVID) this.hasCovid = true
 			// piste d'optimisation en ayant une meilleure structure pour les effets ici ?
 			// les eval en dessous pourrait être déléguer à un tab pour éviter les ifelseif?
 			// et ptete ajouter d'autres alt pour les autres stats ?

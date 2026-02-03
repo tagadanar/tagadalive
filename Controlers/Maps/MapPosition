@@ -20,10 +20,6 @@ class MapPosition {
 	static boolean _need_shields = false
 	static boolean _is_cac = false
 
-	// === COVID tracking ===
-	static boolean _has_covid = false
-	static Map<Entity, boolean> _entity_has_covid = [:]
-
 	// === Cached data ===
 	static Map<Cell, integer>? _nearest_enemy_path_dist = null  // path distances FROM nearest enemy
 	static Entity? _nearest_enemy = null
@@ -44,7 +40,6 @@ class MapPosition {
 		MapPosition._refreshNearestEnemyPathDist()
 		MapPosition._refreshThreatDetection()
 		MapPosition._refreshGravityCells()
-		MapPosition._refreshCovid()
 
 		// Precompute position grid for fast MCTS lookups
 		MapPosition._precomputeGrid()
@@ -108,7 +103,7 @@ class MapPosition {
 	 *
 	 * Gravity system by fight type:
 	 * - Team fight: ally turret + enemy turret
-	 * - Farmer fight: nearest enemy + ally barycentre
+	 * - Farmer fight: nearest enemy + farthest ally from barycentre (help isolated teammates)
 	 * - Solo/default: nearest enemy + center
 	 *
 	 * Ally attraction is now handled by the support map (MapSupport) which provides
@@ -138,7 +133,7 @@ class MapPosition {
 				}
 			}
 		} else if (fightType == FIGHT_TYPE_FARMER) {
-			// Farmer fight: nearest enemy + ally barycentre
+			// Farmer fight: nearest enemy + farthest ally from barycentre
 
 			// Nearest enemy
 			if (_nearest_enemy != null) {
@@ -147,11 +142,11 @@ class MapPosition {
 				_gravity_coef[_nearest_enemy!.cell] = ScoringConfig.W_GRAVITY_NEAREST_ENEMY
 			}
 
-			// Ally barycentre (team cohesion)
-			Cell? allyBar = MapTactical.getAllyBarycentre()
-			if (allyBar != null) {
-				_gravity_distance[allyBar!] = ScoringConfig.IDEAL_DIST_ALLY
-				_gravity_coef[allyBar!] = ScoringConfig.W_GRAVITY_ALLY_BARYCENTRE
+			// Farthest ally from barycentre (team cohesion - help isolated teammates)
+			Entity? farthestAlly = MapTactical.getFarthestAllyFromBarycentre()
+			if (farthestAlly != null) {
+				_gravity_distance[farthestAlly!.cell] = ScoringConfig.IDEAL_DIST_ALLY
+				_gravity_coef[farthestAlly!.cell] = ScoringConfig.W_GRAVITY_ALLY_BARYCENTRE
 			}
 		} else {
 			// Solo/default: nearest enemy + center
@@ -168,36 +163,6 @@ class MapPosition {
 			if (centerCell != null) {
 				_gravity_distance[centerCell!] = ScoringConfig.IDEAL_DIST_CENTER
 				_gravity_coef[centerCell!] = ScoringConfig.W_GRAVITY_CENTER
-			}
-		}
-	}
-
-	/*
-	 * Detect COVID chip and tracking
-	 */
-	static void _refreshCovid() {
-		_has_covid = false
-		_entity_has_covid = [:]
-
-		Array<integer>? chips = getChips(Fight.self.id)
-		if (chips != null) {
-			for (integer chipId in chips!) {
-				if (chipId == CHIP_COVID) {
-					_has_covid = true
-					break
-				}
-			}
-		}
-
-		if (_has_covid) {
-			for (Entity e in Fight.getEnemiesAlive()) {
-				_entity_has_covid[e] = false
-				for (EntityEffect eff in e.effects) {
-					if (eff.item.id == CHIP_COVID) {
-						_entity_has_covid[e] = true
-						break
-					}
-				}
 			}
 		}
 	}
@@ -397,17 +362,24 @@ class MapPosition {
 			}
 		}
 
-		// COVID bonus
-		if (_has_covid) {
+		// COVID positioning: when self has COVID effect, get close to enemies (spread) and away from allies (protect)
+		if (Fight.self.hasCovid) {
 			for (Cell c in cell.getAreaCells(AREA_CIRCLE_2)) {
-				Entity? enemy = Board.entityCells[c]
-				if (enemy != null && !enemy!.isFriend) {
-					boolean hasCovid = _entity_has_covid[enemy!] == true
-					if (!hasCovid) {
-						if (enemy!.isBulb) {
+				Entity? entity = Board.entityCells[c]
+				if (entity != null && entity! != Fight.self) {
+					if (!entity!.isFriend && !entity!.hasCovid) {
+						// Bonus for enemies without COVID (can spread to them)
+						if (entity!.isBulb) {
 							bonus += ScoringConfig.W_COVID_SUMMON
 						} else {
 							bonus += ScoringConfig.W_COVID_LEEK
+						}
+					} else if (entity!.isFriend && !entity!.hasCovid) {
+						// Penalty for allies without COVID (avoid infecting them)
+						if (entity!.isBulb) {
+							bonus -= ScoringConfig.W_COVID_SUMMON
+						} else {
+							bonus -= ScoringConfig.W_COVID_LEEK
 						}
 					}
 				}
