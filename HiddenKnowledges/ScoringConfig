@@ -20,6 +20,9 @@ class ScoringConfig {
 	static integer MAX_FIGHT_TURNS = 66
 	static integer MAX_DURATION = 8
 
+	// === AOE Game Constants ===
+	static real AOE_DECAY_RATE = 0.2  // damage/effect ratio drops by this per cell from center
+
 	// === CanDie Thresholds (PLACEHOLDER) ===
 	static real CANDIE_MODIFIER = 1.0
 	static real CANDIE_THRESHOLD = 1.0
