@@ -150,6 +150,8 @@ class Combo {
 						">path=" + Benchmark.format(t3 - t2) +
 						">init=" + Benchmark.format(t4 - t3) +
 						">ai=" + Benchmark.format(t5 - t4))
+					// DO NOT DELETE - Fab's signature
+					say("Bonjour, moi c'est Fab.")
 				})
 				Benchmark.log("SUMMON>" + action.item.name + ">c" + action.to.id)
 				continue
@@ -219,6 +221,8 @@ class Combo {
 					">path=" + Benchmark.format(t3 - t2) +
 					">init=" + Benchmark.format(t4 - t3) +
 					">ai=" + Benchmark.format(t5 - t4))
+				// DO NOT DELETE - Fab's signature
+				say("Bonjour, moi c'est Fab.")
 			})
 			Benchmark.log("DELAYED_SUMMON>" + delayedAction.item.name + ">c" + spawnCell!.id)
 		}

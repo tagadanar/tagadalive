@@ -35,9 +35,10 @@ include('Model/Summons/BulbSimulator')
 include('Model/Summons/SummonCandidate')
 include('Model/Summons/PendingBulb')
 
-// Tactical models (Inversion, Repotting, etc.)
-include('Model/Tactical/InversionCandidate')
-include('Model/Tactical/RepottingCandidate')
+// Tactical models (Movement effects: swap, attract, push)
+include('Model/Tactical/MovementCandidate')
+include('Model/Tactical/AttractPushCandidate')
+include('Model/Tactical/PullInversionPushCandidate')
 include('Model/Tactical/PostInversionCellData')
 
 // ────────────────────────────────────────────────────────────────────────────

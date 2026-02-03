@@ -7,8 +7,7 @@ class Action {
 	public Item item
 	public Consequences consequences
 	public real? score
-	public InversionCandidate? invCandidate = null  // Set for inversion actions only
-	public RepottingCandidate? repCandidate = null // Set for repotting actions only
+	public MovementCandidate? movementCandidate = null  // Set for tactical movement actions (inversion, repotting, grapple, push)
 	public Set<Entity>? overrideTargets = null     // Bypass Targets.getTargets() for simulated positions
 
 	constructor(Item item, Cell from, Cell to){
@@ -35,9 +34,8 @@ class Action {
 		this.item = action.item
 		this.from = action.from
 		this.to = action.to
-		this.invCandidate = action.invCandidate      // Preserve inversion candidate info
-		this.repCandidate = action.repCandidate      // Preserve repotting candidate info
-		this.overrideTargets = action.overrideTargets // Preserve simulated targets
+		this.movementCandidate = action.movementCandidate  // Preserve movement candidate info
+		this.overrideTargets = action.overrideTargets       // Preserve simulated targets
 		this.consequences = Consequences(this, consequences)
 		this.score = this.consequences.getScore()
 	}

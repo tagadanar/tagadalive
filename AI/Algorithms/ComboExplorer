@@ -203,6 +203,26 @@ class ComboExplorer {
 			ComboExplorer.phaseRepotting(ctx)
 		}
 
+		// Phase A: Simple attract (grapple only)
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phaseAttract(ctx)
+		}
+
+		// Phase P: Simple push (boxing glove only)
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phasePush(ctx)
+		}
+
+		// Phase AP: Attract-Push combos (grapple + boxing glove)
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phaseAttractPush(ctx)
+		}
+
+		// Phase PIP: Pull-Inversion-Push combos (grapple + inversion + boxing glove)
+		if (!ctx.shouldStop()) {
+			ComboExplorer.phasePullInvPush(ctx)
+		}
+
 		// Phase 1: Single-cell MP sampling
 		if (!ctx.shouldStop()) {
 			ComboExplorer.phaseSingleCell(ctx)
@@ -321,7 +341,7 @@ class ComboExplorer {
 
 		// Consider all inversion candidates, let the scoring decide
 		integer explored = 0
-		for (InversionCandidate candidate in MapTactical.getInversionCandidates()) {
+		for (MovementCandidate candidate in MapTactical.getInversionCandidates()) {
 			if (ctx.shouldStop()) break
 			explored++
 
@@ -346,7 +366,7 @@ class ComboExplorer {
 		Benchmark.start("ComboExplorer.phaseRepotting")
 
 		integer explored = 0
-		for (RepottingCandidate candidate in MapTactical.getRepottingCandidates()) {
+		for (MovementCandidate candidate in MapTactical.getRepottingCandidates()) {
 			if (ctx.shouldStop()) break
 			explored++
 
@@ -358,6 +378,161 @@ class ComboExplorer {
 		debug("  PhaseR: " + explored + "/" + count(MapTactical.getRepottingCandidates()) + " bulb candidates")
 
 		Benchmark.stop("ComboExplorer.phaseRepotting")
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE A: SIMPLE ATTRACT (GRAPPLE)
+	// ════════════════════════════════════════════════════════════
+
+	/*
+	 * Explore simple attract (grapple only) as a strategy.
+	 * Pulls target toward us, then fills with post-attract actions.
+	 */
+	static void phaseAttract(ExplorationContext ctx) {
+		if (!Fight.grappleReady || Fight.grappleItem == null) return;
+
+		Benchmark.start("ComboExplorer.phaseAttract")
+
+		integer explored = 0
+		Combo? bestCombo = null
+		string bestName = ""
+		for (MovementCandidate candidate in MapTactical.getGrappleCandidates()) {
+			if (ctx.shouldStop()) break
+			explored++
+
+			Combo? combo = ComboBuilder.buildWithAttract(ctx, candidate)
+			if (combo != null && count(combo!.actions) > 0) {
+				string name = "A:" + candidate.target.name
+				ctx.recordResult(ExplorerResult(combo!, name, "A"))
+				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+					bestCombo = combo
+					bestName = name
+				}
+			}
+		}
+		debug("  PhaseA: " + explored + "/" + count(MapTactical.getGrappleCandidates()) + " attract candidates")
+		if (bestCombo != null) {
+			debug("PhaseA best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
+		}
+
+		Benchmark.stop("ComboExplorer.phaseAttract")
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE P: SIMPLE PUSH (BOXING GLOVE)
+	// ════════════════════════════════════════════════════════════
+
+	/*
+	 * Explore simple push (boxing glove only) as a strategy.
+	 * Pushes target away from us, then fills with post-push actions.
+	 */
+	static void phasePush(ExplorationContext ctx) {
+		if (!Fight.boxingGloveReady || Fight.boxingGloveItem == null) return;
+
+		Benchmark.start("ComboExplorer.phasePush")
+
+		integer explored = 0
+		Combo? bestCombo = null
+		string bestName = ""
+		for (MovementCandidate candidate in MapTactical.getBoxingGloveCandidates()) {
+			if (ctx.shouldStop()) break
+			explored++
+
+			Combo? combo = ComboBuilder.buildWithPush(ctx, candidate)
+			if (combo != null && count(combo!.actions) > 0) {
+				string name = "P:" + candidate.target.name
+				ctx.recordResult(ExplorerResult(combo!, name, "P"))
+				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+					bestCombo = combo
+					bestName = name
+				}
+			}
+		}
+		debug("  PhaseP: " + explored + "/" + count(MapTactical.getBoxingGloveCandidates()) + " push candidates")
+		if (bestCombo != null) {
+			debug("PhaseP best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
+		}
+
+		Benchmark.stop("ComboExplorer.phasePush")
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE AP: ATTRACT-PUSH COMBOS
+	// ════════════════════════════════════════════════════════════
+
+	/*
+	 * Explore attract-push combos (grapple + boxing glove).
+	 * Pulls enemy toward ally barycenter, then pushes further in same direction.
+	 * Supports both 90° (L-shape) and same-direction approaches.
+	 */
+	static void phaseAttractPush(ExplorationContext ctx) {
+		if (!Fight.grappleReady || !Fight.boxingGloveReady) return;
+		if (Fight.grappleItem == null || Fight.boxingGloveItem == null) return;
+
+		Benchmark.start("ComboExplorer.phaseAttractPush")
+
+		integer explored = 0
+		Combo? bestCombo = null
+		string bestName = ""
+		for (AttractPushCandidate candidate in MapTactical.getAttractPushCombos()) {
+			if (ctx.shouldStop()) break
+			explored++
+
+			Combo? combo = ComboBuilder.buildWithAttractPush(ctx, candidate)
+			if (combo != null && count(combo!.actions) > 0) {
+				string name = "AP:" + candidate.target.name
+				ctx.recordResult(ExplorerResult(combo!, name, "AP"))
+				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+					bestCombo = combo
+					bestName = name
+				}
+			}
+		}
+		debug("  PhaseAP: " + explored + "/" + count(MapTactical.getAttractPushCombos()) + " attract-push combos")
+		if (bestCombo != null) {
+			debug("PhaseAP best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
+		}
+
+		Benchmark.stop("ComboExplorer.phaseAttractPush")
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE PIP: PULL-INVERSION-PUSH COMBOS
+	// ════════════════════════════════════════════════════════════
+
+	/*
+	 * Explore pull-inversion-push combos (grapple + inversion + boxing glove).
+	 * Maximum enemy displacement: pull, swap to get behind, push further.
+	 */
+	static void phasePullInvPush(ExplorationContext ctx) {
+		if (!Fight.grappleReady || !Fight.inversionReady || !Fight.boxingGloveReady) return;
+		if (Fight.grappleItem == null || Fight.inversionItem == null || Fight.boxingGloveItem == null) return;
+
+		Benchmark.start("ComboExplorer.phasePullInvPush")
+
+		integer explored = 0
+		Combo? bestCombo = null
+		string bestName = ""
+		for (PullInversionPushCandidate candidate in MapTactical.getPullInversionPushCombos()) {
+			if (ctx.shouldStop()) break
+			explored++
+
+			Combo? combo = ComboBuilder.buildWithPullInvPush(ctx, candidate)
+			if (combo != null && count(combo!.actions) > 0) {
+				string name = "PIP:" + candidate.target.name
+				ctx.recordResult(ExplorerResult(combo!, name, "PIP"))
+				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+					bestCombo = combo
+					bestName = name
+				}
+			}
+		}
+		debug("  PhasePIP: " + explored + "/" + count(MapTactical.getPullInversionPushCombos()) + " pull-inv-push combos")
+		if (bestCombo != null) {
+			debug("PhasePIP best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
+		}
+
+		Benchmark.stop("ComboExplorer.phasePullInvPush")
 	}
 
 	// ════════════════════════════════════════════════════════════

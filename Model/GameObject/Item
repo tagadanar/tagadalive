@@ -254,8 +254,7 @@ class Item {
 			if (e.type == EFFECT_INVERT ||
 				e.type == EFFECT_TELEPORT ||
 				e.type == EFFECT_PUSH ||
-				e.type == EFFECT_ATTRACT ||
-				e.type == EFFECT_REPEL) {
+				e.type == EFFECT_ATTRACT) {
 				this.isTactical = true
 			}
 		}

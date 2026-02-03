@@ -28,6 +28,12 @@ class Fight {
 	// Repotting availability for bulb swap positioning (computed in refresh)
 	static boolean repottingReady = false
 	static Item? repottingItem = null
+	// Grapple availability for pulling enemies closer (computed in refresh)
+	static boolean grappleReady = false
+	static Item? grappleItem = null
+	// Boxing glove availability for pushing entities away (computed in refresh)
+	static boolean boxingGloveReady = false
+	static Item? boxingGloveItem = null
 	// Summon availability for operation buffer calculation (computed in refresh)
 	static boolean canSummon = false
 
@@ -77,7 +83,7 @@ class Fight {
 		}
 		self = _aliveAll[getEntity()]!
 
-		// Compute Liberation, Antidote, Inversion, and summon availability
+		// Compute Liberation, Antidote, Inversion, movement chips, and summon availability
 		liberationReady = false
 		liberationItem = null
 		antidoteReady = false
@@ -86,6 +92,10 @@ class Fight {
 		inversionItem = null
 		repottingReady = false
 		repottingItem = null
+		grappleReady = false
+		grappleItem = null
+		boxingGloveReady = false
+		boxingGloveItem = null
 		canSummon = false
 		for (Item item in self.items) {
 			if (item.id == CHIP_LIBERATION && getCooldown(item.id, self.id) == 0) {
@@ -103,6 +113,14 @@ class Fight {
 			if (item.id == CHIP_REPOTTING && getCooldown(item.id, self.id) == 0) {
 				repottingReady = true
 				repottingItem = item
+			}
+			if (item.id == CHIP_GRAPPLE && getCooldown(item.id, self.id) == 0) {
+				grappleReady = true
+				grappleItem = item
+			}
+			if (item.id == CHIP_BOXING_GLOVE && getCooldown(item.id, self.id) == 0) {
+				boxingGloveReady = true
+				boxingGloveItem = item
 			}
 			if (item.isSummon && getCooldown(item.id, self.id) == 0 && self.tp >= item.cost) {
 				canSummon = true

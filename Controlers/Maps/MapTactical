@@ -5,18 +5,50 @@
  * beyond simple damage/healing:
  *   - CHIP_INVERSION: Position swap with any entity (ally or enemy)
  *   - CHIP_REPOTTING: Position swap with allied bulb (deals damage to bulb)
+ *   - CHIP_GRAPPLE: Pull target toward caster (EFFECT_ATTRACT)
+ *   - CHIP_BOXING_GLOVE: Push target away from caster (EFFECT_PUSH)
+ *
+ * Combo Candidates:
+ *   - Attract-Push (2 chips): Grapple + Boxing Glove, L-shape or same-direction
+ *   - Pull-Inversion-Push (3 chips): Grapple + Inversion + Boxing Glove
+ *     Maximum displacement combo - after pull+swap we're already behind enemy!
+ *
+ * Direction Selection (for grapple/boxing):
+ *   Uses team barycenters to select 2 strategic directions per target:
+ *   1. Toward ally barycenter (bring targets closer to team)
+ *   2. Away from enemy barycenter (move targets away from enemy team)
  *
  * Usage:
  *   MapTactical.refresh()
  *
  *   // Inversion (any entity)
  *   if (Fight.inversionReady) {
- *       Array<InversionCandidate> targets = MapTactical.getInversionCandidates()
+ *       Array<MovementCandidate> targets = MapTactical.getInversionCandidates()
  *   }
  *
  *   // Repotting (allied bulbs only)
  *   if (Fight.repottingReady) {
- *       Array<RepottingCandidate> bulbs = MapTactical.getRepottingCandidates()
+ *       Array<MovementCandidate> bulbs = MapTactical.getRepottingCandidates()
+ *   }
+ *
+ *   // Grapple (pull toward ally barycenter)
+ *   if (Fight.grappleReady) {
+ *       Array<MovementCandidate> targets = MapTactical.getGrappleCandidates()
+ *   }
+ *
+ *   // Boxing Glove (push toward ally barycenter)
+ *   if (Fight.boxingGloveReady) {
+ *       Array<MovementCandidate> targets = MapTactical.getBoxingGloveCandidates()
+ *   }
+ *
+ *   // Attract-Push Combo (2 chips: grapple + boxing)
+ *   if (Fight.grappleReady && Fight.boxingGloveReady) {
+ *       AttractPushCandidate? best = MapTactical.getBestAttractPushCombo()
+ *   }
+ *
+ *   // Pull-Inversion-Push Combo (3 chips: grapple + inversion + boxing)
+ *   if (Fight.grappleReady && Fight.inversionReady && Fight.boxingGloveReady) {
+ *       PullInversionPushCandidate? best = MapTactical.getBestPullInvPushCombo()
  *   }
  */
 
@@ -27,20 +59,44 @@ class MapTactical {
 	// ═══════════════════════════════════════════════════════════════════════════
 
 	// Sorted array of valid inversion targets (by mpCost ascending)
-	static Array<InversionCandidate> _inversionCandidates = []
+	static Array<MovementCandidate> _inversionCandidates = []
 
-	// O(1) lookup: targetId -> InversionCandidate
-	static Map<integer, InversionCandidate> _candidateByTargetId = [:]
+	// O(1) lookup: targetId -> MovementCandidate
+	static Map<integer, MovementCandidate> _candidateByTargetId = [:]
 
 	// Best candidates by score (for action generation)
-	static InversionCandidate? _bestAllyCandidate = null
-	static InversionCandidate? _bestEnemyCandidate = null
+	static MovementCandidate? _bestAllyCandidate = null
+	static MovementCandidate? _bestEnemyCandidate = null
 
 	// Sorted array of valid repotting targets (allied bulbs only, by mpCost ascending)
-	static Array<RepottingCandidate> _repottingCandidates = []
+	static Array<MovementCandidate> _repottingCandidates = []
 
-	// O(1) lookup: targetId -> RepottingCandidate
-	static Map<integer, RepottingCandidate> _repottingCandidateByTargetId = [:]
+	// O(1) lookup: targetId -> MovementCandidate
+	static Map<integer, MovementCandidate> _repottingCandidateByTargetId = [:]
+
+	// Sorted array of valid grapple targets (by mpCost ascending)
+	static Array<MovementCandidate> _grappleCandidates = []
+
+	// O(1) lookup: targetId -> MovementCandidate (grapple)
+	static Map<integer, MovementCandidate> _grappleCandidateByTargetId = [:]
+
+	// Sorted array of valid boxing glove targets (by mpCost ascending)
+	static Array<MovementCandidate> _boxingGloveCandidates = []
+
+	// O(1) lookup: targetId -> MovementCandidate (boxing glove)
+	static Map<integer, MovementCandidate> _boxingGloveCandidateByTargetId = [:]
+
+	// Attract-then-push combo candidates (grapple + boxing glove sequence)
+	static Array<AttractPushCandidate> _attractPushCombos = []
+
+	// O(1) lookup: targetId -> AttractPushCandidate
+	static Map<integer, AttractPushCandidate> _attractPushByTargetId = [:]
+
+	// Pull-inversion-push combo candidates (grapple + inversion + boxing glove)
+	static Array<PullInversionPushCandidate> _pullInvPushCombos = []
+
+	// O(1) lookup: targetId -> PullInversionPushCandidate
+	static Map<integer, PullInversionPushCandidate> _pullInvPushByTargetId = [:]
 
 	// Team barycentres (center of mass)
 	static Cell? _allyBarycentre = null
@@ -52,14 +108,21 @@ class MapTactical {
 	// LOS cache: key = (fromId << 10) | toId -> cells on line (persistent across turns)
 	static Map<integer, Array<Cell>> _losCache = [:]
 
+	// Direction constants: 0=+X(East), 1=-X(West), 2=+Y(South), 3=-Y(North)
+	static integer DIR_EAST = 0
+	static integer DIR_WEST = 1
+	static integer DIR_SOUTH = 2
+	static integer DIR_NORTH = 3
+	static Array<Array<integer>> _dirDeltas = [[1,0], [-1,0], [0,1], [0,-1]]
+
 	// ═══════════════════════════════════════════════════════════════════════════
 	// PUBLIC API
 	// ═══════════════════════════════════════════════════════════════════════════
 
 	/*
 	 * Refresh tactical analysis for current turn.
-	 * Computes valid inversion targets and best cast positions.
-	 * Requires Fight.refresh() to be called first (sets inversionReady/inversionItem).
+	 * Computes valid targets for all tactical movement chips.
+	 * Requires Fight.refresh() to be called first (sets *Ready/*Item flags).
 	 */
 	static void refresh() {
 		integer startOps = getOperations()
@@ -69,6 +132,14 @@ class MapTactical {
 		_bestEnemyCandidate = null
 		_repottingCandidates = []
 		_repottingCandidateByTargetId = [:]
+		_grappleCandidates = []
+		_grappleCandidateByTargetId = [:]
+		_boxingGloveCandidates = []
+		_boxingGloveCandidateByTargetId = [:]
+		_attractPushCombos = []
+		_attractPushByTargetId = [:]
+		_pullInvPushCombos = []
+		_pullInvPushByTargetId = [:]
 
 		// Compute team barycentres
 		_allyBarycentre = _computeBarycentre(Fight.getAlliesAlive())
@@ -82,6 +153,28 @@ class MapTactical {
 		// Initialize repotting candidates if chip is available
 		if (Fight.repottingReady && Fight.repottingItem != null) {
 			_initRepottingCandidates()
+		}
+
+		// Initialize grapple candidates if chip is available
+		if (Fight.grappleReady && Fight.grappleItem != null) {
+			_initGrappleCandidates()
+		}
+
+		// Initialize boxing glove candidates if chip is available
+		if (Fight.boxingGloveReady && Fight.boxingGloveItem != null) {
+			_initBoxingGloveCandidates()
+		}
+
+		// Initialize attract-push combos if both chips are available
+		if (Fight.grappleReady && Fight.boxingGloveReady &&
+		    Fight.grappleItem != null && Fight.boxingGloveItem != null) {
+			_initAttractPushCombos()
+		}
+
+		// Initialize pull-inversion-push combos if all 3 chips are available
+		if (Fight.grappleReady && Fight.inversionReady && Fight.boxingGloveReady &&
+		    Fight.grappleItem != null && Fight.inversionItem != null && Fight.boxingGloveItem != null) {
+			_initPullInversionPushCombos()
 		}
 
 		_opsUsed = getOperations() - startOps
@@ -152,54 +245,24 @@ class MapTactical {
 			Cell bestFrom = castResult![0] as Cell
 			integer bestCost = castResult![1] as integer
 
-			// Score swaps
+			// Score swaps using shared functions
 			real score = 0
 			if (entity.isFriend) {
-				// Ally swaps: danger reduction treated as "virtual heal"
-				// After swap: ally ends up on fromCell (where we stand to cast), we end up on entity.cell
-				Danger oldDanger = MapDanger.getCellDanger(entity.cell)
-				Danger newDanger = MapDanger.getCellDanger(bestFrom)
-				real oldTotal = oldDanger.dmg + oldDanger.psnDmg
-				real newTotal = newDanger.dmg + newDanger.psnDmg
-				real dangerReduction = oldTotal - newTotal
-				real coef = Scoring.getDynamicCoef(entity, Stats.HP, null)
-				score = dangerReduction * coef
-
-				// DEATH bonus if swap saves ally from death
-				// DEATH_VALUE (-10000) * ally KILL coef (-1.0) = +10000
-				boolean stillCanDie = (newTotal * ScoringConfig.CANDIE_THRESHOLD >= entity.life)
-				if (entity.canDie && !stillCanDie) {
-					score += ScoringConfig.DEATH_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, null)
-				}
+				// Ally swaps: ally ends up on bestFrom (where we cast), we end up on entity.cell
+				score = _scoreMoveAlly(entity, entity.cell, bestFrom)
 			} else {
-				// Enemy swaps: pull enemy to fromCell where allies can hit them
-				// After swap: enemy ends up at fromCell (our cast position), we end up at entity.cell
-				// Score = delta in ally damage potential (new position vs current position)
-				// dmgDelta positive = more damage at new pos = GOOD for us
-				// coef is negative for enemies, so negate to get positive score for good swaps
-
+				// Enemy swaps: enemy ends up at bestFrom (our cast position), we end up at entity.cell
 				// Create inversion action to get consequences (e.g., vulnerability effect)
 				Action invAction = Action(invItem, bestFrom, entity.cell)
 				Consequences invConseq = invAction.consequences
-
-				// Use consequences for new pos (vulnerability applied), but not for current pos (before inversion)
-				real dmgAtNewPos = MapDamage.getDamageBeforeEnemy(bestFrom, entity, invConseq)
-				real dmgAtCurrentPos = MapDamage.getDamageBeforeEnemy(entity.cell, entity, null)
-				real dmgDelta = dmgAtNewPos - dmgAtCurrentPos
-				real coef = Scoring.getDynamicCoef(entity, Stats.HP, invConseq)
-				score = dmgDelta * (-coef)  // Negate: more damage to enemy = positive score
-
-				// // KILL bonus if allies can kill enemy at new position
-				// if (dmgAtNewPos >= entity.life) {
-				// 	score += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, invConseq)
-				// }
+				score = _scoreMoveEnemy(entity, entity.cell, bestFrom, invConseq)
 			}
 
-			// Create candidate
-			InversionCandidate candidate = InversionCandidate(
+			// Create candidate using factory method
+			MovementCandidate candidate = MovementCandidate.forInversion(
+				invItem,
 				bestFrom,
 				entity,
-				entity.cell,
 				bestCost,
 				score
 			)
@@ -209,12 +272,12 @@ class MapTactical {
 		}
 
 		// Sort by mpCost ascending (cheapest first)
-		_inversionCandidates = arraySort(_inversionCandidates, (InversionCandidate a, InversionCandidate b) -> integer {
+		_inversionCandidates = arraySort(_inversionCandidates, (MovementCandidate a, MovementCandidate b) -> integer {
 			return a.mpCost - b.mpCost
-		}) as Array<InversionCandidate>
+		}) as Array<MovementCandidate>
 
 		// Select best ally and best enemy candidates (by score)
-		for (InversionCandidate c in _inversionCandidates) {
+		for (MovementCandidate c in _inversionCandidates) {
 			if (c.target.isFriend) {
 				if (_bestAllyCandidate == null || c.score > _bestAllyCandidate!.score) {
 					_bestAllyCandidate = c
@@ -260,11 +323,11 @@ class MapTactical {
 			// Skip if repotting would kill the bulb
 			if (bulbDamage >= entity.life) continue
 
-			// Create candidate (no score - danger evaluated at combo end)
-			RepottingCandidate candidate = RepottingCandidate(
+			// Create candidate using factory method (no score - danger evaluated at combo end)
+			MovementCandidate candidate = MovementCandidate.forRepotting(
+				repItem,
 				bestFrom,
 				entity,
-				entity.cell,
 				bestCost,
 				bulbDamage
 			)
@@ -274,9 +337,9 @@ class MapTactical {
 		}
 
 		// Sort by mpCost ascending (cheapest first)
-		_repottingCandidates = arraySort(_repottingCandidates, (RepottingCandidate a, RepottingCandidate b) -> integer {
+		_repottingCandidates = arraySort(_repottingCandidates, (MovementCandidate a, MovementCandidate b) -> integer {
 			return a.mpCost - b.mpCost
-		}) as Array<RepottingCandidate>
+		}) as Array<MovementCandidate>
 	}
 
 	/*
@@ -286,6 +349,791 @@ class MapTactical {
 	static integer _estimateRepottingDamage(Item repItem, Entity bulb) {
 		// For now, ignore damage - assume bulb survives
 		return 0
+	}
+
+	/*
+	 * Get cardinal direction from one cell to another.
+	 * Returns the primary axis: 0=+X, 1=-X, 2=+Y, 3=-Y, or -1 if same position.
+	 */
+	static integer _getCardinalDirection(Cell from, Cell to) {
+		integer dx = to.x - from.x
+		integer dy = to.y - from.y
+
+		if (dx == 0 && dy == 0) return -1
+
+		if (abs(dx) >= abs(dy)) {
+			return dx > 0 ? DIR_EAST : DIR_WEST
+		} else {
+			return dy > 0 ? DIR_SOUTH : DIR_NORTH
+		}
+	}
+
+	/*
+	 * Get opposite direction.
+	 */
+	static integer _oppositeDirection(integer dir) {
+		if (dir == DIR_EAST) return DIR_WEST
+		if (dir == DIR_WEST) return DIR_EAST
+		if (dir == DIR_SOUTH) return DIR_NORTH
+		if (dir == DIR_NORTH) return DIR_SOUTH
+		return -1
+	}
+
+	/*
+	 * Get strategic cast directions for movement chips.
+	 * Uses barycenters to determine 2 tactical directions:
+	 * 1. Move target toward ally barycenter
+	 * 2. Move target away from enemy barycenter
+	 *
+	 * @param targetCell Target's position
+	 * @param isGrapple true for grapple (pull), false for boxing (push)
+	 * @return Array of 1-2 cast directions to test
+	 */
+	static Array<integer> _getStrategicCastDirections(Cell targetCell, boolean isGrapple) {
+		Array<integer> directions = []
+
+		// Direction 1: toward ally barycenter
+		if (_allyBarycentre != null) {
+			integer dirToAlly = _getCardinalDirection(targetCell, _allyBarycentre!)
+			if (dirToAlly >= 0) {
+				// Grapple: cast from ally direction (pull toward ally)
+				// Boxing: cast from opposite (push toward ally)
+				integer castDir = isGrapple ? dirToAlly : _oppositeDirection(dirToAlly)
+				push(directions, castDir)
+			}
+		}
+
+		// Direction 2: away from enemy barycenter
+		if (_enemyBarycentre != null) {
+			integer dirToEnemy = _getCardinalDirection(targetCell, _enemyBarycentre!)
+			if (dirToEnemy >= 0) {
+				integer dirAwayFromEnemy = _oppositeDirection(dirToEnemy)
+				// Grapple: cast from away-from-enemy direction (pull away from enemy)
+				// Boxing: cast from enemy direction (push away from enemy)
+				integer castDir = isGrapple ? dirAwayFromEnemy : dirToEnemy
+				if (!inArray(directions, castDir)) {
+					push(directions, castDir)
+				}
+			}
+		}
+
+		return directions
+	}
+
+	/*
+	 * Find best reachable cast cell in a specific direction from target.
+	 * Searches along the line (target + direction * dist) for minRange..maxRange.
+	 *
+	 * @param item The chip to cast
+	 * @param targetCell Target's position
+	 * @param reachable Reachable cells map
+	 * @param selfCell Current position (checked first for 0 MP)
+	 * @param direction Cast direction (0-3)
+	 * @return [Cell, mpCost] or null if no valid position
+	 */
+	static Array<any>? _findBestCastCellInDirection(Item item, Cell targetCell, Map<Cell, integer> reachable, Cell selfCell, integer direction) {
+		integer dx = _dirDeltas[direction][0]
+		integer dy = _dirDeltas[direction][1]
+
+		// Check if selfCell is valid for this direction (0 MP cost)
+		integer selfDx = selfCell.x - targetCell.x
+		integer selfDy = selfCell.y - targetCell.y
+		boolean selfOnLine = (dx != 0 && selfDy == 0 && selfDx * dx > 0) ||
+		                     (dy != 0 && selfDx == 0 && selfDy * dy > 0)
+		if (selfOnLine) {
+			integer dist = abs(selfDx) + abs(selfDy)
+			if (dist >= item.minRange && dist <= item.maxRange) {
+				return [selfCell, 0]
+			}
+		}
+
+		// Search cells in this direction from target
+		Cell? bestCell = null
+		integer bestCost = 9999
+
+		for (integer dist = item.minRange; dist <= item.maxRange; dist++) {
+			integer checkX = targetCell.x + dx * dist
+			integer checkY = targetCell.y + dy * dist
+
+			Map<integer, Cell>? col = Board.cellsXY[checkX]
+			if (col == null) continue
+			Cell? cell = col![checkY]
+			if (cell == null || cell!.isWall) continue
+
+			integer? cost = reachable[cell!]
+			if (cost != null && cost! < bestCost) {
+				bestCost = cost!
+				bestCell = cell!
+			}
+		}
+
+		return bestCell != null ? [bestCell!, bestCost] : null
+	}
+
+	/*
+	 * Initialize grapple candidates for current turn.
+	 * CHIP_GRAPPLE pulls the first entity in line toward the caster.
+	 * Uses barycenter-based direction selection (toward allies, away from enemies).
+	 * Called only when Fight.grappleReady && Fight.grappleItem != null.
+	 */
+	static void _initGrappleCandidates() {
+		Item grappleItem = Fight.grappleItem!
+
+		// Check TP (cooldown already checked in Fight.refresh)
+		if (Fight.self.tp < grappleItem.cost) return;
+
+		// Get self's extended reachable cells
+		Map<Cell, integer> reachable = Fight.self.extendedReachableCells
+		Cell selfCell = Fight.self.cell
+
+		// Process all entities (primarily enemies, but could pull allies for repositioning)
+		Map<integer, Entity> allEntities = Fight.getAllAlive()
+
+		for (integer entityId : Entity entity in allEntities) {
+			// Skip self
+			if (entityId == Fight.self.id) continue
+			// Skip static entities (turrets) - can't be moved
+			if (entity.isStatic) continue
+
+			// Get strategic cast directions (toward ally barycenter, away from enemy barycenter)
+			Array<integer> directions = _getStrategicCastDirections(entity.cell, true)
+			if (count(directions) == 0) continue
+
+			// Find best candidate across strategic directions
+			MovementCandidate? bestCandidate = null
+
+			for (integer dir in directions) {
+				// Find best reachable cast cell in this direction
+				Array<any>? castResult = _findBestCastCellInDirection(grappleItem, entity.cell, reachable, selfCell, dir)
+				if (castResult == null) continue
+
+				Cell castFrom = castResult![0] as Cell
+				integer mpCost = castResult![1] as integer
+
+				// Check LOS is clear (no walls or other entities blocking)
+				if (!_checkLOS(castFrom, entity.cell, entity, null, null)) continue
+
+				// Calculate where target ends up after being pulled
+				Cell? destCell = _computeAttractDestination(castFrom, entity.cell, grappleItem)
+				if (destCell == null) continue
+				if (destCell!.id == entity.cell.id) continue  // No movement
+
+				// Score the pull (score added via movementCandidate in ComboBuilder)
+				real score = _scoreAttract(entity, entity.cell, destCell!, grappleItem)
+
+				// Keep best scoring candidate
+				if (bestCandidate == null || score > bestCandidate!.score) {
+					bestCandidate = MovementCandidate.forAttract(
+						grappleItem,
+						castFrom,
+						entity,
+						destCell!,
+						mpCost,
+						score
+					)
+				}
+			}
+
+			if (bestCandidate != null) {
+				push(_grappleCandidates, bestCandidate!)
+				_grappleCandidateByTargetId[entityId] = bestCandidate!
+			}
+		}
+
+		// Sort by mpCost ascending (cheapest first)
+		_grappleCandidates = arraySort(_grappleCandidates, (MovementCandidate a, MovementCandidate b) -> integer {
+			return a.mpCost - b.mpCost
+		}) as Array<MovementCandidate>
+	}
+
+	/*
+	 * Initialize boxing glove candidates for current turn.
+	 * CHIP_BOXING_GLOVE pushes the first entity in line away from the caster.
+	 * Uses barycenter-based direction selection (toward allies, away from enemies).
+	 * Called only when Fight.boxingGloveReady && Fight.boxingGloveItem != null.
+	 */
+	static void _initBoxingGloveCandidates() {
+		Item boxingItem = Fight.boxingGloveItem!
+
+		// Check TP (cooldown already checked in Fight.refresh)
+		if (Fight.self.tp < boxingItem.cost) return;
+
+		// Get self's extended reachable cells
+		Map<Cell, integer> reachable = Fight.self.extendedReachableCells
+		Cell selfCell = Fight.self.cell
+
+		// Process all entities
+		Map<integer, Entity> allEntities = Fight.getAllAlive()
+
+		for (integer entityId : Entity entity in allEntities) {
+			// Skip self
+			if (entityId == Fight.self.id) continue
+			// Skip static entities (turrets) - can't be moved
+			if (entity.isStatic) continue
+
+			// Get strategic cast directions (toward ally barycenter, away from enemy barycenter)
+			// For boxing glove, isGrapple=false flips the directions appropriately
+			Array<integer> directions = _getStrategicCastDirections(entity.cell, false)
+			if (count(directions) == 0) continue
+
+			// Find best candidate across strategic directions
+			MovementCandidate? bestCandidate = null
+
+			for (integer dir in directions) {
+				// Find best reachable cast cell in this direction
+				Array<any>? castResult = _findBestCastCellInDirection(boxingItem, entity.cell, reachable, selfCell, dir)
+				if (castResult == null) continue
+
+				Cell castFrom = castResult![0] as Cell
+				integer mpCost = castResult![1] as integer
+
+				// Calculate where target ends up after being pushed
+				Cell? destCell = _computePushDestination(castFrom, entity.cell, boxingItem)
+				if (destCell == null) continue
+				if (destCell!.id == entity.cell.id) continue  // No movement
+
+				// Check LOS to destination is clear (entity is on the line, will be pushed)
+				if (!_checkLOS(castFrom, destCell!, entity, null, null)) continue
+
+				// Score the push (score added via movementCandidate in ComboBuilder)
+				real score = _scorePush(entity, entity.cell, destCell!, boxingItem)
+
+				// Keep best scoring candidate
+				if (bestCandidate == null || score > bestCandidate!.score) {
+					bestCandidate = MovementCandidate.forPush(
+						boxingItem,
+						castFrom,
+						entity,
+						destCell!,
+						mpCost,
+						score
+					)
+				}
+			}
+
+			if (bestCandidate != null) {
+				push(_boxingGloveCandidates, bestCandidate!)
+				_boxingGloveCandidateByTargetId[entityId] = bestCandidate!
+			}
+		}
+
+		// Sort by mpCost ascending (cheapest first)
+		_boxingGloveCandidates = arraySort(_boxingGloveCandidates, (MovementCandidate a, MovementCandidate b) -> integer {
+			return a.mpCost - b.mpCost
+		}) as Array<MovementCandidate>
+	}
+
+	/*
+	 * Initialize attract-push combo candidates.
+	 * Combines grapple (pull) + boxing glove (push) to move enemy toward ally barycenter.
+	 *
+	 * Two approaches are tried:
+	 * 1. 90° angle: Pull one axis, push perpendicular (L-shape movement, ~3 MP)
+	 * 2. Same direction: Pull and push same direction (requires going around, ~5 MP)
+	 *
+	 * Only targets enemies - this is an offensive repositioning combo.
+	 * Called only when both chips are available.
+	 */
+	static void _initAttractPushCombos() {
+		Item grappleItem = Fight.grappleItem!
+		Item boxingItem = Fight.boxingGloveItem!
+
+		// Check TP for both chips
+		integer totalTP = grappleItem.cost + boxingItem.cost
+		if (Fight.self.tp < totalTP) return;
+
+		// Need ally barycenter for direction
+		if (_allyBarycentre == null) return;
+
+		Map<Cell, integer> reachable = Fight.self.extendedReachableCells
+		Cell selfCell = Fight.self.cell
+
+		// Only process enemies (this combo repositions enemies toward our team)
+		for (Entity enemy in Fight.getEnemiesAlive()) {
+			if (enemy.isStatic) continue
+			if (enemy.isInvincible) continue
+
+			// Get direction components to ally barycenter
+			integer dx = _allyBarycentre!.x - enemy.cell.x
+			integer dy = _allyBarycentre!.y - enemy.cell.y
+			if (dx == 0 && dy == 0) continue
+
+			// Build list of (pullDir, pushDir) combinations to try
+			Array<Array<integer>> combosToTry = []
+
+			// 90° approach: if diagonal, pull one axis and push the other
+			if (dx != 0 && dy != 0) {
+				// Option A: Pull along X, push along Y
+				integer pullDirX = dx > 0 ? DIR_EAST : DIR_WEST
+				integer pushDirY = dy > 0 ? DIR_SOUTH : DIR_NORTH
+				integer pushCastDirY = _oppositeDirection(pushDirY)  // We cast from opposite to push toward
+				push(combosToTry, [pullDirX, pushCastDirY])
+
+				// Option B: Pull along Y, push along X
+				integer pullDirY = dy > 0 ? DIR_SOUTH : DIR_NORTH
+				integer pushDirX = dx > 0 ? DIR_EAST : DIR_WEST
+				integer pushCastDirX = _oppositeDirection(pushDirX)
+				push(combosToTry, [pullDirY, pushCastDirX])
+			}
+
+			// Same direction approach: pull toward ally, then push same direction
+			integer primaryDir = _getCardinalDirection(enemy.cell, _allyBarycentre!)
+			if (primaryDir >= 0) {
+				integer pushCastDir = _oppositeDirection(primaryDir)
+				push(combosToTry, [primaryDir, pushCastDir])
+			}
+
+			// Try each combination and keep the best
+			AttractPushCandidate? bestCombo = null
+
+			for (Array<integer> dirs in combosToTry) {
+				integer pullDir = dirs[0]
+				integer pushCastDir = dirs[1]
+
+				// Find grapple cast position
+				Array<any>? grappleResult = _findBestCastCellInDirection(
+					grappleItem, enemy.cell, reachable, selfCell, pullDir)
+				if (grappleResult == null) continue
+
+				Cell grappleFrom = grappleResult![0] as Cell
+				integer grappleMP = grappleResult![1] as integer
+
+				// Check grapple LOS is clear
+				if (!_checkLOS(grappleFrom, enemy.cell, enemy, null, null)) continue
+
+				// Compute where enemy ends up after grapple
+				Cell? afterGrapple = _computeAttractDestination(grappleFrom, enemy.cell, grappleItem)
+				if (afterGrapple == null) continue
+				if (afterGrapple!.id == enemy.cell.id) continue
+
+				// Compute reachability from grapple position
+				integer remainingMP = Fight.self.mp - grappleMP
+				if (remainingMP < 0) continue
+
+				Set<Cell> newObstacles = <afterGrapple!>
+				Map<Cell, integer> reachFromGrapple = MapPath.getCachedReachableCells(
+					grappleFrom, remainingMP, Fight.self.cellsToIgnore, newObstacles)
+
+				// Find boxing cast cell
+				Array<any>? boxingResult = _findBestCastCellInDirection(
+					boxingItem, afterGrapple!, reachFromGrapple, grappleFrom, pushCastDir)
+				if (boxingResult == null) continue
+
+				Cell boxingFrom = boxingResult![0] as Cell
+				integer transitionMP = boxingResult![1] as integer
+
+				// Check total MP
+				integer totalMP = grappleMP + transitionMP
+				if (totalMP > Fight.self.mp) continue
+
+				// Compute final destination
+				Cell? finalDest = _computePushDestination(boxingFrom, afterGrapple!, boxingItem)
+				if (finalDest == null) continue
+				if (finalDest!.id == afterGrapple!.id) continue
+
+				// Check boxing LOS to destination is clear (enemy at afterGrapple after pull)
+				if (!_checkLOS(boxingFrom, finalDest!, enemy, afterGrapple!, null)) continue
+
+				// Score the combo (score added via movementCandidate in ComboBuilder)
+				real score = _scoreAttractPushCombo(enemy, enemy.cell, finalDest!)
+
+				// Keep best (highest score, or same score with lower MP)
+				if (bestCombo == null || score > bestCombo!.score ||
+				    (score == bestCombo!.score && totalMP < bestCombo!.totalMP)) {
+					bestCombo = AttractPushCandidate(
+						grappleItem,
+						boxingItem,
+						enemy,
+						grappleFrom,
+						boxingFrom,
+						enemy.cell,
+						afterGrapple!,
+						finalDest!,
+						grappleMP,
+						transitionMP,
+						score
+					)
+				}
+			}
+
+			if (bestCombo != null) {
+				push(_attractPushCombos, bestCombo!)
+				_attractPushByTargetId[enemy.id] = bestCombo!
+			}
+		}
+
+		// Sort by score descending (best combo first)
+		_attractPushCombos = arraySort(_attractPushCombos, (AttractPushCandidate a, AttractPushCandidate b) -> integer {
+			if (a.score > b.score) return -1
+			if (a.score < b.score) return 1
+			return 0
+		}) as Array<AttractPushCandidate>
+	}
+
+	/*
+	 * Score an attract-push combo.
+	 * Based on total damage potential increase from moving enemy toward allies.
+	 * Score is stored in candidate and added by MovementEffects when Action executes.
+	 *
+	 * @param enemy Target enemy
+	 * @param originalCell Enemy's starting position
+	 * @param finalCell Enemy's final position after push
+	 * @return Combo score (damage delta + distance bonus)
+	 */
+	static real _scoreAttractPushCombo(Entity enemy, Cell originalCell, Cell finalCell) {
+		// Score based on damage potential at each position
+		// No consequences here - proper consequences handled when Action executes via movementCandidate
+		real dmgAtOriginal = MapDamage.getDamageBeforeEnemy(originalCell, enemy, null)
+		real dmgAtFinal = MapDamage.getDamageBeforeEnemy(finalCell, enemy, null)
+		real dmgDelta = dmgAtFinal - dmgAtOriginal
+
+		real coef = Scoring.getDynamicCoef(enemy, Stats.HP, null)
+		real score = dmgDelta * (-coef)  // Negate: more damage to enemy = positive score
+
+		// Bonus for distance moved (further = more repositioning value)
+		integer distMoved = getCellDistance(originalCell.id, finalCell.id)
+		score += distMoved * 10  // Small bonus per cell moved
+
+		return score
+	}
+
+	/*
+	 * Initialize pull-inversion-push combo candidates.
+	 * 3-action combo: Grapple → Inversion → Move 1 → Boxing Glove
+	 *
+	 * Position trace:
+	 *   1. Move to G (toward ally barycenter from enemy)
+	 *   2. Grapple: enemy moves from E to E' (adjacent to G)
+	 *   3. Inversion with enemy at E': we go to E', enemy goes to G
+	 *   4. Move 1 cell back from E' to P (to reach boxing minRange 2)
+	 *   5. Push from P: enemy at G gets pushed further toward ally barycenter
+	 *
+	 * Requires all 3 chips: grapple, inversion, boxing glove.
+	 */
+	static void _initPullInversionPushCombos() {
+		Item grappleItem = Fight.grappleItem!
+		Item inversionItem = Fight.inversionItem!
+		Item boxingItem = Fight.boxingGloveItem!
+
+		// Check TP for all 3 chips
+		integer totalTP = grappleItem.cost + inversionItem.cost + boxingItem.cost
+		if (Fight.self.tp < totalTP) return;
+
+		// Need ally barycenter for direction
+		if (_allyBarycentre == null) return;
+
+		Map<Cell, integer> reachable = Fight.self.extendedReachableCells
+		Cell selfCell = Fight.self.cell
+
+		for (Entity enemy in Fight.getEnemiesAlive()) {
+			if (enemy.isStatic) continue
+			if (enemy.isInvincible) continue
+
+			// Direction toward ally barycenter
+			integer dirToAlly = _getCardinalDirection(enemy.cell, _allyBarycentre!)
+			if (dirToAlly < 0) continue
+
+			// Step 1: Find grapple cast position (toward ally barycenter)
+			Array<any>? grappleResult = _findBestCastCellInDirection(
+				grappleItem, enemy.cell, reachable, selfCell, dirToAlly)
+			if (grappleResult == null) continue
+
+			Cell grappleFrom = grappleResult![0] as Cell
+			integer grappleMP = grappleResult![1] as integer
+
+			// Check grapple LOS is clear
+			if (!_checkLOS(grappleFrom, enemy.cell, enemy, null, null)) continue
+
+			// Step 2: Compute enemy position after grapple
+			Cell? afterGrapple = _computeAttractDestination(grappleFrom, enemy.cell, grappleItem)
+			if (afterGrapple == null) continue
+			if (afterGrapple!.id == enemy.cell.id) continue  // No movement from grapple
+
+			// Step 3: Check if inversion is possible
+			// After grapple, we're at grappleFrom, enemy at afterGrapple (adjacent)
+			integer distToEnemy = getCellDistance(grappleFrom.id, afterGrapple!.id)
+			if (distToEnemy < inversionItem.minRange || distToEnemy > inversionItem.maxRange) continue
+
+			// After inversion: we're at afterGrapple, enemy at grappleFrom
+			Cell ourPosAfterInv = afterGrapple!
+			Cell enemyPosAfterInv = grappleFrom
+
+			// Step 4: Find push position (need to move back to reach minRange 2)
+			// Direction: from enemy (grappleFrom) to us (afterGrapple), continue 1 more cell
+			Cell? pushFromCell = _findPushPositionAfterInversion(
+				ourPosAfterInv, enemyPosAfterInv, boxingItem)
+			if (pushFromCell == null) continue
+
+			// Check we have MP to reach push position after grapple
+			// Remaining MP = total MP - grappleMP
+			integer remainingMP = Fight.self.mp - grappleMP
+			// Always 1 MP to step back (path guaranteed clear - we just swapped through it)
+			integer transitionMP = 1
+			if (transitionMP > remainingMP) continue
+
+			// Check boxing glove range from push position
+			integer distForPush = getCellDistance(pushFromCell!.id, enemyPosAfterInv.id)
+			if (distForPush < boxingItem.minRange || distForPush > boxingItem.maxRange) continue
+
+			// Step 5: Compute final position after push
+			Cell? finalDest = _computePushDestination(pushFromCell!, enemyPosAfterInv, boxingItem)
+			if (finalDest == null) continue
+			if (finalDest!.id == enemyPosAfterInv.id) continue  // No movement from push
+
+			// Check boxing LOS to destination is clear (enemy at enemyPosAfterInv after inversion)
+			if (!_checkLOS(pushFromCell!, finalDest!, enemy, enemyPosAfterInv, null)) continue
+
+			// Score the combo (score added via movementCandidate in ComboBuilder)
+			real score = _scoreAttractPushCombo(enemy, enemy.cell, finalDest!)
+
+			// Create candidate
+			PullInversionPushCandidate combo = PullInversionPushCandidate(
+				grappleItem,
+				inversionItem,
+				boxingItem,
+				enemy,
+				grappleFrom,
+				pushFromCell!,
+				enemy.cell,
+				afterGrapple!,
+				finalDest!,
+				grappleMP,
+				transitionMP,
+				score
+			)
+
+			push(_pullInvPushCombos, combo)
+			_pullInvPushByTargetId[enemy.id] = combo
+		}
+
+		// Sort by score descending
+		_pullInvPushCombos = arraySort(_pullInvPushCombos, (PullInversionPushCandidate a, PullInversionPushCandidate b) -> integer {
+			if (a.score > b.score) return -1
+			if (a.score < b.score) return 1
+			return 0
+		}) as Array<PullInversionPushCandidate>
+	}
+
+	/*
+	 * Find push position after inversion.
+	 * We need to move 1 cell back (away from enemy) to reach boxing minRange 2.
+	 *
+	 * @param ourPos Our position after inversion (afterGrapple)
+	 * @param enemyPos Enemy position after inversion (grappleFrom)
+	 * @param boxingItem Boxing glove item (for minRange check)
+	 * @return Cell to push from, or null if no valid position
+	 */
+	static Cell? _findPushPositionAfterInversion(Cell ourPos, Cell enemyPos, Item boxingItem) {
+		// Direction from enemy to us
+		integer dx = 0
+		integer dy = 0
+
+		if (ourPos.x == enemyPos.x) {
+			// Vertical line
+			dy = ourPos.y > enemyPos.y ? 1 : -1
+		} else if (ourPos.y == enemyPos.y) {
+			// Horizontal line
+			dx = ourPos.x > enemyPos.x ? 1 : -1
+		} else {
+			// Not in line - shouldn't happen
+			return null
+		}
+
+		// Move 1 cell in the same direction (away from enemy)
+		integer pushX = ourPos.x + dx
+		integer pushY = ourPos.y + dy
+
+		Map<integer, Cell>? col = Board.cellsXY[pushX]
+		if (col == null) return null
+		Cell? pushCell = col![pushY]
+		if (pushCell == null || pushCell!.isWall) return null
+
+		// Check it's not occupied
+		Entity? occupant = Board.entityCells[pushCell!]
+		if (occupant != null && occupant != Fight.self) return null
+
+		// Verify we're now at minRange
+		integer dist = getCellDistance(pushCell!.id, enemyPos.id)
+		if (dist < boxingItem.minRange) return null
+
+		return pushCell
+	}
+
+	/*
+	 * Compute destination cell after EFFECT_ATTRACT.
+	 * Target is pulled toward caster along the line, stopping adjacent to caster.
+	 *
+	 * @param fromCell Caster's position
+	 * @param targetCell Target's current cell
+	 * @param item The grapple item
+	 * @return Destination cell, or null if pull is invalid
+	 */
+	static Cell? _computeAttractDestination(Cell fromCell, Cell targetCell, Item item) {
+		// Get direction from target to caster
+		integer dx = 0
+		integer dy = 0
+
+		if (fromCell.x == targetCell.x) {
+			// Vertical line
+			dy = fromCell.y > targetCell.y ? 1 : -1
+		} else if (fromCell.y == targetCell.y) {
+			// Horizontal line
+			dx = fromCell.x > targetCell.x ? 1 : -1
+		} else {
+			// Not in line - shouldn't happen for line-type items
+			return null
+		}
+
+		// Pull target as close as possible (to adjacent cell, 1 away from caster)
+		// Move step by step toward caster, stopping at obstacles or adjacent to caster
+		integer x = targetCell.x
+		integer y = targetCell.y
+		Cell lastValid = targetCell
+
+		while (true) {
+			integer nextX = x + dx
+			integer nextY = y + dy
+
+			Cell? nextCell = Board.cellsXY[nextX]![nextY]
+			if (nextCell == null || nextCell!.isWall) break
+
+			// Stop before caster's cell (target ends up adjacent)
+			if (nextCell!.id == fromCell.id) break
+
+			// Check if cell is occupied (by entity other than self and target)
+			Entity? occupant = Board.entityCells[nextCell!]
+			if (occupant != null && occupant != Fight.self) break
+
+			lastValid = nextCell!
+			x = nextX
+			y = nextY
+		}
+
+		return lastValid
+	}
+
+	/*
+	 * Compute destination cell after EFFECT_PUSH.
+	 * Target is pushed away from caster along the line up to maxRange or until obstacle.
+	 *
+	 * @param fromCell Caster's position
+	 * @param targetCell Target's current cell
+	 * @param item The boxing glove item
+	 * @return Destination cell, or null if push is invalid
+	 */
+	static Cell? _computePushDestination(Cell fromCell, Cell targetCell, Item item) {
+		// Get direction from caster to target (push direction)
+		integer dx = 0
+		integer dy = 0
+
+		if (fromCell.x == targetCell.x) {
+			// Vertical line
+			dy = targetCell.y > fromCell.y ? 1 : -1
+		} else if (fromCell.y == targetCell.y) {
+			// Horizontal line
+			dx = targetCell.x > fromCell.x ? 1 : -1
+		} else {
+			// Not in line - shouldn't happen for line-type items
+			return null
+		}
+
+		// Push target, stopping at obstacles or when destination exceeds maxRange from caster
+		integer x = targetCell.x
+		integer y = targetCell.y
+		Cell lastValid = targetCell
+
+		while (true) {
+			integer nextX = x + dx
+			integer nextY = y + dy
+
+			Cell? nextCell = Board.cellsXY[nextX]![nextY]
+
+			// Hit edge of map or wall - stop at last valid cell
+			if (nextCell == null || nextCell!.isWall) break
+
+			// Destination must stay within maxRange from caster
+			integer distFromCaster = abs(nextX - fromCell.x) + abs(nextY - fromCell.y)
+			if (distFromCaster > item.maxRange) break
+
+			// Check if cell is occupied by another entity
+			Entity? occupant = Board.entityCells[nextCell!]
+			if (occupant != null) break
+
+			lastValid = nextCell!
+			x = nextX
+			y = nextY
+		}
+
+		return lastValid
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// SHARED MOVEMENT SCORING FUNCTIONS
+	// ════════════════════════════════════════════════════════════
+
+	/*
+	 * Score moving an enemy from oldCell to newCell.
+	 * Based on damage delta: more damage at new pos = positive score.
+	 * @param enemy The enemy being moved
+	 * @param oldCell Enemy's current position
+	 * @param newCell Enemy's new position after movement
+	 * @param conseq Optional consequences (e.g., vulnerability from inversion)
+	 */
+	static real _scoreMoveEnemy(Entity enemy, Cell oldCell, Cell newCell, Consequences? conseq) {
+		real dmgAtNewPos = MapDamage.getDamageBeforeEnemy(newCell, enemy, conseq)
+		real dmgAtOldPos = MapDamage.getDamageBeforeEnemy(oldCell, enemy, null)
+		real dmgDelta = dmgAtNewPos - dmgAtOldPos
+		real coef = Scoring.getDynamicCoef(enemy, Stats.HP, conseq)
+		return dmgDelta * (-coef)  // Negate: more damage to enemy = positive score
+	}
+
+	/*
+	 * Score moving an ally from oldCell to newCell.
+	 * Based on danger reduction + death bonus if saves ally from lethal danger.
+	 * @param ally The ally being moved
+	 * @param oldCell Ally's current position
+	 * @param newCell Ally's new position after movement
+	 */
+	static real _scoreMoveAlly(Entity ally, Cell oldCell, Cell newCell) {
+		Danger oldDanger = MapDanger.getCellDanger(oldCell)
+		Danger newDanger = MapDanger.getCellDanger(newCell)
+		real oldTotal = oldDanger.dmg + oldDanger.psnDmg
+		real newTotal = newDanger.dmg + newDanger.psnDmg
+		real dangerReduction = oldTotal - newTotal
+		real coef = Scoring.getDynamicCoef(ally, Stats.HP, null)
+		real score = dangerReduction * coef
+
+		// DEATH bonus if move saves ally from death
+		boolean stillCanDie = (newTotal * ScoringConfig.CANDIE_THRESHOLD >= ally.life)
+		if (ally.canDie && !stillCanDie) {
+			score += ScoringConfig.DEATH_VALUE * Scoring.getDynamicCoef(ally, Stats.KILL, null)
+		}
+
+		return score
+	}
+
+	/*
+	 * Score an attract (grapple) action.
+	 * Uses shared scoring: _scoreMoveEnemy for enemies, _scoreMoveAlly for allies.
+	 */
+	static real _scoreAttract(Entity target, Cell oldCell, Cell newCell, Item item) {
+		if (!target.isFriend) {
+			return _scoreMoveEnemy(target, oldCell, newCell, null)
+		} else {
+			return _scoreMoveAlly(target, oldCell, newCell)
+		}
+	}
+
+	/*
+	 * Score a push (boxing glove) action.
+	 * Uses shared scoring: _scoreMoveEnemy for enemies, _scoreMoveAlly for allies.
+	 */
+	static real _scorePush(Entity target, Cell oldCell, Cell newCell, Item item) {
+		if (!target.isFriend) {
+			return _scoreMoveEnemy(target, oldCell, newCell, null)
+		} else {
+			return _scoreMoveAlly(target, oldCell, newCell)
+		}
 	}
 
 	/*
@@ -328,57 +1176,135 @@ class MapTactical {
 	/*
 	 * Get all valid inversion candidates, sorted by MP cost ascending.
 	 */
-	static Array<InversionCandidate> getInversionCandidates() {
+	static Array<MovementCandidate> getInversionCandidates() {
 		return _inversionCandidates
 	}
 
 	/*
 	 * Get the inversion candidate for a specific target, or null if not valid.
 	 */
-	static InversionCandidate? getCandidateForTarget(integer targetId) {
+	static MovementCandidate? getCandidateForTarget(integer targetId) {
 		return _candidateByTargetId[targetId]
 	}
 
 	/*
 	 * Get the best ally inversion candidate (highest score), or null if none.
 	 */
-	static InversionCandidate? getBestAllyCandidate() {
+	static MovementCandidate? getBestAllyCandidate() {
 		return _bestAllyCandidate
 	}
 
 	/*
 	 * Get the best enemy inversion candidate (highest score), or null if none.
 	 */
-	static InversionCandidate? getBestEnemyCandidate() {
+	static MovementCandidate? getBestEnemyCandidate() {
 		return _bestEnemyCandidate
 	}
 
 	/*
 	 * Get all valid repotting candidates (allied bulbs), sorted by MP cost ascending.
 	 */
-	static Array<RepottingCandidate> getRepottingCandidates() {
+	static Array<MovementCandidate> getRepottingCandidates() {
 		return _repottingCandidates
 	}
 
 	/*
 	 * Get the repotting candidate for a specific bulb, or null if not valid.
 	 */
-	static RepottingCandidate? getRepottingCandidateForTarget(integer targetId) {
+	static MovementCandidate? getRepottingCandidateForTarget(integer targetId) {
 		return _repottingCandidateByTargetId[targetId]
 	}
 
 	/*
-	 * Display inversion/repotting targets and team barycentres on the map (for debugging).
+	 * Get all valid grapple candidates, sorted by MP cost ascending.
+	 */
+	static Array<MovementCandidate> getGrappleCandidates() {
+		return _grappleCandidates
+	}
+
+	/*
+	 * Get the grapple candidate for a specific target, or null if not valid.
+	 */
+	static MovementCandidate? getGrappleCandidateForTarget(integer targetId) {
+		return _grappleCandidateByTargetId[targetId]
+	}
+
+	/*
+	 * Get all valid boxing glove candidates, sorted by MP cost ascending.
+	 */
+	static Array<MovementCandidate> getBoxingGloveCandidates() {
+		return _boxingGloveCandidates
+	}
+
+	/*
+	 * Get the boxing glove candidate for a specific target, or null if not valid.
+	 */
+	static MovementCandidate? getBoxingGloveCandidateForTarget(integer targetId) {
+		return _boxingGloveCandidateByTargetId[targetId]
+	}
+
+	/*
+	 * Get all attract-push combo candidates, sorted by score descending.
+	 */
+	static Array<AttractPushCandidate> getAttractPushCombos() {
+		return _attractPushCombos
+	}
+
+	/*
+	 * Get the attract-push combo for a specific target, or null if not valid.
+	 */
+	static AttractPushCandidate? getAttractPushComboForTarget(integer targetId) {
+		return _attractPushByTargetId[targetId]
+	}
+
+	/*
+	 * Get the best attract-push combo (highest score), or null if none.
+	 */
+	static AttractPushCandidate? getBestAttractPushCombo() {
+		return count(_attractPushCombos) > 0 ? _attractPushCombos[0] : null
+	}
+
+	/*
+	 * Get all pull-inversion-push combo candidates, sorted by score descending.
+	 */
+	static Array<PullInversionPushCandidate> getPullInversionPushCombos() {
+		return _pullInvPushCombos
+	}
+
+	/*
+	 * Get the pull-inversion-push combo for a specific target, or null if not valid.
+	 */
+	static PullInversionPushCandidate? getPullInvPushComboForTarget(integer targetId) {
+		return _pullInvPushByTargetId[targetId]
+	}
+
+	/*
+	 * Get the best pull-inversion-push combo (highest score), or null if none.
+	 */
+	static PullInversionPushCandidate? getBestPullInvPushCombo() {
+		return count(_pullInvPushCombos) > 0 ? _pullInvPushCombos[0] : null
+	}
+
+	/*
+	 * Display tactical targets and team barycentres on the map (for debugging).
 	 * White = team barycentres
 	 * Blue = ally inversion targets
 	 * Red = enemy inversion targets
 	 * Green = repotting targets (allied bulbs)
+	 * Orange = grapple targets
+	 * Purple = boxing glove targets
+	 * Cyan = attract-push combos
+	 * Yellow = pull-inversion-push combos
 	 */
 	static void showTactical() {
 		integer white = getColor(255, 255, 255)
 		integer blue = getColor(100, 149, 237)   // Cornflower blue for allies
 		integer red = getColor(220, 80, 80)      // Red for enemies
 		integer green = getColor(100, 200, 100)  // Green for repotting
+		integer orange = getColor(255, 165, 0)   // Orange for grapple
+		integer purple = getColor(147, 112, 219) // Purple for boxing glove
+		integer cyan = getColor(0, 255, 255)     // Cyan for attract-push combos
+		integer yellow = getColor(255, 255, 0)   // Yellow for pull-inv-push combos
 
 		// Display team barycentres
 		if (_allyBarycentre != null) {
@@ -391,66 +1317,222 @@ class MapTactical {
 		}
 
 		// Display inversion candidates
-		for (InversionCandidate c in _inversionCandidates) {
+		for (MovementCandidate c in _inversionCandidates) {
 			integer color = c.target.isFriend ? blue : red
-
-			// Mark fromCell (cast position)
 			mark(c.fromCell.id, color)
-
-			// Mark targetCell (destination after swap)
 			mark(c.targetCell.id, color)
-
-			// Text label with score
 			markText(c.fromCell.id, "I:" + round(c.score))
 		}
 
 		// Display repotting candidates
-		for (RepottingCandidate c in _repottingCandidates) {
+		for (MovementCandidate c in _repottingCandidates) {
 			mark(c.fromCell.id, green)
 			mark(c.targetCell.id, green)
 			markText(c.fromCell.id, "R:" + c.target.name)
 		}
+
+		// Display grapple candidates
+		for (MovementCandidate c in _grappleCandidates) {
+			mark(c.fromCell.id, orange)
+			mark(c.targetNewCell.id, orange)
+			markText(c.fromCell.id, "G:" + round(c.score))
+		}
+
+		// Display boxing glove candidates
+		for (MovementCandidate c in _boxingGloveCandidates) {
+			mark(c.fromCell.id, purple)
+			mark(c.targetNewCell.id, purple)
+			markText(c.fromCell.id, "B:" + round(c.score))
+		}
+
+		// Display attract-push combo candidates
+		for (AttractPushCandidate c in _attractPushCombos) {
+			mark(c.grappleFromCell.id, cyan)
+			mark(c.afterGrappleCell.id, cyan)
+			mark(c.boxingFromCell.id, cyan)
+			mark(c.finalCell.id, cyan)
+			markText(c.originalCell.id, "AP:" + round(c.score))
+		}
+
+		// Display pull-inversion-push combo candidates
+		for (PullInversionPushCandidate c in _pullInvPushCombos) {
+			mark(c.grappleFromCell.id, yellow)
+			mark(c.afterGrappleCell.id, yellow)
+			mark(c.afterInversionCell.id, yellow)
+			mark(c.finalCell.id, yellow)
+			markText(c.originalCell.id, "PIP:" + round(c.score))
+		}
 	}
 
 	/*
-	 * Generate action pool for post-inversion phase (wrapper for backward compatibility).
-	 * @see getPostSwapPool for implementation
+	 * Unified action pool generation for post-move phase (attract/push).
+	 * Unlike swap, we stay at cast position - only the target moves.
+	 * Creates actions with correct `from` cells and simulated target position.
+	 *
+	 * @param moveTarget Entity that was moved (for LOS blocking)
+	 * @param selfCell Where we are (cast position, unchanged)
+	 * @param targetNewCell Where the moved entity ends up
+	 * @param moveItem The move chip (CHIP_GRAPPLE or CHIP_BOXING_GLOVE)
+	 * @param remainingMP MP available after moving to cast position
+	 * @param includeAllySupport If true, add support actions for moved ally
+	 * @return Array of actions playable from current position
 	 */
-	static Array<Action> getPostInversionPool(
-		InversionCandidate candidate,
-		integer remainingTP,
-		integer remainingMP
+	static Array<Action> getPostMovePool(
+		Entity moveTarget,
+		Cell selfCell,
+		Cell targetNewCell,
+		Item moveItem,
+		integer remainingMP,
+		boolean includeAllySupport
 	) {
-		Item swapItem = Fight.inversionItem!
-		boolean includeAllySupport = candidate.target.isFriend
-		return getPostSwapPool(
-			candidate.target,
-			candidate.targetCell,  // newSelfCell
-			candidate.fromCell,    // swapTargetNewCell
-			swapItem,
-			remainingMP,
-			includeAllySupport
-		)
-	}
+		Array<Action> postPool = []
 
-	/*
-	 * Generate action pool for post-repotting phase (wrapper for backward compatibility).
-	 * @see getPostSwapPool for implementation
-	 */
-	static Array<Action> getPostRepottingPool(
-		RepottingCandidate candidate,
-		integer remainingTP,
-		integer remainingMP
-	) {
-		Item swapItem = Fight.repottingItem!
-		return getPostSwapPool(
-			candidate.target,
-			candidate.targetCell,  // newSelfCell
-			candidate.fromCell,    // swapTargetNewCell (bulb's new position)
-			swapItem,
-			remainingMP,
-			false  // Repotting never includes ally support (target IS the ally bulb)
-		)
+		// Debug: show target
+		debug("MOVE_POOL>target=" + moveTarget.name + ">newCell=" + targetNewCell.id)
+
+		// Create move action to get its consequences (e.g., vulnerability)
+		Action moveAction = Action(moveItem, selfCell, moveTarget.cell)
+		moveAction.overrideTargets = <moveTarget>
+		Consequences moveConseq = Consequences(moveAction)
+
+		// Compute reachability from our position
+		// targetNewCell is an obstacle (moved entity is there now)
+		Set<Cell> newObstacles = <targetNewCell>
+		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
+			selfCell, remainingMP, Fight.self.cellsToIgnore, newObstacles)
+
+		// For each offensive item, find actions on enemies
+		for (Item item in Fight.self.items) {
+			if (!item.isOffensive) continue
+			if (getCooldown(item.id, Fight.self.id) > 0) continue
+			if (item.id == moveItem.id) continue  // Skip move chip itself
+
+			for (Entity enemy in Fight.getEnemiesAlive()) {
+				if (enemy.isInvincible) continue
+
+				// Enemy cell: if moved enemy, use new position; otherwise original
+				Cell enemyCell = (enemy == moveTarget) ? targetNewCell : enemy.cell
+
+				// Use shared cache - verify LOS lazily with DDA
+				Array<Cell> castCells = MapDanger.getCachedTargetableCells(item, enemyCell)
+
+				// Build set for O(1) lookup
+				Set<integer> castSet = <>
+				for (Cell c in castCells) setPut(castSet, c.id)
+
+				// Find closest reachable cast cell with lazy LOS check
+				Cell? bestCast = null
+
+				// Check if selfCell is valid (no movement needed)
+				if (setContains(castSet, selfCell.id)) {
+					if (_checkLOS(selfCell, enemyCell, moveTarget, null, targetNewCell)) {
+						bestCast = selfCell
+					}
+				}
+
+				// If not, iterate reachable in BFS order - first valid is closest
+				if (bestCast == null) {
+					for (Cell c : integer dist in reachable) {
+						if (!setContains(castSet, c.id)) continue
+						if (_checkLOS(c, enemyCell, moveTarget, null, targetNewCell)) {
+							bestCast = c
+							break  // BFS order guarantees first match is closest
+						}
+					}
+				}
+
+				if (bestCast == null) continue
+
+				// Create action with correct from cell
+				EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, moveConseq)
+				Action action = Action(item, bestCast!, enemyCell, snapshot)
+				action.overrideTargets = snapshot.targets
+				if (action.score != null && action.score! > 0) {
+					push(postPool, action)
+				}
+			}
+		}
+
+		// Add self-cast buffs (always available from any position)
+		for (Item item in Fight.self.items) {
+			if (item.isSummon || item.isTactical) continue
+			if (getCooldown(item.id, Fight.self.id) > 0) continue
+			if (item.minRange > 0) continue  // Not self-castable
+
+			// Check if item has buff effects (not pure damage)
+			boolean hasBuff = false
+			for (ItemEffect e in item.effects) {
+				integer t = e.type
+				if (t == EFFECT_BUFF_STRENGTH || t == EFFECT_RAW_BUFF_STRENGTH ||
+					t == EFFECT_BUFF_AGILITY || t == EFFECT_RAW_BUFF_AGILITY ||
+					t == EFFECT_BUFF_TP || t == EFFECT_RAW_BUFF_TP ||
+					t == EFFECT_BUFF_MP || t == EFFECT_RAW_BUFF_MP ||
+					t == EFFECT_ABSOLUTE_SHIELD || t == EFFECT_RAW_ABSOLUTE_SHIELD ||
+					t == EFFECT_RELATIVE_SHIELD || t == EFFECT_RAW_RELATIVE_SHIELD ||
+					t == EFFECT_HEAL || t == EFFECT_BOOST_MAX_LIFE) {
+					hasBuff = true
+					break
+				}
+			}
+
+			if (hasBuff) {
+				Action action = Action(item, Fight.selfCell, Fight.selfCell)
+				if (action.score != null && action.score! > 0) {
+					push(postPool, action)
+				}
+			}
+		}
+
+		// Add support actions for moved ally (if target is ally)
+		if (includeAllySupport) {
+			Set<Item>? targetingItems = MapAction.getItemsTargetingEntity(moveTarget)
+			if (targetingItems != null) {
+				for (Item item in targetingItems!) {
+					if (getCooldown(item.id, Fight.self.id) > 0) continue
+
+					// Use shared cache - verify LOS lazily
+					Array<Cell> castCells = MapDanger.getCachedTargetableCells(item, targetNewCell)
+
+					// Build set for O(1) lookup
+					Set<integer> castSet = <>
+					for (Cell c in castCells) setPut(castSet, c.id)
+
+					// Find closest reachable cast cell with lazy LOS check
+					Cell? bestCast = null
+
+					// Check if selfCell is valid (no movement needed)
+					if (setContains(castSet, selfCell.id)) {
+						if (_checkLOS(selfCell, targetNewCell, moveTarget, null, targetNewCell)) {
+							bestCast = selfCell
+						}
+					}
+
+					// If not, iterate reachable in BFS order
+					if (bestCast == null) {
+						for (Cell c : integer dist in reachable) {
+							if (!setContains(castSet, c.id)) continue
+							if (_checkLOS(c, targetNewCell, moveTarget, null, targetNewCell)) {
+								bestCast = c
+								break
+							}
+						}
+					}
+
+					if (bestCast == null) continue
+
+					// Create action with correct from cell
+					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, moveTarget, targetNewCell, moveConseq)
+					Action action = Action(item, bestCast!, targetNewCell, snapshot)
+					action.overrideTargets = snapshot.targets
+					if (action.score != null && action.score! > 0) {
+						push(postPool, action)
+					}
+				}
+			}
+		}
+
+		debug("MOVE_POOL>pool=" + count(postPool))
+		return postPool
 	}
 
 	/*
@@ -514,7 +1596,7 @@ class MapTactical {
 
 				// Check if newSelfCell is valid (no movement needed)
 				if (setContains(castSet, newSelfCell.id)) {
-					if (_hasValidLOS(newSelfCell, enemyCell, swapTarget, swapTargetNewCell)) {
+					if (_checkLOS(newSelfCell, enemyCell, swapTarget, null, swapTargetNewCell)) {
 						bestCast = newSelfCell
 					}
 				}
@@ -523,7 +1605,7 @@ class MapTactical {
 				if (bestCast == null) {
 					for (Cell c : integer dist in newReachable) {
 						if (!setContains(castSet, c.id)) continue
-						if (_hasValidLOS(c, enemyCell, swapTarget, swapTargetNewCell)) {
+						if (_checkLOS(c, enemyCell, swapTarget, null, swapTargetNewCell)) {
 							bestCast = c
 							break  // BFS order guarantees first match is closest
 						}
@@ -595,7 +1677,7 @@ class MapTactical {
 					// Check if newSelfCell is valid (no movement needed)
 					// For ally support, swapped entity IS the target, so no extra blocking
 					if (setContains(castSet, newSelfCell.id)) {
-						if (_hasValidLOS(newSelfCell, allyNewCell, swapTarget, allyNewCell)) {
+						if (_checkLOS(newSelfCell, allyNewCell, swapTarget, null, allyNewCell)) {
 							bestCast = newSelfCell
 						}
 					}
@@ -604,7 +1686,7 @@ class MapTactical {
 					if (bestCast == null) {
 						for (Cell c : integer dist in newReachable) {
 							if (!setContains(castSet, c.id)) continue
-							if (_hasValidLOS(c, allyNewCell, swapTarget, allyNewCell)) {
+							if (_checkLOS(c, allyNewCell, swapTarget, null, allyNewCell)) {
 								bestCast = c
 								break
 							}
@@ -629,11 +1711,11 @@ class MapTactical {
 	}
 
 	/*
-	 * Compute cell scores for post-swap state (inversion wrapper for backward compatibility).
+	 * Compute cell scores for post-swap state (inversion wrapper).
 	 * @see getPostSwapCellScores for implementation
 	 */
 	static PostInversionCellData getPostInversionCellScores(
-		InversionCandidate candidate,
+		MovementCandidate candidate,
 		Cell newSelfCell,
 		Map<Cell, integer> reachableCells,
 		Map<Cell, Array<Action>> postByCell
@@ -642,11 +1724,11 @@ class MapTactical {
 	}
 
 	/*
-	 * Compute cell scores for post-swap state (repotting wrapper for backward compatibility).
+	 * Compute cell scores for post-swap state (repotting wrapper).
 	 * @see getPostSwapCellScores for implementation
 	 */
 	static PostInversionCellData getPostRepottingCellScores(
-		RepottingCandidate candidate,
+		MovementCandidate candidate,
 		Cell newSelfCell,
 		Map<Cell, integer> reachableCells,
 		Map<Cell, Array<Action>> postByCell
@@ -702,7 +1784,7 @@ class MapTactical {
 	}
 
 	/*
-	 * Debug output: show all computed inversion/repotting targets and barycentres
+	 * Debug output: show all computed tactical movement targets and barycentres
 	 */
 	static void debugAll() {
 		debug("=== MapTactical Results (ops=" + _opsUsed + ") ===")
@@ -717,7 +1799,7 @@ class MapTactical {
 			debug("  CHIP_INVERSION: not available")
 		} else {
 			debug("  CHIP_INVERSION: " + count(_inversionCandidates) + " valid targets")
-			for (InversionCandidate c in _inversionCandidates) {
+			for (MovementCandidate c in _inversionCandidates) {
 				string tag = c.target.isFriend ? "ALLY" : "ENEMY"
 				debug("    [" + tag + "] " + c)
 			}
@@ -728,50 +1810,90 @@ class MapTactical {
 			debug("  CHIP_REPOTTING: not available")
 		} else {
 			debug("  CHIP_REPOTTING: " + count(_repottingCandidates) + " valid bulb targets")
-			for (RepottingCandidate c in _repottingCandidates) {
+			for (MovementCandidate c in _repottingCandidates) {
 				debug("    [BULB] " + c)
 			}
 		}
+
+		// Grapple candidates
+		if (!Fight.grappleReady) {
+			debug("  CHIP_GRAPPLE: not available")
+		} else {
+			debug("  CHIP_GRAPPLE: " + count(_grappleCandidates) + " valid pull targets")
+			for (MovementCandidate c in _grappleCandidates) {
+				string tag = c.target.isFriend ? "ALLY" : "ENEMY"
+				debug("    [" + tag + "] " + c)
+			}
+		}
+
+		// Boxing glove candidates
+		if (!Fight.boxingGloveReady) {
+			debug("  CHIP_BOXING_GLOVE: not available")
+		} else {
+			debug("  CHIP_BOXING_GLOVE: " + count(_boxingGloveCandidates) + " valid push targets")
+			for (MovementCandidate c in _boxingGloveCandidates) {
+				string tag = c.target.isFriend ? "ALLY" : "ENEMY"
+				debug("    [" + tag + "] " + c)
+			}
+		}
+
+		// Attract-push combo candidates
+		if (!Fight.grappleReady || !Fight.boxingGloveReady) {
+			debug("  ATTRACT-PUSH COMBO: not available (need both chips)")
+		} else {
+			debug("  ATTRACT-PUSH COMBO: " + count(_attractPushCombos) + " valid combos")
+			for (AttractPushCandidate c in _attractPushCombos) {
+				debug("    " + c)
+			}
+		}
+
+		// Pull-inversion-push combo candidates
+		if (!Fight.grappleReady || !Fight.inversionReady || !Fight.boxingGloveReady) {
+			debug("  PULL-INV-PUSH COMBO: not available (need all 3 chips)")
+		} else {
+			debug("  PULL-INV-PUSH COMBO: " + count(_pullInvPushCombos) + " valid combos")
+			for (PullInversionPushCandidate c in _pullInvPushCombos) {
+				debug("    " + c)
+			}
+		}
+
 		debug("=== End MapTactical ===")
 	}
 
 	/*
-	 * Check if LOS is valid from castCell to targetCell after inversion.
-	 * Uses DDA to trace the line and checks for blockers:
-	 * - Walls block LOS
-	 * - Entities block LOS (except self and swapTarget who moved)
-	 * - swapTarget at their NEW position (swapTargetNewCell) blocks LOS
+	 * Unified LOS check for all tactical movement scenarios.
+	 * Uses DDA to trace the line and checks for blockers.
 	 *
 	 * @param castCell Cell we're casting from
 	 * @param targetCell Cell we're targeting
-	 * @param swapTarget Entity that swapped (ignore at original position)
-	 * @param swapTargetNewCell Where swapTarget is now (check as blocker)
+	 * @param ignoreEntity Entity to ignore in Board.entityCells (e.g., target being moved)
+	 * @param ignoreCell Cell to skip entirely (simulated entity position in combos)
+	 * @param blockCell Cell that explicitly blocks (swapped entity's new position)
 	 * @return true if LOS is clear, false if blocked
 	 */
-	static boolean _hasValidLOS(Cell castCell, Cell targetCell, Entity swapTarget, Cell swapTargetNewCell) {
-		// Same cell = always valid
+	static boolean _checkLOS(Cell castCell, Cell targetCell, Entity? ignoreEntity, Cell? ignoreCell, Cell? blockCell) {
 		if (castCell == targetCell) return true
 
-		// Get cells on the line (cached DDA)
 		Array<Cell> line = _getCellsLineOfSight(castCell, targetCell)
 
-		// Check each cell on the line (skip endpoints)
 		for (Cell c in line) {
 			if (c == castCell || c == targetCell) continue
+
+			// Skip simulated entity position (combo sequences)
+			if (ignoreCell != null && c == ignoreCell!) continue
 
 			// Wall blocks LOS
 			if (c.isWall) return false
 
-			// Swapped entity at new position blocks LOS
-			if (c == swapTargetNewCell) return false
+			// Explicit blocker cell (swapped entity at new position)
+			if (blockCell != null && c == blockCell!) return false
 
-			// Other entities block LOS (except self and swapTarget who moved)
+			// Other entities block LOS (not self, not ignoreEntity)
 			Entity? entityOnCell = Board.entityCells[c]
-			if (entityOnCell != null && entityOnCell != Fight.self && entityOnCell != swapTarget) {
+			if (entityOnCell != null && entityOnCell != Fight.self && entityOnCell != ignoreEntity) {
 				return false
 			}
 		}
-
 		return true
 	}
 

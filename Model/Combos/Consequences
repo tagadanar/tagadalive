@@ -66,8 +66,8 @@ class Consequences {
 	Set<Cell> _newObstacles = <>    // Cells blocked by swapped entities
 	Set<Cell> _freedCells = <>       // Cells freed (we moved there, now walkable)
 
-	// Inversion candidate (set after Action construction for later reference)
-	InversionCandidate? invCandidate = null
+	// Movement candidate (set after Action construction for swap/attract/push scoring)
+	MovementCandidate? movementCandidate = null
 
 	// ════════════════════════════════════════════════════════════════════════
 	// EFFECT VALUE TRACKING
@@ -298,8 +298,11 @@ class Consequences {
 				}
 				real ratioDmg = action.item.isAOE ? 1-(0.2*getCellDistance(aoeCenterCell.id, targetCellId)) : 1.0
 				if (ratioDmg <= 0) {
-					debugE('Bug in Consequences: ratioDmg<=0 for target ' + target + ' at cell ' + targetCellId)
-					debugE(action)
+					// Skip warning for tactical items (grapple/boxing) - they get re-processed with overrideTargets
+					if (!action.item.isTactical) {
+						debugE('Bug in Consequences: ratioDmg<=0 for target ' + target + ' at cell ' + targetCellId)
+						debugE(action)
+					}
 					continue
 				}
 				this.updateConsequences(effect, Fight.self, target, ratioDmg)

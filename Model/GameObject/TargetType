@@ -122,8 +122,15 @@ class TargetType {
 			// else everything should be on false for .NONE
 			debugE("Strange behavior in TargetType, should never get there")
 		}
-		
-		
+
+		// For modifCaster effects (e.g., CHIP_VAMPIRIZATION), the effect applies to SELF
+		// but we need to TARGET based on the bitmask to count targets for multiplier.
+		// The bitmask should EXPAND targeting, not just filter it.
+		// Example: Vampirization is HEAL (normally ALLIES) but targets ENEMIES to count them.
+		if (effect.modifiers & EFFECT_MODIFIER_ON_CASTER) {
+			if (effect.targets & EFFECT_TARGET_ENEMIES) this.enemies = true
+			if (effect.targets & EFFECT_TARGET_ALLIES) this.allies = true
+		}
 
 		if(!(effect.targets & EFFECT_TARGET_ALLIES)) this.allies = false
 		if(!(effect.targets & EFFECT_TARGET_ENEMIES)) this.enemies = false

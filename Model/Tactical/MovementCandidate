@@ -1,0 +1,199 @@
+/*
+ * MovementCandidate - Unified representation for position-changing effects
+ *
+ * Handles all tactical chips that move entities:
+ *   - EFFECT_INVERT (CHIP_INVERSION): Swap positions with any entity
+ *   - EFFECT_INVERT (CHIP_REPOTTING): Swap positions with allied bulb (deals damage)
+ *   - EFFECT_ATTRACT (CHIP_GRAPPLE): Pull target toward caster
+ *   - EFFECT_PUSH (CHIP_BOXING_GLOVE): Push target away from caster
+ *
+ * Position semantics:
+ *   - Swap effects: selfNewCell = targetCell, targetNewCell = fromCell
+ *   - Attract/Push: selfNewCell = fromCell (caster stays), targetNewCell = computed destination
+ */
+class MovementCandidate {
+	integer effectType      // EFFECT_INVERT, EFFECT_ATTRACT, or EFFECT_PUSH
+	Item item               // The chip used (CHIP_INVERSION, CHIP_GRAPPLE, etc.)
+	Cell fromCell           // Cell to cast from
+	Entity target           // Entity being affected
+	Cell targetCell         // Target's current cell (before movement)
+	Cell selfNewCell        // Where self ends up after effect
+	Cell targetNewCell      // Where target ends up after effect
+	integer mpCost          // MP to reach fromCell (0 if already in range)
+	real score              // Tactical value of this movement
+	integer extraDmg        // Collateral damage (repotting bulb damage, push wall crash)
+
+	constructor(
+		integer effectType,
+		Item item,
+		Cell fromCell,
+		Entity target,
+		Cell targetCell,
+		Cell selfNewCell,
+		Cell targetNewCell,
+		integer mpCost,
+		real score,
+		integer extraDmg = 0
+	) {
+		this.effectType = effectType
+		this.item = item
+		this.fromCell = fromCell
+		this.target = target
+		this.targetCell = targetCell
+		this.selfNewCell = selfNewCell
+		this.targetNewCell = targetNewCell
+		this.mpCost = mpCost
+		this.score = score
+		this.extraDmg = extraDmg
+	}
+
+	/*
+	 * Returns true if this is a swap effect (both caster and target move).
+	 */
+	boolean isSwap() {
+		return this.effectType == EFFECT_INVERT
+	}
+
+	/*
+	 * Returns true if the target actually moves to a different cell.
+	 */
+	boolean targetMoves() {
+		return this.targetCell.id != this.targetNewCell.id
+	}
+
+	/*
+	 * Returns true if self actually moves to a different cell.
+	 */
+	boolean selfMoves() {
+		return this.fromCell.id != this.selfNewCell.id
+	}
+
+	/*
+	 * Returns the movement distance for the target.
+	 */
+	integer getTargetMoveDist() {
+		return getCellDistance(this.targetCell.id, this.targetNewCell.id)
+	}
+
+	/*
+	 * Returns a short label for the effect type.
+	 */
+	string getEffectLabel() {
+		if (this.effectType == EFFECT_INVERT) return "SWAP"
+		if (this.effectType == EFFECT_ATTRACT) return "PULL"
+		if (this.effectType == EFFECT_PUSH) return "PUSH"
+		return "MOVE"
+	}
+
+	string string() {
+		string label = this.getEffectLabel()
+		string targetTag = this.target.isFriend ? "ALLY" : "ENEMY"
+		string dmgStr = this.extraDmg > 0 ? " dmg=" + this.extraDmg : ""
+		return "<" + label + " from c" + this.fromCell.id + " -> " + this.target.name + "[" + targetTag + "]@c" + this.targetCell.id + " => c" + this.targetNewCell.id + " mp=" + this.mpCost + " score=" + round(this.score) + dmgStr + ">"
+	}
+
+	/*
+	 * Factory: Create candidate for CHIP_INVERSION (swap with any entity).
+	 * After swap: self ends at targetCell, target ends at fromCell.
+	 */
+	static MovementCandidate forInversion(
+		Item item,
+		Cell fromCell,
+		Entity target,
+		integer mpCost,
+		real score
+	) {
+		return MovementCandidate(
+			EFFECT_INVERT,
+			item,
+			fromCell,
+			target,
+			target.cell,
+			target.cell,    // selfNewCell = target's position
+			fromCell,       // targetNewCell = our cast position
+			mpCost,
+			score,
+			0
+		)
+	}
+
+	/*
+	 * Factory: Create candidate for CHIP_REPOTTING (swap with allied bulb).
+	 * After swap: self ends at targetCell, bulb ends at fromCell.
+	 * Includes damage dealt to the bulb.
+	 */
+	static MovementCandidate forRepotting(
+		Item item,
+		Cell fromCell,
+		Entity bulb,
+		integer mpCost,
+		integer bulbDamage
+	) {
+		return MovementCandidate(
+			EFFECT_INVERT,
+			item,
+			fromCell,
+			bulb,
+			bulb.cell,
+			bulb.cell,      // selfNewCell = bulb's position
+			fromCell,       // targetNewCell = our cast position
+			mpCost,
+			0,              // Score computed later based on danger evaluation
+			bulbDamage
+		)
+	}
+
+	/*
+	 * Factory: Create candidate for CHIP_GRAPPLE (pull target toward caster).
+	 * After pull: self stays at fromCell, target moves closer.
+	 */
+	static MovementCandidate forAttract(
+		Item item,
+		Cell fromCell,
+		Entity target,
+		Cell destinationCell,
+		integer mpCost,
+		real score
+	) {
+		return MovementCandidate(
+			EFFECT_ATTRACT,
+			item,
+			fromCell,
+			target,
+			target.cell,
+			fromCell,           // selfNewCell = caster stays
+			destinationCell,    // targetNewCell = pulled position
+			mpCost,
+			score,
+			0
+		)
+	}
+
+	/*
+	 * Factory: Create candidate for CHIP_BOXING_GLOVE (push target away).
+	 * After push: self stays at fromCell, target moves away.
+	 * May include wall crash damage if pushed into obstacle.
+	 */
+	static MovementCandidate forPush(
+		Item item,
+		Cell fromCell,
+		Entity target,
+		Cell destinationCell,
+		integer mpCost,
+		real score,
+		integer wallDamage = 0
+	) {
+		return MovementCandidate(
+			EFFECT_PUSH,
+			item,
+			fromCell,
+			target,
+			target.cell,
+			fromCell,           // selfNewCell = caster stays
+			destinationCell,    // targetNewCell = pushed position
+			mpCost,
+			score,
+			wallDamage
+		)
+	}
+}

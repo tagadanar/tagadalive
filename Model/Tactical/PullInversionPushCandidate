@@ -1,0 +1,107 @@
+/*
+ * PullInversionPushCandidate - 3-action combo for maximum enemy displacement
+ *
+ * Sequence:
+ * 1. Grapple: Pull enemy toward us (toward ally barycenter)
+ * 2. Inversion: Swap positions with enemy (enemy now at our cast position)
+ * 3. Move 1 cell back (to reach boxing minRange 2)
+ * 4. Boxing Glove: Push enemy further toward ally barycenter
+ *
+ * Position trace:
+ *   - We move to G (grapple cast position, toward ally barycenter from enemy)
+ *   - Grapple: enemy moves from E to E' (adjacent to G)
+ *   - Inversion: we swap with enemy, we go to E', enemy goes to G
+ *   - Move: we step 1 cell back from E' to P (to reach minRange 2 from G)
+ *   - Push: from P we push enemy at G further toward ally barycenter
+ */
+class PullInversionPushCandidate {
+
+	// Items used (all 3 required)
+	Item grappleItem
+	Item inversionItem
+	Item boxingItem
+
+	// Target entity
+	Entity target
+
+	// Cast positions
+	Cell grappleFromCell      // Where to cast grapple (= where enemy ends up after inversion)
+	Cell inversionTargetCell  // Enemy position when we cast inversion (= afterGrappleCell)
+	Cell pushFromCell         // Where to cast push (1 cell back from afterGrapple)
+
+	// Target positions through the combo
+	Cell originalCell         // Enemy starting position
+	Cell afterGrappleCell     // Enemy position after grapple (adjacent to grappleFrom)
+	Cell afterInversionCell   // Enemy position after inversion (= grappleFromCell)
+	Cell finalCell            // Enemy final position after push
+
+	// Costs
+	integer grappleMP         // MP to reach grapple cast position
+	integer transitionMP      // MP to move from afterGrapple to pushFromCell (usually 1)
+	integer totalMP           // grappleMP + transitionMP
+	integer totalTP           // grappleItem.cost + inversionItem.cost + boxingItem.cost
+
+	// Tactical value
+	real score
+
+	/*
+	 * Constructor
+	 */
+	constructor(
+		Item _grappleItem,
+		Item _inversionItem,
+		Item _boxingItem,
+		Entity _target,
+		Cell _grappleFrom,
+		Cell _pushFrom,
+		Cell _original,
+		Cell _afterGrapple,
+		Cell _final,
+		integer _grappleMP,
+		integer _transitionMP,
+		real _score
+	) {
+		this.grappleItem = _grappleItem
+		this.inversionItem = _inversionItem
+		this.boxingItem = _boxingItem
+		this.target = _target
+		this.grappleFromCell = _grappleFrom
+		this.inversionTargetCell = _afterGrapple  // We target enemy at afterGrapple for inversion
+		this.pushFromCell = _pushFrom             // 1 cell back from afterGrapple
+		this.originalCell = _original
+		this.afterGrappleCell = _afterGrapple
+		this.afterInversionCell = _grappleFrom    // Enemy swaps to our position
+		this.finalCell = _final
+		this.grappleMP = _grappleMP
+		this.transitionMP = _transitionMP
+		this.totalMP = _grappleMP + _transitionMP
+		this.totalTP = _grappleItem.cost + _inversionItem.cost + _boxingItem.cost
+		this.score = _score
+	}
+
+	/*
+	 * Get total distance moved toward destination (cells)
+	 */
+	integer getTotalMovement() {
+		return getCellDistance(originalCell.id, finalCell.id)
+	}
+
+	/*
+	 * Check if combo is affordable with current resources
+	 */
+	boolean isAffordable(integer availableTP, integer availableMP) {
+		return availableTP >= totalTP && availableMP >= totalMP
+	}
+
+	/*
+	 * String representation for debugging
+	 */
+	string toString() {
+		return "PullInvPush[" + target.name +
+			" c" + originalCell.id + "→c" + afterGrappleCell.id +
+			"→c" + afterInversionCell.id + "→c" + finalCell.id +
+			" grapple@c" + grappleFromCell.id + " push@c" + pushFromCell.id +
+			" MP=" + totalMP + " TP=" + totalTP +
+			" score=" + round(score) + "]"
+	}
+}

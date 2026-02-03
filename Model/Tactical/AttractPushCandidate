@@ -1,0 +1,95 @@
+/*
+ * AttractPushCandidate - Combo candidate for grapple + boxing glove sequence
+ *
+ * Represents a two-action combo:
+ * 1. Grapple (attract) target toward ally barycenter
+ * 2. Boxing glove (push) target further toward ally barycenter
+ *
+ * This requires repositioning between the two casts:
+ * - Cast grapple from direction of ally barycenter (pull toward us)
+ * - Move to opposite side of target's new position
+ * - Cast boxing glove (push away from us = toward ally barycenter)
+ */
+class AttractPushCandidate {
+
+	// Items used
+	Item grappleItem
+	Item boxingItem
+
+	// Target entity
+	Entity target
+
+	// Cast positions
+	Cell grappleFromCell    // Where to cast grapple from
+	Cell boxingFromCell     // Where to cast boxing glove from (after repositioning)
+
+	// Target positions through the combo
+	Cell originalCell       // Target's starting position
+	Cell afterGrappleCell   // Target's position after grapple (intermediate)
+	Cell finalCell          // Target's final position after push
+
+	// Costs
+	integer grappleMP       // MP to reach grapple cast position
+	integer transitionMP    // MP to move from grapple position to boxing position
+	integer totalMP         // grappleMP + transitionMP
+	integer totalTP         // grappleItem.cost + boxingItem.cost
+
+	// Tactical value
+	real score
+
+	/*
+	 * Constructor
+	 */
+	constructor(
+		Item _grappleItem,
+		Item _boxingItem,
+		Entity _target,
+		Cell _grappleFrom,
+		Cell _boxingFrom,
+		Cell _original,
+		Cell _afterGrapple,
+		Cell _final,
+		integer _grappleMP,
+		integer _transitionMP,
+		real _score
+	) {
+		this.grappleItem = _grappleItem
+		this.boxingItem = _boxingItem
+		this.target = _target
+		this.grappleFromCell = _grappleFrom
+		this.boxingFromCell = _boxingFrom
+		this.originalCell = _original
+		this.afterGrappleCell = _afterGrapple
+		this.finalCell = _final
+		this.grappleMP = _grappleMP
+		this.transitionMP = _transitionMP
+		this.totalMP = _grappleMP + _transitionMP
+		this.totalTP = _grappleItem.cost + _boxingItem.cost
+		this.score = _score
+	}
+
+	/*
+	 * Get total distance moved toward destination (cells)
+	 */
+	integer getTotalMovement() {
+		return getCellDistance(originalCell.id, finalCell.id)
+	}
+
+	/*
+	 * Check if combo is affordable with current resources
+	 */
+	boolean isAffordable(integer availableTP, integer availableMP) {
+		return availableTP >= totalTP && availableMP >= totalMP
+	}
+
+	/*
+	 * String representation for debugging
+	 */
+	string toString() {
+		return "AttractPush[" + target.name +
+			" c" + originalCell.id + "→c" + afterGrappleCell.id + "→c" + finalCell.id +
+			" grapple@c" + grappleFromCell.id + " box@c" + boxingFromCell.id +
+			" MP=" + totalMP + " TP=" + totalTP +
+			" score=" + round(score) + "]"
+	}
+}

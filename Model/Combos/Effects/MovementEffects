@@ -29,18 +29,27 @@ Consequences.registerHandlers([
 
 		// Score from pre-computed candidate (ally damage delta + vulnerability impact)
 		// This is the full tactical value of the position swap
-		if (conseq.invCandidate != null) {
-			conseq.score += conseq.invCandidate!.score
+		if (conseq.movementCandidate != null) {
+			conseq.score += conseq.movementCandidate!.score
 		}
 	},
 
 	EFFECT_PUSH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Pushes target away from caster
-		// Could deal damage if pushed into obstacle
+		// Track target's new position and add score from pre-computed candidate
+		if (conseq.movementCandidate != null) {
+			conseq.score += conseq.movementCandidate!.score
+			// TODO: Track target position change for subsequent action planning
+		}
 	},
 
 	EFFECT_ATTRACT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Pulls target toward caster
+		// Track target's new position and add score from pre-computed candidate
+		if (conseq.movementCandidate != null) {
+			conseq.score += conseq.movementCandidate!.score
+			// TODO: Track target position change for subsequent action planning
+		}
 	},
 
 	EFFECT_REPEL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {

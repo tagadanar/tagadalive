@@ -29,6 +29,7 @@ class BattleState {
 	static boolean enemyHasSnc = false // any enemy has SNC >= 200 (for dmgReturn value)
 	static boolean allyHasStr = false  // any ally has STR >= 100 (for vuln value)
 	static boolean allyHasScience = false // any ally has SNC >= 200 (for rel vuln value)
+	static real allyLeekMeanStr = 0.0 // mean STR of ally leeks (for enemy vuln scaling)
 
 	// === Global State Ratios ===
 	static real ratioHP = 1.0    // sum(ally life) / sum(enemy life)
@@ -73,6 +74,7 @@ class BattleState {
 		countStrBulbs = 0
 		allyHasStr = false
 		allyHasScience = false
+		allyLeekMeanStr = 0
 		enemyHasStr = false
 		enemyHasMgc = false
 		enemyHasSnc = false
@@ -84,9 +86,10 @@ class BattleState {
 		maxAllyMaxHP = 0
 
 		// === Combined ally loop ===
-		// Handles: bulb counting, allyHasStr flag, WSD/RST chips
+		// Handles: bulb counting, allyHasStr flag, leek STR mean, WSD/RST chips
 		real sumAllyLife = 0.0
 		integer allyLeekCount = 0
+		integer sumAllyLeekStr = 0
 
 		for (Entity entity in Fight.getAlliesAlive()) {
 			// Count bulb types
@@ -161,10 +164,11 @@ class BattleState {
 			rstReadyChips[entityId] = rstCount
 			agiReadyChips[entityId] = agiCount
 
-			// For leeks only: compute ratios and maxHP range
+			// For leeks only: compute ratios, maxHP range, and mean STR
 			if (!entity.isBulb) {
 				sumAllyLife += entity.life
 				allyLeekCount++
+				sumAllyLeekStr += entity.str
 				if (entity.totalLife < minAllyMaxHP) minAllyMaxHP = entity.totalLife
 				if (entity.totalLife > maxAllyMaxHP) maxAllyMaxHP = entity.totalLife
 			}
@@ -196,9 +200,10 @@ class BattleState {
 			}
 		}
 
-		// Compute ratios
+		// Compute ratios and mean STR
 		ratioHP = (sumEnemyLife > 0) ? sumAllyLife / sumEnemyLife : 1.0
 		ratioCount = (enemyLeekCount > 0) ? (allyLeekCount * 1.0) / enemyLeekCount : 1.0
+		allyLeekMeanStr = (allyLeekCount > 0) ? sumAllyLeekStr / allyLeekCount : 0
 
 		// Cache enemy turn positions relative to self (0 = plays first after self)
 		enemyTurnPosition = [:]
