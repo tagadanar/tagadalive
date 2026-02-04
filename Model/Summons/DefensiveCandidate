@@ -1,0 +1,22 @@
+/*
+ * DefensiveCandidate - Represents a safe spawn cell for defensive summons or resurrection.
+ * Prioritizes low danger, then low MP cost.
+ */
+class DefensiveCandidate {
+	Cell spawnCell      // Where entity spawns
+	Cell fromCell       // Where to cast from
+	integer mpCost      // MP to reach fromCell
+	real danger         // Danger at spawnCell
+
+	constructor(Cell spawnCell, Cell fromCell, integer mpCost, real danger) {
+		this.spawnCell = spawnCell
+		this.fromCell = fromCell
+		this.mpCost = mpCost
+		this.danger = danger
+	}
+
+	string() {
+		return "DefensiveCandidate(c" + spawnCell.id + " from c" + fromCell.id +
+		       " mp=" + mpCost + " danger=" + round(danger) + ")"
+	}
+}

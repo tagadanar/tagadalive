@@ -118,6 +118,21 @@ class Combo {
 				}
 			}
 
+			// Handle resurrection BEFORE summons (resurrection has isSummon=true but needs special API)
+			if (action.item.id == CHIP_RESURRECTION) {
+				if (Fight.resurrectTargetId == null) {
+					debugW("Resurrect action but Fight.resurrectTargetId is null!")
+					continue
+				}
+				integer resResult = resurrect(Fight.resurrectTargetId!, action.to.id)
+				if (resResult <= 0) {
+					debugW("Resurrect failed: entity=" + Fight.resurrectTargetId! + " cell=" + action.to.id + " result=" + resResult)
+				}
+				Benchmark.log("RESURRECT>entity" + Fight.resurrectTargetId! + ">c" + action.to.id)
+				Fight.resurrectTargetId = null  // Clear after use
+				continue
+			}
+
 			// Handle summons
 			if (action.item.isSummon) {
 				// Delayed summon: to == Fight.selfCell means spawn after final position

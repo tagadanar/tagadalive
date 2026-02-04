@@ -470,6 +470,124 @@ class MapSummon {
 		return bestCell
 	}
 
+	/*
+	 * Find safe spawn cells for defensive summons or resurrection.
+	 * Prioritizes low danger, then low MP cost.
+	 * Only checks cells within chip range from reachable positions.
+	 *
+	 * @param item The summon/resurrection chip
+	 * @param maxCandidates Maximum candidates to return
+	 * @return Array<DefensiveCandidate> sorted by danger ASC, then mpCost ASC
+	 */
+	static Array<DefensiveCandidate> getDefensiveCandidates(Item item, integer maxCandidates) {
+		Map<Cell, integer> reachable = Fight.self.reachableCells
+		Cell selfCell = Fight.self.cell
+
+		// Track best (lowest cost) fromCell for each spawnCell
+		Map<integer, Cell> bestFromCell = [:]
+		Map<integer, integer> bestCost = [:]
+		Map<integer, Cell> spawnCellRefs = [:]
+
+		// Check cells in range from current position (cost = 0)
+		MapSummon._addTargetsInRange(item, selfCell, 0, bestFromCell, bestCost, spawnCellRefs)
+
+		// Check cells in range from each reachable position
+		for (Cell fromCell : integer cost in reachable) {
+			MapSummon._addTargetsInRange(item, fromCell, cost, bestFromCell, bestCost, spawnCellRefs)
+		}
+
+		// Build candidates with danger scores
+		Array<DefensiveCandidate> candidates = []
+		for (integer cellId : Cell fromCell in bestFromCell) {
+			Cell spawnCell = spawnCellRefs[cellId]!
+			integer cost = bestCost[cellId]!
+
+			Danger d = MapDanger.getCellDanger(spawnCell)
+			real danger = d.dmg + d.psnDmg
+
+			push(candidates, DefensiveCandidate(spawnCell, fromCell, cost, danger))
+		}
+
+		candidates = arraySort(candidates, (DefensiveCandidate a, DefensiveCandidate b) -> integer {
+			if (a.danger < b.danger) return -1
+			if (a.danger > b.danger) return 1
+			return a.mpCost - b.mpCost
+		}) as Array<DefensiveCandidate>
+
+		integer n = min(maxCandidates, count(candidates))
+		Array<DefensiveCandidate> result = []
+		for (integer i = 0; i < n; i++) {
+			push(result, candidates[i])
+		}
+		return result
+	}
+
+	/*
+	 * Helper: add empty cells within item range from a position.
+	 * Updates maps only if this fromCell has lower cost than existing.
+	 */
+	static void _addTargetsInRange(Item item, Cell fromCell, integer cost,
+			Map<integer, Cell> bestFromCell, Map<integer, integer> bestCost, Map<integer, Cell> spawnCellRefs) {
+		integer minR = item.minRange
+		integer maxR = item.maxRange
+
+		for (integer dx = -maxR; dx <= maxR; dx++) {
+			for (integer dy = -maxR; dy <= maxR; dy++) {
+				integer dist = abs(dx) + abs(dy)
+				if (dist < minR || dist > maxR) continue
+
+				integer tx = fromCell.x + dx
+				integer ty = fromCell.y + dy
+				Cell? targetCell = Board.cellsXY[tx] != null ? Board.cellsXY[tx]![ty] : null
+				if (targetCell == null) continue
+				if (targetCell!.isWall) continue
+				if (Board.entityCells[targetCell!] != null) continue  // Must be empty
+
+				// Check LOS if required
+				if (item.needLOS && !lineOfSight(fromCell.id, targetCell!.id, [Fight.self.id])) continue
+
+				integer cellId = targetCell!.id
+				integer? existing = bestCost[cellId]
+				if (existing == null || cost < existing!) {
+					bestFromCell[cellId] = fromCell
+					bestCost[cellId] = cost
+					spawnCellRefs[cellId] = targetCell!
+				}
+			}
+		}
+	}
+
+	/*
+	 * Get the best resurrection candidate for the current dead target.
+	 * Returns null if no safe cell exists or resurrection not ready.
+	 *
+	 * Safety: danger < newMaxHP * 0.5 (entity survives with some HP)
+	 *
+	 * @return PendingResurrect with best spawn cell, or null
+	 */
+	static PendingResurrect? getResurrectionCandidate() {
+		if (!Fight.resurrectionReady) return null
+		if (Fight.resurrectTargetId == null) return null
+		if (Fight.resurrectionItem == null) return null
+
+		integer deadId = Fight.resurrectTargetId!
+		integer? originalMaxHP = getTotalLife(deadId)
+		if (originalMaxHP == null || originalMaxHP! <= 0) return null
+
+		integer newMaxHP = originalMaxHP! / 2
+		integer dangerThreshold = newMaxHP / 2  // danger < newMaxHP * 0.5
+
+		Array<DefensiveCandidate> candidates = MapSummon.getDefensiveCandidates(Fight.resurrectionItem!, 10)
+
+		for (DefensiveCandidate c in candidates) {
+			if (c.danger < dangerThreshold) {
+				return PendingResurrect(deadId, originalMaxHP!, c.spawnCell, c.fromCell)
+			}
+		}
+
+		return null  // No safe cell found
+	}
+
 	// Map bulb type to single letter for display
 	static Map<integer, string> BULB_LETTERS = [
 		Entity.BULB_LIGHTNING: "L",
@@ -500,6 +618,30 @@ class MapSummon {
 			mark(best.cell.id, getColor(255, 165, 0))
 			markText(best.cell.id, letter + ":" + round(best.score))
 		}
+	}
+
+	/*
+	 * Display resurrection candidate on the map (for debugging)
+	 * Color: magenta = spawn cell, cyan = cast from cell
+	 */
+	static void showResurrectionCandidate() {
+		debug("RESU SHOW: ready=" + Fight.resurrectionReady + " targetId=" + Fight.resurrectTargetId)
+
+		PendingResurrect? candidate = MapSummon.getResurrectionCandidate()
+		if (candidate == null) {
+			debug("RESU SHOW: no candidate found")
+			return;
+		}
+
+		// Spawn cell - bright magenta
+		mark(candidate!.spawnCell.id, getColor(255, 0, 255))
+		markText(candidate!.spawnCell.id, "RESU:" + candidate!.entityId)
+
+		// Cast from cell - cyan
+		mark(candidate!.fromCell.id, getColor(0, 255, 255))
+		markText(candidate!.fromCell.id, "FROM")
+
+		debug("RESU SHOW: spawn=c" + candidate!.spawnCell.id + " from=c" + candidate!.fromCell.id + " hp=" + candidate!.currentHP + "/" + candidate!.newMaxHP)
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -628,8 +770,9 @@ class MapSummon {
 		for (Entity target in targets) {
 			// Skip self for ally-targeting bulbs (defensive bulbs use separate self-cast system)
 			if (targetsAllies && target.id == Fight.self.id) continue
-			// Skip invincible enemies
+			// Skip invincible enemies and Fennel puzzle entities
 			if (!targetsAllies && target.isInvincible) continue
+			if (!targetsAllies && BossFennel.shouldNotTarget(target)) continue
 
 			// Calculate knapsack value based on mode
 			real value = 0

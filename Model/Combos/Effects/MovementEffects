@@ -62,7 +62,10 @@ Consequences.registerHandlers([
 	},
 
 	EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		// Resurrects a dead entity
-		// Would need similar evaluation to SUMMON
+		// Resurrection is inverse of ally death: +KILL_VALUE
+		// Only score if we have a valid resurrection target
+		if (Fight.resurrectTargetId != null) {
+			conseq.score += ScoringConfig.KILL_VALUE
+		}
 	}
 ])

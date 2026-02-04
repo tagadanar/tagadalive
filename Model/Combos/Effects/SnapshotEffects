@@ -320,7 +320,11 @@ EffectCache.registerHandlers([
 	},
 
 	EFFECT_RESURRECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
-		// Resurrection is complex - skip in snapshot
+		// Resurrection is inverse of ally death: +KILL_VALUE
+		// Only score if we have a valid resurrection target
+		if (Fight.resurrectTargetId != null) {
+			snap.effectScore += ScoringConfig.KILL_VALUE
+		}
 	},
 
 	EFFECT_KILL: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {

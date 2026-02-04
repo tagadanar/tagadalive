@@ -34,6 +34,10 @@ class Fight {
 	// Boxing glove availability for pushing entities away (computed in refresh)
 	static boolean boxingGloveReady = false
 	static Item? boxingGloveItem = null
+	// Resurrection availability for reviving dead entities (computed in refresh)
+	static boolean resurrectionReady = false
+	static Item? resurrectionItem = null
+	static integer? resurrectTargetId = null  // Entity ID to resurrect (set by caller, used by Combo.play)
 	// Summon availability for operation buffer calculation (computed in refresh)
 	static boolean canSummon = false
 
@@ -96,6 +100,8 @@ class Fight {
 		grappleItem = null
 		boxingGloveReady = false
 		boxingGloveItem = null
+		resurrectionReady = false
+		resurrectionItem = null
 		canSummon = false
 		for (Item item in self.items) {
 			if (item.id == CHIP_LIBERATION && getCooldown(item.id, self.id) == 0) {
@@ -121,6 +127,21 @@ class Fight {
 			if (item.id == CHIP_BOXING_GLOVE && getCooldown(item.id, self.id) == 0) {
 				boxingGloveReady = true
 				boxingGloveItem = item
+			}
+			if (item.id == CHIP_RESURRECTION && getCooldown(item.id, self.id) == 0) {
+				resurrectionReady = true
+				resurrectionItem = item
+				// Find best resurrection candidate: dead leek with highest maxHP
+				resurrectTargetId = null
+				integer bestMaxHP = 0
+				for (integer deadId in getDeadAllies()) {
+					if (isSummon(deadId)) continue  // Skip bulbs, only leeks
+					integer? maxHP = getTotalLife(deadId)
+					if (maxHP != null && maxHP! > bestMaxHP) {
+						bestMaxHP = maxHP!
+						resurrectTargetId = deadId
+					}
+				}
 			}
 			if (item.isSummon && getCooldown(item.id, self.id) == 0 && self.tp >= item.cost) {
 				canSummon = true

@@ -1,0 +1,92 @@
+/*
+ * PendingResurrect - Tracks a leek that will be resurrected, for accurate buff scoring.
+ * Stores modified HP values and tracks applied heals/shields.
+ *
+ * Resurrection rules:
+ * - newMaxHP = originalMaxHP / 2
+ * - currentHP = newMaxHP / 2 = originalMaxHP / 4
+ */
+class PendingResurrect {
+	integer entityId          // Dead entity ID
+	integer originalMaxHP     // Original max HP before death
+	integer newMaxHP          // Max HP after resurrection (originalMaxHP / 2)
+	integer currentHP         // Current HP (starts at newMaxHP / 2)
+	integer absShield         // Absolute shield accumulated
+	integer relShield         // Relative shield accumulated
+	Cell spawnCell            // Where entity will resurrect
+	Cell fromCell             // Where to cast resurrection from
+
+	constructor(integer entityId, integer originalMaxHP, Cell spawnCell, Cell fromCell) {
+		this.entityId = entityId
+		this.originalMaxHP = originalMaxHP
+		this.newMaxHP = originalMaxHP / 2
+		this.currentHP = this.newMaxHP / 2
+		this.absShield = 0
+		this.relShield = 0
+		this.spawnCell = spawnCell
+		this.fromCell = fromCell
+	}
+
+	PendingResurrect clone() {
+		PendingResurrect c = PendingResurrect(this.entityId, this.originalMaxHP, this.spawnCell, this.fromCell)
+		c.currentHP = this.currentHP
+		c.absShield = this.absShield
+		c.relShield = this.relShield
+		return c
+	}
+
+	/*
+	 * Add healing to the resurrected entity.
+	 * Capped at newMaxHP.
+	 */
+	integer addHeal(integer amount) {
+		integer oldHP = this.currentHP
+		this.currentHP = min(this.currentHP + amount, this.newMaxHP)
+		return this.currentHP - oldHP
+	}
+
+	/*
+	 * Add absolute shield.
+	 */
+	void addAbsShield(integer amount) {
+		this.absShield += amount
+	}
+
+	/*
+	 * Add relative shield.
+	 */
+	void addRelShield(integer amount) {
+		this.relShield += amount
+	}
+
+	/*
+	 * Get effective HP (current HP + shields).
+	 */
+	integer getEffectiveHP() {
+		return this.currentHP + this.absShield
+	}
+
+	/*
+	 * Get coefficient for a stat.
+	 * Uses ENTITY_LEEK coefficients since resurrected entities are always leeks.
+	 */
+	real getCoef(integer stat) {
+		Map<integer, real>? coefs = EntityCoefs.baseCoefs[ENTITY_LEEK]
+		if (coefs == null) return 1.0
+		real? val = coefs![stat]
+		return val != null ? val! : 1.0
+	}
+
+	/*
+	 * Get danger threshold for safe spawn.
+	 * Entity should survive if danger < this value.
+	 */
+	integer getDangerThreshold() {
+		return this.newMaxHP / 2  // danger < newMaxHP * 0.5
+	}
+
+	string() {
+		return "PendingResurrect(e" + entityId + " hp=" + currentHP + "/" + newMaxHP +
+		       " abs=" + absShield + " rel=" + relShield + " c" + spawnCell.id + ")"
+	}
+}

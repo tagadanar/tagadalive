@@ -34,6 +34,8 @@ include('Model/Summons/BulbProfile')
 include('Model/Summons/BulbSimulator')
 include('Model/Summons/SummonCandidate')
 include('Model/Summons/PendingBulb')
+include('Model/Summons/PendingResurrect')
+include('Model/Summons/DefensiveCandidate')
 
 // Tactical models (Movement effects: swap, attract, push)
 include('Model/Tactical/MovementCandidate')
@@ -101,6 +103,7 @@ include('HiddenKnowledges/ScoringConfig')
 include('HiddenKnowledges/EntityCoefs')
 include('HiddenKnowledges/ScoringModifiers')
 include('HiddenKnowledges/Scoring')
+include('HiddenKnowledges/BossFennel')
 
 // ────────────────────────────────────────────────────────────────────────────
 // EFFECT CACHE: Caches EffectSnapshots for action pool creation
@@ -155,6 +158,17 @@ function init() {
 	Benchmark.start('Map.refresh')
 	Board.refresh()  // Note: Board.refresh() internally calls Fight.refreshEntities()
 	Benchmark.stop('Map.refresh')
+
+	// BossFennel: detect boss fight, manage coefs, execute puzzle actions
+	Benchmark.start('BossFennel')
+	BossFennel.refresh()
+	if (BossFennel.execute()) {
+		// Puzzle action taken - refresh state
+		Fight.refresh()
+		Board.refresh()
+		BossFennel.refresh()
+	}
+	Benchmark.stop('BossFennel')
 
 	Benchmark.start('Scoring.refresh')
 	Scoring.refresh()
