@@ -165,20 +165,47 @@ class MapPosition {
 				_gravity_coef[centerCell!] = ScoringConfig.W_GRAVITY_CENTER
 			}
 		}
+
+		// Fennel King boss: heavy gravity toward graal for positioning
+		if (BossFennel.isActive() && !BossFennel.isPuzzleSolved()) {
+			Entity? graal = BossFennel.getGraal()
+			if (graal != null) {
+				_gravity_distance[graal!.cell] = 1  // Get close for casting
+				_gravity_coef[graal!.cell] = BossFennel.W_GRAVITY_GRAAL
+			}
+		}
+
+		// Chests: gravity to collect loot
+		for (Entity enemy in Fight.getEnemiesAlive()) {
+			if (enemy.entityType == ENTITY_CHEST) {
+				_gravity_distance[enemy.cell] = 1  // Get adjacent to open
+				_gravity_coef[enemy.cell] = ScoringConfig.W_GRAVITY_CHEST
+			}
+		}
 	}
 
 	/*
 	 * Cache nearest enemy (leek, mob, or turret - not bulb or chest)
+	 * During Fennel puzzle: calculate from graal position instead of self
 	 */
 	static void _refreshNearestEnemy() {
 		_nearest_enemy = null
 		integer nearestDist = 999
 
+		// During Fennel puzzle, find enemy nearest to graal (not self)
+		Cell referenceCell = Fight.self.cell
+		if (BossFennel.isActive() && !BossFennel.isPuzzleSolved()) {
+			Entity? graal = BossFennel.getGraal()
+			if (graal != null) {
+				referenceCell = graal!.cell
+			}
+		}
+
 		for (Entity e in Fight.getEnemiesAlive()) {
 			// Only consider leeks, mobs, and turrets
 			if (e.entityType == ENTITY_BULB || e.entityType == ENTITY_CHEST) continue
 
-			integer dist = getCellDistance(Fight.self.cell.id, e.cell.id)
+			integer dist = getCellDistance(referenceCell.id, e.cell.id)
 			if (dist < nearestDist) {
 				nearestDist = dist
 				_nearest_enemy = e

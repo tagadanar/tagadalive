@@ -137,8 +137,8 @@ class BulbGreedy {
 				// Skip dead targets (from previous actions in combo)
 				if (parentCsq != null && parentCsq!.isKilled(target)) continue
 
-				// Skip invincible targets
-				if (target.isInvincible) continue
+				// Skip invincible targets and Fennel puzzle entities
+				if (target.isInvincible || BossFennel.shouldNotTarget(target)) continue
 
 				// Find closest reachable cell to use item on target
 				Cell? useCell = BulbGreedy.getClosestUseCell(item, target.cell, reachableCells, currentMP)

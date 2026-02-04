@@ -260,7 +260,7 @@ class ComboExplorer {
 		// For each enemy: try kill focus (with and without Liberation, with and without MP buff)
 		for (Entity enemy in Fight.getEnemiesAlive()) {
 			if (ctx.shouldStop()) break
-			if (enemy.isInvincible) continue
+			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy)) continue
 
 			// Variant A: Max damage on this enemy (no MP buff)
 			ComboExplorer.tryKillTarget(ctx, enemy, null, "T:Kill_" + enemy.name, false)

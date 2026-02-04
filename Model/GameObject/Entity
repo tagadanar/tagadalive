@@ -76,6 +76,8 @@ class Entity {
 	boolean isBulb
 	boolean isStatic = false     // ADD_STATE value 11 - no STATE_STATIC constant in leekwars api
 	boolean isInvincible = false // ADD_STATE value STATE_INVINCIBLE (3)
+	boolean isCrystal = false    // Fennel King boss: crystal that must NOT be damaged
+	boolean isGraal = false      // Fennel King boss: graal that must NOT be moved
 	boolean hasCovid = false     // Has COVID effect active (propagates to nearby entities)
 	boolean canDie = false       // Set by BattleState: danger >= life * CANDIE_THRESHOLD
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
@@ -135,6 +137,10 @@ class Entity {
 		this.turnOrder = getEntityTurnOrder(id)!
 		this.isFriend = isAlly(id)
 		this.isBulb = isSummon(id)!
+		// Fennel King boss: detect crystals by name (must NOT be damaged)
+		this.isCrystal = this.name == "blue_crystal" || this.name == "green_crystal" || this.name == "red_crystal" || this.name == "yellow_crystal"
+		// Fennel King boss: detect graal (must NOT be moved)
+		this.isGraal = this.name == "graal"
 		this.entityType = getType(id)!
 		// Cache extended type (bulb-specific type detection done once here)
 		if (this.isBulb) {
