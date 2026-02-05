@@ -25,6 +25,7 @@ class Consequences {
 	Map<Entity, Map<Item, Array<EffectOverTime>>> _altEffects = [:]
 	Map<Entity, Map<integer, integer>> _effectTypeAlterations = [:]
 	Set<Entity> _killed = <>
+	Map<Entity, integer> _psnPerTurn = [:]  // Accumulated per-turn poison from combo
 
 	// Track which entities have local data (for efficient iteration)
 	Map<Entity, boolean> _localEntities = [:]
@@ -163,6 +164,11 @@ class Consequences {
 		this.pendingResurrect = [:]
 		for (Cell c : PendingResurrect res in consequences.pendingResurrect) {
 			this.pendingResurrect[c] = res.clone()
+		}
+
+		// Propagate poison per-turn tracking
+		for (Entity e : integer v in consequences._psnPerTurn) {
+			this._psnPerTurn[e] = v
 		}
 
 		// Propagate invalidated actions through chain (set once, persists)
@@ -314,6 +320,11 @@ class Consequences {
 
 			for (Entity target in this.targets) {
 				if (this.isKilled(target)) continue
+				// Skip enemy dying from poison overkill (except damage in BR: secure the kill)
+				if (!target.isFriend && target.nextAntidote >= 1) {
+					integer epsl = this.getHP(target) - target.psnTurn - this.getPsnPerTurn(target)
+					if (epsl <= 0 && (!Fight.isBattleRoyale || !action.item.isDamage)) continue
+				}
 				// Skip invincible enemies unless item works on invincible (shackles)
 				if (!target.isFriend && target.isInvincible && !action.item.worksOnInvincible) continue
 				// For overrideTargets (simulated positions), use action.to as target cell
@@ -804,6 +815,14 @@ class Consequences {
 
 	void addRawEnemyDamage(real value) {
 		// No-op in Consequences - only tracked in EffectSnapshot
+	}
+
+	integer getPsnPerTurn(Entity entity) {
+		return _psnPerTurn[entity] != null ? _psnPerTurn[entity]! : 0
+	}
+
+	void addPsnPerTurn(Entity entity, integer value) {
+		this._psnPerTurn[entity] = (this._psnPerTurn[entity] != null ? this._psnPerTurn[entity]! : 0) + value
 	}
 
 	real? getScore(){

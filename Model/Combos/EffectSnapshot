@@ -188,6 +188,9 @@ class EffectSnapshot {
 		this.rawEnemyDamage += value
 	}
 
+	integer getPsnPerTurn(Entity entity) { return 0 }
+	void addPsnPerTurn(Entity entity, integer value) { }
+
 	/*
 	 * Unified interface: Add alteration (alias for addAlteration).
 	 * Used by EffectHandlers for duck-typed context.

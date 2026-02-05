@@ -35,9 +35,10 @@ class BulbSimulator {
 				real dmg = EffectCalc.applyShields(raw, target.relShield, target.absShield)
 				totalDmg += dmg
 			} else if (effect.type == EFFECT_POISON) {
-				// Poison damage: MGC-based, duration from effect
-				// Poison bypasses shields, total damage over duration
+				// Poison damage: MGC-based, duration capped by enemy antidote availability
 				integer dur = effect.duration > 0 ? effect.duration : 2
+				dur = min(dur, max(1, target.nextAntidote))
+				if (dur <= 0) continue
 				real psn = EffectCalc.poisonDamage(effect.avg, stats.mgc, 0, 1.0, dur)
 				totalDmg += psn
 			}

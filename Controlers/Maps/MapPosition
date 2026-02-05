@@ -390,7 +390,8 @@ class MapPosition {
 		}
 
 		// COVID positioning: when self has COVID effect, get close to enemies (spread) and away from allies (protect)
-		if (Fight.self.hasCovid) {
+		// Skip if antidote ready - we'll cure ourselves, no need for spread/protect positioning
+		if (Fight.self.hasCovid && !Fight.antidoteReady) {
 			for (Cell c in cell.getAreaCells(AREA_CIRCLE_2)) {
 				Entity? entity = Board.entityCells[c]
 				if (entity != null && entity! != Fight.self) {

@@ -92,9 +92,20 @@ class EffectHandlers {
 		// Check notReplaceable (e.g., COVID) - skip if target already has this effect
 		if (effect.notReplaceable && hasEffect) return;
 
-		integer value = EffectCalc.poisonDamage(effect.avg, srcMgc, srcPwr, ratio, effect.duration)
-		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
+		// Cap duration by enemy antidote availability (min 1: force antidote use + cooldown)
+		integer duration = effect.duration
+		if (!target.isFriend && target.nextAntidote < duration) {
+			duration = max(1, target.nextAntidote)
+		}
+		if (duration <= 0) return;
+
+		integer value = EffectCalc.poisonDamage(effect.avg, srcMgc, srcPwr, ratio, duration)
+		EffectOverTime eot = EffectOverTime(effect.item, -value, duration, effect.type)
 		ctx.add(target, Stats.HPTIME, eot)
+
+		// Track per-turn poison for overkill detection
+		integer perTurn = round(effect.avg * (1 + srcMgc / 100.0) * ratio * (1 + srcPwr / 100.0))
+		ctx.addPsnPerTurn(target, perTurn)
 
 		// Inline passive for poison taken (target's passives)
 		Map<integer, real> passives = target.passives
@@ -104,7 +115,7 @@ class EffectHandlers {
 		}
 
 		// Erosion (only 1 turn - often antidoted/liberated)
-		integer erosion = EffectCalc.poisonErosion(value, effect.duration)
+		integer erosion = EffectCalc.poisonErosion(value, duration)
 		ctx.add(target, Stats.HPMAX, -erosion)
 		// Inline passive for nova/erosion
 		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
@@ -466,8 +477,6 @@ class EffectHandlers {
 			if (!BattleState.enemyHasStr) duplicateFactor *= 0.1
 			// Shields more valuable if enemy has science (buffs allies, longer fights)
 			if (BattleState.enemyHasSnc) duplicateFactor *= 1.5
-			// Shields very valuable in Battle Royale (survival matters)
-			if (Fight.isBattleRoyale) duplicateFactor *= 2.0
 		} else if (isStrBulb) {
 			integer existingCount = BattleState.countStrBulbs
 			if (existingCount == 0) duplicateFactor = 3.0
@@ -482,6 +491,9 @@ class EffectHandlers {
 			else if (existingCount == 2) duplicateFactor = 0.5
 			else duplicateFactor = 0.1
 		}
+
+		// Bulbs more valuable when no ally leeks (solo summon army)
+		if (BattleState.allyLeekCount <= 1) duplicateFactor *= 2.0
 
 		return totalValue * turnFactor * duplicateFactor
 	}

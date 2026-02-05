@@ -39,12 +39,14 @@ Consequences.registerHandlers([
 	},
 
 	EFFECT_SHACKLE_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if (entityTarget.getCurrentTP(conseq) <= 0) return;
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.TP, eot)
 	},
 
 	EFFECT_SHACKLE_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		if (entityTarget.getCurrentMP(conseq) <= 0) return;
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MP, eot)

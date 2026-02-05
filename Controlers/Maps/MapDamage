@@ -295,7 +295,9 @@ class MapDamage {
 				dmg += tmp > 0 ? tmp : 0
 			}
 			else if (e.type == EFFECT_POISON) {
-				real duration = ScoringConfig.defensive_duration_mitigation[e.duration]!
+				integer effectiveDuration = min(e.duration, max(1, target.nextAntidote))
+				if (effectiveDuration <= 0) continue
+				real duration = ScoringConfig.defensive_duration_mitigation[effectiveDuration]!
 				dmg += e.avgmax * (1 + (allySource.getCurrentMgc(consequences) / 100)) * (1 + (allySource.pwr / 100)) * ratioDmg * duration
 			}
 		}

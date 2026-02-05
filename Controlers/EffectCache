@@ -178,6 +178,8 @@ class EffectCache {
 			// Apply effect to all targets
 			for (Entity target in targets) {
 				if (snap.isKilled(target)) continue
+				// Skip enemy dying from poison (except damage in BR: secure the kill)
+				if (!target.isFriend && target.willBeDead && (!Fight.isBattleRoyale || !item.isDamage)) continue
 				// Skip invincible enemies unless item works on invincible (shackles)
 				if (!target.isFriend && target.isInvincible && !item.worksOnInvincible) continue
 
@@ -234,6 +236,8 @@ class EffectCache {
 			}
 
 			if (snap.isKilled(target)) continue
+			// Skip enemy dying from poison (except damage in BR: secure the kill)
+			if (!target.isFriend && target.willBeDead && (!Fight.isBattleRoyale || !item.isDamage)) continue
 
 			// Calculate damage ratio using SIMULATED target position (not target.cell)
 			real ratioDmg = 1.0
