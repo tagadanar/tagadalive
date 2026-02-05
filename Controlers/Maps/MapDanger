@@ -18,6 +18,14 @@ class MapDanger {
 	// cache pour chaque enemy des maps des cases où il peut tirer
 	// refresh à chaque tour
 	static Map<Entity, Map<Item, Map<Cell, real>>> _map_entity_item_danger = [:] // [e:[item:[cell:ratio]]]
+
+	// Enemy antidote coverage: for each enemy with antidote cd <= 1, which cells they can reach
+	// Only populated when BattleState.allyHasPsn is true
+	static Map<Entity, Map<Cell, real>> _map_enemy_antidote = [:]
+
+	// Enemy liberation coverage: for each enemy with liberation cd <= 1, which cells they can reach
+	// Only populated when BattleState.allyHasRst is true
+	static Map<Entity, Map<Cell, real>> _map_enemy_liberation = [:]
 	
 	/*
 	 * Actualise les informations en fonctions des enemies et alliés encore vivant.
@@ -32,6 +40,8 @@ class MapDanger {
 		_danger = [:]
 		_hash_danger = [:]
 		_map_entity_item_danger = [:]
+		_map_enemy_antidote = [:]
+		_map_enemy_liberation = [:]
 		MapSupport.resetCaches()
 		MapDamage.resetCaches()
 
@@ -75,6 +85,20 @@ class MapDanger {
 		if(getOperations() > dangerBudget){
 			MapDanger._logEarlyExit("Phase1", enemyRound, maxEnemyItems, allySupportRound, maxAllySupport, allyDamageRound, maxAllyDamage, enemies)
 			return
+		}
+
+		// Build enemy antidote maps (only when allies have poison capability)
+		if (BattleState.allyHasPsn) {
+			MapDanger._buildEnemyAntidoteMaps()
+			MapDanger._computeEnemyNextAntidote()
+			for (Entity e in Fight.getEnemiesAlive()) {
+				e.willBeDead = e.psnlife <= 0 && e.nextAntidote >= 1
+			}
+		}
+		// Build enemy liberation maps (only when enemies have STR and allies have RST)
+		if (BattleState.enemyHasStr && BattleState.allyHasRst) {
+			MapDanger._buildEnemyLiberationMaps()
+			MapDanger._computeEnemyNextLiberation()
 		}
 
 		// ═══════════════════════════════════════════════════════════════════
@@ -306,6 +330,161 @@ class MapDanger {
 		return MapDanger._cache_item_targetableCells[item]![cell]!;
 	}
 		
+	/*
+	 * Build antidote coverage maps for enemies with CHIP_ANTIDOTE cd <= 1.
+	 * These enemies can antidote this turn cycle (cd ticks when they play).
+	 * Used for reach-checking in _computeEnemyNextAntidote (nextAntidote=0 case).
+	 * Only called when BattleState.allyHasPsn is true.
+	 */
+	static void _buildEnemyAntidoteMaps() {
+		for (Entity e in Fight.getEnemiesAlive()) {
+			if (e.antidoteCD > 1) continue
+			for (Item item in e.items) {
+				if (item.id == CHIP_ANTIDOTE) {
+					Map<Cell, real> map = [:]
+					for (Cell cell : integer dist in e.reachableCells) {
+						if (dist > e.mp) break
+						Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell)
+						for (Cell c in targetableCells) {
+							if (map[c] == null) {
+								map[c] = 1.0
+							}
+						}
+					}
+					_map_enemy_antidote[e] = map
+					break
+				}
+			}
+		}
+	}
+
+	/*
+	 * Compute nextAntidote for all enemy entities.
+	 * nextAntidote = how many of the target's turns pass before an enemy teammate
+	 * (or itself) can antidote it. Range 0-5 (5 = no antidote available).
+	 *
+	 * Logic per antidoter E relative to target T:
+	 * - E plays before T: turnsForT = max(0, cd - 1), reach check if 0
+	 * - E == T or plays after T: turnsForT = max(1, cd)
+	 *
+	 * For turnsForT == 0, a reach check is applied via the antidote coverage map.
+	 * If unreachable this turn, turnsForT is bumped to 1.
+	 */
+	static void _computeEnemyNextAntidote() {
+		Array<Entity> antidoters = []
+		for (Entity e in Fight.getEnemiesAlive()) {
+			if (e.antidoteCD < 5) push(antidoters, e)
+		}
+		if (count(antidoters) == 0) return;
+
+		for (Entity target in Fight.getEnemiesAlive()) {
+			integer best = 5
+			for (Entity e in antidoters) {
+				integer turnsForT
+				if (e == target) {
+					turnsForT = max(1, e.antidoteCD)
+				} else {
+					boolean playsBefore = false
+					for (Entity ent in target.entitiesWhoPlayBefore) {
+						if (ent == e) {
+							playsBefore = true
+							break
+						}
+					}
+					if (playsBefore) {
+						turnsForT = max(0, e.antidoteCD - 1)
+						if (turnsForT == 0) {
+							Map<Cell, real>? map = _map_enemy_antidote[e]
+							if (map == null || map![target.cell] == null) {
+								turnsForT = 1
+							}
+						}
+					} else {
+						turnsForT = max(1, e.antidoteCD)
+					}
+				}
+				if (turnsForT < best) best = turnsForT
+				if (best == 0) break
+			}
+			target.nextAntidote = best
+		}
+	}
+
+	/*
+	 * Build liberation coverage maps for enemies with CHIP_LIBERATION cd <= 1.
+	 * These enemies can liberate this turn cycle (cd ticks when they play).
+	 * Used for reach-checking in _computeEnemyNextLiberation (nextLiberation=0 case).
+	 * Only called when BattleState.allyHasRst is true.
+	 */
+	static void _buildEnemyLiberationMaps() {
+		for (Entity e in Fight.getEnemiesAlive()) {
+			if (e.liberationCD > 1) continue
+			for (Item item in e.items) {
+				if (item.id == CHIP_LIBERATION) {
+					Map<Cell, real> map = [:]
+					for (Cell cell : integer dist in e.reachableCells) {
+						if (dist > e.mp) break
+						Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell)
+						for (Cell c in targetableCells) {
+							if (map[c] == null) {
+								map[c] = 1.0
+							}
+						}
+					}
+					_map_enemy_liberation[e] = map
+					break
+				}
+			}
+		}
+	}
+
+	/*
+	 * Compute nextLiberation for all enemy entities.
+	 * nextLiberation = how many of the target's turns pass before an enemy teammate
+	 * (or itself) can liberate it. Range 0-6 (6 = no liberation available).
+	 *
+	 * Same turn-order logic as _computeEnemyNextAntidote.
+	 */
+	static void _computeEnemyNextLiberation() {
+		Array<Entity> liberators = []
+		for (Entity e in Fight.getEnemiesAlive()) {
+			if (e.liberationCD < 6) push(liberators, e)
+		}
+		if (count(liberators) == 0) return;
+
+		for (Entity target in Fight.getEnemiesAlive()) {
+			integer best = 6
+			for (Entity e in liberators) {
+				integer turnsForT
+				if (e == target) {
+					turnsForT = max(1, e.liberationCD)
+				} else {
+					boolean playsBefore = false
+					for (Entity ent in target.entitiesWhoPlayBefore) {
+						if (ent == e) {
+							playsBefore = true
+							break
+						}
+					}
+					if (playsBefore) {
+						turnsForT = max(0, e.liberationCD - 1)
+						if (turnsForT == 0) {
+							Map<Cell, real>? map = _map_enemy_liberation[e]
+							if (map == null || map![target.cell] == null) {
+								turnsForT = 1
+							}
+						}
+					} else {
+						turnsForT = max(1, e.liberationCD)
+					}
+				}
+				if (turnsForT < best) best = turnsForT
+				if (best == 0) break
+			}
+			target.nextLiberation = best
+		}
+	}
+
 	static void showDanger(Cell from, integer mpleft, Consequences consequences) {
 		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(from, mpleft, Fight.self.cellsToIgnore)
 		for (Cell c : integer d in reachableCells) {

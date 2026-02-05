@@ -80,7 +80,12 @@ class Entity {
 	boolean isGraal = false      // Fennel King boss: graal that must NOT be moved
 	boolean isFennelKing = false // Fennel King boss: main boss (boosted TP/MP shackle coefs)
 	boolean hasCovid = false     // Has COVID effect active (propagates to nearby entities)
+	integer antidoteCD = 5       // CHIP_ANTIDOTE cooldown (5 = no antidote chip, 0-4 = current cd)
+	integer nextAntidote = 5     // Turns until enemy team can antidote this entity (0-5, set by MapDanger)
+	integer liberationCD = 6     // CHIP_LIBERATION cooldown (6 = no liberation chip, 0-5 = current cd)
+	integer nextLiberation = 6   // Turns until enemy team can liberate this entity (0-6, set by MapDanger)
 	boolean canDie = false       // Set by BattleState: danger >= life * CANDIE_THRESHOLD
+	boolean willBeDead = false   // Poison will kill before anyone can antidote (set by MapDanger)
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
 	integer extendedType  // Cached: for bulbs, specific type (101-108); otherwise same as entityType
 	// gestions des effets
@@ -119,6 +124,14 @@ class Entity {
 		this.absShield = getAbsoluteShield(id)!
 		this.dmgReturn = getDamageReturn(id)!
 		this.items = Items.getItems(id)
+		// Check for support chip cooldowns (antidote, liberation)
+		for (Item item in this.items) {
+			if (item.id == CHIP_ANTIDOTE) {
+				this.antidoteCD = getCooldown(item.id, this.id)!
+			} else if (item.id == CHIP_LIBERATION) {
+				this.liberationCD = getCooldown(item.id, this.id)!
+			}
+		}
 		// Load passive effects from entity
 		for(Array e in getPassiveEffects(this.id)!) {
 			integer type = e[0] as integer
@@ -221,6 +234,15 @@ class Entity {
 		this.isStatic = false
 		this.isInvincible = false
 		this.hasCovid = false
+		this.antidoteCD = 5
+		this.liberationCD = 6
+		for (Item item in this.items) {
+			if (item.id == CHIP_ANTIDOTE) {
+				this.antidoteCD = getCooldown(item.id, this.id)!
+			} else if (item.id == CHIP_LIBERATION) {
+				this.liberationCD = getCooldown(item.id, this.id)!
+			}
+		}
 		this.loadEffects()
 		this.psnlife = this.life - this.psnTurn
 	}
@@ -434,10 +456,7 @@ class Entity {
 }
 
 // TODO
-
 	//scoreLibe: scoreLibe
 	//nbBulbs: count(bulbs)//todo check si ça vaut le coup de garder cette info..
 	//bulbs: @bulbs
-	//antidoteCD: inArray(getChips(leek), CHIP_ANTIDOTE) ? getCooldown(CHIP_ANTIDOTE) : 5
-	//liberationCD: inArray(getChips(leek), CHIP_LIBERATION) ? getCooldown(CHIP_LIBERATION) : 6
 	//canJump: inArray(getChips(leek), CHIP_JUMP) && getCooldown(CHIP_JUMP, leek)<=1

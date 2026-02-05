@@ -22,6 +22,7 @@ class BattleState {
 	static integer countTactician = 0 // ally tactician bulbs
 	static integer countSavant = 0    // ally savant bulbs
 	static integer countStrBulbs = 0  // ally offensive bulbs (fire + iced + lightning + rocky)
+	static integer allyLeekCount = 0 // alive ally leeks (non-bulb)
 
 	// === Team Flags ===
 	static boolean enemyHasStr = false // any enemy has STR >= 100
@@ -29,6 +30,8 @@ class BattleState {
 	static boolean enemyHasSnc = false // any enemy has SNC >= 200 (for dmgReturn value)
 	static boolean allyHasStr = false  // any ally has STR >= 100 (for vuln value)
 	static boolean allyHasScience = false // any ally has SNC >= 200 (for rel vuln value)
+	static boolean allyHasPsn = false  // any ally has MGC >= 100 (for enemy antidote map)
+	static boolean allyHasRst = false  // any ally has RST >= 100 (for enemy liberation map)
 	static real allyLeekMeanStr = 0.0 // mean STR of ally leeks (for enemy vuln scaling)
 
 	// === Global State Ratios ===
@@ -72,8 +75,11 @@ class BattleState {
 		countTactician = 0
 		countSavant = 0
 		countStrBulbs = 0
+		allyLeekCount = 0
 		allyHasStr = false
 		allyHasScience = false
+		allyHasPsn = false
+		allyHasRst = false
 		allyLeekMeanStr = 0
 		enemyHasStr = false
 		enemyHasMgc = false
@@ -88,7 +94,6 @@ class BattleState {
 		// === Combined ally loop ===
 		// Handles: bulb counting, allyHasStr flag, leek STR mean, WSD/RST chips
 		real sumAllyLife = 0.0
-		integer allyLeekCount = 0
 		integer sumAllyLeekStr = 0
 
 		for (Entity entity in Fight.getAlliesAlive()) {
@@ -127,6 +132,14 @@ class BattleState {
 			// Check for ally with significant science (for rel vuln value)
 			if (!allyHasScience && entity.snc >= 200) {
 				allyHasScience = true
+			}
+			// Check for ally with significant magic (for enemy antidote map)
+			if (!allyHasPsn && entity.mgc >= 100) {
+				allyHasPsn = true
+			}
+			// Check for ally with significant resistance (for enemy liberation map)
+			if (!allyHasRst && entity.rst >= 100) {
+				allyHasRst = true
 			}
 
 			// Count WSD/RST/AGI chips for this ally

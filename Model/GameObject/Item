@@ -25,6 +25,7 @@ class Item {
 	boolean isSummon = false
 	boolean isTactical = false
 	boolean isOffensive = false  // Can deal damage/debuff to enemies (O(1) check)
+	boolean isDamage = false     // Has EFFECT_DAMAGE or EFFECT_LIFE_DAMAGE
 	boolean worksOnInvincible = false  // Shackle items work on invincible targets
 
 	static integer ALL = 0
@@ -249,7 +250,7 @@ class Item {
 			}
 		}
 
-		// Detect summon and tactical chips
+		// Detect summon, tactical, and damage chips
 		for (ItemEffect e in this.effects) {
 			if (e.type == EFFECT_SUMMON || e.type == EFFECT_RESURRECT) {
 				this.isSummon = true
@@ -259,6 +260,9 @@ class Item {
 				e.type == EFFECT_PUSH ||
 				e.type == EFFECT_ATTRACT) {
 				this.isTactical = true
+			}
+			if (e.type == EFFECT_DAMAGE || e.type == EFFECT_LIFE_DAMAGE) {
+				this.isDamage = true
 			}
 			if (e.type == EFFECT_SHACKLE_STRENGTH ||
 				e.type == EFFECT_SHACKLE_MAGIC ||
