@@ -33,6 +33,23 @@ class Damages {
 
 				integer tpLeft = e.getCurrentTP(consequences)
 
+				// Simulate enemy liberation stripping our shields
+				if (relShield > 30 && e.liberationCD <= 1) {
+					Map<Cell, real>? libeMap = MapDanger._map_enemy_liberation[e]
+					if (libeMap != null && libeMap![cell] != null) {
+						for (Item item in e.items) {
+							if (item.id == CHIP_LIBERATION) {
+								if (item.cost <= tpLeft) {
+									tpLeft -= item.cost
+									absShield *= 0.6
+									relShield *= 0.6
+								}
+								break
+							}
+						}
+					}
+				}
+
 				for (Item item in e.offensiveItems) {
 					Map<Cell, real>? itemMap = MapDanger._map_entity_item_danger[e]![item]
 					if (itemMap == null) continue  // Item not processed (early exit in MapDanger)
