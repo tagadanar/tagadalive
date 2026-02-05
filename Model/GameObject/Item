@@ -25,6 +25,7 @@ class Item {
 	boolean isSummon = false
 	boolean isTactical = false
 	boolean isOffensive = false  // Can deal damage/debuff to enemies (O(1) check)
+	boolean worksOnInvincible = false  // Shackle items work on invincible targets
 
 	static integer ALL = 0
 	static integer ALLLEEKS = 1
@@ -258,6 +259,14 @@ class Item {
 				e.type == EFFECT_PUSH ||
 				e.type == EFFECT_ATTRACT) {
 				this.isTactical = true
+			}
+			if (e.type == EFFECT_SHACKLE_STRENGTH ||
+				e.type == EFFECT_SHACKLE_MAGIC ||
+				e.type == EFFECT_SHACKLE_AGILITY ||
+				e.type == EFFECT_SHACKLE_WISDOM ||
+				e.type == EFFECT_SHACKLE_TP ||
+				e.type == EFFECT_SHACKLE_MP) {
+				this.worksOnInvincible = true
 			}
 		}
 

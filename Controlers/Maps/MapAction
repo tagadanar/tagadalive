@@ -112,8 +112,8 @@ class MapAction {
 
 			// Score each valid target for this item
 			for (Entity entity in item.targetSet()) {
-				// Skip invincible enemies and Fennel puzzle entities
-				if (entity.isInvincible && !entity.isFriend) continue
+				// Skip invincible enemies unless item works on invincible (shackles)
+				if (entity.isInvincible && !entity.isFriend && !item.worksOnInvincible) continue
 				if (BossFennel.shouldNotTarget(entity)) continue
 
 				// Compute score using direct hit on target

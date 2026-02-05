@@ -78,6 +78,7 @@ class Entity {
 	boolean isInvincible = false // ADD_STATE value STATE_INVINCIBLE (3)
 	boolean isCrystal = false    // Fennel King boss: crystal that must NOT be damaged
 	boolean isGraal = false      // Fennel King boss: graal that must NOT be moved
+	boolean isFennelKing = false // Fennel King boss: main boss (boosted TP/MP shackle coefs)
 	boolean hasCovid = false     // Has COVID effect active (propagates to nearby entities)
 	boolean canDie = false       // Set by BattleState: danger >= life * CANDIE_THRESHOLD
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
@@ -141,6 +142,8 @@ class Entity {
 		this.isCrystal = this.name == "blue_crystal" || this.name == "green_crystal" || this.name == "red_crystal" || this.name == "yellow_crystal"
 		// Fennel King boss: detect graal (must NOT be moved)
 		this.isGraal = this.name == "graal"
+		// Fennel King boss: detect main boss (boosted TP/MP shackle coefs)
+		this.isFennelKing = this.name == "fennel_king"
 		this.entityType = getType(id)!
 		// Cache extended type (bulb-specific type detection done once here)
 		if (this.isBulb) {

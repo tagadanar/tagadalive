@@ -314,6 +314,8 @@ class Consequences {
 
 			for (Entity target in this.targets) {
 				if (this.isKilled(target)) continue
+				// Skip invincible enemies unless item works on invincible (shackles)
+				if (!target.isFriend && target.isInvincible && !action.item.worksOnInvincible) continue
 				// For overrideTargets (simulated positions), use action.to as target cell
 				// Normal case: use target's actual cell (or currentCell for self)
 				integer targetCellId
