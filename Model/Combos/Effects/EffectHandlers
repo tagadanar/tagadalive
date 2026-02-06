@@ -30,6 +30,18 @@ class EffectHandlers {
 		return false
 	}
 
+	/*
+	 * Check if target will die from accumulated poison (guaranteed kill).
+	 * Called after damage or poison application to award KILL_VALUE
+	 * when the kill is certain (no antidote available).
+	 */
+	static void checkPoisonKill(Entity target, ctx) {
+		if (target.isFriend || ctx.isKilled(target)) return;
+		if (target.nextAntidote >= 1 && ctx.getHP(target) - target.psnTurn - ctx.getPsnPerTurn(target) <= 0) {
+			ctx.addKill(target)
+		}
+	}
+
 	// ════════════════════════════════════════════════════════════════════════
 	// DAMAGE EFFECTS
 	// ════════════════════════════════════════════════════════════════════════
@@ -63,6 +75,8 @@ class EffectHandlers {
 
 		if (ctx.getHP(target) <= 0) {
 			ctx.addKill(target)
+		} else {
+			EffectHandlers.checkPoisonKill(target, ctx)
 		}
 
 		// Erosion
@@ -106,6 +120,7 @@ class EffectHandlers {
 		// Track per-turn poison for overkill detection
 		integer perTurn = round(effect.avg * (1 + srcMgc / 100.0) * ratio * (1 + srcPwr / 100.0))
 		ctx.addPsnPerTurn(target, perTurn)
+		EffectHandlers.checkPoisonKill(target, ctx)
 
 		// Inline passive for poison taken (target's passives)
 		Map<integer, real> passives = target.passives
@@ -137,6 +152,8 @@ class EffectHandlers {
 
 		if (ctx.getHP(target) <= 0) {
 			ctx.addKill(target)
+		} else {
+			EffectHandlers.checkPoisonKill(target, ctx)
 		}
 
 		// Erosion
