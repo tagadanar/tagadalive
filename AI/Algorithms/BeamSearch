@@ -151,7 +151,7 @@ class BeamSearch {
 	static Combo search(Cell startCell, Map<Item, Action> actionsAtCell, integer tp, integer mp, Item? weapon) {
 		Benchmark.start("BeamSearch.search")
 
-		Array<Action> prunedActions = BeamSearch.pruneActions(mapValues(actionsAtCell) as Array<Action>)
+		Array<Action> prunedActions = MCTS.pruneActions(mapValues(actionsAtCell) as Array<Action>, BeamSearch.MAX_ACTIONS_TO_TRY)
 
 		if (count(prunedActions) == 0) {
 			Combo moveOnlyCombo = Combo()
@@ -261,43 +261,6 @@ class BeamSearch {
 
 		Benchmark.stop("BeamSearch.search")
 		return bestCombo
-	}
-
-	/*
-	 * Prune action space to top-K actions by immediate score
-	 */
-	static Array<Action> pruneActions(Array<Action> actions) {
-		Array<Action> viable = []
-		for (Action act in actions) {
-			if (act.score! > 0) push(viable, act)
-		}
-		if (count(viable) == 0) return []
-
-		Array<Action> selfCast = []
-		Array<Action> other = []
-		for (Action act in viable) {
-			if (act.from == Fight.selfCell) push(selfCast, act)
-			else push(other, act)
-		}
-
-		if (count(other) <= BeamSearch.MAX_ACTIONS_TO_TRY) {
-			return viable
-		}
-
-		// Sort by priority first (lower = earlier), score as tiebreaker
-		// This guides BeamSearch exploration toward correct action sequences (buffs before damage)
-		Array<Action> sorted = arraySort(other, (Action x, Action y) => integer|real {
-			if (x.item.priority != y.item.priority)
-				return Sort.asc(x.item.priority, y.item.priority)  // Lower priority first
-			return Sort.desc(x.score!, y.score!)  // Then higher score
-		}) as Array<Action>
-
-		Array<Action> pruned = selfCast
-		for (integer i = 0; i < BeamSearch.MAX_ACTIONS_TO_TRY && i < count(sorted); i++) {
-			push(pruned, sorted[i])
-		}
-
-		return pruned
 	}
 
 }

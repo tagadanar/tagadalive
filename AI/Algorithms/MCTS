@@ -187,7 +187,7 @@ class MCTS {
 
 		// Prune and prepare initial actions - computed ONCE and reused
 		// This saves ~300 calls to pruneActions() over 150 iterations
-		Array<Action> prunedActions = MCTS.pruneActions(mapValues(actionsAtCell) as Array<Action>)
+		Array<Action> prunedActions = MCTS.pruneActions(mapValues(actionsAtCell) as Array<Action>, MCTS.MAX_ACTIONS_TO_TRY)
 
 		// If no actions available, return movement-only combo
 		if (count(prunedActions) == 0) {
@@ -416,7 +416,12 @@ class MCTS {
 	 * Prune action space to top-K actions by immediate score
 	 * Self-cast actions are never pruned (heals, buffs, etc.)
 	 */
-	static Array<Action> pruneActions(Array<Action> actions) {
+	/*
+	 * Prune action space: filter non-positive, keep all self-cast,
+	 * sort targeted actions by priority+score and take top maxActions.
+	 * Used by MCTS and BeamSearch.
+	 */
+	static Array<Action> pruneActions(Array<Action> actions, integer maxActions) {
 		// Filter out non-positive score actions (useless CD items, etc.)
 		Array<Action> viable = []
 		for (Action act in actions) {
@@ -433,12 +438,12 @@ class MCTS {
 		}
 
 		// If other actions fit within limit, return all viable
-		if (count(other) <= MCTS.MAX_ACTIONS_TO_TRY) {
+		if (count(other) <= maxActions) {
 			return viable
 		}
 
 		// Sort by priority first (lower = earlier), score as tiebreaker
-		// This guides MCTS exploration toward correct action sequences (buffs before damage)
+		// This guides exploration toward correct action sequences (buffs before damage)
 		Array<Action> sorted = arraySort(other, (Action x, Action y) => integer|real {
 			if (x.item.priority != y.item.priority)
 				return Sort.asc(x.item.priority, y.item.priority)  // Lower priority first
@@ -447,7 +452,7 @@ class MCTS {
 
 		// Take top K from other, keep all self-cast
 		Array<Action> pruned = selfCast
-		for (integer i = 0; i < MCTS.MAX_ACTIONS_TO_TRY && i < count(sorted); i++) {
+		for (integer i = 0; i < maxActions && i < count(sorted); i++) {
 			push(pruned, sorted[i])
 		}
 
