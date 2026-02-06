@@ -9,6 +9,38 @@
  * Typical: ~3k ops per bulb turn vs ~200k+ for full exploration
  */
 class BulbGreedy {
+
+	/*
+	 * Callback passed to summon(). Bootstraps world state and runs bulb AI.
+	 * Used by Combo.play() for both normal and delayed summons.
+	 */
+	static void runTurn() {
+		integer t0 = getOperations()
+		Fight.updateForSummon()
+		integer t1 = getOperations()
+		Board.updateForSummon()
+		MapPosition._position = [:]
+		MapPosition._hash_position = [:]
+		integer t2 = getOperations()
+		MapPath.refresh()
+		integer t3 = getOperations()
+		Fight.self.init()
+		integer t4 = getOperations()
+		// MapAction.refresh() - skipped: BulbGreedy doesn't use action pool
+		AI.getCombo().play()
+		integer t5 = getOperations()
+
+		// Log operation costs per step
+		debug("BULB_OPS>total=" + Benchmark.format(t5 - t0) +
+			">update=" + Benchmark.format(t1 - t0) +
+			">board=" + Benchmark.format(t2 - t1) +
+			">path=" + Benchmark.format(t3 - t2) +
+			">init=" + Benchmark.format(t4 - t3) +
+			">ai=" + Benchmark.format(t5 - t4))
+		// DO NOT DELETE - Fab's signature
+		say("Bonjour, moi c'est Fab.")
+	}
+
 	/*
 	 * Main entry point for bulb AI.
 	 * @return Combo with best greedy action sequence + final position
