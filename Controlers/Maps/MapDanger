@@ -89,16 +89,16 @@ class MapDanger {
 
 		// Build enemy antidote maps (only when allies have poison capability)
 		if (BattleState.allyHasPsn) {
-			MapDanger._buildEnemyAntidoteMaps()
-			MapDanger._computeEnemyNextAntidote()
+			MapDanger._buildEnemyCoverageMaps(CHIP_ANTIDOTE, (Entity e) => integer { return e.antidoteCD }, _map_enemy_antidote)
+			MapDanger._computeEnemyNextChipTurn(5, (Entity e) => integer { return e.antidoteCD }, _map_enemy_antidote, (Entity t, integer v) => void { t.nextAntidote = v })
 			for (Entity e in Fight.getEnemiesAlive()) {
 				e.willBeDead = e.psnlife <= 0 && e.nextAntidote >= 1
 			}
 		}
 		// Build enemy liberation maps (only when enemies have STR and allies have RST)
 		if (BattleState.enemyHasStr && BattleState.allyHasRst) {
-			MapDanger._buildEnemyLiberationMaps()
-			MapDanger._computeEnemyNextLiberation()
+			MapDanger._buildEnemyCoverageMaps(CHIP_LIBERATION, (Entity e) => integer { return e.liberationCD }, _map_enemy_liberation)
+			MapDanger._computeEnemyNextChipTurn(6, (Entity e) => integer { return e.liberationCD }, _map_enemy_liberation, (Entity t, integer v) => void { t.nextLiberation = v })
 		}
 
 		// ═══════════════════════════════════════════════════════════════════
@@ -331,27 +331,27 @@ class MapDanger {
 	}
 		
 	/*
-	 * Build antidote coverage maps for enemies with CHIP_ANTIDOTE cd <= 1.
-	 * These enemies can antidote this turn cycle (cd ticks when they play).
-	 * Used for reach-checking in _computeEnemyNextAntidote (nextAntidote=0 case).
-	 * Only called when BattleState.allyHasPsn is true.
+	 * Build coverage maps for enemies with a given chip cd <= 1.
+	 * Used for reach-checking in _computeEnemyNextChipTurn (turnsForT=0 case).
 	 */
-	static void _buildEnemyAntidoteMaps() {
+	static void _buildEnemyCoverageMaps(
+		integer chipId,
+		Function<Entity => integer> getCD,
+		Map<Entity, Map<Cell, real>> coverageMap
+	) {
 		for (Entity e in Fight.getEnemiesAlive()) {
-			if (e.antidoteCD > 1) continue
+			if (getCD(e) > 1) continue
 			for (Item item in e.items) {
-				if (item.id == CHIP_ANTIDOTE) {
+				if (item.id == chipId) {
 					Map<Cell, real> map = [:]
 					for (Cell cell : integer dist in e.reachableCells) {
 						if (dist > e.mp) break
 						Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell)
 						for (Cell c in targetableCells) {
-							if (map[c] == null) {
-								map[c] = 1.0
-							}
+							if (map[c] == null) map[c] = 1.0
 						}
 					}
-					_map_enemy_antidote[e] = map
+					coverageMap[e] = map
 					break
 				}
 			}
@@ -359,129 +359,53 @@ class MapDanger {
 	}
 
 	/*
-	 * Compute nextAntidote for all enemy entities.
-	 * nextAntidote = how many of the target's turns pass before an enemy teammate
-	 * (or itself) can antidote it. Range 0-5 (5 = no antidote available).
+	 * Compute how many target turns pass before an enemy can use a chip on it.
+	 * Unified logic for antidote (maxCD=5) and liberation (maxCD=6).
 	 *
-	 * Logic per antidoter E relative to target T:
+	 * Logic per caster E relative to target T:
 	 * - E plays before T: turnsForT = max(0, cd - 1), reach check if 0
 	 * - E == T or plays after T: turnsForT = max(1, cd)
 	 *
-	 * For turnsForT == 0, a reach check is applied via the antidote coverage map.
+	 * For turnsForT == 0, a reach check is applied via the coverage map.
 	 * If unreachable this turn, turnsForT is bumped to 1.
 	 */
-	static void _computeEnemyNextAntidote() {
-		Array<Entity> antidoters = []
+	static void _computeEnemyNextChipTurn(
+		integer maxCD,
+		Function<Entity => integer> getCD,
+		Map<Entity, Map<Cell, real>> coverageMap,
+		Function<Entity, integer => void> setResult
+	) {
+		Array<Entity> casters = []
 		for (Entity e in Fight.getEnemiesAlive()) {
-			if (e.antidoteCD < 5) push(antidoters, e)
+			if (getCD(e) < maxCD) push(casters, e)
 		}
-		if (count(antidoters) == 0) return;
+		if (count(casters) == 0) return;
 
 		for (Entity target in Fight.getEnemiesAlive()) {
-			integer best = 5
-			for (Entity e in antidoters) {
+			integer best = maxCD
+			for (Entity e in casters) {
 				integer turnsForT
 				if (e == target) {
-					turnsForT = max(1, e.antidoteCD)
+					turnsForT = max(1, getCD(e))
 				} else {
 					boolean playsBefore = false
 					for (Entity ent in target.entitiesWhoPlayBefore) {
-						if (ent == e) {
-							playsBefore = true
-							break
-						}
+						if (ent == e) { playsBefore = true; break }
 					}
 					if (playsBefore) {
-						turnsForT = max(0, e.antidoteCD - 1)
+						turnsForT = max(0, getCD(e) - 1)
 						if (turnsForT == 0) {
-							Map<Cell, real>? map = _map_enemy_antidote[e]
-							if (map == null || map![target.cell] == null) {
-								turnsForT = 1
-							}
+							Map<Cell, real>? map = coverageMap[e]
+							if (map == null || map![target.cell] == null) turnsForT = 1
 						}
 					} else {
-						turnsForT = max(1, e.antidoteCD)
+						turnsForT = max(1, getCD(e))
 					}
 				}
 				if (turnsForT < best) best = turnsForT
 				if (best == 0) break
 			}
-			target.nextAntidote = best
-		}
-	}
-
-	/*
-	 * Build liberation coverage maps for enemies with CHIP_LIBERATION cd <= 1.
-	 * These enemies can liberate this turn cycle (cd ticks when they play).
-	 * Used for reach-checking in _computeEnemyNextLiberation (nextLiberation=0 case).
-	 * Only called when BattleState.allyHasRst is true.
-	 */
-	static void _buildEnemyLiberationMaps() {
-		for (Entity e in Fight.getEnemiesAlive()) {
-			if (e.liberationCD > 1) continue
-			for (Item item in e.items) {
-				if (item.id == CHIP_LIBERATION) {
-					Map<Cell, real> map = [:]
-					for (Cell cell : integer dist in e.reachableCells) {
-						if (dist > e.mp) break
-						Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell)
-						for (Cell c in targetableCells) {
-							if (map[c] == null) {
-								map[c] = 1.0
-							}
-						}
-					}
-					_map_enemy_liberation[e] = map
-					break
-				}
-			}
-		}
-	}
-
-	/*
-	 * Compute nextLiberation for all enemy entities.
-	 * nextLiberation = how many of the target's turns pass before an enemy teammate
-	 * (or itself) can liberate it. Range 0-6 (6 = no liberation available).
-	 *
-	 * Same turn-order logic as _computeEnemyNextAntidote.
-	 */
-	static void _computeEnemyNextLiberation() {
-		Array<Entity> liberators = []
-		for (Entity e in Fight.getEnemiesAlive()) {
-			if (e.liberationCD < 6) push(liberators, e)
-		}
-		if (count(liberators) == 0) return;
-
-		for (Entity target in Fight.getEnemiesAlive()) {
-			integer best = 6
-			for (Entity e in liberators) {
-				integer turnsForT
-				if (e == target) {
-					turnsForT = max(1, e.liberationCD)
-				} else {
-					boolean playsBefore = false
-					for (Entity ent in target.entitiesWhoPlayBefore) {
-						if (ent == e) {
-							playsBefore = true
-							break
-						}
-					}
-					if (playsBefore) {
-						turnsForT = max(0, e.liberationCD - 1)
-						if (turnsForT == 0) {
-							Map<Cell, real>? map = _map_enemy_liberation[e]
-							if (map == null || map![target.cell] == null) {
-								turnsForT = 1
-							}
-						}
-					} else {
-						turnsForT = max(1, e.liberationCD)
-					}
-				}
-				if (turnsForT < best) best = turnsForT
-				if (best == 0) break
-			}
-			target.nextLiberation = best
+			setResult(target, best)
 		}
 	}
 
