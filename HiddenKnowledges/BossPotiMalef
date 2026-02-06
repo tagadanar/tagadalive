@@ -1,0 +1,31 @@
+/*
+ * BossPotiMalef - Potiron Maléfique Boss Fight Handler (placeholder)
+ *
+ * Dummy placeholder for public repo. Real implementation decodes
+ * Glagolitic alphabet messages to find the resurrection cell.
+ *
+ * Integration: Called from init() via refresh(). AI reads getResurrectionCell().
+ */
+class BossPotiMalef {
+	static boolean _active = false
+	static boolean _detected = false
+
+	static boolean isActive() {
+		return _active
+	}
+
+	static void refresh() {
+		if (!_detected) {
+			_active = false
+			_detected = true
+		}
+	}
+
+	static boolean execute() {
+		return false
+	}
+
+	static integer? getResurrectionCell() {
+		return null
+	}
+}
