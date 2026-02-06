@@ -18,6 +18,8 @@ class MapDanger {
 	// cache pour chaque enemy des maps des cases où il peut tirer
 	// refresh à chaque tour
 	static Map<Entity, Map<Item, Map<Cell, real>>> _map_entity_item_danger = [:] // [e:[item:[cell:ratio]]]
+	// min MP cost to reach each direct-hit cell (no AOE), used for MP shackle filtering in Damages
+	static Map<Entity, Map<Item, Map<Cell, integer>>> _map_entity_item_mp = [:] // [e:[item:[cell:minDist]]]
 
 	// Enemy antidote coverage: for each enemy with antidote cd <= 1, which cells they can reach
 	// Only populated when BattleState.allyHasPsn is true
@@ -40,6 +42,7 @@ class MapDanger {
 		_danger = [:]
 		_hash_danger = [:]
 		_map_entity_item_danger = [:]
+		_map_entity_item_mp = [:]
 		_map_enemy_antidote = [:]
 		_map_enemy_liberation = [:]
 		MapSupport.resetCaches()
@@ -50,6 +53,7 @@ class MapDanger {
 		integer maxEnemyItems = 0
 		for(Entity e in Fight.getEnemiesAlive()){
 			_map_entity_item_danger[e] = [:]
+			_map_entity_item_mp[e] = [:]
 			e.offensiveItems = Items.getOrderedOffensiveItems(e)
 			push(enemies, e)
 			integer itemCount = count(e.offensiveItems)
@@ -277,22 +281,26 @@ class MapDanger {
 	 * @return map de Cells ciblables par l'Entity enemy
 	 */
 	static Map<Cell, real> getEnemiesDmgMap(Entity enemy, Item item){
-		Map<Cell, real> map = [:]//, map_mp = []
+		Map<Cell, real> map = [:]
+		Map<Cell, integer> map_mp = [:]
 		for(Cell cell:integer dist in enemy.reachableCells){
 			if(dist > enemy.mp) break
 			Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell);
 			for(Cell c in targetableCells){
 				if(map[c]==null){
-					map[c]=1.0;//coef
-					//map_mp[c]=dist;
+					map[c]=1.0
+					map_mp[c]=dist
 				}
 			}
 		}
 
+		// Store direct-hit MP costs before AOE expansion
+		_map_entity_item_mp[enemy]![item] = map_mp
+
 		// AOE expansion (handles CIRCLE, PLUS, X, SQUARE)
 		MapDanger.expandAOE(map, item)
 
-		return map // TODO add map_mp
+		return map
 	}
 
 	/*

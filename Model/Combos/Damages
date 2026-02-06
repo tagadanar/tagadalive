@@ -57,6 +57,15 @@ class Damages {
 					real? ratioDmg = itemMap![cell]
 					if (ratioDmg == null || ratioDmg <= 0) continue
 
+					// MP shackle filtering: skip direct hits enemy can no longer reach
+					if (consequences) {
+						integer shackledMP = e.getCurrentMP(consequences!)
+						if (shackledMP < e.mp) {
+							integer? minMp = MapDanger._map_entity_item_mp[e]![item]![cell]
+							if (minMp != null && minMp! > shackledMP) continue
+						}
+					}
+
 					// Calculate damage components separately (using current shield state)
 					real itemDmg = 0.0
 					real itemPsn = 0.0
