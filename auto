@@ -104,6 +104,7 @@ include('HiddenKnowledges/EntityCoefs')
 include('HiddenKnowledges/ScoringModifiers')
 include('HiddenKnowledges/Scoring')
 include('HiddenKnowledges/BossFennel')
+include('HiddenKnowledges/BossPotiMalef')
 
 // ────────────────────────────────────────────────────────────────────────────
 // EFFECT CACHE: Caches EffectSnapshots for action pool creation
@@ -169,6 +170,11 @@ function init() {
 		BossFennel.refresh()
 	}
 	Benchmark.stop('BossFennel')
+
+	// BossPotiMalef: detect Potiron Maléfique, decode says, compute resurrection cell
+	Benchmark.start('BossPotiMalef')
+	BossPotiMalef.refresh()
+	Benchmark.stop('BossPotiMalef')
 
 	Benchmark.start('Scoring.refresh')
 	Scoring.refresh()
