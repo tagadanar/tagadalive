@@ -754,7 +754,7 @@ class ComboExplorer {
 		for (ExplorerResult r in ctx.topResults) {
 			if (logged >= ExplorerConfig.MAX_RESULTS_KEPT) break
 
-			string desc = "EXP[" + r.name + "]:" + ComboExplorer.buildComboDesc(r.combo)
+			string desc = "EXP[" + r.name + "]:" + r.combo.describe()
 			real posScore = r.combo.finalPosition != null ? r.combo.finalPosition!.score : 0.0
 			real actionScore = r.score - posScore
 			Benchmark.addCombo(r.score, count(r.combo.actions), desc, posScore, actionScore)
@@ -768,20 +768,4 @@ class ComboExplorer {
 			(ctx.bestResult != null ? " " + ctx.bestResult!.combo : ""))
 	}
 
-	/*
-	 * Build description string for a combo
-	 */
-	static string buildComboDesc(Combo combo) {
-		string desc = ""
-		for (Action a in combo.actions) {
-			if (desc != "") desc += "->"
-			desc += a.item.name + "(" + round(a.score!) + ")"
-		}
-		if (combo.finalPosition != null) {
-			if (desc != "") desc += "->"
-			desc += "mv(" + combo.finalPosition!.cell.id + ")"
-		}
-		if (desc == "") desc = "stay"
-		return desc
-	}
 }

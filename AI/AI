@@ -50,7 +50,7 @@ class AI {
 		// MODE_COMBO_EXPLORER (default)
 		Benchmark.setAlgo("EXPLORER", "EXPLORER")
 		Combo combo = ComboExplorer.explore()
-		Benchmark.setChosen(combo.getScore()!, count(combo.actions), "EXP:" + ComboExplorer.buildComboDesc(combo))
+		Benchmark.setChosen(combo.getScore()!, count(combo.actions), "EXP:" + combo.describe())
 		return combo
 	}
 

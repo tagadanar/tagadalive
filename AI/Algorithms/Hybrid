@@ -59,7 +59,7 @@ class Hybrid {
 		}
 
 		Benchmark.setMCTS(MCTS.lastIterations, MCTS.lastNodesCreated, positionsExplored, bestCombo!.getScore()!)
-		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), MCTS.buildComboDesc(bestCombo!))
+		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), bestCombo!.describe())
 
 		return bestCombo!
 	}
@@ -118,7 +118,7 @@ class Hybrid {
 		}
 
 		// BeamSearch.search() already calls Benchmark.setBeam() with detailed stats
-		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), BeamSearch.buildComboDesc(bestCombo!))
+		Benchmark.setChosen(bestCombo!.getScore()!, count(bestCombo!.actions), bestCombo!.describe())
 
 		return bestCombo!
 	}

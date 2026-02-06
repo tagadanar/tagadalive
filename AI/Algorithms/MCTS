@@ -244,7 +244,7 @@ class MCTS {
 		real actScore = 0.0
 		for (Action a in combo.actions) actScore += a.score!
 		real posScore = combo.finalPosition ? combo.finalPosition!.score : 0.0
-		Benchmark.setMCTSCombo(combo.getScore()!, count(combo.actions), "MCTS:" + MCTS.buildComboDesc(combo), posScore, actScore)
+		Benchmark.setMCTSCombo(combo.getScore()!, count(combo.actions), "MCTS:" + combo.describe(), posScore, actScore)
 
 		return combo
 	}
@@ -462,21 +462,4 @@ class MCTS {
 		return MapPosition.findBestPosition(fromCell, mp, state)
 	}
 
-	/*
-	 * Build a short description of a combo for debugging.
-	 */
-	static string buildComboDesc(Combo combo) {
-		string desc = ""
-		for (Action a in combo.actions) {
-			if (desc != "") desc += "→"
-			desc += a.item.name + "(" + round(a.score!) + ")"
-		}
-		if (combo.finalPosition) {
-			if (desc != "") desc += "→"
-			Position p = combo.finalPosition!
-			desc += "mv(" + p.cell.id + ":" + round(p.score) + ")"
-		}
-		if (desc == "") desc = "stay"
-		return desc
-	}
 }

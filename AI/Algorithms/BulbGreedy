@@ -101,7 +101,7 @@ class BulbGreedy {
 		Benchmark.stop("BulbGreedy")
 
 		// Log chosen combo
-		string desc = "BULB:" + BulbGreedy.buildComboDesc(combo)
+		string desc = "BULB:" + combo.describe()
 		Benchmark.setChosen(combo.getScore()!, count(combo.actions), desc)
 
 		return combo
@@ -234,21 +234,4 @@ class BulbGreedy {
 		}
 	}
 
-	/*
-	 * Build description string for a combo (for Benchmark logging).
-	 */
-	static string buildComboDesc(Combo combo) {
-		string desc = ""
-		for (Action action in combo.actions) {
-			if (desc != "") desc += ">"
-			desc += action.item.name
-			if (action.to != Fight.selfCell) {
-				desc += "@" + action.to.id
-			}
-		}
-		if (combo.finalPosition != null) {
-			desc += "->c" + combo.finalPosition!.cell.id
-		}
-		return desc
-	}
 }

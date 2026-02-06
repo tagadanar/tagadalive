@@ -257,7 +257,7 @@ class BeamSearch {
 		real actScore = 0.0
 		for (Action a in bestCombo.actions) actScore += a.score!
 		real posScore = bestCombo.finalPosition ? bestCombo.finalPosition!.score : 0.0
-		Benchmark.addCombo(bestCombo.getScore()!, count(bestCombo.actions), BeamSearch.buildComboDesc(bestCombo), posScore, actScore)
+		Benchmark.addCombo(bestCombo.getScore()!, count(bestCombo.actions), bestCombo.describe(), posScore, actScore)
 
 		Benchmark.stop("BeamSearch.search")
 		return bestCombo
@@ -300,21 +300,4 @@ class BeamSearch {
 		return pruned
 	}
 
-	/*
-	 * Build combo description for debugging.
-	 */
-	static string buildComboDesc(Combo combo) {
-		string desc = ""
-		for (Action a in combo.actions) {
-			if (desc != "") desc += "→"
-			desc += a.item.name + "(" + round(a.score!) + ")"
-		}
-		if (combo.finalPosition) {
-			if (desc != "") desc += "→"
-			Position p = combo.finalPosition!
-			desc += "mv(" + p.cell.id + ":" + round(p.score) + ")"
-		}
-		if (desc == "") desc = "stay"
-		return desc
-	}
 }

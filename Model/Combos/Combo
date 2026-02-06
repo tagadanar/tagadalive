@@ -208,6 +208,26 @@ class Combo {
 	}
 	
 	/*
+	 * Short description for Benchmark logging.
+	 * Format: "name(score)→name(score)→mv(cellId:posScore)" or "stay"
+	 * Matches tampermonkey parser expectations (splits on →, parses name(score)).
+	 */
+	string describe() {
+		string desc = ""
+		for (Action a in this.actions) {
+			if (desc != "") desc += "→"
+			desc += a.item.name + "(" + round(a.score!) + ")"
+		}
+		if (this.finalPosition) {
+			if (desc != "") desc += "→"
+			Position p = this.finalPosition!
+			desc += "mv(" + p.cell.id + ":" + round(p.score) + ")"
+		}
+		if (desc == "") desc = "stay"
+		return desc
+	}
+
+	/*
 	 * Format chaîne de caractères utilisée pour des tests / debugs.
 	 */
 	string(){
