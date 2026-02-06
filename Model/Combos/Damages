@@ -58,7 +58,7 @@ class Damages {
 					if (ratioDmg == null || ratioDmg <= 0) continue
 
 					// MP shackle filtering: skip direct hits enemy can no longer reach
-					if (consequences) {
+					if (consequences && e.nextManumission > 1) {
 						integer shackledMP = e.getCurrentMP(consequences!)
 						if (shackledMP < e.mp) {
 							integer? minMp = MapDanger._map_entity_item_mp[e]![item]![cell]

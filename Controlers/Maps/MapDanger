@@ -104,6 +104,10 @@ class MapDanger {
 			MapDanger._buildEnemyCoverageMaps(CHIP_LIBERATION, (Entity e) => integer { return e.liberationCD }, _map_enemy_liberation)
 			MapDanger._computeEnemyNextChipTurn(6, (Entity e) => integer { return e.liberationCD }, _map_enemy_liberation, (Entity t, integer v) => void { t.nextLiberation = v })
 		}
+		// Compute enemy nextManumission (self-cast: E == T → max(1, cd))
+		for (Entity e in Fight.getEnemiesAlive()) {
+			if (e.manumissionCD < 6) e.nextManumission = max(1, e.manumissionCD)
+		}
 
 		// ═══════════════════════════════════════════════════════════════════
 		// PHASE 2: Enemy priority - complete enemy danger map

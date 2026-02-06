@@ -84,6 +84,8 @@ class Entity {
 	integer nextAntidote = 5     // Turns until enemy team can antidote this entity (0-5, set by MapDanger)
 	integer liberationCD = 6     // CHIP_LIBERATION cooldown (6 = no liberation chip, 0-5 = current cd)
 	integer nextLiberation = 6   // Turns until enemy team can liberate this entity (0-6, set by MapDanger)
+	integer manumissionCD = 6    // CHIP_MANUMISSION cooldown (6 = no manumission chip, 0-5 = current cd)
+	integer nextManumission = 6  // Turns until entity can self-manumission (0-6, set by MapDanger)
 	boolean canDie = false       // Set by BattleState: danger >= life * CANDIE_THRESHOLD
 	boolean willBeDead = false   // Poison will kill before anyone can antidote (set by MapDanger)
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
@@ -130,6 +132,8 @@ class Entity {
 				this.antidoteCD = getCooldown(item.id, this.id)!
 			} else if (item.id == CHIP_LIBERATION) {
 				this.liberationCD = getCooldown(item.id, this.id)!
+			} else if (item.id == CHIP_MANUMISSION) {
+				this.manumissionCD = getCooldown(item.id, this.id)!
 			}
 		}
 		// Load passive effects from entity
@@ -236,11 +240,14 @@ class Entity {
 		this.hasCovid = false
 		this.antidoteCD = 5
 		this.liberationCD = 6
+		this.manumissionCD = 6
 		for (Item item in this.items) {
 			if (item.id == CHIP_ANTIDOTE) {
 				this.antidoteCD = getCooldown(item.id, this.id)!
 			} else if (item.id == CHIP_LIBERATION) {
 				this.liberationCD = getCooldown(item.id, this.id)!
+			} else if (item.id == CHIP_MANUMISSION) {
+				this.manumissionCD = getCooldown(item.id, this.id)!
 			}
 		}
 		this.loadEffects()
