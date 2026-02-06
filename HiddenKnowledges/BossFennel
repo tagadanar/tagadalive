@@ -1,0 +1,21 @@
+/*
+ * BossFennel - Placeholder for Fennel King boss fight handling
+ *
+ * This is a dummy implementation. The real version manages the crystal puzzle
+ * in the Fennel King boss fight (detection, crystal placement, coefficient tuning).
+ *
+ * All methods return neutral/no-op values so the AI compiles and runs normally
+ * without boss fight support.
+ */
+class BossFennel {
+
+	static real W_GRAVITY_GRAAL = 50.0
+
+	static boolean isActive() { return false }
+	static boolean isPuzzleSolved() { return false }
+	static Entity? getGraal() { return null }
+	static boolean shouldNotTarget(Entity entity) { return false }
+
+	static void refresh() {}
+	static boolean execute() { return false }
+}
