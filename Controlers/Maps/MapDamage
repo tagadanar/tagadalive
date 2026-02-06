@@ -99,24 +99,6 @@ class MapDamage {
 	}
 
 	/*
-	 * Build early exit stats string for allies.
-	 * Called by MapDanger.refresh() when budget exceeded.
-	 * @param round - current round number (0-indexed)
-	 * @return stats string like "Bulb1:2/3 Bulb2:2/3"
-	 */
-	static string getEarlyExitStats(integer round) {
-		string stats = ""
-		for (Entity ally in _allies) {
-			Array<Item>? items = _ally_offensive_items[ally]
-			integer total = items != null ? count(items!) : 0
-			integer done = min(round + 1, total)
-			if (stats != "") stats += " "
-			stats += ally.name + ":" + done + "/" + total
-		}
-		return stats
-	}
-
-	/*
 	 * Standalone refresh (for testing or when not using interleaved mode).
 	 * In production, MapDanger.refresh() orchestrates all maps.
 	 */

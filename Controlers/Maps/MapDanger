@@ -154,6 +154,21 @@ class MapDanger {
 	}
 
 	/*
+	 * Build early exit stats string for a set of allies and their items
+	 */
+	static string _buildExitStats(integer round, Array<Entity> allies, Map<Entity, Array<Item>> allyItems) {
+		string stats = ""
+		for (Entity ally in allies) {
+			Array<Item>? items = allyItems[ally]
+			integer total = items != null ? count(items!) : 0
+			integer done = min(round + 1, total)
+			if (stats != "") stats += " "
+			stats += ally.name + ":" + done + "/" + total
+		}
+		return stats
+	}
+
+	/*
 	 * Log early exit with phase info and stats
 	 */
 	static void _logEarlyExit(string phase, integer enemyRound, integer maxEnemy, integer allySupportRound, integer maxAllySupport, integer allyDamageRound, integer maxAllyDamage, Array<Entity> enemies){
@@ -163,9 +178,9 @@ class MapDanger {
 			if(enemyStats != "") enemyStats += " "
 			enemyStats += e.name + ":" + done + "/" + count(e.offensiveItems)
 		}
-		// Round is 1-indexed (rounds completed), getEarlyExitStats expects 0-indexed (last round index)
-		string supportStats = allySupportRound > 0 ? MapSupport.getEarlyExitStats(allySupportRound - 1) : ""
-		string damageStats = allyDamageRound > 0 ? MapDamage.getEarlyExitStats(allyDamageRound - 1) : ""
+		// Round is 1-indexed (rounds completed), _buildExitStats expects 0-indexed (last round index)
+		string supportStats = allySupportRound > 0 ? MapDanger._buildExitStats(allySupportRound - 1, MapSupport._allies, MapSupport._ally_support_items) : ""
+		string damageStats = allyDamageRound > 0 ? MapDanger._buildExitStats(allyDamageRound - 1, MapDamage._allies, MapDamage._ally_offensive_items) : ""
 
 		string entity = Fight.self.isBulb ? "bulb" : "leek"
 		string msg = entity + " T" + getTurn() + " MapDanger " + phase + " early exit @" + Benchmark.format(getOperations())
