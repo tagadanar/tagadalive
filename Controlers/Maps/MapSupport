@@ -130,26 +130,8 @@ class MapSupport {
 			}
 		}
 
-		// Expansion AOE pour les supports de zone
-		if (item.area == AREA_CIRCLE_1 || item.area == AREA_CIRCLE_2 || item.area == AREA_CIRCLE_3) {
-			for (integer distance = 1; distance <= item.area - 2; distance++) {
-				real ratio = 1 - ScoringConfig.AOE_DECAY_RATE * distance
-				if (ratio <= 0) break
-				Array<Cell> circle = []
-				for (Cell c : real value in map) {
-					if (value > 0) {
-						for (Cell neighbor in c.neighborsObstacles) {
-							if (map[neighbor] == null || map[neighbor] == 0) {
-								push(circle, neighbor)
-							}
-						}
-					}
-				}
-				for (Cell cell in circle) {
-					map[cell] = ratio
-				}
-			}
-		}
+		// Expansion AOE (handles CIRCLE, PLUS, X, SQUARE)
+		MapDanger.expandAOE(map, item)
 
 		return map
 	}
