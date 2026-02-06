@@ -325,6 +325,25 @@ class MapAction {
 	}
 
 	/*
+	 * Register an action into all lookup maps.
+	 */
+	static void _registerAction(Item item, Cell from, Action action) {
+		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]
+		if(!_item_cell_actions[item]![from]) _item_cell_actions[item]![from] = []
+		push(_item_cell_actions[item]![from]!, action)
+
+		if(!_cell_item_actions[from]) _cell_item_actions[from] = [:]
+		if(!_cell_item_actions[from]![item]) _cell_item_actions[from]![item] = []
+		push(_cell_item_actions[from]![item]!, action)
+
+		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
+		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
+		else if(_cell_item_bestAction[from]![item]!.score! < action.score!) _cell_item_bestAction[from]![item] = action
+
+		_actionsCreated++
+	}
+
+	/*
 	 * Core logic: create action, add to maps.
 	 * Called after reachability check and snapshot computation.
 	 * Caller must call Benchmark.start("addAction") before; this handles stop.
@@ -343,20 +362,7 @@ class MapAction {
 			return null
 		}
 
-		// ajout dans la map par item puis cells
-		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]
-		if(!_item_cell_actions[item]![from]) _item_cell_actions[item]![from] = []
-		push(_item_cell_actions[item]![from]!, action)
-
-		// ajout dans la map par cell puis items
-		if(!_cell_item_actions[from]) _cell_item_actions[from] = [:]
-		if(!_cell_item_actions[from]![item]) _cell_item_actions[from]![item] = []
-		push(_cell_item_actions[from]![item]!, action)
-
-		// ici, je ne set sur chaque case, pour chaque item, que la meilleure action et pas les autres
-		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
-		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
-		else if(_cell_item_bestAction[from]![item]!.score! < action.score!) _cell_item_bestAction[from]![item] = action
+		MapAction._registerAction(item, from, action)
 
 		// Index action and item by target entities (for inversion filtering)
 		// Index items by target entity (for post-inversion ally support)
@@ -367,7 +373,6 @@ class MapAction {
 			setPut(_entityTargetedItems[target.id]!, item)
 		}
 
-		_actionsCreated++
 		Benchmark.stop("addAction")
 		return action
 	}
@@ -416,20 +421,7 @@ class MapAction {
 			return null
 		}
 
-		// Add to maps (same as addActionCore)
-		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]
-		if(!_item_cell_actions[item]![from]) _item_cell_actions[item]![from] = []
-		push(_item_cell_actions[item]![from]!, action)
-
-		if(!_cell_item_actions[from]) _cell_item_actions[from] = [:]
-		if(!_cell_item_actions[from]![item]) _cell_item_actions[from]![item] = []
-		push(_cell_item_actions[from]![item]!, action)
-
-		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
-		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
-		else if(_cell_item_bestAction[from]![item]!.score! < action.score!) _cell_item_bestAction[from]![item] = action
-
-		_actionsCreated++
+		MapAction._registerAction(item, from, action)
 		Benchmark.stop("addAction")
 		return action
 	}
@@ -447,20 +439,7 @@ class MapAction {
 		// Resurrection score: KILL_VALUE (inverse of ally death)
 		action.score = ScoringConfig.KILL_VALUE
 
-		// Add to maps
-		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]
-		if(!_item_cell_actions[item]![from]) _item_cell_actions[item]![from] = []
-		push(_item_cell_actions[item]![from]!, action)
-
-		if(!_cell_item_actions[from]) _cell_item_actions[from] = [:]
-		if(!_cell_item_actions[from]![item]) _cell_item_actions[from]![item] = []
-		push(_cell_item_actions[from]![item]!, action)
-
-		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
-		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
-		else if(_cell_item_bestAction[from]![item]!.score! < action.score!) _cell_item_bestAction[from]![item] = action
-
-		_actionsCreated++
+		MapAction._registerAction(item, from, action)
 		Benchmark.stop("addAction")
 		return action
 	}
