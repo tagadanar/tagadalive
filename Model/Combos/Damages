@@ -32,6 +32,8 @@ class Damages {
 				if (MapDanger._map_entity_item_danger[e] == null) continue
 
 				integer tpLeft = e.getCurrentTP(consequences)
+				boolean jumpCharged = false
+				integer jumpCost = (e.jumpItem != null) ? e.jumpItem!.cost : 0
 
 				// Simulate enemy liberation stripping our shields
 				if (relShield > 30 && e.liberationCD <= 1) {
@@ -50,6 +52,14 @@ class Damages {
 					}
 				}
 
+				// MP shackle: cache outside item loop
+				boolean applyShackle = false
+				integer shackledMP = 0
+				if (consequences && e.nextManumission > 1) {
+					shackledMP = max(0, e.getCurrentMP(consequences!))
+					applyShackle = shackledMP < e.mp
+				}
+
 				for (Item item in e.offensiveItems) {
 					Map<Cell, real>? itemMap = MapDanger._map_entity_item_danger[e]![item]
 					if (itemMap == null) continue  // Item not processed (early exit in MapDanger)
@@ -57,12 +67,77 @@ class Damages {
 					real? ratioDmg = itemMap![cell]
 					if (ratioDmg == null || ratioDmg <= 0) continue
 
+					// Determine if this cell requires jump (not walk-reachable)
+					boolean needsJump = false
+					Map<Cell, integer>? mpMap = MapDanger._map_entity_item_mp[e]![item]
+					Map<Cell, integer>? jumpMap = MapDanger._map_entity_item_jump[e]![item]
+					if (mpMap![cell] == null && jumpMap != null && jumpMap![cell] != null) {
+						needsJump = true
+					}
+
 					// MP shackle filtering: skip direct hits enemy can no longer reach
-					if (consequences && e.nextManumission > 1) {
-						integer shackledMP = e.getCurrentMP(consequences!)
-						if (shackledMP < e.mp) {
-							integer? minMp = MapDanger._map_entity_item_mp[e]![item]![cell]
-							if (minMp != null && minMp! > shackledMP) continue
+					if (applyShackle) {
+							// Check if direct hit cell is reachable under shackle (walk or jump)
+							boolean directReachable = false
+							if (needsJump) {
+								directReachable = jumpMap![cell]! <= shackledMP
+							} else {
+								integer? minMp = mpMap![cell]
+								if (minMp != null && minMp! <= shackledMP) {
+									directReachable = true
+								} else if (e.jumpCD <= 1 && jumpMap != null && jumpMap![cell] != null && jumpMap![cell]! <= shackledMP) {
+									// Walk unreachable but jump reachable under shackle
+									directReachable = true
+									needsJump = true
+									ratioDmg = 1.0
+								}
+							}
+							if (!directReachable) {
+								// Direct hit unreachable — check AOE fallback
+								if (item.isAOE) {
+									real bestAoe = 0
+									Set<Cell> areaCells = cell.getAreaCells(item.area)
+									for (Cell src in areaCells) {
+										if (src == cell) continue
+										// Check walk sources
+										integer? srcMp = mpMap![src]
+										if (srcMp != null && srcMp! <= shackledMP) {
+											integer dist = abs(cell.x - src.x) + abs(cell.y - src.y)
+											real ratio = 1 - ScoringConfig.AOE_DECAY_RATE * dist
+											if (ratio > bestAoe) {
+												bestAoe = ratio
+												needsJump = false
+												if (dist == 1) break
+											}
+										}
+										// Check jump sources (no break — walk source at same dist is cheaper)
+										if (e.jumpCD <= 1 && jumpMap != null) {
+											integer? srcJMp = jumpMap![src]
+											if (srcJMp != null && srcJMp! <= shackledMP) {
+												integer dist = abs(cell.x - src.x) + abs(cell.y - src.y)
+												real ratio = 1 - ScoringConfig.AOE_DECAY_RATE * dist
+												if (ratio > bestAoe) {
+													bestAoe = ratio
+													needsJump = true
+												}
+											}
+										}
+									}
+									if (bestAoe > 0) ratioDmg = bestAoe
+									else continue
+								} else {
+									continue
+								}
+							}
+					}
+
+					// Charge jump TP (once per enemy) if this item needs jump
+					if (needsJump && !jumpCharged) {
+						if (jumpCost <= tpLeft) {
+							tpLeft -= jumpCost
+							jumpCharged = true
+						} else {
+							continue  // Can't afford jump — skip this item
 						}
 					}
 

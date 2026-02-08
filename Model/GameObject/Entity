@@ -61,6 +61,7 @@ class Entity {
 	integer dmgReturn
 	// déplacement
 	Map<Cell, integer> reachableCells
+	Map<Cell, integer> reachableCellsJump     // reachable via walk + CHIP_JUMP (superset when jumpCD <= 1)
 	Map<Cell, integer> extendedReachableCells  // reachable with MP buffs (self only)
 	integer maxMPBuff = 0                       // max MP gain from self-cast buffs (self only)
 	// inventaire organisé en fonction des cibles
@@ -86,6 +87,8 @@ class Entity {
 	integer nextLiberation = 6   // Turns until enemy team can liberate this entity (0-6, set by MapDanger)
 	integer manumissionCD = 6    // CHIP_MANUMISSION cooldown (6 = no manumission chip, 0-5 = current cd)
 	integer nextManumission = 6  // Turns until entity can self-manumission (0-6, set by MapDanger)
+	integer jumpCD = 4           // CHIP_JUMP cooldown (4 = no jump chip, 0-3 = current cd)
+	Item? jumpItem = null        // CHIP_JUMP item reference (for minRange/maxRange access)
 	boolean canDie = false       // Set by BattleState: danger >= life * CANDIE_THRESHOLD
 	boolean willBeDead = false   // Poison will kill before anyone can antidote (set by MapDanger)
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
@@ -134,6 +137,9 @@ class Entity {
 				this.liberationCD = getCooldown(item.id, this.id)!
 			} else if (item.id == CHIP_MANUMISSION) {
 				this.manumissionCD = getCooldown(item.id, this.id)!
+			} else if (item.id == CHIP_JUMP) {
+				this.jumpCD = getCooldown(item.id, this.id)!
+				this.jumpItem = item
 			}
 		}
 		// Load passive effects from entity
@@ -241,6 +247,8 @@ class Entity {
 		this.antidoteCD = 5
 		this.liberationCD = 6
 		this.manumissionCD = 6
+		this.jumpCD = 4
+		this.jumpItem = null
 		for (Item item in this.items) {
 			if (item.id == CHIP_ANTIDOTE) {
 				this.antidoteCD = getCooldown(item.id, this.id)!
@@ -248,6 +256,9 @@ class Entity {
 				this.liberationCD = getCooldown(item.id, this.id)!
 			} else if (item.id == CHIP_MANUMISSION) {
 				this.manumissionCD = getCooldown(item.id, this.id)!
+			} else if (item.id == CHIP_JUMP) {
+				this.jumpCD = getCooldown(item.id, this.id)!
+				this.jumpItem = item
 			}
 		}
 		this.loadEffects()
@@ -318,6 +329,15 @@ class Entity {
 			this.mp,
 			this.cellsToIgnore
 		)
+
+		// Compute jump-extended reach (walk + CHIP_JUMP teleport)
+		if (this.jumpCD <= 1 && this.jumpItem != null) {
+			this.reachableCellsJump = MapPath.getJumpReachableCells(
+				this.reachableCells, this.mp, this.cellsToIgnore, <>
+			)
+		} else {
+			this.reachableCellsJump = this.reachableCells
+		}
 
 		// Compute extended reach for self only (used by MapAction, MapPosition)
 		if (this == Fight.self) {

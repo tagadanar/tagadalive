@@ -37,6 +37,81 @@ class MapPath{
 		return stack
 	}
 	
+	// Persistent cache: jump destinations per cell (walls don't change during fight)
+	// Lazy-loaded from AREA_CIRCLE_3, filtered to non-wall non-center cells
+	static Map<Cell, Array<Cell>> _cache_jumpDests = [:]
+
+	static Array<Cell> getJumpDests(Cell cell) {
+		Array<Cell>? cached = _cache_jumpDests[cell]
+		if (cached != null) return cached!
+		Array<Cell> dests = []
+		for (Cell c in cell.getAreaCells(AREA_CIRCLE_3)) {
+			if (c != cell) push(dests, c)
+		}
+		_cache_jumpDests[cell] = dests
+		return dests
+	}
+
+	/*
+	 * State-space BFS for jump reachability (adapted from pathbench).
+	 * Reuses pre-computed walk map as the "canJump" state.
+	 * Two states: canJump (walk, reused) and usedJump (new).
+	 * Jump is free (0 MP), walk costs 1 MP.
+	 * Returns superset of walk map.
+	 */
+	static Map<Cell, integer> getJumpReachableCells(Map<Cell, integer> walk, integer mp,
+			Set<Cell> ignoreCells, Set<Cell> newObstacles) {
+		// Reconstruct walk frontiers by distance
+		Array<Array<Cell>> walkFrontiers = []
+		for (integer i = 0; i <= mp; i++) push(walkFrontiers, [])
+		for (Cell c : integer d in walk) {
+			if (d <= mp) push(walkFrontiers[d]!, c)
+		}
+
+		// usedJump state: cells reachable after having jumped
+		Map<Cell, integer> usedJump = [:]
+		Array<Cell> ujFrontier = []
+
+		for (integer cost = 0; cost <= mp; cost++) {
+			// Step 1: Jump transitions from walk frontier at this cost (free)
+			for (Cell cell in walkFrontiers[cost]!) {
+				for (Cell j in MapPath.getJumpDests(cell)) {
+					if (usedJump[j] != null) continue
+					if (walk[j] != null && walk[j]! <= cost) continue
+					if (Board.entityCells[j] && !setContains(ignoreCells, j)) continue
+					if (setContains(newObstacles, j)) continue
+					usedJump[j] = cost
+					push(ujFrontier, j)
+				}
+			}
+
+			// Step 2: Walk from usedJump frontier (cost + 1)
+			if (cost < mp) {
+				integer nextCost = cost + 1
+				Array<Cell> nextUjFrontier = []
+				for (Cell cell in ujFrontier) {
+					for (Cell n in cell.neighbors) {
+						if (usedJump[n] == null
+							&& (walk[n] == null || walk[n]! > nextCost)
+							&& (!Board.entityCells[n] || setContains(ignoreCells, n))
+							&& !setContains(newObstacles, n)) {
+							usedJump[n] = nextCost
+							push(nextUjFrontier, n)
+						}
+					}
+				}
+				ujFrontier = nextUjFrontier
+			}
+		}
+
+		// Merge: walk ∪ usedJump (keep minimum distance)
+		Map<Cell, integer> result = clone(walk, 2) as Map<Cell, integer>
+		for (Cell c : integer d in usedJump) {
+			if (result[c] == null || result[c]! > d) result[c] = d
+		}
+		return result
+	}
+
 	static integer getHashcode(Cell from, Set<Cell> ignoreCells, Set<Cell> newObstacles = <>){
 		integer hash = 31
 		hash = hash*37+from.id
@@ -70,106 +145,4 @@ class MapPath{
 		}
 		return result!
 	}
-	/*
-	static void updateReachableCellsAfterJump(howToJump, origin, pathToJump, reachableWithJump, reachableWithoutJump, mp, ignoreCells){
-		//handling the case I jump to:	
-		if(reachableWithoutJump[howToJump.to] == null
-		&& reachableWithJump[howToJump.to]==null){
-			pathToJump[howToJump.to]=howToJump;
-			reachableWithJump[howToJump.to] = origin[howToJump.to];
-		}
-		var stack = origin;
-		var tmp = origin;
-		var next = [];
-		while(mp-->0){
-			for(var currentWorkingCell : var dist in tmp){
-				for(var c in currentWorkingCell.neighbors){
-					if((reachableWithoutJump[c]==null ||reachableWithoutJump[c]>dist+1)
-					  && stack[c] == null 
-					  && (isEmptyCell(c) || inArray(ignoreCells, c))){
-						//add to jumpCells if faster or inexistant
-						if(reachableWithoutJump[c] == null
-						&&(reachableWithJump[c]==null || reachableWithJump[c]>dist+1)){
-							pathToJump[c]=howToJump;
-							reachableWithJump[c] = dist+1;
-						}
-						stack[c] = dist+1;
-						next[c] = dist+1;
-					}
-				}
-			}
-			tmp = next;
-			next = [];
-		}
-	}
-
-	// cells [idcell:mp]
-	static getJumpReachableCells(cells, mp, ignoreCells, pathToJump){
-		var stack = cells;
-		var tmp = cells;
-		var next = [];
-		var maxmp = mp
-		Map<Cell, integer> could_jump_from = [:];
-		// normal walking reachableCells
-		while(mp-->0){
-			for(var currentWorkingCell : var dist in tmp){
-				for(var c in currentWorkingCell.neighborsObstacles){
-					if(Board.obstacles[c]){ // try jumping
-						// TODO FIXME BUG HERE, I SHOULD TRY TO JUMP OVER LEEK ALSO !!!
-						// careful, for enemy mp I shouldnt jump over leek I ignore in ignoreCells !
-						could_jump_from[currentWorkingCell] = mp+1;
-					}else if(stack[c] == null && (!Board.entityCells[c] || inArray(ignoreCells, c))){
-						stack[c] = dist+1;
-						next[c] = dist+1;
-					}
-				}
-			}
-			tmp = next;
-			next = [];
-			if(mp==0){
-				for(var c:var m in tmp){
-					could_jump_from[c]=0;
-				}
-			}
-		}
-		// adding jump only cells
-		// jumpCells = [];
-		var stackJump = [];
-		// TODO cette boucle devrait être basé sur min/maxrange de jump pour rester dynamique en cas de maj
-		for(Cell cellFrom:integer mpleft in could_jump_from){
-			//jumpCells[cellFrom] = [];
-			for(var c in cellFrom.neighbors){
-				if(stack[c]==null
-				|| stack[c] > maxmp-mpleft+1){ // shortcut
-					MapPath.updateReachableCellsAfterJump(Jump(cellFrom, c), [c:mpleft], pathToJump, stackJump, stack, mpleft, ignoreCells);
-					//debugW("jump1case?");
-				}
-			}
-			for(var c in cellFrom.getArea(AREA_CIRCLE_2)){ // todo only area2 circle?
-				if(stack[c]==null
-				|| stack[c] > maxmp-mpleft+2){ // shortcut
-					MapPath.updateReachableCellsAfterJump(Jump(cellFrom, c), [c:mpleft], pathToJump, stackJump, stack, mpleft, ignoreCells);
-					//debugW("jump2case?");
-				}
-			}
-			for(var c in cellFrom.getArea(AREA_CIRCLE_3)){ // todo only area3 circle?
-				if(stack[c]==null
-				|| stack[c] > maxmp-mpleft+3){ // shortcut
-					MapPath.updateReachableCellsAfterJump(Jump(cellFrom, c), [c:mpleft], pathToJump, stackJump, stack, mpleft, ignoreCells);
-					//debugW("jump3case?");
-				}
-			}
-		}
-		//for(var @c:var @mpp in stack){
-			//mark(c, COLOR_GREEN);
-		//}
-		//pause();
-		for(var c:var mpp in stackJump){
-			if(stack[c]!=null)debugE("BUG INSIDE MAPPATH.REACHABLEJUMP!!");
-			stack[c]=mpp;
-			//mark(c, COLOR_RED);
-		}
-		//pause();
-		return stack;
-	}*/
 }

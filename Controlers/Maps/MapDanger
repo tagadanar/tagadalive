@@ -20,6 +20,8 @@ class MapDanger {
 	static Map<Entity, Map<Item, Map<Cell, real>>> _map_entity_item_danger = [:] // [e:[item:[cell:ratio]]]
 	// min MP cost to reach each direct-hit cell (no AOE), used for MP shackle filtering in Damages
 	static Map<Entity, Map<Item, Map<Cell, integer>>> _map_entity_item_mp = [:] // [e:[item:[cell:minDist]]]
+	// min MP cost to reach each jump-only direct-hit cell (cells NOT reachable by walk alone)
+	static Map<Entity, Map<Item, Map<Cell, integer>>> _map_entity_item_jump = [:] // [e:[item:[cell:minDist]]]
 
 	// Enemy antidote coverage: for each enemy with antidote cd <= 1, which cells they can reach
 	// Only populated when BattleState.allyHasPsn is true
@@ -43,6 +45,7 @@ class MapDanger {
 		_hash_danger = [:]
 		_map_entity_item_danger = [:]
 		_map_entity_item_mp = [:]
+		_map_entity_item_jump = [:]
 		_map_enemy_antidote = [:]
 		_map_enemy_liberation = [:]
 		MapSupport.resetCaches()
@@ -54,6 +57,7 @@ class MapDanger {
 		for(Entity e in Fight.getEnemiesAlive()){
 			_map_entity_item_danger[e] = [:]
 			_map_entity_item_mp[e] = [:]
+			_map_entity_item_jump[e] = [:]
 			e.offensiveItems = Items.getOrderedOffensiveItems(e)
 			push(enemies, e)
 			integer itemCount = count(e.offensiveItems)
@@ -287,6 +291,7 @@ class MapDanger {
 	static Map<Cell, real> getEnemiesDmgMap(Entity enemy, Item item){
 		Map<Cell, real> map = [:]
 		Map<Cell, integer> map_mp = [:]
+		// Pass 1: walk-only reachable cells
 		for(Cell cell:integer dist in enemy.reachableCells){
 			if(dist > enemy.mp) break
 			Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell);
@@ -300,6 +305,27 @@ class MapDanger {
 
 		// Store direct-hit MP costs before AOE expansion
 		_map_entity_item_mp[enemy]![item] = map_mp
+
+		// Pass 2: jump-only reachable cells (cells NOT reachable by walk alone)
+		Map<Cell, integer> map_jump = [:]
+		if (enemy.jumpCD <= 1 && enemy.jumpItem != null) {
+			for (Cell cell : integer dist in enemy.reachableCellsJump) {
+				if (dist > enemy.mp) continue
+				// Skip cells already walk-reachable at same or lower distance
+				if (enemy.reachableCells[cell] != null && enemy.reachableCells[cell]! <= dist) continue
+				Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell)
+				for (Cell c in targetableCells) {
+					if (map[c] == null) {
+						map[c] = 1.0
+						map_jump[c] = dist
+					} else if (map_mp[c] == null && (map_jump[c] == null || dist < map_jump[c]!)) {
+						// Cell only reachable via jump — update to better jump distance
+						map_jump[c] = dist
+					}
+				}
+			}
+		}
+		_map_entity_item_jump[enemy]![item] = map_jump
 
 		// AOE expansion (handles CIRCLE, PLUS, X, SQUARE)
 		MapDanger.expandAOE(map, item)
