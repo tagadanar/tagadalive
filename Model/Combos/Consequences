@@ -37,6 +37,7 @@ class Consequences {
 	real? score = null
 	boolean isAlteringDanger = false
 	integer hashcode = 17
+	integer dangerMPHash = 0
 	Set<Entity> targets = <>
 	Cell currentCell
 	integer currentMP
@@ -134,6 +135,7 @@ class Consequences {
 		this.currentTP = consequences.currentTP
 		this.currentWeapon = consequences.currentWeapon
 		this.hashcode = consequences.hashcode
+		this.dangerMPHash = consequences.dangerMPHash
 		this.score = consequences.score != null ? consequences.score : 0.0
 
 		// COPY-ON-WRITE: Handle different parent modes
@@ -195,6 +197,7 @@ class Consequences {
 		c.score = snapshot.effectScore
 		c.isAlteringDanger = snapshot.isAlteringDanger
 		c.hashcode = snapshot.hashcode
+		c.dangerMPHash = snapshot.dangerMPHash
 
 		// Apply movement cost only (effects already computed in snapshot)
 		c.constructMovementOnly(action)
@@ -454,6 +457,10 @@ class Consequences {
 				this.isAlteringDanger=true
 				this.hashcode = 31 * this.hashcode + entity.id
 				this.hashcode = 31 * this.hashcode + (value|0)
+				if (key == Stats.MP) {
+					this.dangerMPHash = this.dangerMPHash * 31 + entity.id
+					this.dangerMPHash = this.dangerMPHash * 31 + _alterations[entity]![key]
+				}
 		}
 
 		// Score update

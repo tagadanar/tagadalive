@@ -20,6 +20,7 @@ class EffectSnapshot {
 	real opportunityCost      // Cost of putting item on cooldown (computed once, shared)
 	real rawEnemyDamage       // Raw damage dealt to enemies before shield mitigation (for Liberation combo detection)
 	integer hashcode
+	integer dangerMPHash = 0
 	boolean isAlteringDanger
 
 	// Effect value tracking for STEAL_LIFE (tracks total value of preceding effect)
@@ -134,6 +135,10 @@ class EffectSnapshot {
 			this.isAlteringDanger = true
 			this.hashcode = 31 * this.hashcode + entity.id
 			this.hashcode = 31 * this.hashcode + (value|0)
+			if (key == Stats.MP) {
+				this.dangerMPHash = this.dangerMPHash * 31 + entity.id
+				this.dangerMPHash = this.dangerMPHash * 31 + this.alterations[entity]![key]
+			}
 		}
 	}
 

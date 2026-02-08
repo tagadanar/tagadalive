@@ -235,10 +235,11 @@ class MapPosition {
 
 		// Check cache first (like MapDanger pattern)
 		if (consequences != null && consequences!.isAlteringDanger) {
-			if (_hash_position[consequences!.hashcode] != null &&
-				_hash_position[consequences!.hashcode]![cell] != null) {
+			integer key = consequences!.hashcode * 997 + consequences!.dangerMPHash
+			if (_hash_position[key] != null &&
+				_hash_position[key]![cell] != null) {
 				Benchmark.stop("MP.evalPos")
-				return _hash_position[consequences!.hashcode]![cell]!
+				return _hash_position[key]![cell]!
 			}
 		} else {
 			if (_position[cell] != null) {
@@ -271,10 +272,11 @@ class MapPosition {
 
 		// Store in cache
 		if (consequences != null && consequences!.isAlteringDanger) {
-			if (_hash_position[consequences!.hashcode] == null) {
-				_hash_position[consequences!.hashcode] = [:]
+			integer key = consequences!.hashcode * 997 + consequences!.dangerMPHash
+			if (_hash_position[key] == null) {
+				_hash_position[key] = [:]
 			}
-			_hash_position[consequences!.hashcode]![cell] = pos
+			_hash_position[key]![cell] = pos
 		} else {
 			_position[cell] = pos
 		}

@@ -222,12 +222,13 @@ class MapDanger {
 	 */
 	static Danger getCellDanger(Cell cell, Consequences? consequences) {
 		if(consequences && consequences!.isAlteringDanger){
-			if(!_hash_danger[consequences!.hashcode]) 
-				_hash_danger[consequences!.hashcode] = [:]
-			if(!_hash_danger[consequences!.hashcode]![cell]){
-				_hash_danger[consequences!.hashcode]![cell] = Damages.computeDanger(cell, consequences)
+			integer key = consequences!.hashcode * 997 + consequences!.dangerMPHash
+			if(!_hash_danger[key])
+				_hash_danger[key] = [:]
+			if(!_hash_danger[key]![cell]){
+				_hash_danger[key]![cell] = Damages.computeDanger(cell, consequences)
 			}
-			return _hash_danger[consequences!.hashcode]![cell]!
+			return _hash_danger[key]![cell]!
 		}else{
 			if(!_danger[cell]) {
 				_danger[cell] = Damages.computeDanger(cell, null)
