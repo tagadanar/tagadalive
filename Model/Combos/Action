@@ -39,6 +39,21 @@ class Action {
 		this.consequences = Consequences(this, consequences)
 		this.score = this.consequences.getScore()
 	}
+
+	/*
+	 * Direct chain constructor - chains with parent consequences without creating
+	 * a throwaway standalone Action. Used by BulbGreedy to avoid wasting a full
+	 * construct() call per non-first action.
+	 * 5th param disambiguates from the EffectSnapshot 4-param constructor (LS4
+	 * overloads by param count, not type).
+	 */
+	constructor(Item item, Cell from, Cell to, Consequences parentCsq, boolean _chain){
+		this.item = item
+		this.from = from
+		this.to = to
+		this.consequences = Consequences(this, parentCsq)
+		this.score = this.consequences.getScore()
+	}
 	
 	/*
 	 * Format chaîne de caractères utilisée pour des tests / debugs.

@@ -225,9 +225,8 @@ class BulbGreedy {
 	 */
 	static Action createAction(Item item, Cell fromCell, Cell toCell, Consequences? parentCsq) {
 		if (parentCsq != null) {
-			// Create base action then chain with parent consequences
-			Action baseAction = new Action(item, fromCell, toCell)
-			return new Action(baseAction, parentCsq!)
+			// Chain directly with parent (no throwaway base Action)
+			return new Action(item, fromCell, toCell, parentCsq!, true)
 		} else {
 			// First action - no parent
 			return new Action(item, fromCell, toCell)
