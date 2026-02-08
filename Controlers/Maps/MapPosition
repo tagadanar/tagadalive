@@ -381,7 +381,7 @@ class MapPosition {
 			Cell? onlyWalkable = null
 			for (Cell c in enemyAdjacent) {
 				if (c == _nearest_enemy!.cell) continue
-				if (!c.isWall && Board.entityCells[c] == null) {
+				if (Board.entityCells[c] == null) {
 					walkableCount++
 					onlyWalkable = c
 				}

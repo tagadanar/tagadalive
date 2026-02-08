@@ -34,7 +34,7 @@ class ExplorerConfig {
 	static integer INTERESTING_CELLS_K_PHASE2 = 15
 	static integer INTERESTING_CELLS_K_PHASE3 = 10
 	// Operation buffer: dynamic for main leek (base + per bulb + potential summon), fixed for bulbs
-	static integer OPERATION_BUFFER_LEEK_BASE = 300000
+	static integer OPERATION_BUFFER_LEEK_BASE = 400000
 	static integer OPERATION_BUFFER_BULB_RESERVE = 200000   // Leek reserves this per existing bulb
 	static integer OPERATION_BUFFER_SUMMON_RESERVE = 200000 // Leek reserves this if can summon
 	static integer OPERATION_BUFFER_BULB_SELF = 200000      // Buffer when bulb itself explores

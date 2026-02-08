@@ -150,59 +150,58 @@ class Item {
 		CHIP_FLASH: 17,
 		CHIP_PUNISHMENT: 17,
 		CHIP_PLASMA: 17,
-		WEAPON_FLAME_THROWER: 18,    // Poison (after direct damage)
-		WEAPON_GAZOR: 18,
-		WEAPON_REVOKED_M_LASER: 18,
-		CHIP_SOPORIFIC: 18,          // Debuffs/poison (before heals)
-		CHIP_BALL_AND_CHAIN: 18,
-		CHIP_TRANQUILIZER: 18,
-		CHIP_SLOW_DOWN: 18,
-		CHIP_FRACTURE: 18,
-		CHIP_CRUSHING: 18,
-		CHIP_BRAINWASHING: 18,
-		CHIP_PLAGUE: 18,
-		CHIP_TOXIN: 18,
-		CHIP_VENOM: 18,
-		CHIP_COVID: 18,
-		CHIP_ARSENIC: 18,
-		WEAPON_QUANTUM_RIFLE: 19,	 // nova dmg after dmg
-		CHIP_DESINTEGRATION: 19, 
-		CHIP_ALTERATION: 19,         // Heals and buffs (after damage)
-		CHIP_FERTILIZER: 19,
-		CHIP_REMISSION: 19,
-		CHIP_LOAM: 19,
-		CHIP_ARMORING: 19,
-		CHIP_REGENERATION: 19,
-		CHIP_VACCINE: 19,
-		CHIP_DRIP: 19,
-		CHIP_CURE: 19,
-		CHIP_BANDAGE: 19,
-		WEAPON_EXPLORER_RIFLE: 19,
-		CHIP_VAMPIRIZATION: 19, // maybe should be before dmg as it target enemies ?
-		CHIP_ELEVATION: 19,
-		CHIP_THERAPY: 19,
-		CHIP_MUTATION: 19,
-		CHIP_TRANSMUTATION: 19,
-		CHIP_SERUM: 19,
-		CHIP_MIRROR: 20,             // Damage reflection
-		CHIP_THORN: 20,
-		CHIP_BRAMBLE: 20,
-		CHIP_JUMP: 22,
-		CHIP_REPOTTING: 22,
-		CHIP_GRAPPLE: 22,
-		CHIP_BOXING_GLOVE: 22,
-		CHIP_TELEPORTATION: 22,
-		CHIP_RESURRECTION: 22,
-		CHIP_APOCALYPSE: 23, // boss chips
-		CHIP_KILL: 23,
-		CHIP_DIVINE_PROTECTION: 23,
-		415: 23, // CHIP_AWAKENING
-		425: 23, // CHIP_EXASPERATION
-		411: 23, // unknown shuriken
-		412: 23, // unknown kemuridama
-		413: 23, // unknown fire_ball
-		414: 23, // unknown trebuchet
-		416: 23, // unknown thunder
+		CHIP_ARSENIC: 18,            // Poison by priority (strongest first)
+		CHIP_COVID: 19,
+		CHIP_PLAGUE: 20,
+		CHIP_TOXIN: 21,
+		WEAPON_GAZOR: 22,
+		WEAPON_FLAME_THROWER: 23,
+		CHIP_VENOM: 24,
+		WEAPON_REVOKED_M_LASER: 24,
+		CHIP_BALL_AND_CHAIN: 25,     // Debuffs (after poison)
+		CHIP_SLOW_DOWN: 26,
+		CHIP_SOPORIFIC: 27,          // Remaining debuffs
+		CHIP_TRANQUILIZER: 27,
+		CHIP_FRACTURE: 27,
+		CHIP_CRUSHING: 27,
+		CHIP_BRAINWASHING: 27,
+		CHIP_TRANSMUTATION: 16,      // Buffs before damage
+		CHIP_MUTATION: 16,
+		WEAPON_QUANTUM_RIFLE: 28,	 // Nova dmg after dmg
+		CHIP_DESINTEGRATION: 28,
+		WEAPON_EXPLORER_RIFLE: 28,
+		CHIP_REGENERATION: 29,       // Heals by priority
+		CHIP_THERAPY: 30,
+		CHIP_REMISSION: 31,
+		CHIP_VAMPIRIZATION: 32,
+		CHIP_DRIP: 33,
+		CHIP_CURE: 34,
+		CHIP_BANDAGE: 35,
+		CHIP_SERUM: 36,              // Buffs (same)
+		CHIP_VACCINE: 36,
+		CHIP_ELEVATION: 37,          // Stat buffs (same)
+		CHIP_ARMORING: 37,
+		CHIP_FERTILIZER: 37,
+		CHIP_LOAM: 37,
+		CHIP_ALTERATION: 37,
+		CHIP_MIRROR: 38,             // Damage reflection
+		CHIP_THORN: 38,
+		CHIP_BRAMBLE: 38,
+		CHIP_JUMP: 39,               // Movement/utility
+		CHIP_REPOTTING: 39,
+		CHIP_GRAPPLE: 39,
+		CHIP_BOXING_GLOVE: 39,
+		CHIP_TELEPORTATION: 39,
+		CHIP_APOCALYPSE: 40,         // Boss chips
+		CHIP_KILL: 40,
+		CHIP_DIVINE_PROTECTION: 40,
+		415: 40, // CHIP_AWAKENING
+		425: 40, // CHIP_EXASPERATION
+		411: 40, // unknown shuriken
+		412: 40, // unknown kemuridama
+		413: 40, // unknown fire_ball
+		414: 40, // unknown trebuchet
+		416: 40, // unknown thunder
 	]
 			
 	constructor(integer id) {

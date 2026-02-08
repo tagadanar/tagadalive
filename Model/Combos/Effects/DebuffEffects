@@ -50,6 +50,11 @@ Consequences.registerHandlers([
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MP, eot)
+		// Lock bonus: enemy leek pinned to 0 MP without manumission
+		if (!entityTarget.isBulb && entityTarget.nextManumission > 1
+			&& entityTarget.getCurrentMP(conseq) <= 0) {
+			conseq.score += Scoring.W_LOCK_BONUS
+		}
 	},
 
 	// ============================================
