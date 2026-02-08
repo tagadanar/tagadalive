@@ -97,7 +97,7 @@ class BeamState {
 		}
 
 		// Use state.currentWeapon for switch cost check
-		integer switchCost = baseAction.item.isWeap && baseAction.item != this.state.currentWeapon ? 1 : 0
+		integer switchCost = baseAction.item.isWeap && (this.state.currentWeapon == null || baseAction.item.id != this.state.currentWeapon!.id) ? 1 : 0
 		if (baseAction.item.cost + switchCost > this.remainingTP) return false
 
 		return true

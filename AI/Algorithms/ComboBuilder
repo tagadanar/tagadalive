@@ -1342,7 +1342,7 @@ class ComboBuilder {
 		integer total = 0
 		Item? currentWeapon = startWeapon
 		for (Action a in actions) {
-			if (a.item.isWeap && a.item != currentWeapon) {
+			if (a.item.isWeap && (currentWeapon == null || a.item.id != currentWeapon!.id)) {
 				total += 1  // Weapon switch cost
 				currentWeapon = a.item
 			}
@@ -1413,7 +1413,7 @@ class ComboBuilder {
 		if (uses >= action.item.maxUse) return false
 
 		Consequences csq = combo.getCurrentConsequences()
-		integer switchCost = (action.item.isWeap && action.item != csq.currentWeapon) ? 1 : 0
+		integer switchCost = (action.item.isWeap && (csq.currentWeapon == null || action.item.id != csq.currentWeapon!.id)) ? 1 : 0
 		// Check we have enough TP for action + reserved TP (for inversion)
 		if (csq.currentTP < action.item.cost + switchCost + reserveTP) return false
 
@@ -1928,7 +1928,7 @@ class ComboBuilder {
 		if (csq.invalidatedActions != null && setContains(csq.invalidatedActions!, action)) return false
 
 		// Check TP (including weapon switch cost)
-		integer switchCost = (action.item.isWeap && action.item != csq.currentWeapon) ? 1 : 0
+		integer switchCost = (action.item.isWeap && (csq.currentWeapon == null || action.item.id != csq.currentWeapon!.id)) ? 1 : 0
 		if (csq.currentTP < action.item.cost + switchCost) return false
 
 		// Check reachability

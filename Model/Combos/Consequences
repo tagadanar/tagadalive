@@ -242,8 +242,8 @@ class Consequences {
 		// TP cost
 		this.currentTP -= action.item.cost
 
-		// Weapon switch cost
-		if (action.item.isWeap && action.item != this.currentWeapon) {
+		// Weapon switch cost (compare by ID: Item != Item? is unreliable in LS4)
+		if (action.item.isWeap && (this.currentWeapon == null || action.item.id != this.currentWeapon!.id)) {
 			this.currentTP -= 1
 		}
 		if (action.item.isWeap) {
@@ -398,7 +398,7 @@ class Consequences {
 
 		this.currentTP -= action.item.cost
 
-		if (action.item.isWeap && action.item != this.currentWeapon) {
+		if (action.item.isWeap && (this.currentWeapon == null || action.item.id != this.currentWeapon!.id)) {
 			this.currentTP -= 1
 		}
 		if (action.item.isWeap) {

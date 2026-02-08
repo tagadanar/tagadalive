@@ -77,7 +77,7 @@ class MCTSNode {
 			if (target != null && this.state.isKilled(target!)) continue
 
 			// Check TP cost (use state.currentWeapon for switch cost check)
-			integer switchCost = baseAction.item.isWeap && baseAction.item != this.state.currentWeapon ? 1 : 0
+			integer switchCost = baseAction.item.isWeap && (this.state.currentWeapon == null || baseAction.item.id != this.state.currentWeapon!.id) ? 1 : 0
 			if (baseAction.item.cost + switchCost > this.remainingTP) continue
 
 			push(this.untriedActions, baseAction)
@@ -334,7 +334,7 @@ class MCTS {
 				}
 
 				// Check TP
-				integer switchCost = baseAction.item.isWeap && baseAction.item != simWeapon ? 1 : 0
+				integer switchCost = baseAction.item.isWeap && (simWeapon == null || baseAction.item.id != simWeapon!.id) ? 1 : 0
 				if (baseAction.item.cost + switchCost > simTP) continue
 
 				// Found valid action (list is prioritized: self-cast first, then by score)
