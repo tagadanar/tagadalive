@@ -8,6 +8,10 @@
  *          EFFECT_ANTIDOTE, EFFECT_TOTAL_DEBUFF
  */
 
+// DEBUG: dedup liberation consequence trace (once per ally per turn)
+global integer _libCTurn = -1
+global Map<integer, boolean> _libCDone = [:]
+
 // Register all debuff effect handlers
 Consequences.registerHandlers([
 	// ============================================
@@ -64,9 +68,11 @@ Consequences.registerHandlers([
 	EFFECT_DEBUFF: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Liberation reduces all effects on target by a percentage
 		// Checks what's already been altered to handle combos like Antidote→Liberation or Liberation→Liberation
+		real scoreBefore = conseq.score
 
 		// First, process simulated effects (buffs/debuffs added earlier in this combo)
 		// Must iterate BEFORE adding counter-effects to avoid reducing our own counters
+		string simSuspicious = ""
 		if (conseq.hasAltEffects(entityTarget)) {
 			// Pre-create entry for this item to avoid ConcurrentModificationException when adding counter-effects
 			conseq.ensureAltEffectsEntry(entityTarget, effect.item)
@@ -85,6 +91,7 @@ Consequences.registerHandlers([
 						// Counter-effect has opposite sign of original
 						integer counterValue = simEffect.value > 0 ? -reduction : reduction
 						EffectOverTime eot = EffectOverTime(effect.item, counterValue, simEffect.duration, simEffect.effectType)
+						if (entityTarget.isFriend && counterValue > 0) simSuspicious += " sim!" + simEffect.effectType + "v" + counterValue
 						conseq.add(entityTarget, stat!, eot)
 					}
 				}
@@ -92,6 +99,7 @@ Consequences.registerHandlers([
 		}
 
 		// Then process real effects (from start of turn)
+		string suspicious = ""
 		for (EntityEffect entityEffect in entityTarget.effects) {
 			// Skip irreducible effects - Liberation can't reduce them
 			if (entityEffect.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) continue
@@ -108,9 +116,24 @@ Consequences.registerHandlers([
 			integer value = reduction * TargetType.CONVERTER[entityEffect.type]
 			EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.turns, entityEffect.type)
 			integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
+			integer conv = TargetType.CONVERTER[entityEffect.type]
+			if (entityTarget.isFriend && (conv != 1 || stat == null)) {
+				suspicious += " !" + entityEffect.type + "v" + entityEffect.value + "c" + conv + "s" + stat + "t" + entityEffect.turns
+			}
 			if (stat == null) debugE("LIBERATION effect to stat unhandled: " + entityEffect)
 			conseq.add(entityTarget, stat!, eot)
 			conseq.addEffectTypeAlteration(entityTarget, entityEffect.type, reduction)
+		}
+
+		// DEBUG: log once per ally per turn when consequence score is positive (bug condition)
+		if (entityTarget.isFriend) {
+			real delta = conseq.score - scoreBefore
+			integer curTurn = getTurn()
+			if (curTurn != _libCTurn) { _libCTurn = curTurn; _libCDone = [:] }
+			if (delta > 0 && !_libCDone[entityTarget.id]) {
+				_libCDone[entityTarget.id] = true
+				debugE("LIB_C " + entityTarget.name + " n=" + count(entityTarget.effects) + " score=" + round(delta) + suspicious + simSuspicious)
+			}
 		}
 	},
 

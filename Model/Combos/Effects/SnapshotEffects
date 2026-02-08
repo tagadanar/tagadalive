@@ -262,7 +262,9 @@ EffectCache.registerHandlers([
 	// Liberation - simplified for initial pool (only processes existing effects, no combo effects)
 	EFFECT_DEBUFF: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
+		real scoreBefore = snap.effectScore
 		// Process real effects from start of turn
+		string suspicious = ""
 		for (EntityEffect entityEffect in entityTarget.effects) {
 			if (entityEffect.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) continue
 			integer reduction = round(entityEffect.value * (effect.avg/100.0))
@@ -271,8 +273,15 @@ EffectCache.registerHandlers([
 			integer value = reduction * TargetType.CONVERTER[entityEffect.type]
 			EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.turns, entityEffect.type)
 			integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
+			// Flag suspicious: positive contribution on ally, or null stat, or unexpected converter
+			integer conv = TargetType.CONVERTER[entityEffect.type]
+			if (entityTarget.isFriend && (conv != 1 || stat == null)) {
+				suspicious += " !" + entityEffect.type + "v" + entityEffect.value + "c" + conv + "s" + stat + "t" + entityEffect.turns
+			}
 			if (stat != null) snap.addAlteration(entityTarget, stat!, eot)
 		}
+		real delta = snap.effectScore - scoreBefore
+		if (entityTarget.isFriend && delta > 0) debugE("LIB " + entityTarget.name + " n=" + count(entityTarget.effects) + " score=" + round(delta) + suspicious)
 	},
 
 	EFFECT_ANTIDOTE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {

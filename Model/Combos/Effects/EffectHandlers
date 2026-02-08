@@ -494,6 +494,8 @@ class EffectHandlers {
 			if (!BattleState.enemyHasStr) duplicateFactor *= 0.1
 			// Shields more valuable if enemy has science (buffs allies, longer fights)
 			if (BattleState.enemyHasSnc) duplicateFactor *= 1.5
+			// Metallic much more valuable vs OTK enemies
+			if (BattleState.enemyHasOTK) duplicateFactor *= 2.0
 		} else if (isStrBulb) {
 			integer existingCount = BattleState.countStrBulbs
 			if (existingCount == 0) duplicateFactor = 3.0

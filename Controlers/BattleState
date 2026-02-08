@@ -28,6 +28,7 @@ class BattleState {
 	static boolean enemyHasStr = false // any enemy has STR >= 100
 	static boolean enemyHasMgc = false // any enemy has MGC >= 100 (for antidote value)
 	static boolean enemyHasSnc = false // any enemy has SNC >= 200 (for dmgReturn value)
+	static boolean enemyHasOTK = false // any enemy has STR >= 400, AGI >= 400, SNC >= 400
 	static boolean allyHasStr = false  // any ally has STR >= 100 (for vuln value)
 	static boolean allyHasScience = false // any ally has SNC >= 200 (for rel vuln value)
 	static boolean allyHasPsn = false  // any ally has MGC >= 100 (for enemy antidote map)
@@ -84,6 +85,7 @@ class BattleState {
 		enemyHasStr = false
 		enemyHasMgc = false
 		enemyHasSnc = false
+		enemyHasOTK = false
 		wsdReadyChips = [:]
 		rstReadyChips = [:]
 		agiReadyChips = [:]
@@ -204,6 +206,10 @@ class BattleState {
 			// Check for enemy with significant science (for dmgReturn value)
 			if (!enemyHasSnc && entity.snc >= 200) {
 				enemyHasSnc = true
+			}
+			// Check for enemy with OTK potential (high STR + AGI + SNC)
+			if (!enemyHasOTK && entity.str >= 400 && entity.agi >= 400 && entity.snc >= 400) {
+				enemyHasOTK = true
 			}
 
 			// For leeks only: compute ratios
