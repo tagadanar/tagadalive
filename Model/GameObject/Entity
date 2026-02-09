@@ -63,6 +63,7 @@ class Entity {
 	Map<Cell, integer> reachableCells
 	Map<Cell, integer> reachableCellsJump     // reachable via walk + CHIP_JUMP (superset when jumpCD <= 1)
 	Map<Cell, integer> extendedReachableCells  // reachable with MP buffs (self only)
+	Map<Cell, integer> jumpExtendedReachableCells  // reachable with MP buffs + CHIP_JUMP (self only)
 	integer maxMPBuff = 0                       // max MP gain from self-cast buffs (self only)
 	// inventaire organisé en fonction des cibles
 	Array<Item> items
@@ -350,6 +351,14 @@ class Entity {
 				)
 			} else {
 				this.extendedReachableCells = this.reachableCells
+			}
+			// Compute jump-extended reach for self (walk+buff+jump = max theoretical reach)
+			if (this.jumpCD == 0 && this.jumpItem != null) {
+				this.jumpExtendedReachableCells = MapPath.getJumpReachableCells(
+					this.extendedReachableCells, this.mp + this.maxMPBuff, this.cellsToIgnore, <>
+				)
+			} else {
+				this.jumpExtendedReachableCells = this.extendedReachableCells
 			}
 		}
 	}

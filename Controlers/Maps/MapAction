@@ -100,7 +100,7 @@ class MapAction {
 					// Create actions for each reachable fromCell
 					for (Cell fromCell in fromCells) {
 						// Check reachability (selfCell always reachable, others need extendedReachableCells)
-						if (fromCell != Fight.self.cell && Fight.self.extendedReachableCells[fromCell] == null) continue
+						if (fromCell != Fight.self.cell && Fight.self.jumpExtendedReachableCells[fromCell] == null) continue
 						MapAction.addSummonAction(item, fromCell, c.cell)
 					}
 				}
@@ -382,13 +382,13 @@ class MapAction {
 	 * Used when caller already checked snapshot for early filtering
 	 */
 	static Action? addActionWithSnapshot(Item item, Cell from, Cell targetCell, EffectSnapshot? snapshot) {
-		if (targetCell != Fight.selfCell && Fight.self.extendedReachableCells[from] == null) return null
+		if (targetCell != Fight.selfCell && Fight.self.jumpExtendedReachableCells[from] == null) return null
 		Benchmark.start("addAction")
 		return MapAction.addActionCore(item, from, targetCell, snapshot)
 	}
 
 	static Action? addAction(Item item, Cell from, Cell targetCell) {
-		if (targetCell != Fight.selfCell && Fight.self.extendedReachableCells[from] == null) return null
+		if (targetCell != Fight.selfCell && Fight.self.jumpExtendedReachableCells[from] == null) return null
 		Benchmark.start("addAction")
 
 		EffectSnapshot? snapshot = null
@@ -406,7 +406,7 @@ class MapAction {
 	 * Summons don't target existing entities, so we compute score from EffectHandlers.summon().
 	 */
 	static Action? addSummonAction(Item item, Cell from, Cell targetCell) {
-		if (from != Fight.self.cell && Fight.self.extendedReachableCells[from] == null) return null
+		if (from != Fight.self.cell && Fight.self.jumpExtendedReachableCells[from] == null) return null
 		Benchmark.start("addAction")
 
 		// Create action without snapshot (summons don't affect existing entities)
@@ -431,7 +431,7 @@ class MapAction {
 	 * Unlike summons, resurrection uses KILL_VALUE scoring (inverse of ally death).
 	 */
 	static Action? addResurrectionAction(Item item, Cell from, Cell targetCell) {
-		if (from != Fight.self.cell && Fight.self.extendedReachableCells[from] == null) return null
+		if (from != Fight.self.cell && Fight.self.jumpExtendedReachableCells[from] == null) return null
 		Benchmark.start("addAction")
 
 		Action action = new Action(item, from, targetCell)

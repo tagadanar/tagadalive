@@ -1437,6 +1437,171 @@ class ComboBuilder {
 	}
 
 	// ════════════════════════════════════════════════════════════
+	// JUMP COMBO METHODS
+	// ════════════════════════════════════════════════════════════
+
+	/*
+	 * Find a jump route from walk-reachable cells to a target cell.
+	 * Returns [launchCell, jumpDest] where:
+	 *   - launchCell is in walkMap (walk-reachable)
+	 *   - jumpDest is within AREA_CIRCLE_3 of launchCell
+	 *   - target is walk-reachable from jumpDest (or jumpDest == target)
+	 * Minimizes total MP cost (walk to launch + walk from jumpDest to target).
+	 * Returns null if no route exists.
+	 */
+	static Array<Cell>? _findJumpRoute(Cell target, Map<Cell, integer> walkMap, integer maxMP, Set<Cell> ignoreCells) {
+		Cell? bestLaunch = null
+		Cell? bestDest = null
+		integer bestCost = maxMP + 1
+
+		// Pass 1: Direct jump to target (O(|jumpDests|), very cheap)
+		// Reverse lookup: cells within AREA_CIRCLE_3 of target that are in walkMap
+		for (Cell L in MapPath.getJumpDests(target)) {
+			integer? walkToL = walkMap[L]
+			if (walkToL == null) continue
+			if (walkToL! < bestCost) {
+				bestCost = walkToL!
+				bestLaunch = L
+				bestDest = target
+			}
+		}
+
+		// If direct jump found at cost 0, it's optimal
+		if (bestCost == 0) return [bestLaunch!, bestDest!]
+
+		// Pass 2: Indirect — jump near target, then walk
+		integer opsStart = getOperations()
+		integer opsBudget = 50000  // Limit ops for indirect search
+
+		for (Cell L : integer walkToL in walkMap) {
+			if (getOperations() - opsStart > opsBudget) break
+			if (walkToL >= bestCost) continue  // Can't improve
+
+			for (Cell J in MapPath.getJumpDests(L)) {
+				// Quick prune: cell distance is lower bound for walk distance
+				integer cellDist = getCellDistance(J.id, target.id)
+				if (cellDist > maxMP - walkToL) continue
+				if (walkToL + cellDist >= bestCost) continue
+
+				// Skip if J is occupied (not walkable)
+				if (Board.entityCells[J] && !setContains(ignoreCells, J)) continue
+
+				// Actual walk check from J to target
+				Map<Cell, integer> reachFromJ = MapPath.getCachedReachableCells(J, maxMP - walkToL, ignoreCells)
+				integer? walkJToTarget = reachFromJ[target]
+				if (walkJToTarget != null) {
+					integer totalCost = walkToL + walkJToTarget!
+					if (totalCost < bestCost) {
+						bestCost = totalCost
+						bestLaunch = L
+						bestDest = J
+					}
+				}
+			}
+		}
+
+		if (bestLaunch == null) return null
+		return [bestLaunch!, bestDest!]
+	}
+
+	/*
+	 * Build combo at a cell reachable only via jump.
+	 * Pattern: [MP buffs] → [walk to launch] → [jump] → [walk to cell] → [attacks]
+	 */
+	static Combo? buildAtCellWithJump(ExplorationContext ctx, Cell cell) {
+		if (!ctx.hasJump || ctx.jumpItem == null) return null
+
+		Item jumpItem = ctx.jumpItem!
+		integer jumpCost = jumpItem.cost
+
+		// Not enough TP for jump + at least one attack
+		if (ctx.initialTP < jumpCost + 2) return null
+
+		// Find jump route using extended walk map
+		Array<Cell>? route = ComboBuilder._findJumpRoute(
+			cell, ctx.extendedReachableCells, ctx.initialMP + ctx.maxMPBuff, ctx.cellsToIgnore)
+		if (route == null) return null
+
+		Cell launchCell = route![0]
+		Cell jumpDest = route![1]
+
+		// Walk distance to launch cell
+		integer? walkToLaunch = ctx.extendedReachableCells[launchCell]
+		if (walkToLaunch == null) return null
+		integer walkDist = walkToLaunch!
+
+		// Calculate MP buffs if needed
+		Array<Action> mpBuffActions = []
+		integer mpBuffTPCost = 0
+		if (walkDist > ctx.initialMP) {
+			Array<Action>? buffs = ComboBuilder._calculateMPBuffs(
+				walkDist - ctx.initialMP, ctx.initialTP - jumpCost)
+			if (buffs == null) return null
+			mpBuffActions = buffs!
+			for (Action buff in mpBuffActions) {
+				mpBuffTPCost += buff.item.cost
+			}
+		}
+
+		// Check TP budget: buffs + jump + at least 2 TP for attacks
+		if (ctx.initialTP - mpBuffTPCost - jumpCost < 2) return null
+
+		// Build combo
+		Combo combo = Combo()
+		Map<Item, integer> usesThisTurn = [:]
+
+		// 1. Apply MP buff actions
+		ComboBuilder._applyBuffs(combo, mpBuffActions, usesThisTurn)
+
+		// 2. Create and add jump action
+		Consequences priorCsq = combo.getCurrentConsequences()
+
+		// Check we have enough MP after buffs to reach launch cell
+		if (priorCsq.currentMP < walkDist) return null
+
+		Action jumpAction = Action(jumpItem, launchCell, jumpDest)
+		Action actualizedJump = Action(jumpAction, priorCsq)
+
+		// Override position: after jump, we're at jumpDest
+		actualizedJump.consequences.currentCell = jumpDest
+
+		// Deduct MP for walking to launch cell
+		actualizedJump.consequences.currentMP = priorCsq.currentMP - walkDist
+
+		// Push directly (bypass combo.add score check — jump has no intrinsic damage score)
+		push(combo.actions, actualizedJump)
+		usesThisTurn[jumpItem] = 1
+
+		// 3. Calculate remaining resources
+		integer remainingTP = actualizedJump.consequences.currentTP
+		integer remainingMP = actualizedJump.consequences.currentMP
+		Item? weapon = actualizedJump.consequences.currentWeapon
+
+		// If jumpDest != cell, we need to walk from jumpDest to cell
+		if (jumpDest != cell) {
+			Map<Cell, integer> reachFromDest = MapPath.getCachedReachableCells(
+				jumpDest, remainingMP, ctx.cellsToIgnore)
+			integer? walkDestToCell = reachFromDest[cell]
+			if (walkDestToCell == null) return null
+			remainingMP -= walkDestToCell!
+		}
+
+		// 4. Get actions for target cell, exclude used items
+		Array<Action> pool = MapCellScore.getActionsForCell(cell)
+		pool = ComboBuilder._excludeUsed(pool, usesThisTurn)
+
+		// 5. Build core into combo (knapsack, greedy, position)
+		ComboBuilder._buildCoreInto(
+			ctx, combo, usesThisTurn, pool, remainingTP, weapon,
+			0,      // reserveMP (all MP committed to reach)
+			null,   // stopWhenKilled
+			true    // restrictToCell
+		)
+
+		return count(combo.actions) > 1 ? combo : null  // > 1 because jump action is always there
+	}
+
+	// ════════════════════════════════════════════════════════════
 	// PRIVATE CORE METHODS
 	// ════════════════════════════════════════════════════════════
 

@@ -56,7 +56,12 @@ class ExplorationContext {
 	// Reachability maps (snapshot at exploration start)
 	Map<Cell, integer> reachableCells
 	Map<Cell, integer> extendedReachableCells
+	Map<Cell, integer> jumpExtendedReachableCells
 	Set<Cell> cellsToIgnore
+
+	// Jump state
+	boolean hasJump
+	Item? jumpItem
 
 	// Results tracking
 	Array<ExplorerResult> topResults
@@ -80,7 +85,12 @@ class ExplorationContext {
 		// Snapshot reachability
 		this.reachableCells = Fight.self.reachableCells
 		this.extendedReachableCells = Fight.self.extendedReachableCells
+		this.jumpExtendedReachableCells = Fight.self.jumpExtendedReachableCells
 		this.cellsToIgnore = clone(Fight.self.cellsToIgnore) as Set<Cell>
+
+		// Jump state
+		this.hasJump = Fight.self.jumpCD == 0 && Fight.self.jumpItem != null
+		this.jumpItem = Fight.self.jumpItem
 
 		// Initialize results
 		this.topResults = []
@@ -687,6 +697,22 @@ class ComboExplorer {
 			}
 		}
 
+		// Phase 1c: Jump-extended range (cells reachable only via jump)
+		if (ctx.hasJump) {
+			for (Cell cell : real score in MapCellScore.cellScores) {
+				if (ctx.shouldStop()) break
+				// Skip cells reachable without jump
+				if (ctx.extendedReachableCells[cell] != null) continue
+				// Must be in jump-extended range
+				if (ctx.jumpExtendedReachableCells[cell] == null) continue
+
+				Combo? combo = ComboBuilder.buildAtCellWithJump(ctx, cell)
+				if (combo != null) {
+					ctx.recordResult(ExplorerResult(combo!, "P1:Jump>c" + cell.id, "1"))
+				}
+			}
+		}
+
 		Benchmark.stop("ComboExplorer.phaseSingleCell")
 	}
 
@@ -745,7 +771,11 @@ class ComboExplorer {
 	static void phaseMultiCell(ExplorationContext ctx) {
 		Benchmark.start("ComboExplorer.phaseMultiCell")
 
-		Array<Cell> interesting = MapCellScore.interestingCells
+		// Filter out jump-only cells (not walk+buff reachable)
+		Array<Cell> interesting = []
+		for (Cell c in MapCellScore.interestingCells) {
+			if (ctx.extendedReachableCells[c] != null) push(interesting, c)
+		}
 		integer n = count(interesting)
 
 		// Try all pairs
@@ -786,7 +816,11 @@ class ComboExplorer {
 	static void phaseThreeCell(ExplorationContext ctx) {
 		Benchmark.start("ComboExplorer.phaseThreeCell")
 
-		Array<Cell> interesting = MapCellScore.interestingCells
+		// Filter out jump-only cells (not walk+buff reachable)
+		Array<Cell> interesting = []
+		for (Cell c in MapCellScore.interestingCells) {
+			if (ctx.extendedReachableCells[c] != null) push(interesting, c)
+		}
 		integer n = min(ExplorerConfig.INTERESTING_CELLS_K_PHASE3, count(interesting))
 
 		// Try all triplets with all 6 orderings

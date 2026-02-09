@@ -155,6 +155,10 @@ class Combo {
 				Benchmark.logBuff(action.item.name)
 			} else {
 				integer result = action.item.useItemOnCellWithResult(action.to)
+				// Update cached position after teleport (CHIP_JUMP changes our cell)
+				if (action.item.id == CHIP_JUMP) {
+					Fight.self.cell = Board.cells[getCell()!]!
+				}
 				if(result < 0) {
 					integer dist = getCellDistance(getCell()!, action.to.id)
 					boolean los = lineOfSight(getCell()!, action.to.id, [])!
