@@ -7,8 +7,8 @@
  * Phases (in order):
  * - Phase 0: Stay in place (cheap baseline, 0 MP offense)
  * - Phase T: Target focus
- *   - Kill each enemy: 4 variants (Liberation x MPBuff)
- *   - Support each ally: 2 variants (MPBuff)
+ *   - Each non-bulb enemy: prefix enumeration (Liberation × Str buffs × MP levels)
+ *   - Each non-bulb ally (canDie): 2 variants (MPBuff)
  * - Phase 1a: Single-cell MP sampling (1..maxMP, no buffs needed)
  * - Phase 1b: Extended range cells (maxMP+1..maxMP+maxMPBuff, with minimal buffs)
  * - Phase 2: Multi-cell pairs (top K cells, both orderings, minimal buffs if needed)
@@ -255,42 +255,25 @@ class ComboExplorer {
 	static void phaseTargetFocus(ExplorationContext ctx) {
 		Benchmark.start("ComboExplorer.phaseTargetFocus")
 
-		boolean hasMPBuff = ctx.maxMPBuff > 0
+		// Pre-collect str buff options once (shared across all enemies)
+		Array<Action> strBuffOptions = ComboBuilder._collectStrBuffOptions(ctx.initialTP)
 
-		// For each enemy: try kill focus (with and without Liberation, with and without MP buff)
+		// === ENEMIES ===
 		for (Entity enemy in Fight.getEnemiesAlive()) {
 			if (ctx.shouldStop()) break
-			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy)) continue
-
-			// Variant A: Max damage on this enemy (no MP buff)
-			ComboExplorer.tryKillTarget(ctx, enemy, null, "T:Kill_" + enemy.name, false)
-
-			// Variant B: With MP buff to reach extended cells
-			if (hasMPBuff) {
-				if (ctx.shouldStop()) break
-				ComboExplorer.tryKillTarget(ctx, enemy, null, "T:Kill_" + enemy.name + "+B", true)
-			}
-
-			// Variant C: Liberation first, then max damage (no MP buff)
-			if (Fight.liberationReady && Fight.liberationItem != null) {
-				if (ctx.shouldStop()) break
-				ComboExplorer.tryKillTarget(ctx, enemy, Fight.liberationItem, "T:Lib+" + enemy.name, false)
-
-				// Variant D: Liberation + MP buff
-				if (hasMPBuff) {
-					if (ctx.shouldStop()) break
-					ComboExplorer.tryKillTarget(ctx, enemy, Fight.liberationItem, "T:Lib+" + enemy.name + "+B", true)
-				}
-			}
+			if (enemy.isBulb || enemy.isInvincible || BossFennel.shouldNotTarget(enemy)) continue
+			ComboExplorer._exploreTargetEnemy(ctx, enemy, strBuffOptions)
 		}
 
-		// For each ally (not self): try support focus (with and without MP buff)
+		// === ALLIES: canDie OR low lifeRatio (including poison) ===
+		boolean hasMPBuff = ctx.maxMPBuff > 0
 		for (Entity ally in Fight.getAlliesAlive()) {
 			if (ctx.shouldStop()) break
-			if (ally == Fight.self) continue
+			if (ally == Fight.self || ally.isBulb) continue
+			// Include if canDie OR lifeRatio (with poison) < 50%
+			if (!ally.canDie && ally.psnlife * 2 >= ally.totalLife) continue
 
 			ComboExplorer.trySupportAlly(ctx, ally, "T:Help_" + ally.name, false)
-
 			if (hasMPBuff) {
 				if (ctx.shouldStop()) break
 				ComboExplorer.trySupportAlly(ctx, ally, "T:Help_" + ally.name + "+B", true)
@@ -298,18 +281,6 @@ class ComboExplorer {
 		}
 
 		Benchmark.stop("ComboExplorer.phaseTargetFocus")
-	}
-
-	/*
-	 * Try to kill a specific target using ComboBuilder
-	 */
-	static void tryKillTarget(ExplorationContext ctx, Entity target, Item? liberationItem, string name, boolean useMPBuff) {
-		Combo? combo = ComboBuilder.buildForTarget(ctx, target, liberationItem, useMPBuff)
-		if (combo == null) return;
-
-		if (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0) {
-			ctx.recordResult(ExplorerResult(combo!, name, "T"))
-		}
 	}
 
 	/*
@@ -322,6 +293,127 @@ class ComboExplorer {
 		if (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0) {
 			ctx.recordResult(ExplorerResult(combo!, name, "T"))
 		}
+	}
+
+	/*
+	 * Explore all prefix combinations for a single enemy target.
+	 * Enumerates: lib(0..1) × str(0..N) × mp(useful levels)
+	 */
+	static void _exploreTargetEnemy(ExplorationContext ctx, Entity enemy, Array<Action> strBuffOptions) {
+		Array<Action> damageActions = MapCellScore.getActionsDamagingTarget(enemy)
+		if (count(damageActions) == 0) return;
+
+		// Check if we have damage-type actions (str/lib only help EFFECT_DAMAGE, not poison)
+		boolean hasDamageType = false
+		for (Action a in damageActions) {
+			if (a.item.isDamage) {
+				hasDamageType = true
+				break
+			}
+		}
+
+		// Liberation option: only if target has shields and we have damage-type actions
+		boolean canLib = Fight.liberationReady && Fight.liberationItem != null
+			&& hasDamageType && (enemy.absShield > 0 || enemy.relShield > 0)
+
+		// Str buff options: only if we have damage-type actions
+		Array<Action> strOptions = hasDamageType ? strBuffOptions : []
+		integer strCount = count(strOptions)
+
+		// MP levels: [0] + distinct distances beyond baseMP where damage actions exist
+		Array<integer> mpLevels = ComboExplorer._computeUsefulMPLevels(ctx, damageActions)
+
+		// Enumerate: lib(0..1) × str(0..strCount) × mp(each level)
+		integer maxLib = canLib ? 1 : 0
+		for (integer useLib = 0; useLib <= maxLib; useLib++) {
+			for (integer strLevel = 0; strLevel <= strCount; strLevel++) {
+				// Build str prefix and track TP
+				Array<Action> strPrefixes = []
+				integer prefixTP = 0
+				boolean affordable = true
+
+				if (useLib == 1) {
+					prefixTP += Fight.liberationItem!.cost
+				}
+
+				for (integer i = 0; i < strLevel; i++) {
+					if (prefixTP + strOptions[i].item.cost >= ctx.initialTP) {
+						affordable = false
+						break
+					}
+					push(strPrefixes, strOptions[i])
+					prefixTP += strOptions[i].item.cost
+				}
+				if (!affordable) break  // higher strLevels even more expensive
+
+				for (integer mpIdx = 0; mpIdx < count(mpLevels); mpIdx++) {
+					if (ctx.shouldStop()) return;
+					integer mpDist = mpLevels[mpIdx]
+
+					// Calculate MP buffs for this level
+					Array<Action> mpBuffs = []
+					integer mpBuffTP = 0
+					if (mpDist > ctx.initialMP) {
+						Array<Action>? buffs = ComboBuilder._calculateMPBuffs(
+							mpDist - ctx.initialMP, ctx.initialTP - prefixTP)
+						if (buffs == null) continue
+						mpBuffs = buffs!
+						for (Action b in mpBuffs) {
+							mpBuffTP += b.item.cost
+						}
+					}
+
+					// Check minimum remaining TP for damage
+					if (ctx.initialTP - prefixTP - mpBuffTP < 2) continue
+
+					// Filter damage pool by reach at this MP level
+					integer effectiveMP = mpDist == 0 ? ctx.initialMP : mpDist
+					Array<Action> reachablePool = ComboBuilder._filterByReachDistance(
+						ctx, damageActions, effectiveMP)
+					if (count(reachablePool) == 0 && useLib == 0 && strLevel == 0) continue
+
+					// Build combo
+					Combo? combo = ComboBuilder.buildForTargetPrefixed(
+						ctx, enemy, reachablePool, useLib == 1, strPrefixes, mpBuffs)
+					if (combo != null && (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0)) {
+						string name = "T:" + enemy.name
+							+ (useLib == 1 ? "+L" : "")
+							+ (strLevel > 0 ? "+S" + strLevel : "")
+							+ (mpDist > ctx.initialMP ? "+M" + (mpDist - ctx.initialMP) : "")
+						ctx.recordResult(ExplorerResult(combo!, name, "T"))
+					}
+				}
+			}
+		}
+	}
+
+	/*
+	 * Compute useful MP levels for target exploration.
+	 * Returns [0] + distinct distances beyond baseMP where damage actions exist.
+	 * Sorted ascending so we try cheaper buffs first.
+	 */
+	static Array<integer> _computeUsefulMPLevels(ExplorationContext ctx, Array<Action> actions) {
+		// Always include 0 (= use baseMP, no buff)
+		Array<integer> levels = [0]
+		Map<integer, boolean> seen = [:]
+
+		for (Action a in actions) {
+			if (a.from == Fight.selfCell) continue
+			integer? dist = ctx.extendedReachableCells[a.from]
+			if (dist != null && dist! > ctx.initialMP && !seen[dist!]) {
+				push(levels, dist!)
+				seen[dist!] = true
+			}
+		}
+
+		// Sort ascending so we try cheaper buffs first
+		if (count(levels) > 1) {
+			levels = arraySort(levels, (integer a, integer b) => integer|real {
+				return Sort.asc(a, b)
+			}) as Array<integer>
+		}
+
+		return levels
 	}
 
 	// ════════════════════════════════════════════════════════════
