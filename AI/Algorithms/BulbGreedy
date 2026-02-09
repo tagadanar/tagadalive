@@ -61,6 +61,39 @@ class BulbGreedy {
 		// Build ignoreCells for pathfinding
 		Set<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Set<Cell>
 
+		// Special case: wizard bulb poisons ally with POISON_TO_SCIENCE passive
+		if (Fight.self.extendedType == Entity.BULB_WIZARD) {
+			Entity? psnTarget = null
+			for (integer id : Entity ally in Fight.getAlliesAlive()) {
+				if (ally.isBulb || ally == Fight.self) continue
+				if (!ally.passives[EFFECT_POISON_TO_SCIENCE]) continue
+				real? danger = BattleState.allyDanger[ally]
+				if (danger != null && danger! > 0) continue
+				psnTarget = ally
+				break
+			}
+			if (psnTarget != null) {
+				Map<Cell, integer> reachCells = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, <>)
+				for (integer chipId in [CHIP_TOXIN, CHIP_VENOM]) {
+					Item? item = null
+					for (Item i in Fight.self.items) { if (i.id == chipId) { item = i; break } }
+					if (item == null) continue
+					if (item!.haveCD && getCooldown(item!.id, Fight.self.id) > 0) continue
+					if (item!.cost > currentTP) continue
+					Cell? useCell = BulbGreedy.getClosestUseCell(item!, psnTarget!.cell, reachCells, currentMP)
+					if (useCell == null) continue
+					Action action = BulbGreedy.createAction(item!, useCell!, psnTarget!.cell, currentCsq)
+					push(combo.actions, action)
+					usedItems[item!] = 1
+					currentCsq = action.consequences
+					currentCell = currentCsq!.currentCell
+					currentTP = currentCsq!.currentTP
+					currentMP = currentCsq!.currentMP
+					reachCells = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, currentCsq!._newObstacles)
+				}
+			}
+		}
+
 		// GREEDY LOOP: find best action, add it, repeat
 		integer maxIterations = 10  // Safety limit
 		integer iteration = 0
