@@ -34,9 +34,6 @@ class Consequences {
 	// STANDARD FIELDS
 	// ════════════════════════════════════════════════════════════════════════
 
-	// Suppress warnings during speculative re-evaluation (e.g. insertByPriority)
-	static boolean suppressWarnings = false
-
 	real? score = null
 	boolean isAlteringDanger = false
 	integer hashcode = 17
@@ -231,11 +228,11 @@ class Consequences {
 			if(action.from != this.currentCell) {
 				if(reachableCells[action.from] != null) {
 					integer moveCost = reachableCells[action.from]!
-					if(warnOnUnreachable && !Consequences.suppressWarnings && moveCost > 0 && moveCost > max(0, this.currentMP)) {
+					if(warnOnUnreachable && moveCost > 0 && moveCost > max(0, this.currentMP)) {
 						debugW('Impossible action: move cost ' + moveCost + ' > effective MP ' + max(0, this.currentMP) + '\n' + action + '\n' + this)
 					}
 					this.currentMP = this.currentMP - moveCost
-				} else if(warnOnUnreachable && !Consequences.suppressWarnings) {
+				} else if(warnOnUnreachable) {
 					debugW('Impossible action: unreachable cell !!\n'+action+'\n'+this)
 				}
 			}
