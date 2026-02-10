@@ -217,6 +217,7 @@ EffectCache.registerHandlers([
 EffectCache.registerHandlers([
 	EFFECT_SHACKLE_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.STR, snap)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		snap.addAlteration(entityTarget, Stats.STR, eot)
@@ -224,6 +225,7 @@ EffectCache.registerHandlers([
 
 	EFFECT_SHACKLE_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.MGC, snap)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		snap.addAlteration(entityTarget, Stats.MGC, eot)
@@ -231,6 +233,7 @@ EffectCache.registerHandlers([
 
 	EFFECT_SHACKLE_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.AGI, snap)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		snap.addAlteration(entityTarget, Stats.AGI, eot)
@@ -238,6 +241,7 @@ EffectCache.registerHandlers([
 
 	EFFECT_SHACKLE_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.WSD, snap)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		snap.addAlteration(entityTarget, Stats.WSD, eot)
@@ -246,6 +250,7 @@ EffectCache.registerHandlers([
 	EFFECT_SHACKLE_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
 		if (entityTarget.tp <= 0) return;
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.TP, snap)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		snap.addAlteration(entityTarget, Stats.TP, eot)
@@ -254,6 +259,7 @@ EffectCache.registerHandlers([
 	EFFECT_SHACKLE_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
 		if (entityTarget.mp <= 0) return;
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.MP, snap)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		snap.addAlteration(entityTarget, Stats.MP, eot)

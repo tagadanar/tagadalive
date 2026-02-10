@@ -15,28 +15,32 @@ global Map<integer, boolean> _libCDone = [:]
 // Register all debuff effect handlers
 Consequences.registerHandlers([
 	// ============================================
-	// SHACKLES (all stackable currently)
+	// SHACKLES (de-dupe for non-stackable like Tranquilizer)
 	// ============================================
 
 	EFFECT_SHACKLE_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.STR, conseq)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.STR, eot)
 	},
 
 	EFFECT_SHACKLE_MAGIC: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.MGC, conseq)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MGC, eot)
 	},
 
 	EFFECT_SHACKLE_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.AGI, conseq)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.AGI, eot)
 	},
 
 	EFFECT_SHACKLE_WISDOM: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.WSD, conseq)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.WSD, eot)
@@ -44,6 +48,7 @@ Consequences.registerHandlers([
 
 	EFFECT_SHACKLE_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		if (entityTarget.getCurrentTP(conseq) <= 0) return;
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.TP, conseq)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.TP, eot)
@@ -51,6 +56,7 @@ Consequences.registerHandlers([
 
 	EFFECT_SHACKLE_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		if (entityTarget.getCurrentMP(conseq) <= 0) return;
+		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.MP, conseq)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MP, eot)
