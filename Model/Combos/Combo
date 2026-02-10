@@ -56,8 +56,12 @@ class Combo {
 		this.actions = arraySlice(saved, 0, insertIdx) as Array<Action>
 		this.score = null
 
+		// Suppress warnings during speculative re-evaluation
+		Consequences.suppressWarnings = true
+
 		// Try inserting the new action
 		if (!this.add(action)) {
+			Consequences.suppressWarnings = false
 			this.actions = saved
 			this.score = null
 			return false
@@ -67,6 +71,8 @@ class Combo {
 		for (integer i = insertIdx; i < count(saved); i++) {
 			this.add(saved[i])
 		}
+
+		Consequences.suppressWarnings = false
 
 		// Keep only if total score improved
 		real newScore = this.getCurrentConsequences().score != null ? this.getCurrentConsequences().score! : 0.0
