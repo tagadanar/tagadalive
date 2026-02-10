@@ -1539,72 +1539,9 @@ class ComboBuilder {
 	}
 
 	/*
-	 * Insert a self-cast action at its correct priority position in a combo.
-	 * Rebuilds the combo: truncates at insertion point, inserts the self-cast,
-	 * then re-adds remaining actions via tryAddAction (full TP/reachability validation).
-	 * Reverts if total score doesn't improve.
-	 */
-	static boolean _insertSelfCastByPriority(
-		ExplorationContext ctx,
-		Combo combo,
-		Action action,
-		Map<Item, integer> usesThisTurn
-	) {
-		integer n = count(combo.actions)
-
-		// Find insertion index by priority
-		integer insertIdx = n
-		for (integer i = 0; i < n; i++) {
-			if (action.item.priority < combo.actions[i].item.priority) {
-				insertIdx = i
-				break
-			}
-		}
-
-		// If inserting at end, just use regular tryAddAction
-		if (insertIdx == n) return ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)
-
-		// Save state
-		Array<Action> saved = combo.actions
-		real prevScore = combo.getCurrentConsequences().score != null ? combo.getCurrentConsequences().score! : 0.0
-
-		// Truncate to insertion point
-		combo.actions = arraySlice(saved, 0, insertIdx) as Array<Action>
-		combo.score = null
-
-		// Suppress warnings during speculative re-evaluation
-		Consequences.suppressWarnings = true
-
-		// Try inserting the new action
-		if (!combo.add(action)) {
-			Consequences.suppressWarnings = false
-			combo.actions = saved
-			combo.score = null
-			return false
-		}
-
-		// Re-add remaining actions via tryAddAction (validates TP, reachability, etc.)
-		for (integer i = insertIdx; i < count(saved); i++) {
-			ComboBuilder.tryAddAction(ctx, combo, saved[i], usesThisTurn, 0)
-		}
-
-		Consequences.suppressWarnings = false
-
-		// Keep only if total score improved
-		real newScore = combo.getCurrentConsequences().score != null ? combo.getCurrentConsequences().score! : 0.0
-		if (newScore <= prevScore) {
-			combo.actions = saved
-			combo.score = null
-			return false
-		}
-		combo.score = null
-		return true
-	}
-
-	/*
 	 * Greedy fallback: fill remaining TP from pool.
-	 * Self-cast actions are inserted at their correct priority position (buffs before damage).
-	 * Cell-dependent actions are appended by score as before.
+	 * Self-cast actions are inserted at their correct priority position by rebuilding
+	 * the combo from scratch (once max). Cell-dependent actions appended by score.
 	 */
 	static void _greedyFallback(
 		ExplorationContext ctx,
@@ -1628,14 +1565,47 @@ class ComboBuilder {
 			}
 		}
 
-		// Insert self-casts at correct priority position in existing combo
-		selfCasts = MapCellScore.sortByPriority(selfCasts)
-		for (Action sc in selfCasts) {
-			// Check usage limit before attempting insertion
-			integer uses = usesThisTurn[sc.item] != null ? usesThisTurn[sc.item]! : 0
-			if (uses >= sc.item.maxUse) continue
-			if (ComboBuilder._insertSelfCastByPriority(ctx, combo, sc, usesThisTurn)) {
-				usesThisTurn[sc.item] = uses + 1
+		// If usable self-casts exist, rebuild combo with them at correct priority
+		if (count(selfCasts) > 0 && count(combo.actions) > 0) {
+			Array<Action> usable = []
+			for (Action sc in selfCasts) {
+				integer uses = usesThisTurn[sc.item] != null ? usesThisTurn[sc.item]! : 0
+				if (uses < sc.item.maxUse) push(usable, sc)
+			}
+
+			if (count(usable) > 0) {
+				// Merge existing combo actions + self-casts, sort by priority
+				Array<Action> merged = []
+				for (Action a in combo.actions) push(merged, a)
+				for (Action sc in usable) push(merged, sc)
+				merged = MapCellScore.sortByPriority(merged)
+
+				// Save state
+				Array<Action> savedActions = combo.actions
+				real prevScore = combo.getCurrentConsequences().score != null ? combo.getCurrentConsequences().score! : 0.0
+
+				// Rebuild from scratch with fresh usage tracking
+				combo.actions = []
+				combo.score = null
+				Map<Item, integer> freshUses = [:]
+
+				Consequences.suppressWarnings = true
+				for (Action a in merged) {
+					ComboBuilder.tryAddAction(ctx, combo, a, freshUses, 0)
+				}
+				Consequences.suppressWarnings = false
+
+				real newScore = combo.getCurrentConsequences().score != null ? combo.getCurrentConsequences().score! : 0.0
+				if (newScore > prevScore) {
+					// Commit: sync usesThisTurn from rebuild
+					for (Item item : integer cnt in freshUses) {
+						usesThisTurn[item] = cnt
+					}
+				} else {
+					// Revert
+					combo.actions = savedActions
+					combo.score = null
+				}
 			}
 		}
 
