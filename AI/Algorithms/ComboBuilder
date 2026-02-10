@@ -132,7 +132,7 @@ class ComboBuilder {
 				mpBuffActions = buffs!
 			}
 		} else {
-			helpActions = ComboBuilder._filterByReach(ctx, helpActions, false)
+			helpActions = ComboBuilder._filterByReachDistance(ctx, helpActions, ctx.initialMP)
 		}
 
 		if (count(helpActions) == 0) return null
@@ -379,19 +379,10 @@ class ComboBuilder {
 		// PHASE 1: Calculate MP buffs and resources
 		// ═══════════════════════════════════════════════════════════════════════════
 
-		integer neededMPBuff = max(0, mpToCast - ctx.initialMP)
-		Array<Action> mpBuffActions = []
-		integer mpBuffTPCost = 0
-
-		if (neededMPBuff > 0) {
-			if (mpToCast > ctx.initialMP + ctx.maxMPBuff) return null
-			Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededMPBuff, ctx.initialTP - swapCost)
-			if (buffs == null) return null
-			mpBuffActions = buffs!
-			for (Action buff in mpBuffActions) {
-				mpBuffTPCost += buff.item.cost
-			}
-		}
+		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(mpToCast, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - swapCost)
+		if (mpBuffResult == null) return null
+		Array<Action> mpBuffActions = mpBuffResult!
+		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		integer totalAvailableTP = ctx.initialTP - mpBuffTPCost - swapCost
 		integer postMP = ctx.initialMP + ComboBuilder._sumMPGain(mpBuffActions) - mpToCast
@@ -413,43 +404,10 @@ class ComboBuilder {
 			includeAllySupport
 		)
 
-		// Group actions by fromCell and compute cell scores
+		// Group actions by cell, find valid movement sequences
 		Map<Cell, Array<Action>> cellActions = [:]
-		Map<Cell, real> cellScores = [:]
-		Cell targetNewCell = castCell  // Swapped entity ends up here
-
-		for (Action a in postPool) {
-			Cell fromCell = a.from
-			if (fromCell == Fight.selfCell) fromCell = newSelfCell
-			if (cellActions[fromCell] == null) {
-				cellActions[fromCell] = []
-				cellScores[fromCell] = 0
-			}
-			push(cellActions[fromCell]!, a)
-			if (a.score != null) cellScores[fromCell] += a.score!
-		}
-
-		// Sort cells by score descending
-		Array<Cell> sortedCells = []
-		for (Cell c : real score in cellScores) {
-			push(sortedCells, c)
-		}
-		sortedCells = arraySort(sortedCells, (Cell a, Cell b) -> integer {
-			return Sort.desc(cellScores[a]!, cellScores[b]!)
-		}) as Array<Cell>
-
-		// Compute reachability from newSelfCell
-		Set<Cell> newObstacles = <targetNewCell>
-		Map<Cell, integer> reachableFromNew = MapPath.getCachedReachableCells(
-			newSelfCell, postMP, Fight.self.cellsToIgnore, newObstacles)
-
-		// Get all valid cell sequences for the first valid pair (both orderings if both valid)
-		Array<Array<Cell>> validSequences = ComboBuilder._getValidCellSequences(
-			sortedCells, cellScores, newSelfCell, postMP, reachableFromNew, newObstacles)
-
-		if (count(validSequences) == 0) {
-			validSequences = [[newSelfCell]]
-		}
+		Array<Array<Cell>> validSequences = ComboBuilder._findCellSequences(
+			postPool, newSelfCell, postMP, castCell, cellActions)
 
 		// Build combo for each valid sequence, keep the best
 		Combo? bestCombo = null
@@ -493,20 +451,7 @@ class ComboBuilder {
 		// PHASE 3: Pool actions from selected cells, single knapsack
 		// ═══════════════════════════════════════════════════════════════════════════
 
-		Array<Action> combinedPool = []
-		Map<integer, boolean> seenKeys = [:]
-		for (Cell cell in selectedCells) {
-			Array<Action>? actions = cellActions[cell]
-			if (actions == null) continue
-			for (Action a in actions!) {
-				integer key = ComboBuilder.actionKey(a)
-				if (!seenKeys[key]) {
-					push(combinedPool, a)
-					seenKeys[key] = true
-				}
-			}
-		}
-
+		Array<Action> combinedPool = ComboBuilder._poolFromCells(selectedCells, cellActions)
 		Array<Action> selectedPost = ActionKnapsack.solve(combinedPool, totalAvailableTP, ctx.initialWeapon)
 		integer postTPUsed = ComboBuilder._sumTPCost(selectedPost, ctx.initialWeapon)
 
@@ -531,24 +476,7 @@ class ComboBuilder {
 		// PHASE 4: Partition selected actions back to cells
 		// ═══════════════════════════════════════════════════════════════════════════
 
-		Map<Cell, Array<Action>> partitioned = [:]
-		for (Cell cell in selectedCells) {
-			partitioned[cell] = []
-		}
-
-		for (Action a in selectedPost) {
-			Cell fromCell = a.from
-			if (fromCell == Fight.selfCell) fromCell = newSelfCell
-			if (partitioned[fromCell] != null) {
-				push(partitioned[fromCell]!, a)
-			} else {
-				push(partitioned[selectedCells[0]]!, a)
-			}
-		}
-
-		for (Cell cell in selectedCells) {
-			partitioned[cell] = MapCellScore.sortByPriority(partitioned[cell]!)
-		}
+		Map<Cell, Array<Action>> partitioned = ComboBuilder._partitionToCells(selectedPost, selectedCells, newSelfCell)
 
 		// ═══════════════════════════════════════════════════════════════════════════
 		// PHASE 5: Build combo in sequence order
@@ -566,7 +494,7 @@ class ComboBuilder {
 		// 1. Pre-actions (sorted by priority)
 		selectedPre = MapCellScore.sortByPriority(selectedPre)
 		for (Action a in selectedPre) {
-			ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, swapCost)
+			ComboBuilder._tryAddActionImpl(combo, a, usesThisTurn, 0, swapCost, Fight.self.cellsToIgnore)
 		}
 
 		// 2. Swap action
@@ -594,14 +522,12 @@ class ComboBuilder {
 			if (actions == null) continue
 
 			for (Action a in actions!) {
-				ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
+				ComboBuilder.tryAddAction(combo, a, usesThisTurn, 0)
 			}
 		}
 
 		// Final position
-		Consequences finalCsq = combo.getCurrentConsequences()
-		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
-		combo.addFinalPosition(pos)
+		ComboBuilder._addFinalPosition(combo)
 
 		return combo
 	}
@@ -653,19 +579,10 @@ class ComboBuilder {
 		// PHASE 1: Calculate MP buffs
 		// ═══════════════════════════════════════════════════════════════════════════
 
-		integer neededMPBuff = max(0, mpToCast - ctx.initialMP)
-		Array<Action> mpBuffActions = []
-		integer mpBuffTPCost = 0
-
-		if (neededMPBuff > 0) {
-			if (mpToCast > ctx.initialMP + ctx.maxMPBuff) return null
-			Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededMPBuff, ctx.initialTP - moveCost)
-			if (buffs == null) return null
-			mpBuffActions = buffs!
-			for (Action buff in mpBuffActions) {
-				mpBuffTPCost += buff.item.cost
-			}
-		}
+		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(mpToCast, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - moveCost)
+		if (mpBuffResult == null) return null
+		Array<Action> mpBuffActions = mpBuffResult!
+		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		integer totalAvailableTP = ctx.initialTP - mpBuffTPCost - moveCost
 		integer postMP = ctx.initialMP + ComboBuilder._sumMPGain(mpBuffActions) - mpToCast
@@ -683,44 +600,10 @@ class ComboBuilder {
 			candidate.target.isFriend
 		)
 
-		// Group actions by fromCell and compute cell scores
+		// Group actions by cell, find valid movement sequences
 		Map<Cell, Array<Action>> cellActions = [:]
-		Map<Cell, real> cellScores = [:]
-		Cell targetNewCell = candidate.targetNewCell  // Moved entity ends up here (obstacle)
-
-		for (Action a in postPool) {
-			Cell fromCell = a.from
-			// Actions with from=selfCell should map to castCell (where we are after move)
-			if (fromCell == Fight.selfCell) fromCell = castCell
-			if (cellActions[fromCell] == null) {
-				cellActions[fromCell] = []
-				cellScores[fromCell] = 0
-			}
-			push(cellActions[fromCell]!, a)
-			if (a.score != null) cellScores[fromCell] += a.score!
-		}
-
-		// Sort cells by score descending
-		Array<Cell> sortedCells = []
-		for (Cell c : real score in cellScores) {
-			push(sortedCells, c)
-		}
-		sortedCells = arraySort(sortedCells, (Cell a, Cell b) -> integer {
-			return Sort.desc(cellScores[a]!, cellScores[b]!)
-		}) as Array<Cell>
-
-		// Compute reachability from castCell (where we are after move)
-		Set<Cell> newObstacles = <targetNewCell>
-		Map<Cell, integer> reachableFromCast = MapPath.getCachedReachableCells(
-			castCell, postMP, Fight.self.cellsToIgnore, newObstacles)
-
-		// Get all valid cell sequences (both orderings if both valid)
-		Array<Array<Cell>> validSequences = ComboBuilder._getValidCellSequences(
-			sortedCells, cellScores, castCell, postMP, reachableFromCast, newObstacles)
-
-		if (count(validSequences) == 0) {
-			validSequences = [[castCell]]
-		}
+		Array<Array<Cell>> validSequences = ComboBuilder._findCellSequences(
+			postPool, castCell, postMP, candidate.targetNewCell, cellActions)
 
 		// ═══════════════════════════════════════════════════════════════════════════
 		// PHASE 3: Build combo for each valid sequence, keep the best
@@ -759,50 +642,10 @@ class ComboBuilder {
 		integer moveCost,
 		integer mpToCast
 	) {
-		// ═══════════════════════════════════════════════════════════════════════════
-		// Pool actions from selected cells, single knapsack
-		// ═══════════════════════════════════════════════════════════════════════════
-
-		Array<Action> combinedPool = []
-		Map<integer, boolean> seenKeys = [:]
-		for (Cell cell in selectedCells) {
-			Array<Action>? actions = cellActions[cell]
-			if (actions == null) continue
-			for (Action a in actions!) {
-				integer key = ComboBuilder.actionKey(a)
-				if (!seenKeys[key]) {
-					push(combinedPool, a)
-					seenKeys[key] = true
-				}
-			}
-		}
-
+		// Pool actions, knapsack, partition back to cells
+		Array<Action> combinedPool = ComboBuilder._poolFromCells(selectedCells, cellActions)
 		Array<Action> selectedPost = ActionKnapsack.solve(combinedPool, totalAvailableTP, ctx.initialWeapon)
-
-		// ═══════════════════════════════════════════════════════════════════════════
-		// Partition selected actions back to cells
-		// ═══════════════════════════════════════════════════════════════════════════
-
-		Map<Cell, Array<Action>> partitioned = [:]
-		for (Cell cell in selectedCells) {
-			partitioned[cell] = []
-		}
-
-		for (Action a in selectedPost) {
-			Cell fromCell = a.from
-			if (fromCell == Fight.selfCell) fromCell = castCell
-			if (partitioned[fromCell] != null) {
-				push(partitioned[fromCell]!, a)
-			} else {
-				// Fallback: assign to first cell in sequence
-				push(partitioned[selectedCells[0]]!, a)
-			}
-		}
-
-		// Sort each cell's actions by priority
-		for (Cell cell in selectedCells) {
-			partitioned[cell] = MapCellScore.sortByPriority(partitioned[cell]!)
-		}
+		Map<Cell, Array<Action>> partitioned = ComboBuilder._partitionToCells(selectedPost, selectedCells, castCell)
 
 		// ═══════════════════════════════════════════════════════════════════════════
 		// Build combo in sequence order
@@ -837,14 +680,12 @@ class ComboBuilder {
 			if (actions == null) continue
 
 			for (Action a in actions!) {
-				ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
+				ComboBuilder.tryAddAction(combo, a, usesThisTurn, 0)
 			}
 		}
 
 		// Final position
-		Consequences finalCsq = combo.getCurrentConsequences()
-		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
-		combo.addFinalPosition(pos)
+		ComboBuilder._addFinalPosition(combo)
 
 		return combo
 	}
@@ -880,18 +721,10 @@ class ComboBuilder {
 		// PHASE 1: Calculate MP buffs
 		// ═══════════════════════════════════════════════════════════════════════════
 
-		integer neededMPBuff = max(0, comboMPCost - ctx.initialMP)
-		Array<Action> mpBuffActions = []
-		integer mpBuffTPCost = 0
-
-		if (neededMPBuff > 0) {
-			Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededMPBuff, ctx.initialTP - comboTPCost)
-			if (buffs == null) return null
-			mpBuffActions = buffs!
-			for (Action buff in mpBuffActions) {
-				mpBuffTPCost += buff.item.cost
-			}
-		}
+		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(comboMPCost, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - comboTPCost)
+		if (mpBuffResult == null) return null
+		Array<Action> mpBuffActions = mpBuffResult!
+		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		integer remainingTP = ctx.initialTP - mpBuffTPCost - comboTPCost
 		integer remainingMP = ctx.initialMP + ComboBuilder._sumMPGain(mpBuffActions) - comboMPCost
@@ -964,9 +797,7 @@ class ComboBuilder {
 		// PHASE 4: Final position
 		// ═══════════════════════════════════════════════════════════════════════════
 
-		Consequences finalCsq = combo.getCurrentConsequences()
-		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
-		combo.addFinalPosition(pos)
+		ComboBuilder._addFinalPosition(combo)
 
 		return combo
 	}
@@ -1003,18 +834,10 @@ class ComboBuilder {
 		// PHASE 1: Calculate MP buffs
 		// ═══════════════════════════════════════════════════════════════════════════
 
-		integer neededMPBuff = max(0, comboMPCost - ctx.initialMP)
-		Array<Action> mpBuffActions = []
-		integer mpBuffTPCost = 0
-
-		if (neededMPBuff > 0) {
-			Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededMPBuff, ctx.initialTP - comboTPCost)
-			if (buffs == null) return null
-			mpBuffActions = buffs!
-			for (Action buff in mpBuffActions) {
-				mpBuffTPCost += buff.item.cost
-			}
-		}
+		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(comboMPCost, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - comboTPCost)
+		if (mpBuffResult == null) return null
+		Array<Action> mpBuffActions = mpBuffResult!
+		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		integer remainingTP = ctx.initialTP - mpBuffTPCost - comboTPCost
 		integer remainingMP = ctx.initialMP + ComboBuilder._sumMPGain(mpBuffActions) - comboMPCost
@@ -1100,11 +923,113 @@ class ComboBuilder {
 		// PHASE 4: Final position
 		// ═══════════════════════════════════════════════════════════════════════════
 
-		Consequences finalCsq = combo.getCurrentConsequences()
-		Position pos = MapPosition.findBestPosition(finalCsq.currentCell, finalCsq.currentMP, finalCsq)
-		combo.addFinalPosition(pos)
+		ComboBuilder._addFinalPosition(combo)
 
 		return combo
+	}
+
+	/*
+	 * Group actions by fromCell, sort cells by score, find valid movement sequences.
+	 * Combines cell grouping, reachability computation, and sequence selection.
+	 *
+	 * @param pool Actions to group
+	 * @param startCell Self-cell mapping AND reachability origin
+	 * @param availableMP MP for reachability computation
+	 * @param obstacleCell Cell occupied by moved/swapped entity (obstacle for pathfinding)
+	 * @param outCellActions Mutated: filled with actions grouped by fromCell
+	 * @return Valid cell sequences (with [[startCell]] fallback)
+	 */
+	static Array<Array<Cell>> _findCellSequences(
+		Array<Action> pool,
+		Cell startCell,
+		integer availableMP,
+		Cell obstacleCell,
+		Map<Cell, Array<Action>> outCellActions
+	) {
+		// Group actions by fromCell and compute cell scores
+		Map<Cell, real> cellScores = [:]
+
+		for (Action a in pool) {
+			Cell fromCell = a.from
+			if (fromCell == Fight.selfCell) fromCell = startCell
+			if (outCellActions[fromCell] == null) {
+				outCellActions[fromCell] = []
+				cellScores[fromCell] = 0
+			}
+			push(outCellActions[fromCell]!, a)
+			if (a.score != null) cellScores[fromCell] += a.score!
+		}
+
+		// Sort cells by score descending
+		Array<Cell> sortedCells = []
+		for (Cell c : real score in cellScores) {
+			push(sortedCells, c)
+		}
+		sortedCells = arraySort(sortedCells, (Cell a, Cell b) -> integer {
+			return Sort.desc(cellScores[a]!, cellScores[b]!)
+		}) as Array<Cell>
+
+		// Compute reachability
+		Set<Cell> newObstacles = <obstacleCell>
+		Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
+			startCell, availableMP, Fight.self.cellsToIgnore, newObstacles)
+
+		// Get valid cell sequences
+		Array<Array<Cell>> validSequences = ComboBuilder._getValidCellSequences(
+			sortedCells, cellScores, startCell, availableMP, reachable, newObstacles)
+
+		if (count(validSequences) == 0) {
+			return [[startCell]]
+		}
+		return validSequences
+	}
+
+	/*
+	 * Pool actions from cells, deduplicated by actionKey.
+	 */
+	static Array<Action> _poolFromCells(Array<Cell> cells, Map<Cell, Array<Action>> cellActions) {
+		Array<Action> combined = []
+		Map<integer, boolean> seenKeys = [:]
+		for (Cell cell in cells) {
+			Array<Action>? actions = cellActions[cell]
+			if (actions == null) continue
+			for (Action a in actions!) {
+				integer key = ComboBuilder.actionKey(a)
+				if (!seenKeys[key]) {
+					push(combined, a)
+					seenKeys[key] = true
+				}
+			}
+		}
+		return combined
+	}
+
+	/*
+	 * Partition selected actions back to cells, sorted by priority.
+	 * Actions with from=Fight.selfCell are mapped to selfMapping.
+	 * Actions not matching any cell fall back to first cell.
+	 */
+	static Map<Cell, Array<Action>> _partitionToCells(Array<Action> selected, Array<Cell> cells, Cell selfMapping) {
+		Map<Cell, Array<Action>> partitioned = [:]
+		for (Cell cell in cells) {
+			partitioned[cell] = []
+		}
+
+		for (Action a in selected) {
+			Cell fromCell = a.from
+			if (fromCell == Fight.selfCell) fromCell = selfMapping
+			if (partitioned[fromCell] != null) {
+				push(partitioned[fromCell]!, a)
+			} else {
+				push(partitioned[cells[0]]!, a)
+			}
+		}
+
+		for (Cell cell in cells) {
+			partitioned[cell] = MapCellScore.sortByPriority(partitioned[cell]!)
+		}
+
+		return partitioned
 	}
 
 	/*
@@ -1227,43 +1152,10 @@ class ComboBuilder {
 	) {
 		if (remainingTP <= 0 || count(postPool) == 0) return;
 
-		// Group actions by fromCell and compute cell scores
+		// Group actions by cell, find valid movement sequences
 		Map<Cell, Array<Action>> cellActions = [:]
-		Map<Cell, real> cellScores = [:]
-
-		for (Action a in postPool) {
-			Cell fromCell = a.from
-			// Actions with from=selfCell should map to startCell
-			if (fromCell == Fight.selfCell) fromCell = startCell
-			if (cellActions[fromCell] == null) {
-				cellActions[fromCell] = []
-				cellScores[fromCell] = 0
-			}
-			push(cellActions[fromCell]!, a)
-			if (a.score != null) cellScores[fromCell] += a.score!
-		}
-
-		// Sort cells by score descending
-		Array<Cell> sortedCells = []
-		for (Cell c : real score in cellScores) {
-			push(sortedCells, c)
-		}
-		sortedCells = arraySort(sortedCells, (Cell a, Cell b) -> integer {
-			return Sort.desc(cellScores[a]!, cellScores[b]!)
-		}) as Array<Cell>
-
-		// Compute reachability from startCell
-		Set<Cell> newObstacles = <obstacleCell>
-		Map<Cell, integer> reachableFromStart = MapPath.getCachedReachableCells(
-			startCell, remainingMP, Fight.self.cellsToIgnore, newObstacles)
-
-		// Get valid cell sequences
-		Array<Array<Cell>> validSequences = ComboBuilder._getValidCellSequences(
-			sortedCells, cellScores, startCell, remainingMP, reachableFromStart, newObstacles)
-
-		if (count(validSequences) == 0) {
-			validSequences = [[startCell]]
-		}
+		Array<Array<Cell>> validSequences = ComboBuilder._findCellSequences(
+			postPool, startCell, remainingMP, obstacleCell, cellActions)
 
 		// Find best sequence by trying each and computing total score
 		Array<Cell>? bestSequence = null
@@ -1271,29 +1163,9 @@ class ComboBuilder {
 		Array<Action>? bestSelected = null
 
 		for (Array<Cell> selectedCells in validSequences) {
-			// Pool actions from this sequence
-			Array<Action> combinedPool = []
-			Map<integer, boolean> seenKeys = [:]
-			for (Cell cell in selectedCells) {
-				Array<Action>? actions = cellActions[cell]
-				if (actions == null) continue
-				for (Action a in actions!) {
-					integer key = ComboBuilder.actionKey(a)
-					if (!seenKeys[key]) {
-						push(combinedPool, a)
-						seenKeys[key] = true
-					}
-				}
-			}
-
-			// Knapsack solve
+			Array<Action> combinedPool = ComboBuilder._poolFromCells(selectedCells, cellActions)
 			Array<Action> selected = ActionKnapsack.solve(combinedPool, remainingTP, startWeapon)
-
-			// Compute total score
-			real totalScore = 0
-			for (Action a in selected) {
-				if (a.score != null) totalScore += a.score!
-			}
+			real totalScore = ComboBuilder._sumActionScores(selected)
 
 			if (totalScore > bestScore) {
 				bestScore = totalScore
@@ -1304,27 +1176,7 @@ class ComboBuilder {
 
 		if (bestSequence == null || bestSelected == null) return;
 
-		// Partition selected actions back to cells
-		Map<Cell, Array<Action>> partitioned = [:]
-		for (Cell cell in bestSequence!) {
-			partitioned[cell] = []
-		}
-
-		for (Action a in bestSelected!) {
-			Cell fromCell = a.from
-			if (fromCell == Fight.selfCell) fromCell = startCell
-			if (partitioned[fromCell] != null) {
-				push(partitioned[fromCell]!, a)
-			} else {
-				// Fallback: assign to first cell in sequence
-				push(partitioned[bestSequence![0]]!, a)
-			}
-		}
-
-		// Sort each cell's actions by priority
-		for (Cell cell in bestSequence!) {
-			partitioned[cell] = MapCellScore.sortByPriority(partitioned[cell]!)
-		}
+		Map<Cell, Array<Action>> partitioned = ComboBuilder._partitionToCells(bestSelected!, bestSequence!, startCell)
 
 		// Add actions in cell sequence order
 		for (Cell cell in bestSequence!) {
@@ -1332,7 +1184,7 @@ class ComboBuilder {
 			if (actions == null) continue
 
 			for (Action a in actions!) {
-				ComboBuilder._tryAddActionWithReserve(combo, a, usesThisTurn, 0)
+				ComboBuilder.tryAddAction(combo, a, usesThisTurn, 0)
 			}
 		}
 	}
@@ -1405,35 +1257,6 @@ class ComboBuilder {
 			if (a.score != null) total += a.score!
 		}
 		return total
-	}
-
-	/*
-	 * Try to add action with reserved TP (for inversion actions that must leave room for inversion chip)
-	 */
-	static boolean _tryAddActionWithReserve(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveTP) {
-		integer uses = usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0
-		if (uses >= action.item.maxUse) return false
-
-		Consequences csq = combo.getCurrentConsequences()
-		integer switchCost = (action.item.isWeap && (csq.currentWeapon == null || action.item.id != csq.currentWeapon!.id)) ? 1 : 0
-		// Check we have enough TP for action + reserved TP (for inversion)
-		if (csq.currentTP < action.item.cost + switchCost + reserveTP) return false
-
-		// Check reachability (like _tryAddActionImpl)
-		if (action.from != Fight.selfCell && action.from != csq.currentCell) {
-			Set<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Set<Cell>
-			csq.appendKilledCells(ignoreCells)
-			csq.appendFreedCells(ignoreCells)
-			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
-				csq.currentCell, csq.currentMP, ignoreCells, csq._newObstacles)
-			if (reachable[action.from] == null || reachable[action.from]! > csq.currentMP) return false
-		}
-
-		boolean added = combo.add(action)
-		if (added) {
-			usesThisTurn[action.item] = uses + 1
-		}
-		return added
 	}
 
 	// ════════════════════════════════════════════════════════════
@@ -1531,17 +1354,10 @@ class ComboBuilder {
 		integer walkDist = walkToLaunch!
 
 		// Calculate MP buffs if needed
-		Array<Action> mpBuffActions = []
-		integer mpBuffTPCost = 0
-		if (walkDist > ctx.initialMP) {
-			Array<Action>? buffs = ComboBuilder._calculateMPBuffs(
-				walkDist - ctx.initialMP, ctx.initialTP - jumpCost)
-			if (buffs == null) return null
-			mpBuffActions = buffs!
-			for (Action buff in mpBuffActions) {
-				mpBuffTPCost += buff.item.cost
-			}
-		}
+		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(walkDist, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - jumpCost)
+		if (mpBuffResult == null) return null
+		Array<Action> mpBuffActions = mpBuffResult!
+		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		// Check TP budget: buffs + jump + at least 2 TP for attacks
 		if (ctx.initialTP - mpBuffTPCost - jumpCost < 2) return null
@@ -1774,30 +1590,6 @@ class ComboBuilder {
 	// ════════════════════════════════════════════════════════════
 
 	/*
-	 * Filter actions to only those reachable with current/extended MP.
-	 */
-	static Array<Action> _filterByReach(ExplorationContext ctx, Array<Action> actions, boolean useExtended) {
-		integer baseMP = ctx.initialMP
-		integer maxReach = useExtended ? baseMP + ctx.maxMPBuff : baseMP
-		Map<Cell, integer> reachable = useExtended
-			? ctx.extendedReachableCells
-			: ctx.reachableCells
-
-		Array<Action> filtered = []
-		for (Action a in actions) {
-			if (a.from == Fight.selfCell) {
-				push(filtered, a)
-			} else {
-				integer? dist = reachable[a.from]
-				if (dist != null && dist! <= maxReach) {
-					push(filtered, a)
-				}
-			}
-		}
-		return filtered
-	}
-
-	/*
 	 * Find maximum distance needed to reach any action's from-cell.
 	 */
 	static integer _getMaxDistNeeded(ExplorationContext ctx, Array<Action> actions) {
@@ -1812,6 +1604,27 @@ class ComboBuilder {
 			}
 		}
 		return maxDist
+	}
+
+	/*
+	 * Calculate MP buffs with feasibility check.
+	 * Returns empty array if no buffs needed, null if impossible.
+	 */
+	static Array<Action>? _getMPBuffs(integer mpNeeded, integer baseMP, integer maxMPBuff, integer availableTP) {
+		if (mpNeeded <= baseMP) return []
+		if (mpNeeded > baseMP + maxMPBuff) return null
+		return ComboBuilder._calculateMPBuffs(mpNeeded - baseMP, availableTP)
+	}
+
+	/*
+	 * Sum TP cost of buff actions.
+	 */
+	static integer _sumBuffTPCost(Array<Action> buffs) {
+		integer total = 0
+		for (Action a in buffs) {
+			total += a.item.cost
+		}
+		return total
 	}
 
 	/*
@@ -2142,7 +1955,7 @@ class ComboBuilder {
 	 * @return true if action was added, false otherwise
 	 */
 	static boolean tryAddAction(ExplorationContext ctx, Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP) {
-		return ComboBuilder._tryAddActionImpl(combo, action, usesThisTurn, reserveMP, ctx.cellsToIgnore)
+		return ComboBuilder._tryAddActionImpl(combo, action, usesThisTurn, reserveMP, 0, ctx.cellsToIgnore)
 	}
 
 	/*
@@ -2151,13 +1964,13 @@ class ComboBuilder {
 	 * Uses Fight.self.cellsToIgnore for pathfinding.
 	 */
 	static boolean tryAddAction(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP) {
-		return ComboBuilder._tryAddActionImpl(combo, action, usesThisTurn, reserveMP, Fight.self.cellsToIgnore)
+		return ComboBuilder._tryAddActionImpl(combo, action, usesThisTurn, reserveMP, 0, Fight.self.cellsToIgnore)
 	}
 
 	/*
 	 * Internal implementation of tryAddAction.
 	 */
-	static boolean _tryAddActionImpl(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP, Set<Cell> baseCellsToIgnore) {
+	static boolean _tryAddActionImpl(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP, integer reserveTP, Set<Cell> baseCellsToIgnore) {
 		// Check usage limit
 		integer uses = usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0
 		if (uses >= action.item.maxUse) return false
@@ -2168,9 +1981,9 @@ class ComboBuilder {
 		// Check if action was invalidated by inversion (targets moved)
 		if (csq.invalidatedActions != null && setContains(csq.invalidatedActions!, action)) return false
 
-		// Check TP (including weapon switch cost)
+		// Check TP (including weapon switch cost + reserved TP)
 		integer switchCost = (action.item.isWeap && (csq.currentWeapon == null || action.item.id != csq.currentWeapon!.id)) ? 1 : 0
-		if (csq.currentTP < action.item.cost + switchCost) return false
+		if (csq.currentTP < action.item.cost + switchCost + reserveTP) return false
 
 		// Check reachability
 		if (action.from != Fight.selfCell) {
