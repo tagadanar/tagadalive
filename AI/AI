@@ -39,18 +39,24 @@ class AI {
 			return BulbGreedy.getCombo()
 		}
 
+		Combo combo
 		if (AI.mode == AI.MODE_MCTS) {
 			Benchmark.setAlgo("MCTS", "MCTS")
-			return Hybrid.runMCTSFull()
-		}
-		if (AI.mode == AI.MODE_BEAM) {
+			combo = Hybrid.runMCTSFull()
+		} else if (AI.mode == AI.MODE_BEAM) {
 			Benchmark.setAlgo("BEAM", "BEAM")
-			return Hybrid.runBeamFull()
+			combo = Hybrid.runBeamFull()
+		} else {
+			// MODE_COMBO_EXPLORER (default)
+			Benchmark.setAlgo("EXPLORER", "EXPLORER")
+			combo = ComboExplorer.explore()
+			Benchmark.setChosen(combo.getScore()!, count(combo.actions), "EXP:" + combo.describe())
 		}
-		// MODE_COMBO_EXPLORER (default)
-		Benchmark.setAlgo("EXPLORER", "EXPLORER")
-		Combo combo = ComboExplorer.explore()
-		Benchmark.setChosen(combo.getScore()!, count(combo.actions), "EXP:" + combo.describe())
+
+		// Save expected danger at our final position so bulbs can check ally safety
+		if (combo.finalPosition != null)
+			BattleState.allyDanger[Fight.self] = combo.finalPosition!.dmg + combo.finalPosition!.psnDmg
+
 		return combo
 	}
 
