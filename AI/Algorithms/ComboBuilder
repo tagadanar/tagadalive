@@ -88,7 +88,7 @@ class ComboBuilder {
 		pool = ComboBuilder._excludeUsed(pool, usesThisTurn)
 
 		// Build rest of combo
-		ComboBuilder._buildCoreInto(
+		combo = ComboBuilder._buildCoreInto(
 			ctx,
 			combo,
 			usesThisTurn,
@@ -154,10 +154,13 @@ class ComboBuilder {
 		if (!added) return null
 
 		// Add more help actions while they score well (> 50% of best)
+		Array<Action> rejected = []
 		real threshold = helpActions[0].score! * 0.5
 		for (integer i = 1; i < count(helpActions); i++) {
 			if (helpActions[i].score == null || helpActions[i].score! < threshold) break
-			ComboBuilder.tryAddAction(ctx, combo, helpActions[i], usesThisTurn, 0)
+			if (!ComboBuilder.tryAddAction(ctx, combo, helpActions[i], usesThisTurn, 0)) {
+				push(rejected, helpActions[i])
+			}
 		}
 
 		// Fill remaining TP from general pool to maximize total score
@@ -165,7 +168,8 @@ class ComboBuilder {
 		if (csq.currentTP > 0) {
 			Array<Action> generalPool = ComboBuilder._getAllActions()
 			generalPool = ComboBuilder._excludeUsed(generalPool, usesThisTurn)
-			ComboBuilder._greedyFallback(ctx, combo, generalPool, usesThisTurn, false)
+			generalPool = ComboBuilder._excludeRejected(generalPool, rejected)
+			combo = ComboBuilder._greedyFallback(ctx, combo, generalPool, usesThisTurn, false)
 		}
 
 		// Final position
@@ -228,9 +232,12 @@ class ComboBuilder {
 		selected = MapCellScore.sortByPriority(selected)
 
 		// 7. Add selected (stop when target dies)
+		Array<Action> rejected = []
 		for (Action action in selected) {
 			if (combo.getCurrentConsequences().isKilled(target)) break
-			ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)
+			if (!ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)) {
+				push(rejected, action)
+			}
 		}
 
 		// 8. Greedy fallback with pool expansion on kill
@@ -243,7 +250,8 @@ class ComboBuilder {
 				fallbackPool = damagePool
 			}
 			fallbackPool = ComboBuilder._excludeUsed(fallbackPool, usesThisTurn)
-			ComboBuilder._greedyFallback(ctx, combo, fallbackPool, usesThisTurn, false)
+			fallbackPool = ComboBuilder._excludeRejected(fallbackPool, rejected)
+			combo = ComboBuilder._greedyFallback(ctx, combo, fallbackPool, usesThisTurn, false)
 		}
 
 		// 9. Final position
@@ -1407,7 +1415,7 @@ class ComboBuilder {
 		pool = ComboBuilder._excludeUsed(pool, usesThisTurn)
 
 		// 5. Build core into combo (knapsack, greedy, position)
-		ComboBuilder._buildCoreInto(
+		combo = ComboBuilder._buildCoreInto(
 			ctx, combo, usesThisTurn, pool, remainingTP, weapon,
 			0,      // reserveMP (all MP committed to reach)
 			null,   // stopWhenKilled
@@ -1437,7 +1445,7 @@ class ComboBuilder {
 		Combo combo = Combo()
 		Map<Item, integer> usesThisTurn = [:]
 
-		ComboBuilder._buildCoreInto(
+		combo = ComboBuilder._buildCoreInto(
 			ctx, combo, usesThisTurn, pool, availableTP, currentWeapon,
 			reserveMP, stopWhenKilled, restrictToCell
 		)
@@ -1449,7 +1457,7 @@ class ComboBuilder {
 	 * Core combo building into an existing combo.
 	 * Allows prepending buffs/liberation before core logic.
 	 */
-	static void _buildCoreInto(
+	static Combo _buildCoreInto(
 		ExplorationContext ctx,
 		Combo combo,
 		Map<Item, integer> usesThisTurn,
@@ -1465,14 +1473,16 @@ class ComboBuilder {
 		selected = MapCellScore.sortByPriority(selected)
 
 		// Add selected actions
+		Array<Action> rejected = []
 		for (Action action in selected) {
 			if (stopWhenKilled != null && combo.getCurrentConsequences().isKilled(stopWhenKilled!)) break
 
 			boolean added = ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, reserveMP)
 
-			// If summon was added, expand pool with bulb buff actions
 			if (added && action.item.isSummon) {
 				ComboBuilder._expandWithBulbBuffs(ctx, combo, action.to, usesThisTurn, reserveMP)
+			} else if (!added) {
+				push(rejected, action)
 			}
 		}
 
@@ -1480,11 +1490,13 @@ class ComboBuilder {
 		Consequences csq = combo.getCurrentConsequences()
 		if (csq.currentTP > 0) {
 			Array<Action> remaining = ComboBuilder._excludeUsed(pool, usesThisTurn)
-			ComboBuilder._greedyFallback(ctx, combo, remaining, usesThisTurn, restrictToCell)
+			remaining = ComboBuilder._excludeRejected(remaining, rejected)
+			combo = ComboBuilder._greedyFallback(ctx, combo, remaining, usesThisTurn, restrictToCell)
 		}
 
 		// Final position
 		ComboBuilder._addFinalPosition(combo)
+		return combo
 	}
 
 	/*
@@ -1543,7 +1555,7 @@ class ComboBuilder {
 	 * Self-cast actions are inserted at their correct priority position by rebuilding
 	 * the combo from scratch (once max). Cell-dependent actions appended by score.
 	 */
-	static void _greedyFallback(
+	static Combo _greedyFallback(
 		ExplorationContext ctx,
 		Combo combo,
 		Array<Action> pool,
@@ -1580,31 +1592,23 @@ class ComboBuilder {
 				for (Action sc in usable) push(merged, sc)
 				merged = MapCellScore.sortByPriority(merged)
 
-				// Save state
-				Array<Action> savedActions = combo.actions
+				// Build trial combo from scratch
 				real prevScore = combo.getCurrentConsequences().score != null ? combo.getCurrentConsequences().score! : 0.0
-
-				// Rebuild from scratch with fresh usage tracking
-				combo.actions = []
-				combo.score = null
+				Combo trial = Combo()
 				Map<Item, integer> freshUses = [:]
 
 				Consequences.suppressWarnings = true
 				for (Action a in merged) {
-					ComboBuilder.tryAddAction(ctx, combo, a, freshUses, 0)
+					ComboBuilder.tryAddAction(ctx, trial, a, freshUses, 0)
 				}
 				Consequences.suppressWarnings = false
 
-				real newScore = combo.getCurrentConsequences().score != null ? combo.getCurrentConsequences().score! : 0.0
+				real newScore = trial.getCurrentConsequences().score != null ? trial.getCurrentConsequences().score! : 0.0
 				if (newScore > prevScore) {
-					// Commit: sync usesThisTurn from rebuild
+					combo = trial
 					for (Item item : integer cnt in freshUses) {
 						usesThisTurn[item] = cnt
 					}
-				} else {
-					// Revert
-					combo.actions = savedActions
-					combo.score = null
 				}
 			}
 		}
@@ -1622,6 +1626,8 @@ class ComboBuilder {
 			// Continue looping for repeatable items
 			while (added && ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)) {}
 		}
+
+		return combo
 	}
 
 	/*
@@ -1946,6 +1952,22 @@ class ComboBuilder {
 			if (uses < a.item.maxUse) {
 				push(filtered, a)
 			}
+		}
+		return filtered
+	}
+
+	/*
+	 * Exclude actions that were already rejected by tryAddAction.
+	 */
+	static Array<Action> _excludeRejected(Array<Action> pool, Array<Action> rejected) {
+		if (count(rejected) == 0) return pool
+		Array<Action> filtered = []
+		for (Action a in pool) {
+			boolean skip = false
+			for (Action r in rejected) {
+				if (a == r) { skip = true; break }
+			}
+			if (!skip) push(filtered, a)
 		}
 		return filtered
 	}
