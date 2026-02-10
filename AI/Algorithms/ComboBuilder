@@ -1540,7 +1540,8 @@ class ComboBuilder {
 
 	/*
 	 * Greedy fallback: fill remaining TP from pool.
-	 * Loops on repeatable items until maxUse reached.
+	 * Self-cast actions are inserted at their correct priority position (buffs before damage).
+	 * Cell-dependent actions are appended by score as before.
 	 */
 	static void _greedyFallback(
 		ExplorationContext ctx,
@@ -1549,21 +1550,35 @@ class ComboBuilder {
 		Map<Item, integer> usesThisTurn,
 		boolean restrictToCell
 	) {
-		// Filter if restricting to cell
-		Array<Action> filtered = []
 		Consequences csq = combo.getCurrentConsequences()
 
+		// Split pool into self-casts and cell-dependent
+		Array<Action> selfCasts = []
+		Array<Action> cellActions = []
 		for (Action a in pool) {
 			if (a.score <= 0) continue
-			if (restrictToCell && a.from != Fight.selfCell && a.from != csq.currentCell) continue
-			push(filtered, a)
+			if (a.from == Fight.selfCell) {
+				push(selfCasts, a)
+			} else {
+				if (restrictToCell && a.from != csq.currentCell) continue
+				push(cellActions, a)
+			}
 		}
 
-		// Sort by score for greedy fill
-		filtered = MapCellScore.sortByScore(filtered)
+		// Insert self-casts at correct priority position in existing combo
+		selfCasts = MapCellScore.sortByPriority(selfCasts)
+		for (Action sc in selfCasts) {
+			// Check usage limit before attempting insertion
+			integer uses = usesThisTurn[sc.item] != null ? usesThisTurn[sc.item]! : 0
+			if (uses >= sc.item.maxUse) continue
+			if (combo.insertByPriority(sc)) {
+				usesThisTurn[sc.item] = uses + 1
+			}
+		}
 
-		// Try to fill - loop on each action until it fails
-		for (Action action in filtered) {
+		// Greedy fill with cell-dependent actions by score
+		cellActions = MapCellScore.sortByScore(cellActions)
+		for (Action action in cellActions) {
 			boolean added = ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)
 
 			// If summon was added, expand with bulb buff actions
