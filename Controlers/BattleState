@@ -52,6 +52,9 @@ class BattleState {
 	// === Ally Danger ===
 	static Map<Entity, real> allyDanger = [:] // [ally: expectedDamageBeforeTheirTurn]
 
+	// === Ally Damage Potential ===
+	static Map<Entity, real> allyDamagePotential = [:] // [ally: estimated total raw damage output]
+
 	// === Enemy Turn Position (relative to self) ===
 	// Maps enemy → position index (0 = plays first after self, higher = later)
 	static Map<Entity, integer> enemyTurnPosition = [:]
@@ -90,6 +93,7 @@ class BattleState {
 		rstReadyChips = [:]
 		agiReadyChips = [:]
 		allyDanger = [:]
+		allyDamagePotential = [:]
 		minAllyMaxHP = 999999
 		maxAllyMaxHP = 0
 
@@ -301,6 +305,83 @@ class BattleState {
 				allyDanger[entity] = danger
 				// Set canDie flag: danger * threshold >= life means ally might die
 				entity.canDie = (danger * ScoringConfig.CANDIE_THRESHOLD >= entity.life)
+			}
+		}
+	}
+
+	/*
+	 * Estimates total raw damage an ally can deal to enemies this turn.
+	 * Uses a greedy TP budget: iterates offensive items, uses each as many times as affordable.
+	 * Averages damage across alive enemies (accounting for shields).
+	 *
+	 * @param ally The ally entity
+	 * @return Estimated total damage output
+	 */
+	static real computeAllyDamagePotential(Entity ally) {
+		real totalDmg = 0.0
+		integer tpLeft = ally.tp
+		real strMult = 1.0 + ally.str / 100.0
+		real mgcMult = 1.0 + ally.mgc / 100.0
+		real pwrMult = 1.0 + ally.pwr / 100.0
+		real sncMult = 1.0 + ally.snc / 100.0
+
+		// Compute average enemy shields for damage reduction
+		real avgAbsShield = 0.0
+		real avgRelShield = 0.0
+		integer enemyAliveCount = 0
+		for (Entity enemy in Fight.getEnemiesAlive()) {
+			avgAbsShield += enemy.absShield
+			avgRelShield += enemy.relShield
+			enemyAliveCount++
+		}
+		if (enemyAliveCount > 0) {
+			avgAbsShield /= enemyAliveCount
+			avgRelShield /= enemyAliveCount
+		}
+		real relFactor = max(0.0, 1.0 - avgRelShield / 100.0)
+
+		for (Item item in ally.items) {
+			if (!item.isOffensive) continue
+			if (item.haveCD && getCooldown(item.id, ally.id)! > 0) continue
+			if (item.cost > tpLeft) continue
+
+			// Estimate damage from this item's effects
+			real itemDmg = 0.0
+			for (ItemEffect effect in item.effects) {
+				if (effect.type == EFFECT_DAMAGE) {
+					real raw = effect.avg * strMult * pwrMult
+					itemDmg += max(0.0, raw * relFactor - avgAbsShield)
+				} else if (effect.type == EFFECT_POISON) {
+					itemDmg += effect.avg * mgcMult * pwrMult
+				} else if (effect.type == EFFECT_LIFE_DAMAGE) {
+					itemDmg += effect.avg  // Life damage is flat
+				} else if (effect.type == EFFECT_NOVA_DAMAGE) {
+					itemDmg += effect.avg * sncMult * pwrMult
+				}
+			}
+
+			if (itemDmg <= 0) continue
+
+			// Greedy: use item as many times as TP allows
+			integer uses = 0
+			while (item.cost <= tpLeft && uses < item.maxUse) {
+				totalDmg += itemDmg
+				tpLeft -= item.cost
+				uses++
+				if (item.haveCD) break
+			}
+		}
+
+		return totalDmg
+	}
+
+	/*
+	 * Compute damage potential for all allies (called once per turn).
+	 */
+	static void computeAllAllyDamagePotential() {
+		for (Entity entity in Fight.getAlliesAlive()) {
+			if (entity != Fight.self) {
+				allyDamagePotential[entity] = computeAllyDamagePotential(entity)
 			}
 		}
 	}

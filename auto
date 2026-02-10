@@ -191,6 +191,7 @@ function init() {
 	// 2. BattleState.refresh() is called inside Scoring.refresh() (before MapDanger)
 	// If you call Scoring.refresh() alone, you must also call this afterward.
 	BattleState.computeAllAllyDanger()
+	BattleState.computeAllAllyDamagePotential()
 
 	// MapDamage is now integrated into MapDanger.refresh() (Phase 4)
 
