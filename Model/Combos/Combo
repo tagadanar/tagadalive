@@ -29,63 +29,6 @@ class Combo {
 	}
 
 	/*
-	 * Insert a self-cast action at its correct priority position in the combo.
-	 * Re-evaluates all subsequent actions with the new consequence chain.
-	 * Returns true if the insertion improved total action score.
-	 */
-	boolean insertByPriority(Action action) {
-		integer n = count(this.actions)
-
-		// Find insertion index by priority
-		integer insertIdx = n
-		for (integer i = 0; i < n; i++) {
-			if (action.item.priority < this.actions[i].item.priority) {
-				insertIdx = i
-				break
-			}
-		}
-
-		// If inserting at end, just use regular add()
-		if (insertIdx == n) return this.add(action)
-
-		// Save state
-		Array<Action> saved = this.actions
-		real prevScore = this.getCurrentConsequences().score != null ? this.getCurrentConsequences().score! : 0.0
-
-		// Truncate to insertion point
-		this.actions = arraySlice(saved, 0, insertIdx) as Array<Action>
-		this.score = null
-
-		// Suppress warnings during speculative re-evaluation
-		Consequences.suppressWarnings = true
-
-		// Try inserting the new action
-		if (!this.add(action)) {
-			Consequences.suppressWarnings = false
-			this.actions = saved
-			this.score = null
-			return false
-		}
-
-		// Re-add remaining actions (re-evaluated with new consequence chain)
-		for (integer i = insertIdx; i < count(saved); i++) {
-			this.add(saved[i])
-		}
-
-		Consequences.suppressWarnings = false
-
-		// Keep only if total score improved
-		real newScore = this.getCurrentConsequences().score != null ? this.getCurrentConsequences().score! : 0.0
-		if (newScore <= prevScore) {
-			this.actions = saved
-			this.score = null
-			return false
-		}
-		this.score = null
-		return true
-	}
-
-	/*
 	 * Count how many times an item is used in this combo
 	 */
 	integer getUsageCount(Item item) {
