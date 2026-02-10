@@ -132,19 +132,19 @@ class BattleState {
 			}
 
 			// Check for ally with significant strength
-			if (!allyHasStr && entity.str >= 100) {
+			if (!allyHasStr && entity.str >= 200) {
 				allyHasStr = true
 			}
 			// Check for ally with significant science (for rel vuln value)
-			if (!allyHasScience && entity.snc >= 200) {
+			if (!allyHasScience && entity.snc >= 400) {
 				allyHasScience = true
 			}
 			// Check for ally with significant magic (for enemy antidote map)
-			if (!allyHasPsn && entity.mgc >= 100) {
+			if (!allyHasPsn && entity.mgc >= 200) {
 				allyHasPsn = true
 			}
 			// Check for ally with significant resistance (for enemy liberation map)
-			if (!allyHasRst && entity.rst >= 100) {
+			if (!allyHasRst && entity.rst >= 200) {
 				allyHasRst = true
 			}
 
@@ -200,15 +200,15 @@ class BattleState {
 
 		for (Entity entity in Fight.getEnemiesAlive()) {
 			// Check for enemy with significant strength
-			if (!enemyHasStr && entity.str >= 100) {
+			if (!enemyHasStr && entity.str >= 200) {
 				enemyHasStr = true
 			}
 			// Check for enemy with significant magic (for antidote value)
-			if (!enemyHasMgc && entity.mgc >= 100) {
+			if (!enemyHasMgc && entity.mgc >= 200) {
 				enemyHasMgc = true
 			}
 			// Check for enemy with significant science (for dmgReturn value)
-			if (!enemyHasSnc && entity.snc >= 200) {
+			if (!enemyHasSnc && entity.snc >= 400) {
 				enemyHasSnc = true
 			}
 			// Check for enemy with OTK potential (high STR + AGI + SNC)
