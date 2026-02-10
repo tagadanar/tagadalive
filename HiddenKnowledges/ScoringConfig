@@ -17,6 +17,7 @@ class ScoringConfig {
 	// === Combat Values (PLACEHOLDER) ===
 	static integer KILL_VALUE = 1000
 	static integer DEATH_VALUE = -1000
+	static integer RESURRECT_VALUE = 500
 	static integer MAX_FIGHT_TURNS = 66
 	static integer MAX_DURATION = 8
 
@@ -31,7 +32,8 @@ class ScoringConfig {
 		return 0.5
 	}
 
-	// === Ally Modifier (PLACEHOLDER) ===
+	// === Ally Modifiers (PLACEHOLDER) ===
+	static real ALLY_SHIELD_MODIFIER = 1.0
 	static real ALLY_BUFF_MODIFIER = 1.0
 
 	// === All Stats (for iteration) ===
@@ -67,6 +69,8 @@ class ScoringConfig {
 	static real W_GRAVITY_ENEMY_TURRET = 1.0
 	static real W_GRAVITY_NEAREST_ENEMY = 1.0
 	static real W_GRAVITY_CENTER = 1.0
+	static real W_GRAVITY_ALLY_BARYCENTRE = 1.0
+	static real W_GRAVITY_CHEST = 1.0
 
 	static integer THREAT_SNC_THRESHOLD = 100
 
