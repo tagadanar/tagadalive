@@ -307,7 +307,7 @@ class Consequences {
 			if (effect.type == EFFECT_RESURRECT) {
 				// Add resurrection score (inverse of ally death: +KILL_VALUE)
 				if (Fight.resurrectTargetId != null) {
-					this.score += ScoringConfig.KILL_VALUE
+					this.score += ScoringConfig.RESURRECT_VALUE
 				}
 				// Create PendingResurrect for follow-up buff scoring
 				if (Fight.resurrectTargetId != null) {

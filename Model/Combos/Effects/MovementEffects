@@ -65,7 +65,7 @@ Consequences.registerHandlers([
 		// Resurrection is inverse of ally death: +KILL_VALUE
 		// Only score if we have a valid resurrection target
 		if (Fight.resurrectTargetId != null) {
-			conseq.score += ScoringConfig.KILL_VALUE
+			conseq.score += ScoringConfig.RESURRECT_VALUE
 		}
 	}
 ])

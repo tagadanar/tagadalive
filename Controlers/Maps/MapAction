@@ -436,8 +436,8 @@ class MapAction {
 
 		Action action = new Action(item, from, targetCell)
 
-		// Resurrection score: KILL_VALUE (inverse of ally death)
-		action.score = ScoringConfig.KILL_VALUE
+		// Resurrection score (inverse of ally death, discounted)
+		action.score = ScoringConfig.RESURRECT_VALUE
 
 		MapAction._registerAction(item, from, action)
 		Benchmark.stop("addAction")
