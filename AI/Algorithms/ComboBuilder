@@ -1470,9 +1470,9 @@ class ComboBuilder {
 
 			boolean added = ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, reserveMP)
 
-			// If summon was added, expand pool with bulb buff actions
+			// If summon/resurrection was added, expand with pending entity buff actions
 			if (added && action.item.isSummon) {
-				ComboBuilder._expandWithBulbBuffs(ctx, combo, action.to, usesThisTurn, reserveMP)
+				ComboBuilder._expandWithPendingBuffs(ctx, combo, action.to, usesThisTurn, reserveMP)
 			}
 		}
 
@@ -1488,27 +1488,27 @@ class ComboBuilder {
 	}
 
 	/*
-	 * Expand combo with buff actions for a newly summoned bulb.
-	 * Called after a summon action is successfully added.
+	 * Expand combo with buff actions for a pending entity (summon or resurrection).
+	 * Called after a summon or resurrection action is successfully added.
 	 */
-	static void _expandWithBulbBuffs(
+	static void _expandWithPendingBuffs(
 		ExplorationContext ctx,
 		Combo combo,
-		Cell bulbCell,
+		Cell pendingCell,
 		Map<Item, integer> usesThisTurn,
 		integer reserveMP
 	) {
 		Consequences csq = combo.getCurrentConsequences()
 
-		// Check if a pendingBulb exists at this cell
-		if (csq.pendingBulbs[bulbCell] == null) return;
+		// Check if a pendingBulb or pendingResurrect exists at this cell
+		if (csq.pendingBulbs[pendingCell] == null && csq.pendingResurrect[pendingCell] == null) return;
 
 		// Build ignoreCells: base + killed entities
 		Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
 
-		// Generate buff actions for the newly created pendingBulb
-		Array<Action> buffActions = MapAction.getBulbBuffActions(
-			bulbCell,
+		// Generate buff actions for the pending entity
+		Array<Action> buffActions = MapAction.getPendingBuffActions(
+			pendingCell,
 			csq.currentCell,
 			csq.currentMP,
 			csq.currentTP,
@@ -1566,9 +1566,9 @@ class ComboBuilder {
 		for (Action action in filtered) {
 			boolean added = ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)
 
-			// If summon was added, expand with bulb buff actions
+			// If summon/resurrection was added, expand with pending entity buff actions
 			if (added && action.item.isSummon) {
-				ComboBuilder._expandWithBulbBuffs(ctx, combo, action.to, usesThisTurn, 0)
+				ComboBuilder._expandWithPendingBuffs(ctx, combo, action.to, usesThisTurn, 0)
 			}
 
 			// Continue looping for repeatable items

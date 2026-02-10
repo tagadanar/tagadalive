@@ -246,8 +246,8 @@ class ComboExplorer {
 			ComboExplorer.phaseThreeCell(ctx)
 		}
 
-		// NOTE: Summon buff exploration is now handled dynamically in ComboBuilder
-		// via _expandWithBulbBuffs() after any summon action is added to a combo.
+		// NOTE: Summon/resurrection buff exploration is now handled dynamically in ComboBuilder
+		// via _expandWithPendingBuffs() after any summon or resurrection action is added to a combo.
 
 		// Log results
 		ComboExplorer.logResults(ctx)

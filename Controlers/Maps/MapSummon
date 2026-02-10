@@ -15,7 +15,7 @@
  *   }
  *
  * NOTE: Buff actions for bulbs are now generated dynamically by ComboBuilder
- * via MapAction.getBulbBuffActions() after a summon is added to a combo.
+ * via MapAction.getPendingBuffActions() after a summon or resurrection is added to a combo.
  */
 
 class MapSummon {
@@ -559,9 +559,10 @@ class MapSummon {
 
 	/*
 	 * Get the best resurrection candidate for the current dead target.
-	 * Returns null if no safe cell exists or resurrection not ready.
+	 * Returns null if no 0-danger cell exists or resurrection not ready.
 	 *
-	 * Safety: danger < newMaxHP * 0.5 (entity survives with some HP)
+	 * Strict safety: only 0-danger cells (entity won't take damage).
+	 * Among 0-danger cells, picks lowest MP cost (candidates sorted by danger ASC, mpCost ASC).
 	 *
 	 * @return PendingResurrect with best spawn cell, or null
 	 */
@@ -574,18 +575,15 @@ class MapSummon {
 		integer? originalMaxHP = getTotalLife(deadId)
 		if (originalMaxHP == null || originalMaxHP! <= 0) return null
 
-		integer newMaxHP = originalMaxHP! / 2
-		integer dangerThreshold = newMaxHP / 2  // danger < newMaxHP * 0.5
-
 		Array<DefensiveCandidate> candidates = MapSummon.getDefensiveCandidates(Fight.resurrectionItem!, 10)
 
 		for (DefensiveCandidate c in candidates) {
-			if (c.danger < dangerThreshold) {
+			if (c.danger <= 0) {
 				return PendingResurrect(deadId, originalMaxHP!, c.spawnCell, c.fromCell)
 			}
 		}
 
-		return null  // No safe cell found
+		return null  // No 0-danger cell found
 	}
 
 	// Map bulb type to single letter for display
