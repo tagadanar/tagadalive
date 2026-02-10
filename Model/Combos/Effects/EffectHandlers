@@ -200,6 +200,10 @@ class EffectHandlers {
 		ctx.add(target, Stats.HP, -value)
 		ctx.add(target, Stats.HPTIME, eot)
 
+		if (ctx.getHP(target) <= 0) {
+			ctx.addKill(target)
+		}
+
 		// Erosion
 		ctx.add(target, Stats.HPMAX, -EffectCalc.erosion(value))
 		// Inline passive for nova/erosion (target's passives)
