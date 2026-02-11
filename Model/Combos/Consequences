@@ -974,9 +974,9 @@ class Consequences {
 			stat = Stats.HPMAX
 		}
 
-		// SCORING - use leek coefficients
+		// SCORING - use full dynamic coefficients (lifeRatio, levelRatio, etc.)
 		if (value > 0 && stat > 0) {
-			real coef = res.getCoef(stat)
+			real coef = res.getDynamicCoef(stat)
 			this.score += value * coef
 		}
 	}
