@@ -155,8 +155,8 @@ class Combo {
 				Benchmark.logBuff(action.item.name)
 			} else {
 				integer result = action.item.useItemOnCellWithResult(action.to)
-				// Update cached position after teleport (CHIP_JUMP changes our cell)
-				if (action.item.id == CHIP_JUMP) {
+				// Update cached position after teleport (CHIP_JUMP/CHIP_TELEPORTATION change our cell)
+				if (action.item.id == CHIP_JUMP || action.item.id == CHIP_TELEPORTATION) {
 					Fight.self.cell = Board.cells[getCell()!]!
 				}
 				if(result < 0) {

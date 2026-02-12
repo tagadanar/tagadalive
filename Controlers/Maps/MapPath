@@ -41,6 +41,11 @@ class MapPath{
 	// Lazy-loaded from AREA_CIRCLE_3, filtered to non-wall non-center cells
 	static Map<Cell, Array<Cell>> _cache_jumpDests = [:]
 
+	// Persistent cache: teleport destinations per cell (walls don't change during fight)
+	// Lazy-loaded via diamond iteration on Board.cellsXY
+	static Map<Cell, Array<Cell>> _cache_teleportDests = [:]
+	static boolean _teleportCacheComplete = false
+
 	static Array<Cell> getJumpDests(Cell cell) {
 		Array<Cell>? cached = _cache_jumpDests[cell]
 		if (cached != null) return cached!
@@ -110,6 +115,256 @@ class MapPath{
 			if (result[c] == null || result[c]! > d) result[c] = d
 		}
 		return result
+	}
+
+	/*
+	 * Get teleport destinations for a cell within maxRange.
+	 * Lazy-cached diamond iteration using Board.cellsXY.
+	 * Teleport goes THROUGH walls/entities but lands on non-wall cells.
+	 * Entity blocking is checked at BFS time (like jump).
+	 */
+	static Array<Cell> getTeleportDests(Cell cell, integer maxRange) {
+		Array<Cell>? cached = _cache_teleportDests[cell]
+		if (cached != null) return cached!
+		Array<Cell> dests = []
+		for (integer dx = -maxRange; dx <= maxRange; dx++) {
+			integer maxDy = maxRange - abs(dx)
+			Map<integer, Cell>? col = Board.cellsXY[cell.x + dx]
+			if (col == null) continue
+			for (integer dy = -maxDy; dy <= maxDy; dy++) {
+				if (dx == 0 && dy == 0) continue
+				Cell? c = col![cell.y + dy]
+				if (c != null && c!.isNotWall) push(dests, c!)
+			}
+		}
+		_cache_teleportDests[cell] = dests
+		return dests
+	}
+
+	/*
+	 * 2-state BFS for teleport reachability.
+	 * Reuses pre-computed walk map as the "canTeleport" state.
+	 * Two states: canTeleport (walk, reused) and usedTeleport (new).
+	 * Teleport is free (0 MP), walk costs 1 MP.
+	 * Returns superset of walk map.
+	 */
+	static Map<Cell, integer> getTeleportReachableCells(Map<Cell, integer> walk, integer mp,
+			Set<Cell> ignoreCells, Set<Cell> newObstacles, integer maxRange) {
+		// Reconstruct walk frontiers by distance
+		Array<Array<Cell>> walkFrontiers = []
+		for (integer i = 0; i <= mp; i++) push(walkFrontiers, [])
+		for (Cell c : integer d in walk) {
+			if (d <= mp) push(walkFrontiers[d]!, c)
+		}
+
+		// usedTeleport state: cells reachable after having teleported
+		Map<Cell, integer> usedTeleport = [:]
+		Array<Cell> utFrontier = []
+
+		for (integer cost = 0; cost <= mp; cost++) {
+			// Step 1: Teleport transitions from walk frontier at this cost (free)
+			for (Cell cell in walkFrontiers[cost]!) {
+				for (Cell t in MapPath.getTeleportDests(cell, maxRange)) {
+					if (usedTeleport[t] != null) continue
+					if (walk[t] != null && walk[t]! <= cost) continue
+					if (Board.entityCells[t] && !setContains(ignoreCells, t)) continue
+					if (setContains(newObstacles, t)) continue
+					usedTeleport[t] = cost
+					push(utFrontier, t)
+				}
+			}
+
+			// Step 2: Walk from usedTeleport frontier (cost + 1)
+			if (cost < mp) {
+				integer nextCost = cost + 1
+				Array<Cell> nextUtFrontier = []
+				for (Cell cell in utFrontier) {
+					for (Cell n in cell.neighbors) {
+						if (usedTeleport[n] == null
+							&& (walk[n] == null || walk[n]! > nextCost)
+							&& (!Board.entityCells[n] || setContains(ignoreCells, n))
+							&& !setContains(newObstacles, n)) {
+							usedTeleport[n] = nextCost
+							push(nextUtFrontier, n)
+						}
+					}
+				}
+				utFrontier = nextUtFrontier
+			}
+		}
+
+		// Merge: walk ∪ usedTeleport (keep minimum distance)
+		Map<Cell, integer> result = clone(walk, 2) as Map<Cell, integer>
+		for (Cell c : integer d in usedTeleport) {
+			if (result[c] == null || result[c]! > d) result[c] = d
+		}
+		return result
+	}
+
+	/*
+	 * 4-state BFS for jump+teleport reachability.
+	 * States:
+	 *   state0: canJump + canTeleport (= walk map)
+	 *   state1: usedJump + canTeleport (jump from state0)
+	 *   state2: canJump + usedTeleport (teleport from state0)
+	 *   state3: usedBoth (teleport from state1 + jump from state2)
+	 * Walk from all 4 frontiers each cost level.
+	 * Merge all 4 states into result (keep min distances).
+	 */
+	static Map<Cell, integer> getJumpTeleportReachableCells(Map<Cell, integer> walk, integer mp,
+			Set<Cell> ignoreCells, Set<Cell> newObstacles, integer teleportRange) {
+		// Reconstruct walk frontiers by distance (state0)
+		Array<Array<Cell>> s0Frontiers = []
+		for (integer i = 0; i <= mp; i++) push(s0Frontiers, [])
+		for (Cell c : integer d in walk) {
+			if (d <= mp) push(s0Frontiers[d]!, c)
+		}
+
+		// State maps
+		Map<Cell, integer> s1 = [:]  // usedJump + canTeleport
+		Map<Cell, integer> s2 = [:]  // canJump + usedTeleport
+		Map<Cell, integer> s3 = [:]  // usedBoth
+		Array<Cell> s1Frontier = []
+		Array<Cell> s2Frontier = []
+		Array<Cell> s3Frontier = []
+
+		for (integer cost = 0; cost <= mp; cost++) {
+			// ── Transitions at this cost (free) ──
+
+			// Jump from state0 → state1
+			for (Cell cell in s0Frontiers[cost]!) {
+				for (Cell j in MapPath.getJumpDests(cell)) {
+					if (s1[j] != null) continue
+					if (walk[j] != null && walk[j]! <= cost) continue
+					if (Board.entityCells[j] && !setContains(ignoreCells, j)) continue
+					if (setContains(newObstacles, j)) continue
+					s1[j] = cost
+					push(s1Frontier, j)
+				}
+			}
+
+			// Teleport from state0 → state2
+			for (Cell cell in s0Frontiers[cost]!) {
+				for (Cell t in MapPath.getTeleportDests(cell, teleportRange)) {
+					if (s2[t] != null) continue
+					if (walk[t] != null && walk[t]! <= cost) continue
+					if (Board.entityCells[t] && !setContains(ignoreCells, t)) continue
+					if (setContains(newObstacles, t)) continue
+					s2[t] = cost
+					push(s2Frontier, t)
+				}
+			}
+
+			// Teleport from state1 → state3
+			for (Cell cell in s1Frontier) {
+				if (s1[cell] != cost) continue
+				for (Cell t in MapPath.getTeleportDests(cell, teleportRange)) {
+					if (s3[t] != null) continue
+					if (s1[t] != null && s1[t]! <= cost) continue
+					if (s2[t] != null && s2[t]! <= cost) continue
+					if (walk[t] != null && walk[t]! <= cost) continue
+					if (Board.entityCells[t] && !setContains(ignoreCells, t)) continue
+					if (setContains(newObstacles, t)) continue
+					s3[t] = cost
+					push(s3Frontier, t)
+				}
+			}
+
+			// Jump from state2 → state3
+			for (Cell cell in s2Frontier) {
+				if (s2[cell] != cost) continue
+				for (Cell j in MapPath.getJumpDests(cell)) {
+					if (s3[j] != null) continue
+					if (s2[j] != null && s2[j]! <= cost) continue
+					if (s1[j] != null && s1[j]! <= cost) continue
+					if (walk[j] != null && walk[j]! <= cost) continue
+					if (Board.entityCells[j] && !setContains(ignoreCells, j)) continue
+					if (setContains(newObstacles, j)) continue
+					s3[j] = cost
+					push(s3Frontier, j)
+				}
+			}
+
+			// ── Walk from all frontiers (cost + 1) ──
+			if (cost < mp) {
+				integer nextCost = cost + 1
+
+				// Walk from s1
+				Array<Cell> nextS1 = []
+				for (Cell cell in s1Frontier) {
+					for (Cell n in cell.neighbors) {
+						if (s1[n] == null
+							&& (walk[n] == null || walk[n]! > nextCost)
+							&& (!Board.entityCells[n] || setContains(ignoreCells, n))
+							&& !setContains(newObstacles, n)) {
+							s1[n] = nextCost
+							push(nextS1, n)
+						}
+					}
+				}
+				s1Frontier = nextS1
+
+				// Walk from s2
+				Array<Cell> nextS2 = []
+				for (Cell cell in s2Frontier) {
+					for (Cell n in cell.neighbors) {
+						if (s2[n] == null
+							&& (walk[n] == null || walk[n]! > nextCost)
+							&& (!Board.entityCells[n] || setContains(ignoreCells, n))
+							&& !setContains(newObstacles, n)) {
+							s2[n] = nextCost
+							push(nextS2, n)
+						}
+					}
+				}
+				s2Frontier = nextS2
+
+				// Walk from s3
+				Array<Cell> nextS3 = []
+				for (Cell cell in s3Frontier) {
+					for (Cell n in cell.neighbors) {
+						if (s3[n] == null
+							&& (s1[n] == null || s1[n]! > nextCost)
+							&& (s2[n] == null || s2[n]! > nextCost)
+							&& (walk[n] == null || walk[n]! > nextCost)
+							&& (!Board.entityCells[n] || setContains(ignoreCells, n))
+							&& !setContains(newObstacles, n)) {
+							s3[n] = nextCost
+							push(nextS3, n)
+						}
+					}
+				}
+				s3Frontier = nextS3
+			}
+		}
+
+		// Merge all 4 states (keep minimum distance)
+		Map<Cell, integer> result = clone(walk, 2) as Map<Cell, integer>
+		for (Cell c : integer d in s1) {
+			if (result[c] == null || result[c]! > d) result[c] = d
+		}
+		for (Cell c : integer d in s2) {
+			if (result[c] == null || result[c]! > d) result[c] = d
+		}
+		for (Cell c : integer d in s3) {
+			if (result[c] == null || result[c]! > d) result[c] = d
+		}
+		return result
+	}
+
+	/*
+	 * Pre-populate teleport destination cache using remaining operation budget.
+	 * Called after combo.play() each turn until complete.
+	 * The cache is persistent per fight (walls don't change).
+	 */
+	static void warmupTeleportCache(integer maxRange) {
+		integer limit = getMaxOperations() - 100000  // Leave 100k buffer
+		for (Cell cell in Board.cells) {
+			if (cell.isWall) continue
+			if (getOperations() > limit) return;
+			MapPath.getTeleportDests(cell, maxRange)
+		}
+		_teleportCacheComplete = true
 	}
 
 	static integer getHashcode(Cell from, Set<Cell> ignoreCells, Set<Cell> newObstacles = <>){

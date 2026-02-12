@@ -63,6 +63,11 @@ class ExplorationContext {
 	boolean hasJump
 	Item? jumpItem
 
+	// Teleport state
+	boolean hasTeleport
+	Item? teleportItem
+	Map<Cell, integer> maxExtendedReachableCells
+
 	// Results tracking
 	Array<ExplorerResult> topResults
 	ExplorerResult? bestResult
@@ -91,6 +96,11 @@ class ExplorationContext {
 		// Jump state
 		this.hasJump = Fight.self.jumpCD == 0 && Fight.self.jumpItem != null
 		this.jumpItem = Fight.self.jumpItem
+
+		// Teleport state
+		this.hasTeleport = Fight.self.teleportCD == 0 && Fight.self.teleportItem != null
+		this.teleportItem = Fight.self.teleportItem
+		this.maxExtendedReachableCells = Fight.self.maxExtendedReachableCells
 
 		// Initialize results
 		this.topResults = []
@@ -697,18 +707,40 @@ class ComboExplorer {
 			}
 		}
 
-		// Phase 1c: Jump-extended range (cells reachable only via jump)
-		if (ctx.hasJump) {
+		// Phase 1c: Movement-ability cells (jump/teleport/both)
+		if (ctx.hasJump || ctx.hasTeleport) {
 			for (Cell cell : real score in MapCellScore.cellScores) {
 				if (ctx.shouldStop()) break
-				// Skip cells reachable without jump
+				// Skip cells reachable by walk+buff alone
 				if (ctx.extendedReachableCells[cell] != null) continue
-				// Must be in jump-extended range
-				if (ctx.jumpExtendedReachableCells[cell] == null) continue
+				// Must be in max extended range (any movement ability)
+				if (ctx.maxExtendedReachableCells[cell] == null) continue
 
-				Combo? combo = ComboBuilder.buildAtCellWithJump(ctx, cell)
-				if (combo != null) {
-					ctx.recordResult(ExplorerResult(combo!, "P1:Jump>c" + cell.id, "1"))
+				Combo? best = null
+				string bestLabel = ""
+
+				// Try jump if cell is jump-reachable
+				if (ctx.hasJump && ctx.jumpExtendedReachableCells[cell] != null) {
+					Combo? c = ComboBuilder.buildAtCellWithJump(ctx, cell)
+					if (c != null) { best = c; bestLabel = "Jump" }
+				}
+
+				// Try teleport
+				if (ctx.hasTeleport) {
+					Combo? c = ComboBuilder.buildAtCellWithTeleport(ctx, cell)
+					if (c != null && (best == null || c!.getScore()! > best!.getScore()!)) {
+						best = c; bestLabel = "TP"
+					}
+				}
+
+				// Try jump+teleport for cells requiring both
+				if (ctx.hasJump && ctx.hasTeleport && best == null) {
+					Combo? c = ComboBuilder.buildAtCellWithJumpAndTeleport(ctx, cell)
+					if (c != null) { best = c; bestLabel = "J+TP" }
+				}
+
+				if (best != null) {
+					ctx.recordResult(ExplorerResult(best!, "P1:" + bestLabel + ">c" + cell.id, "1"))
 				}
 			}
 		}

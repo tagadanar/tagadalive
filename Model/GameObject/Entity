@@ -64,6 +64,7 @@ class Entity {
 	Map<Cell, integer> reachableCellsJump     // reachable via walk + CHIP_JUMP (superset when jumpCD <= 1)
 	Map<Cell, integer> extendedReachableCells  // reachable with MP buffs (self only)
 	Map<Cell, integer> jumpExtendedReachableCells  // reachable with MP buffs + CHIP_JUMP (self only)
+	Map<Cell, integer> maxExtendedReachableCells // full movement envelope: walk+buffs+jump+teleport (self only)
 	integer maxMPBuff = 0                       // max MP gain from self-cast buffs (self only)
 	// inventaire organisé en fonction des cibles
 	Array<Item> items
@@ -90,6 +91,8 @@ class Entity {
 	integer nextManumission = 6  // Turns until entity can self-manumission (0-6, set by MapDanger)
 	integer jumpCD = 4           // CHIP_JUMP cooldown (4 = no jump chip, 0-3 = current cd)
 	Item? jumpItem = null        // CHIP_JUMP item reference (for minRange/maxRange access)
+	integer teleportCD = 11      // CHIP_TELEPORTATION cooldown (11 = no chip, 0-10 = current cd)
+	Item? teleportItem = null    // CHIP_TELEPORTATION item reference
 	boolean canDie = false       // Set by BattleState: danger >= life * CANDIE_THRESHOLD
 	boolean willBeDead = false   // Poison will kill before anyone can antidote (set by MapDanger)
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
@@ -141,6 +144,9 @@ class Entity {
 			} else if (item.id == CHIP_JUMP) {
 				this.jumpCD = getCooldown(item.id, this.id)!
 				this.jumpItem = item
+			} else if (item.id == CHIP_TELEPORTATION) {
+				this.teleportCD = getCooldown(item.id, this.id)!
+				this.teleportItem = item
 			}
 		}
 		// Load passive effects from entity
@@ -250,6 +256,8 @@ class Entity {
 		this.manumissionCD = 6
 		this.jumpCD = 4
 		this.jumpItem = null
+		this.teleportCD = 11
+		this.teleportItem = null
 		for (Item item in this.items) {
 			if (item.id == CHIP_ANTIDOTE) {
 				this.antidoteCD = getCooldown(item.id, this.id)!
@@ -260,6 +268,9 @@ class Entity {
 			} else if (item.id == CHIP_JUMP) {
 				this.jumpCD = getCooldown(item.id, this.id)!
 				this.jumpItem = item
+			} else if (item.id == CHIP_TELEPORTATION) {
+				this.teleportCD = getCooldown(item.id, this.id)!
+				this.teleportItem = item
 			}
 		}
 		this.loadEffects()
@@ -359,6 +370,23 @@ class Entity {
 				)
 			} else {
 				this.jumpExtendedReachableCells = this.extendedReachableCells
+			}
+
+			// Compute max extended reach (full movement envelope including teleport)
+			boolean canTeleport = this.teleportCD == 0 && this.teleportItem != null
+			boolean canJump = this.jumpCD == 0 && this.jumpItem != null
+			integer totalMP = this.mp + this.maxMPBuff
+
+			if (canJump && canTeleport) {
+				this.maxExtendedReachableCells = MapPath.getJumpTeleportReachableCells(
+					this.extendedReachableCells, totalMP, this.cellsToIgnore, <>,
+					this.teleportItem!.maxRange)
+			} else if (canTeleport) {
+				this.maxExtendedReachableCells = MapPath.getTeleportReachableCells(
+					this.extendedReachableCells, totalMP, this.cellsToIgnore, <>,
+					this.teleportItem!.maxRange)
+			} else {
+				this.maxExtendedReachableCells = this.jumpExtendedReachableCells
 			}
 		}
 	}

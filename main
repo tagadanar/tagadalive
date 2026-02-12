@@ -21,6 +21,11 @@ Combo combo = AI.getCombo()
 // Execute the combo
 combo.play()
 
+// Warmup teleport destination cache using remaining operation budget
+if (Fight.self.teleportItem != null && !MapPath._teleportCacheComplete) {
+	MapPath.warmupTeleportCache(Fight.self.teleportItem!.maxRange)
+}
+
 // Collect cooldowns at END of turn (after actions)
 Benchmark.collectCooldownsEnd(Fight.self.items, Fight.self.id)
 
