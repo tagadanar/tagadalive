@@ -22,6 +22,8 @@ class MapDanger {
 	static Map<Entity, Map<Item, Map<Cell, integer>>> _map_entity_item_mp = [:] // [e:[item:[cell:minDist]]]
 	// min MP cost to reach each jump-only direct-hit cell (cells NOT reachable by walk alone)
 	static Map<Entity, Map<Item, Map<Cell, integer>>> _map_entity_item_jump = [:] // [e:[item:[cell:minDist]]]
+	// min MP cost to reach each teleport-only direct-hit cell (cells NOT reachable by walk or jump)
+	static Map<Entity, Map<Item, Map<Cell, integer>>> _map_entity_item_teleport = [:] // [e:[item:[cell:minDist]]]
 
 	// Enemy antidote coverage: for each enemy with antidote cd <= 1, which cells they can reach
 	// Only populated when BattleState.allyHasPsn is true
@@ -46,6 +48,7 @@ class MapDanger {
 		_map_entity_item_danger = [:]
 		_map_entity_item_mp = [:]
 		_map_entity_item_jump = [:]
+		_map_entity_item_teleport = [:]
 		_map_enemy_antidote = [:]
 		_map_enemy_liberation = [:]
 		MapSupport.resetCaches()
@@ -58,6 +61,7 @@ class MapDanger {
 			_map_entity_item_danger[e] = [:]
 			_map_entity_item_mp[e] = [:]
 			_map_entity_item_jump[e] = [:]
+			_map_entity_item_teleport[e] = [:]
 			e.offensiveItems = Items.getOrderedOffensiveItems(e)
 			push(enemies, e)
 			integer itemCount = count(e.offensiveItems)
@@ -319,14 +323,37 @@ class MapDanger {
 					if (map[c] == null) {
 						map[c] = 1.0
 						map_jump[c] = dist
-					} else if (map_mp[c] == null && (map_jump[c] == null || dist < map_jump[c]!)) {
-						// Cell only reachable via jump — update to better jump distance
+					} else if ((map_mp[c] == null || dist < map_mp[c]!) && (map_jump[c] == null || dist < map_jump[c]!)) {
+						// Record best jump distance (needed for shackle filtering fallback)
 						map_jump[c] = dist
 					}
 				}
 			}
 		}
 		_map_entity_item_jump[enemy]![item] = map_jump
+
+		// Pass 3: teleport-only reachable cells (cells NOT reachable by walk or jump alone)
+		Map<Cell, integer> map_teleport = [:]
+		if (enemy.reachableCellsTeleport != null) {
+			for (Cell cell : integer dist in enemy.reachableCellsTeleport!) {
+				if (dist > enemy.mp) continue
+				// Skip cells already reachable by walk at same or lower distance
+				if (enemy.reachableCells[cell] != null && enemy.reachableCells[cell]! <= dist) continue
+				// Skip cells already reachable by jump at same or lower distance
+				if (enemy.reachableCellsJump[cell] != null && enemy.reachableCellsJump[cell]! <= dist) continue
+				Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell)
+				for (Cell c in targetableCells) {
+					if (map[c] == null) {
+						map[c] = 1.0
+						map_teleport[c] = dist
+					} else if ((map_mp[c] == null || dist < map_mp[c]!) && (map_jump[c] == null || dist < map_jump[c]!) && (map_teleport[c] == null || dist < map_teleport[c]!)) {
+						// Record best teleport distance (needed for shackle filtering fallback)
+						map_teleport[c] = dist
+					}
+				}
+			}
+		}
+		_map_entity_item_teleport[enemy]![item] = map_teleport
 
 		// AOE expansion (handles CIRCLE, PLUS, X, SQUARE)
 		MapDanger.expandAOE(map, item)
