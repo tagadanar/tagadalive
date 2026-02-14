@@ -8,10 +8,6 @@
  *          EFFECT_ANTIDOTE, EFFECT_TOTAL_DEBUFF
  */
 
-// DEBUG: dedup liberation consequence trace (once per ally per turn)
-global integer _libCTurn = -1
-global Map<integer, boolean> _libCDone = [:]
-
 // Register all debuff effect handlers
 Consequences.registerHandlers([
 	// ============================================
@@ -131,16 +127,6 @@ Consequences.registerHandlers([
 			conseq.addEffectTypeAlteration(entityTarget, entityEffect.type, reduction)
 		}
 
-		// DEBUG: log once per ally per turn when consequence score is positive (bug condition)
-		if (entityTarget.isFriend) {
-			real delta = conseq.score - scoreBefore
-			integer curTurn = getTurn()
-			if (curTurn != _libCTurn) { _libCTurn = curTurn; _libCDone = [:] }
-			if (delta > 0 && !_libCDone[entityTarget.id]) {
-				_libCDone[entityTarget.id] = true
-				debugE("LIB_C " + entityTarget.name + " n=" + count(entityTarget.effects) + " score=" + round(delta) + suspicious + simSuspicious)
-			}
-		}
 	},
 
 	EFFECT_ANTIDOTE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {

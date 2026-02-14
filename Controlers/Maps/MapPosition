@@ -252,8 +252,7 @@ class MapPosition {
 		Danger baseDanger = MapDanger.getCellDanger(cell, consequences)
 		Position pos = Position(baseDanger)
 
-		real lifePercent = Fight.self.getCurrentHP(consequences) / Fight.self.totalLife
-		pos.applyLifeScaling(lifePercent)
+		pos.applyLifeScaling(consequences)
 
 		// OPTIMIZATION: Reuse precomputed tactical scores for altering consequences
 		// These scores don't depend on consequences (use real board state, not simulated)
@@ -441,6 +440,23 @@ class MapPosition {
 
 		Benchmark.stop("MP.findBest")
 		return bestPosition!
+	}
+
+	/*
+	 * Find the best position from an arbitrary reachable cell map.
+	 * Like findBestPosition but takes a pre-computed map instead of computing one.
+	 * Used by escape OTK to search the full movement envelope.
+	 */
+	static Position findBestPositionFromMap(Map<Cell, integer> reachableMap, Consequences? csq) {
+		Benchmark.start("MP.findBestMap")
+		Position? best = null
+		for (Cell cell : integer mp in reachableMap) {
+			Position pos = MapPosition.evaluatePosition(cell, csq)
+			if (best == null || pos.score > best!.score) best = pos
+		}
+		if (best == null) best = MapPosition.evaluatePosition(Fight.self.cell, csq)
+		Benchmark.stop("MP.findBestMap")
+		return best!
 	}
 
 	/*

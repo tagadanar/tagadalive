@@ -104,6 +104,59 @@ class ComboBuilder {
 	}
 
 	/*
+	 * Build combo at a single cell, forcing final position to targetCell.
+	 * Used by: phaseConstrainedEnd (walk range)
+	 */
+	static Combo buildAtCellForcedEnd(
+		ExplorationContext ctx, Cell actionCell, Cell targetCell,
+		real scoreBonus, integer distActionToTarget
+	) {
+		Array<Action> pool = MapCellScore.getActionsForCell(actionCell)
+		Combo combo = Combo()
+		Map<Item, integer> usesThisTurn = [:]
+		ComboBuilder._buildCoreIntoNoPosition(ctx, combo, usesThisTurn, pool,
+			ctx.initialTP, ctx.initialWeapon, distActionToTarget, null, true)
+		if (!ComboBuilder._addForcedFinalPosition(combo, targetCell, scoreBonus)) {
+			ComboBuilder._addFinalPosition(combo)
+		}
+		return combo
+	}
+
+	/*
+	 * Build combo at an extended-range cell, forcing final position to targetCell.
+	 * Returns null if MP buffs can't reach actionCell.
+	 * Used by: phaseConstrainedEnd (extended range)
+	 */
+	static Combo? buildAtCellBuffedForcedEnd(
+		ExplorationContext ctx, Cell actionCell, Cell targetCell,
+		real scoreBonus, integer distToAction, integer distActionToTarget
+	) {
+		if (distToAction <= ctx.initialMP) {
+			return ComboBuilder.buildAtCellForcedEnd(ctx, actionCell, targetCell,
+				scoreBonus, distActionToTarget)
+		}
+		integer neededBuff = distToAction - ctx.initialMP
+		Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededBuff, ctx.initialTP)
+		if (buffs == null) return null
+
+		Combo combo = Combo()
+		Map<Item, integer> usesThisTurn = [:]
+		ComboBuilder._applyBuffs(combo, buffs!, usesThisTurn)
+
+		Consequences csq = combo.getCurrentConsequences()
+		Array<Action> pool = MapCellScore.getActionsForCell(actionCell)
+		pool = ComboBuilder._excludeUsed(pool, usesThisTurn)
+
+		ComboBuilder._buildCoreIntoNoPosition(ctx, combo, usesThisTurn, pool,
+			csq.currentTP, csq.currentWeapon, distActionToTarget, null, true)
+
+		if (!ComboBuilder._addForcedFinalPosition(combo, targetCell, scoreBonus)) {
+			ComboBuilder._addFinalPosition(combo)
+		}
+		return combo
+	}
+
+	/*
 	 * Build combo focused on supporting a specific ally (canDie).
 	 * Forces the best help action as prefix, then fills remaining TP from
 	 * the general pool to maximize total score while saving the ally.
@@ -1854,10 +1907,10 @@ class ComboBuilder {
 	}
 
 	/*
-	 * Core combo building into an existing combo.
-	 * Allows prepending buffs/liberation before core logic.
+	 * Core combo building into an existing combo (without final position).
+	 * Knapsack -> sort -> add -> greedy fallback.
 	 */
-	static void _buildCoreInto(
+	static void _buildCoreIntoNoPosition(
 		ExplorationContext ctx,
 		Combo combo,
 		Map<Item, integer> usesThisTurn,
@@ -1890,8 +1943,25 @@ class ComboBuilder {
 			Array<Action> remaining = ComboBuilder._excludeUsed(pool, usesThisTurn)
 			ComboBuilder._greedyFallback(ctx, combo, remaining, usesThisTurn, restrictToCell)
 		}
+	}
 
-		// Final position
+	/*
+	 * Core combo building into an existing combo.
+	 * Allows prepending buffs/liberation before core logic.
+	 */
+	static void _buildCoreInto(
+		ExplorationContext ctx,
+		Combo combo,
+		Map<Item, integer> usesThisTurn,
+		Array<Action> pool,
+		integer availableTP,
+		Item? currentWeapon,
+		integer reserveMP,
+		Entity? stopWhenKilled,
+		boolean restrictToCell
+	) {
+		ComboBuilder._buildCoreIntoNoPosition(ctx, combo, usesThisTurn, pool,
+			availableTP, currentWeapon, reserveMP, stopWhenKilled, restrictToCell)
 		ComboBuilder._addFinalPosition(combo)
 	}
 
@@ -1989,8 +2059,38 @@ class ComboBuilder {
 	 */
 	static void _addFinalPosition(Combo combo) {
 		Consequences csq = combo.getCurrentConsequences()
+		integer? bossCell = BossPotiMalef.getResurrectionCell()
+		if (bossCell != null) {
+			// Only force leek to boss cell if combo has no summon to block it
+			boolean hasSummon = false
+			for (Action a in combo.actions) {
+				if (a.item.isSummon) { hasSummon = true; break }
+			}
+			if (!hasSummon && ComboBuilder._addForcedFinalPosition(combo, Board.cells[bossCell!]!, 100000.0)) {
+				return;
+			}
+		}
 		Position pos = MapPosition.findBestPosition(csq.currentCell, csq.currentMP, csq)
 		combo.addFinalPosition(pos)
+	}
+
+	/*
+	 * Force final position to a specific cell with optional score bonus.
+	 * Returns true if targetCell is reachable from combo's current position.
+	 */
+	static boolean _addForcedFinalPosition(Combo combo, Cell targetCell, real scoreBonus) {
+		Consequences csq = combo.getCurrentConsequences()
+		if (csq.currentCell.id != targetCell.id) {
+			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
+				csq.currentCell, csq.currentMP, Fight.self.cellsToIgnore)
+			if (reachable[targetCell] == null) {
+				return false
+			}
+		}
+		Position pos = MapPosition.evaluatePosition(targetCell, csq)
+		pos.score += scoreBonus
+		combo.addFinalPosition(pos)
+		return true
 	}
 
 	// ════════════════════════════════════════════════════════════

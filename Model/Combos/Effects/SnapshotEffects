@@ -287,7 +287,8 @@ EffectCache.registerHandlers([
 			if (stat != null) snap.addAlteration(entityTarget, stat!, eot)
 		}
 		real delta = snap.effectScore - scoreBefore
-		if (entityTarget.isFriend && delta > 0) debugE("LIB " + entityTarget.name + " n=" + count(entityTarget.effects) + " score=" + round(delta) + suspicious)
+		string tag = entityTarget.isFriend ? "ally" : "enemy"
+		debug("LIB " + tag + " " + entityTarget.name + " n=" + count(entityTarget.effects) + " score=" + round(delta) + suspicious)
 	},
 
 	EFFECT_ANTIDOTE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {

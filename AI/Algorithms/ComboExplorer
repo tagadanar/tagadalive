@@ -195,6 +195,12 @@ class ComboExplorer {
 		// Phase 0: Stay in place - ALWAYS runs (cheap baseline, guaranteed result)
 		ComboExplorer.phaseStay(ctx)
 
+		// Phase SAFE: maximize damage while ending on safest reachable cell (always runs)
+		if (!ctx.shouldStop()) {
+			Position safePos = MapPosition.findBestPositionFromMap(ctx.maxExtendedReachableCells, null)
+			ComboExplorer.phaseConstrainedEnd(ctx, safePos.cell, 0.0, "SAFE")
+		}
+
 		// Phase T: Target Focus
 		if (!ctx.shouldStop()) {
 			ComboExplorer.phaseTargetFocus(ctx)
@@ -662,6 +668,64 @@ class ComboExplorer {
 		ctx.recordResult(ExplorerResult(combo, "P0:Stay", "0"))
 
 		Benchmark.stop("ComboExplorer.phaseStay")
+	}
+
+	// ════════════════════════════════════════════════════════════
+	// PHASE OTK ESCAPE
+	// ════════════════════════════════════════════════════════════
+
+	/*
+	 * Explore combos from reachable cells, forcing final position to targetCell.
+	 * Pre-computes reverse reachability from targetCell for O(1) distance lookups.
+	 */
+	static void phaseConstrainedEnd(ExplorationContext ctx, Cell targetCell, real scoreBonus, string label) {
+		Benchmark.start("ComboExplorer.phase" + label)
+
+		integer maxMP = ctx.initialMP + ctx.maxMPBuff
+		Map<Cell, integer> reverseReach = MapPath.getReachableCells(
+			[targetCell: 0], maxMP, ctx.cellsToIgnore, <>)
+
+		// Stay in place
+		integer? distFromHere = reverseReach[Fight.self.cell]
+		if (distFromHere != null) {
+			Combo combo = ComboBuilder.buildAtCellForcedEnd(
+				ctx, Fight.self.cell, targetCell, scoreBonus, distFromHere!)
+			ctx.recordResult(ExplorerResult(combo, label + ":Stay", label))
+		}
+
+		// Single-cell MP sampling (walk range)
+		for (integer offenseMP = 1; offenseMP <= ctx.initialMP; offenseMP++) {
+			if (ctx.shouldStop()) break
+			Cell? bestCell = ComboExplorer.findBestCellAtDistance(ctx, offenseMP)
+			if (bestCell == null) continue
+			integer? distToTarget = reverseReach[bestCell!]
+			if (distToTarget == null) continue
+			if (offenseMP + distToTarget! > maxMP) continue
+
+			Combo combo = ComboBuilder.buildAtCellForcedEnd(
+				ctx, bestCell!, targetCell, scoreBonus, distToTarget!)
+			ctx.recordResult(ExplorerResult(combo, label + ":MP" + offenseMP, label))
+		}
+
+		// Extended range (with MP buffs)
+		if (ctx.maxMPBuff > 0) {
+			for (integer offenseMP = ctx.initialMP + 1; offenseMP <= maxMP; offenseMP++) {
+				if (ctx.shouldStop()) break
+				Cell? bestCell = ComboExplorer.findBestCellAtExtendedDistance(ctx, offenseMP)
+				if (bestCell == null) continue
+				integer? distToTarget = reverseReach[bestCell!]
+				if (distToTarget == null) continue
+				if (offenseMP + distToTarget! > maxMP) continue
+
+				Combo? combo = ComboBuilder.buildAtCellBuffedForcedEnd(
+					ctx, bestCell!, targetCell, scoreBonus, offenseMP, distToTarget!)
+				if (combo != null) {
+					ctx.recordResult(ExplorerResult(combo!, label + ":MP" + offenseMP + "B", label))
+				}
+			}
+		}
+
+		Benchmark.stop("ComboExplorer.phase" + label)
 	}
 
 	// ════════════════════════════════════════════════════════════
