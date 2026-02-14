@@ -26,6 +26,24 @@ Improvements, refactoring, and cleanup for the LeekScript combat AI.
 
 - [ ] **Extract life ratio constants in ScoringModifiers** — magic numbers (10/5 ally, 15/10 enemy) still hardcoded
 
+### 1.5 Fix Dead Code: CANDIE_MODIFIER Never Applied in Static Mode
+
+- [ ] **CANDIE_MODIFIER is dead code when DYNAMIC_COEFS=false (default)** — `Scoring:212-217`
+
+The `canDie()` check inside `_computeDynamicCoef()` reads `BattleState.allyDanger[entity]` (line 132), but `allyDanger` is always empty at the time the cache is built. Here's why:
+
+1. `Scoring.refresh()` calls `BattleState.refresh()` (line 35) which clears `allyDanger = [:]` (BattleState:95)
+2. `Scoring.refresh()` then builds `_cache_dynamic_coef` (lines 86-92) by calling `_computeDynamicCoef()` for every entity
+3. `_computeDynamicCoef()` calls `canDie()` which reads `allyDanger[entity]` → always null → returns false
+4. `BattleState.computeAllAllyDanger()` populates `allyDanger` and sets `entity.canDie` **after** `Scoring.refresh()` (auto:193 vs auto:180)
+
+**Result**: `base *= ScoringConfig.CANDIE_MODIFIER` (5.0) never executes in static mode. The `entity.canDie` flag IS set later and used by other systems (ComboExplorer, ComboBuilder, MapTactical), but the coefficient boost is dead.
+
+**Fix options**:
+- A) Move `computeAllAllyDanger()` before `Scoring.refresh()` (requires MapDanger to also move before, may be costly)
+- B) After `computeAllAllyDanger()`, re-patch the cached coefs for allies where `canDie=true`
+- C) Switch to `DYNAMIC_COEFS=true` (accurate but ~4x slower)
+
 ---
 
 ## Phase 2: Code Consolidation (Medium Risk)
