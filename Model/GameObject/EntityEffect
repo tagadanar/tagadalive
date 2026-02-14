@@ -13,9 +13,8 @@ class EntityEffect {
 		this.value = effect[1] as integer
 		this.caster = Fight.getEntity(effect[2] as integer)
 		this.turns = effect[3] as integer
-		// special case, infinite duration is ==-1, MUST handle this or any *duration later will inverse everything
-		// TODO use Scoring.getEffectiveDuration(this.turns, this.caster, this.target) once init order is verified
-		if(this.turns==-1) this.turns = ScoringConfig.MAX_DURATION - 1
+		// Infinite duration (-1) → cap to MAX_DURATION, and cap any duration > MAX_DURATION
+		if (this.turns < 0 || this.turns > ScoringConfig.MAX_DURATION) this.turns = ScoringConfig.MAX_DURATION
 		this.critical = effect[4] as boolean
 		this.item = Items.getItem(effect[5] as integer)!
 		this.target = Fight.getEntity(effect[6] as integer)

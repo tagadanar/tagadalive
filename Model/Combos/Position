@@ -60,15 +60,15 @@ class Position extends Danger {
 	}
 
 	/*
-	 * Apply life-based danger scaling (more cautious when low HP)
-	 * Should be called after base danger score is set
-	 * Uses total damage (dmg + psnDmg) for threshold calculations
+	 * Apply coef-based danger scaling using the scoring system.
+	 * Scales dmg by self HP dynamic coef and psnDmg by self HPTIME dynamic coef.
+	 * Should be called after base danger score is set.
 	 */
-	void applyLifeScaling(real lifePercent) {
+	void applyLifeScaling(Consequences? consequences) {
 		real totalDmg = this.dmg + this.psnDmg
 		if (totalDmg <= 0) return;
 
-		var currentLife = Fight.self.life * lifePercent
+		real currentLife = Fight.self.getCurrentHP(consequences)
 
 		// Ignore small damage (scratches) - bulbs tolerate more (80%) than leeks (10%)
 		// Cancel the score penalty but keep dmg visible for debugging
@@ -77,21 +77,20 @@ class Position extends Danger {
 			return
 		}
 
-		var originalDangerScore = -totalDmg
-		var scaledDangerScore = originalDangerScore
+		// Weighted danger: each component scaled by its dynamic coef
+		real hpCoef = Scoring.getDynamicCoef(Fight.self, Stats.HP, consequences)
+		real hptimeCoef = Scoring.getDynamicCoef(Fight.self, Stats.HPTIME, consequences)
 
-		// Low HP scaling (below threshold)
-		if (lifePercent < ScoringConfig.LOW_HP_THRESHOLD) {
-			scaledDangerScore *= ScoringConfig.W_DANGER_LOW_HP
+		// Low danger: halve coefs when damage is small relative to current HP
+		if (totalDmg < currentLife * ScoringConfig.CRITICAL_DANGER_RATIO) {
+			hpCoef *= 0.5
+			hptimeCoef *= 0.5
 		}
 
-		// Critical danger scaling (danger > ratio of remaining life)
-		if (totalDmg > currentLife * ScoringConfig.CRITICAL_DANGER_RATIO) {
-			scaledDangerScore *= ScoringConfig.W_DANGER_CRITICAL
-		}
+		real scaledDangerScore = -(this.dmg * hpCoef + this.psnDmg * hptimeCoef)
 
 		// Apply the difference (since base score already has -totalDmg)
-		var adjustment = scaledDangerScore - originalDangerScore
+		var adjustment = scaledDangerScore - (-totalDmg)
 		this.score += adjustment
 	}
 

@@ -157,26 +157,23 @@ class BattleState {
 				if (item.isWeap) continue
 				integer chipId = item.id
 
-				if (ScoringConfig.WSD_CHIPS[chipId]) {
+				real? wsdW = ScoringConfig.WSD_CHIPS[chipId]
+				if (wsdW != null) {
 					integer cd = getCooldown(chipId, entityId)!
-					// ELEVATION counts double
-					real weight = (chipId == CHIP_ELEVATION) ? 2.0 : 1.0
-					if (cd == 0) wsdCount += weight
-					else if (cd == 1) wsdCount += weight * 0.5
+					if (cd == 0) wsdCount += wsdW!
+					else if (cd == 1) wsdCount += wsdW! * 0.5
 				}
-				if (ScoringConfig.RST_CHIPS[chipId]) {
+				real? rstW = ScoringConfig.RST_CHIPS[chipId]
+				if (rstW != null) {
 					integer cd = getCooldown(chipId, entityId)!
-					// DOME counts double
-					real weight = (chipId == CHIP_DOME) ? 2.0 : 1.0
-					if (cd == 0) rstCount += weight
-					else if (cd == 1) rstCount += weight * 0.5
+					if (cd == 0) rstCount += rstW!
+					else if (cd == 1) rstCount += rstW! * 0.5
 				}
-				if (ScoringConfig.AGI_CHIPS[chipId]) {
+				real? agiW = ScoringConfig.AGI_CHIPS[chipId]
+				if (agiW != null) {
 					integer cd = getCooldown(chipId, entityId)!
-					// BRAMBLE counts triple
-					real weight = (chipId == CHIP_BRAMBLE) ? 3.0 : 1.0
-					if (cd == 0) agiCount += weight
-					else if (cd == 1) agiCount += weight * 0.5
+					if (cd == 0) agiCount += agiW!
+					else if (cd == 1) agiCount += agiW! * 0.5
 				}
 			}
 			wsdReadyChips[entityId] = wsdCount

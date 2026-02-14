@@ -21,7 +21,7 @@ class Danger {
 
 		real totalDmg = dmg + psnDmg
 		this.score = -totalDmg
-		if (!Fight.self.isBulb && totalDmg >= Fight.self.getCurrentHP(consequences))
+		if (!Fight.self.isBulb && totalDmg >= Fight.self.getCurrentHP(consequences) * 0.9)
 			this.score += ScoringConfig.DEATH_VALUE
 	}
 
