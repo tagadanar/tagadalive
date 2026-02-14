@@ -104,6 +104,36 @@ class MapAction {
 						MapAction.addSummonAction(item, fromCell, c.cell)
 					}
 				}
+
+				// Boss fight: inject best boss-cell candidate if not already in top 5
+				integer? bossCell = BossPotiMalef.getResurrectionCell()
+				if (bossCell != null) {
+					Array<SummonCandidate> allCandidates = MapSummon.getAllCandidates(item.id)
+					for (SummonCandidate bc in allCandidates) {
+						if (bc.score < 100000) continue
+						// Skip if already processed in normal loop
+						boolean alreadyDone = false
+						for (SummonCandidate nc in candidates) {
+							if (nc.cell.id == bc.cell.id) { alreadyDone = true; break }
+						}
+						if (alreadyDone) continue
+						// Create action for this boss candidate
+						Array<Cell> bossFromCells = Targets.getCellsToUseItemOnCell(item, bc.cell, [Fight.self.id])
+						integer bossDistToTarget = getCellDistance(Fight.self.cell.id, bc.cell.id)
+						if (bossDistToTarget >= item.minRange && bossDistToTarget <= item.maxRange) {
+							if (!item.needLOS || lineOfSight(Fight.self.cell.id, bc.cell.id, [Fight.self.id])) {
+								Array<Cell> bossWithSelf = [Fight.self.cell]
+								for (Cell fc in bossFromCells) push(bossWithSelf, fc)
+								bossFromCells = bossWithSelf
+							}
+						}
+						for (Cell bossFromCell in bossFromCells) {
+							if (bossFromCell != Fight.self.cell && Fight.self.maxExtendedReachableCells[bossFromCell] == null) continue
+							MapAction.addSummonAction(item, bossFromCell, bc.cell)
+						}
+						break  // only inject the first (cheapest) boss candidate
+					}
+				}
 				continue
 			}
 
