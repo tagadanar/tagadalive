@@ -22,8 +22,10 @@ Combo combo = AI.getCombo()
 combo.play()
 
 // Warmup teleport destination cache using remaining operation budget
-if (Fight.self.teleportItem != null && !MapPath._teleportCacheComplete) {
-	MapPath.warmupTeleportCache(Fight.self.teleportItem!.maxRange)
+// Skip if bulbs alive — let the last bulb do it instead
+if (!MapPath._teleportCacheComplete && MapPath._teleportMaxRange > 0
+	&& count(getSummons()) == 0) {
+	MapPath.warmupTeleportCache(MapPath._teleportMaxRange)
 }
 
 // Collect cooldowns at END of turn (after actions)
@@ -40,4 +42,8 @@ Benchmark.display()
 // MapCellScore.showCellScores()
 // MapSummon.showSummonCells()
 // MapTactical.showTactical()
-MapSummon.showResurrectionCandidate()
+// MapSummon.showResurrectionCandidate()
+
+// Mark boss resurrection cell
+integer? resuCell = BossPotiMalef.getResurrectionCell()
+if (resuCell != null) mark(resuCell!, getColor(255, 0, 255))

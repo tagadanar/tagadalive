@@ -45,6 +45,7 @@ class MapPath{
 	// Lazy-loaded via diamond iteration on Board.cellsXY
 	static Map<Cell, Array<Cell>> _cache_teleportDests = [:]
 	static boolean _teleportCacheComplete = false
+	static integer _teleportMaxRange = 0
 
 	static Array<Cell> getJumpDests(Cell cell) {
 		Array<Cell>? cached = _cache_jumpDests[cell]

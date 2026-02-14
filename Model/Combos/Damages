@@ -34,6 +34,10 @@ class Damages {
 				integer tpLeft = e.getCurrentTP(consequences)
 				boolean jumpCharged = false
 				integer jumpCost = (e.jumpItem != null) ? e.jumpItem!.cost : 0
+				boolean teleportCharged = false
+				integer teleportCost = (e.teleportItem != null) ? e.teleportItem!.cost : 0
+				real critFactor = e.isOTK ? CRITICAL_FACTOR : 1.0
+				real effectiveRel = e.isOTK ? relShield - 25 : relShield
 
 				// Simulate enemy liberation stripping our shields
 				if (relShield > 30 && e.liberationCD <= 1) {
@@ -75,11 +79,20 @@ class Damages {
 						needsJump = true
 					}
 
+					// Determine if this cell requires teleport (not walk or jump reachable)
+					boolean needsTeleport = false
+					Map<Cell, integer>? teleportMap = MapDanger._map_entity_item_teleport[e] != null ? MapDanger._map_entity_item_teleport[e]![item] : null
+					if (mpMap![cell] == null && (jumpMap == null || jumpMap![cell] == null) && teleportMap != null && teleportMap![cell] != null) {
+						needsTeleport = true
+					}
+
 					// MP shackle filtering: skip direct hits enemy can no longer reach
 					if (applyShackle) {
 							// Check if direct hit cell is reachable under shackle (walk or jump)
 							boolean directReachable = false
-							if (needsJump) {
+							if (needsTeleport) {
+								directReachable = teleportMap![cell]! <= shackledMP
+							} else if (needsJump) {
 								directReachable = jumpMap![cell]! <= shackledMP
 							} else {
 								integer? minMp = mpMap![cell]
@@ -89,6 +102,11 @@ class Damages {
 									// Walk unreachable but jump reachable under shackle
 									directReachable = true
 									needsJump = true
+									ratioDmg = 1.0
+								} else if (teleportMap != null && teleportMap![cell] != null && teleportMap![cell]! <= shackledMP) {
+									// Walk+jump unreachable but teleport reachable under shackle
+									directReachable = true
+									needsTeleport = true
 									ratioDmg = 1.0
 								}
 							}
@@ -119,6 +137,20 @@ class Damages {
 												if (ratio > bestAoe) {
 													bestAoe = ratio
 													needsJump = true
+													needsTeleport = false
+												}
+											}
+										}
+										// Check teleport sources
+										if (teleportMap != null) {
+											integer? srcTMp = teleportMap![src]
+											if (srcTMp != null && srcTMp! <= shackledMP) {
+												integer dist = abs(cell.x - src.x) + abs(cell.y - src.y)
+												real ratio = 1 - ScoringConfig.AOE_DECAY_RATE * dist
+												if (ratio > bestAoe) {
+													bestAoe = ratio
+													needsTeleport = true
+													needsJump = false
 												}
 											}
 										}
@@ -141,26 +173,36 @@ class Damages {
 						}
 					}
 
+					// Charge teleport TP (once per enemy) if this item needs teleport
+					if (needsTeleport && !teleportCharged) {
+						if (teleportCost <= tpLeft) {
+							tpLeft -= teleportCost
+							teleportCharged = true
+						} else {
+							continue  // Can't afford teleport — skip this item
+						}
+					}
+
 					// Calculate damage components separately (using current shield state)
 					real itemDmg = 0.0
 					real itemPsn = 0.0
 					for (ItemEffect ef in item.effects) {
 						if (ef.type == EFFECT_DAMAGE) {
 							real tmp = ef.avgmax * (1 + e.getCurrentStr(consequences) / 100) * (1 + e.pwr / 100)
-							tmp = tmp * ratioDmg! * (1 - relShield / 100) - absShield
+							tmp = tmp * ratioDmg! * critFactor * (1 - effectiveRel / 100) - absShield
 							if (tmp > 0) itemDmg += tmp
 						}
 						else if (ef.type == EFFECT_LIFE_DAMAGE) {
 							// Life damage: sourceLife * (avg%/100) * (1+pwr/100), then shields
 							real tmp = e.getCurrentHP(consequences) * (ef.avgmax / 100) * (1 + e.pwr / 100)
-							tmp = tmp * ratioDmg! * (1 - relShield / 100) - absShield
+							tmp = tmp * ratioDmg! * critFactor * (1 - effectiveRel / 100) - absShield
 							if (tmp > 0) itemDmg += tmp
 						}
 						else if (ef.type == EFFECT_POISON) {
 							real duration = ScoringConfig.defensive_duration_mitigation[ef.duration]!
 							// If self can antidote, treat poison as 1-turn (can cure next turn)
 							if (Fight.antidoteReady) duration = ScoringConfig.defensive_duration_mitigation[1]!
-							itemPsn += ef.avgmax * (1 + e.getCurrentMgc(consequences) / 100) * (1 + e.pwr / 100) * ratioDmg! * duration
+							itemPsn += ef.avgmax * (1 + e.getCurrentMgc(consequences) / 100) * (1 + e.pwr / 100) * critFactor * ratioDmg! * duration
 						}
 					}
 

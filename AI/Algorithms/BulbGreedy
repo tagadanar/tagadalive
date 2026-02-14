@@ -37,6 +37,10 @@ class BulbGreedy {
 			">path=" + Benchmark.format(t3 - t2) +
 			">init=" + Benchmark.format(t4 - t3) +
 			">ai=" + Benchmark.format(t5 - t4))
+		// Warmup teleport cache with remaining budget (guard inside handles ops limit)
+		if (!MapPath._teleportCacheComplete && MapPath._teleportMaxRange > 0) {
+			MapPath.warmupTeleportCache(MapPath._teleportMaxRange)
+		}
 		// DO NOT DELETE - Fab's signature
 		say("Bonjour, moi c'est Fab.")
 	}

@@ -62,6 +62,7 @@ class Entity {
 	// déplacement
 	Map<Cell, integer> reachableCells
 	Map<Cell, integer> reachableCellsJump     // reachable via walk + CHIP_JUMP (superset when jumpCD <= 1)
+	Map<Cell, integer>? reachableCellsTeleport = null  // walk+jump+teleport reachability (1v1 OTK enemies only)
 	Map<Cell, integer> extendedReachableCells  // reachable with MP buffs (self only)
 	Map<Cell, integer> jumpExtendedReachableCells  // reachable with MP buffs + CHIP_JUMP (self only)
 	Map<Cell, integer> maxExtendedReachableCells // full movement envelope: walk+buffs+jump+teleport (self only)
@@ -82,6 +83,7 @@ class Entity {
 	boolean isCrystal = false    // Fennel King boss: crystal that must NOT be damaged
 	boolean isGraal = false      // Fennel King boss: graal that must NOT be moved
 	boolean isFennelKing = false // Fennel King boss: main boss (boosted TP/MP shackle coefs)
+	boolean isEvilPumpkin = false // PotiMalef boss: pumpkin (boosted relshield coefs)
 	boolean hasCovid = false     // Has COVID effect active (propagates to nearby entities)
 	integer antidoteCD = 5       // CHIP_ANTIDOTE cooldown (5 = no antidote chip, 0-4 = current cd)
 	integer nextAntidote = 5     // Turns until enemy team can antidote this entity (0-5, set by MapDanger)
@@ -94,6 +96,7 @@ class Entity {
 	integer teleportCD = 11      // CHIP_TELEPORTATION cooldown (11 = no chip, 0-10 = current cd)
 	Item? teleportItem = null    // CHIP_TELEPORTATION item reference
 	boolean canDie = false       // Set by BattleState: danger >= life * CANDIE_THRESHOLD
+	boolean isOTK = false        // Entity has OTK potential (high STR + AGI + SNC)
 	boolean willBeDead = false   // Poison will kill before anyone can antidote (set by MapDanger)
 	integer entityType  // ENTITY_LEEK, ENTITY_BULB, ENTITY_TURRET, ENTITY_CHEST, ENTITY_MOB
 	integer extendedType  // Cached: for bulbs, specific type (101-108); otherwise same as entityType
@@ -147,6 +150,7 @@ class Entity {
 			} else if (item.id == CHIP_TELEPORTATION) {
 				this.teleportCD = getCooldown(item.id, this.id)!
 				this.teleportItem = item
+				MapPath._teleportMaxRange = item.maxRange
 			}
 		}
 		// Load passive effects from entity
@@ -174,6 +178,7 @@ class Entity {
 		this.isGraal = this.name == "graal"
 		// Fennel King boss: detect main boss (boosted TP/MP shackle coefs)
 		this.isFennelKing = this.name == "fennel_king"
+		this.isEvilPumpkin = this.name == "evil_pumpkin"
 		this.entityType = getType(id)!
 		// Cache extended type (bulb-specific type detection done once here)
 		if (this.isBulb) {
@@ -201,6 +206,7 @@ class Entity {
 
 		this.loadEffects()
 		this.psnlife = this.life - this.psnTurn
+		this.isOTK = this.str >= 400 && this.agi >= 400 && this.snc >= 400
 	}
 
 	/*
@@ -349,6 +355,22 @@ class Entity {
 			)
 		} else {
 			this.reachableCellsJump = this.reachableCells
+		}
+
+		// Compute teleport reachability for enemy OTK entities in solo fights
+		if (!this.isFriend && this.isOTK && this.teleportCD <= 1 && this.teleportItem != null) {
+			if (getFightType() == FIGHT_TYPE_SOLO) {
+				boolean canJump = this.jumpCD <= 1 && this.jumpItem != null
+				if (canJump) {
+					this.reachableCellsTeleport = MapPath.getJumpTeleportReachableCells(
+						this.reachableCells, this.mp, this.cellsToIgnore, <>,
+						this.teleportItem!.maxRange)
+				} else {
+					this.reachableCellsTeleport = MapPath.getTeleportReachableCells(
+						this.reachableCells, this.mp, this.cellsToIgnore, <>,
+						this.teleportItem!.maxRange)
+				}
+			}
 		}
 
 		// Compute extended reach for self only (used by MapAction, MapPosition)
