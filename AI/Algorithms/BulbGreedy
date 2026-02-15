@@ -65,12 +65,15 @@ class BulbGreedy {
 		// Build ignoreCells for pathfinding
 		Set<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Set<Cell>
 
-		// Boss cell: reserve MP to walk there at end of turn
+		// Boss cell: reserve MP to walk there at end of turn (use actual path distance, not cell distance)
 		integer? bossCell = BossPotiMalef.getResurrectionCell()
 		integer reservedMP = 0
 		if (bossCell != null) {
-			reservedMP = getCellDistance(currentCell.id, bossCell!)
-			if (reservedMP > currentMP) reservedMP = 0
+			Map<Cell, integer> fullReach = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, <>)
+			integer? pathDist = fullReach[Board.cells[bossCell!]!]
+			if (pathDist != null) {
+				reservedMP = pathDist!
+			}
 		}
 
 		// Special case: wizard bulb poisons ally with POISON_TO_SCIENCE passive
@@ -85,7 +88,7 @@ class BulbGreedy {
 				break
 			}
 			if (psnTarget != null) {
-				Map<Cell, integer> reachCells = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, <>)
+				Map<Cell, integer> reachCells = MapPath.getCachedReachableCells(currentCell, currentMP - reservedMP, ignoreCells, <>)
 				for (integer chipId in [CHIP_TOXIN, CHIP_VENOM]) {
 					Item? item = null
 					for (Item i in Fight.self.items) { if (i.id == chipId) { item = i; break } }
@@ -101,7 +104,7 @@ class BulbGreedy {
 					currentCell = currentCsq!.currentCell
 					currentTP = currentCsq!.currentTP
 					currentMP = currentCsq!.currentMP
-					reachCells = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, currentCsq!._newObstacles)
+					reachCells = MapPath.getCachedReachableCells(currentCell, currentMP - reservedMP, ignoreCells, currentCsq!._newObstacles)
 				}
 			}
 		}
@@ -141,10 +144,20 @@ class BulbGreedy {
 		}
 
 		// FINAL POSITIONING: force boss cell if available, else find best position
-		if (bossCell != null && reservedMP > 0) {
-			Position pos = MapPosition.evaluatePosition(Board.cells[bossCell!]!, currentCsq)
-			pos.score += 100000.0
-			combo.addFinalPosition(pos)
+		if (bossCell != null) {
+			// Verify boss cell is actually reachable from current position with remaining MP
+			Set<Cell> newObstacles = currentCsq != null ? currentCsq!._newObstacles : <>
+			Map<Cell, integer> endReach = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, newObstacles)
+			Cell bossCellObj = Board.cells[bossCell!]!
+			if (endReach[bossCellObj] != null) {
+				Position pos = MapPosition.evaluatePosition(bossCellObj, currentCsq)
+				pos.score += 100000.0
+				combo.addFinalPosition(pos)
+			} else {
+				debugW("BULB: Boss cell c" + bossCell! + " unreachable with " + currentMP + "MP, falling back")
+				Position position = MapPosition.findBestPosition(currentCell, currentMP, currentCsq)
+				combo.addFinalPosition(position)
+			}
 		} else {
 			Position position = MapPosition.findBestPosition(currentCell, currentMP, currentCsq)
 			combo.addFinalPosition(position)
