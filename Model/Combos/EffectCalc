@@ -111,8 +111,8 @@ class EffectCalc {
 	/*
 	 * Aftereffect damage (EFFECT_AFTEREFFECT)
 	 */
-	static integer aftereffectDamage(real avg, integer mgc, real ratio) {
-		return round(avg * (1 + mgc/100.0) * ratio)
+	static integer aftereffectDamage(real avg, integer snc, real ratio) {
+		return round(avg * (1 + snc/100.0) * ratio)
 	}
 
 	// ════════════════════════════════════════════════════════════════════════

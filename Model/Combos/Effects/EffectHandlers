@@ -194,8 +194,8 @@ class EffectHandlers {
 		}
 	}
 
-	static void aftereffect(ItemEffect effect, Entity source, Entity target, real ratio, integer srcMgc, ctx) {
-		integer value = EffectCalc.aftereffectDamage(effect.avg, srcMgc, ratio)
+	static void aftereffect(ItemEffect effect, Entity source, Entity target, real ratio, integer srcSnc, ctx) {
+		integer value = EffectCalc.aftereffectDamage(effect.avg, srcSnc, ratio)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		ctx.add(target, Stats.HP, -value)
 		ctx.add(target, Stats.HPTIME, eot)

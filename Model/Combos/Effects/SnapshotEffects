@@ -51,7 +51,7 @@ EffectCache.registerHandlers([
 
 	EFFECT_AFTEREFFECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
-		EffectHandlers.aftereffect(effect, entitySource, entityTarget, ratioDmg, entitySource.mgc, snap)
+		EffectHandlers.aftereffect(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, snap)
 	}
 ])
 

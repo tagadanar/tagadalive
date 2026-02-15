@@ -27,6 +27,6 @@ Consequences.registerHandlers([
 	},
 
 	EFFECT_AFTEREFFECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		EffectHandlers.aftereffect(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentMgc(conseq), conseq)
+		EffectHandlers.aftereffect(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentSnc(conseq), conseq)
 	}
 ])
