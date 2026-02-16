@@ -46,15 +46,15 @@ class ActionKnapsack {
 	 * @param currentWeapon Currently equipped weapon
 	 * @return Array of selected actions (caller should sort by priority for execution)
 	 */
-	static Array<Action> solve(Array<Action> pool, integer maxTP, Item? currentWeapon) {
+	static Array<Action> solve(Array<Action> pool, integer maxTP, Item? currentWeapon, Map<Item, integer>? prefixUses) {
 		if (count(pool) == 0 || maxTP <= 0) return []
 
 		// Build weapon index map
 		ActionKnapsack.buildWeaponMap(pool, currentWeapon)
 		integer numWeapons = count(ActionKnapsack.weaponList)
 
-		// Expand actions (respecting maxUse)
-		Array<KnapsackItem> items = ActionKnapsack.expandActions(pool)
+		// Expand actions (respecting maxUse, minus prefix uses)
+		Array<KnapsackItem> items = ActionKnapsack.expandActions(pool, prefixUses)
 		if (count(items) == 0) return []
 
 		// Starting weapon index (-1 if no weapon or chip-only)
@@ -210,9 +210,16 @@ class ActionKnapsack {
 	 * Note: All copies share the same static score. Dynamic changes (target dies) are
 	 * handled by ComboBuilder.tryAddAction and greedy fallback.
 	 */
-	static Array<KnapsackItem> expandActions(Array<Action> pool) {
+	static Array<KnapsackItem> expandActions(Array<Action> pool, Map<Item, integer>? prefixUses) {
 		Array<KnapsackItem> items = []
 		Map<Item, integer> useCounts = [:]
+
+		// Initialize with prefix uses (items already consumed before knapsack)
+		if (prefixUses != null) {
+			for (Item pi : integer pu in prefixUses!) {
+				useCounts[pi] = pu
+			}
+		}
 
 		// Sort by score descending (best uses first)
 		pool = arraySort(pool, (Action a, Action b) => integer|real {

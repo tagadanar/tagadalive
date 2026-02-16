@@ -38,6 +38,9 @@ class Fight {
 	static boolean resurrectionReady = false
 	static Item? resurrectionItem = null
 	static integer? resurrectTargetId = null  // Entity ID to resurrect (set by caller, used by Combo.play)
+	// Neutrino availability for vuln prefix in targeted combos (computed in refresh)
+	static boolean neutrinoReady = false
+	static Item? neutrinoItem = null
 	// Summon availability for operation buffer calculation (computed in refresh)
 	static boolean canSummon = false
 
@@ -102,6 +105,8 @@ class Fight {
 		boxingGloveItem = null
 		resurrectionReady = false
 		resurrectionItem = null
+		neutrinoReady = false
+		neutrinoItem = null
 		canSummon = false
 		for (Item item in self.items) {
 			if (item.id == CHIP_LIBERATION && getCooldown(item.id, self.id) == 0) {
@@ -142,6 +147,10 @@ class Fight {
 						resurrectTargetId = deadId
 					}
 				}
+			}
+			if (item.id == WEAPON_NEUTRINO) {
+				neutrinoReady = true
+				neutrinoItem = item
 			}
 			if (item.isSummon && getCooldown(item.id, self.id) == 0 && self.tp >= item.cost) {
 				canSummon = true

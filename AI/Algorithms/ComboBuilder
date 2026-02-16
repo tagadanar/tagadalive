@@ -10,7 +10,7 @@
  * Provides specialized methods for different exploration strategies:
  * - buildAtCell: Single cell, no MP buffs
  * - buildAtCellBuffed: Single cell with auto MP buffs
- * - buildForTargetPrefixed: Kill focus with prefix enumeration (Liberation, str buffs, MP buffs)
+ * - buildForTargetPrefixed: Kill focus with prefix enumeration (Liberation, str buffs, Neutrino, MP buffs)
  * - buildForAlly: Support focus
  * - buildAcrossCells: Multi-cell sequences
  *
@@ -229,7 +229,7 @@ class ComboBuilder {
 
 	/*
 	 * Build combo focused on killing a specific target with prefix actions.
-	 * Prefix order: MP buffs → Liberation → Str buffs → damage knapsack → greedy fallback.
+	 * Prefix order: MP buffs → Liberation → Str buffs → Neutrino → damage knapsack → greedy fallback.
 	 * Used by: _exploreTargetEnemy
 	 *
 	 * @param ctx Exploration context with initial resources
@@ -238,6 +238,7 @@ class ComboBuilder {
 	 * @param useLiberation Whether to prepend Liberation
 	 * @param strBuffActions Str buff actions to prepend (0..N, sorted by efficiency)
 	 * @param mpBuffActions MP buff actions to prepend (0..N)
+	 * @param neutrinoCount Number of Neutrino uses to prepend (0..3, applies vuln before damage)
 	 * @return Combo, or null if no useful actions found
 	 */
 	static Combo? buildForTargetPrefixed(
@@ -246,7 +247,8 @@ class ComboBuilder {
 		Array<Action> damagePool,
 		boolean useLiberation,
 		Array<Action> strBuffActions,
-		Array<Action> mpBuffActions
+		Array<Action> mpBuffActions,
+		integer neutrinoCount
 	) {
 		Combo combo = Combo()
 		Map<Item, integer> usesThisTurn = [:]
@@ -270,23 +272,38 @@ class ComboBuilder {
 		// 3. Str buffs (increase damage for subsequent attacks)
 		ComboBuilder._applyBuffs(combo, strBuffActions, usesThisTurn)
 
-		// 4. State after all prefixes
+		// 4. Neutrino (apply vuln to target before damage)
+		if (neutrinoCount > 0) {
+			Consequences csq = combo.getCurrentConsequences()
+			Action? neutrinoAction = ComboBuilder._findNeutrinoAction(ctx, Fight.neutrinoItem!, target, csq)
+			if (neutrinoAction != null) {
+				for (integer i = 0; i < neutrinoCount; i++) {
+					combo.add(neutrinoAction!)
+				}
+				usesThisTurn[Fight.neutrinoItem!] = neutrinoCount
+			} else {
+				// Can't reach neutrino cell — redundant with no-neutrino variant
+				return null
+			}
+		}
+
+		// 5. State after all prefixes
 		Consequences csq = combo.getCurrentConsequences()
 
-		// 5. Exclude used items from damage pool
+		// 6. Exclude used items from damage pool
 		damagePool = ComboBuilder._excludeUsed(damagePool, usesThisTurn)
 
-		// 6. Knapsack selection
-		Array<Action> selected = ActionKnapsack.solve(damagePool, csq.currentTP, csq.currentWeapon)
+		// 7. Knapsack selection (pass usesThisTurn so knapsack adjusts remaining copies)
+		Array<Action> selected = ActionKnapsack.solve(damagePool, csq.currentTP, csq.currentWeapon, usesThisTurn)
 		selected = MapCellScore.sortByPriority(selected)
 
-		// 7. Add selected (stop when target dies)
+		// 8. Add selected (stop when target dies)
 		for (Action action in selected) {
 			if (combo.getCurrentConsequences().isKilled(target)) break
 			ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)
 		}
 
-		// 8. Greedy fallback with pool expansion on kill
+		// 9. Greedy fallback with pool expansion on kill
 		csq = combo.getCurrentConsequences()
 		if (csq.currentTP > 0) {
 			Array<Action> fallbackPool
@@ -299,7 +316,7 @@ class ComboBuilder {
 			ComboBuilder._greedyFallback(ctx, combo, fallbackPool, usesThisTurn, false)
 		}
 
-		// 9. Final position
+		// 10. Final position
 		ComboBuilder._addFinalPosition(combo)
 
 		return count(combo.actions) > 0 ? combo : null
@@ -353,7 +370,7 @@ class ComboBuilder {
 		if (count(combined) == 0 && count(mpBuffActions) == 0) return null
 
 		// Use knapsack
-		Array<Action> selected = ActionKnapsack.solve(combined, effectiveTP, effectiveWeapon)
+		Array<Action> selected = ActionKnapsack.solve(combined, effectiveTP, effectiveWeapon, null)
 		if (count(selected) == 0 && count(mpBuffActions) == 0) return null
 
 		// Partition by cell
@@ -505,7 +522,7 @@ class ComboBuilder {
 		// ═══════════════════════════════════════════════════════════════════════════
 
 		Array<Action> combinedPool = ComboBuilder._poolFromCells(selectedCells, cellActions)
-		Array<Action> selectedPost = ActionKnapsack.solve(combinedPool, totalAvailableTP, ctx.initialWeapon)
+		Array<Action> selectedPost = ActionKnapsack.solve(combinedPool, totalAvailableTP, ctx.initialWeapon, null)
 		integer postTPUsed = ComboBuilder._sumTPCost(selectedPost, ctx.initialWeapon)
 
 		// Pre-swap pool (actions at start cell)
@@ -522,7 +539,7 @@ class ComboBuilder {
 		if (preTP > 0) {
 			Map<Item, integer> postUsage = ComboBuilder._countUsage(selectedPost)
 			Array<Action> filteredPre = ComboBuilder._filterByUsage(prePool, postUsage)
-			selectedPre = ActionKnapsack.solve(filteredPre, preTP, ctx.initialWeapon)
+			selectedPre = ActionKnapsack.solve(filteredPre, preTP, ctx.initialWeapon, null)
 		}
 
 		// ═══════════════════════════════════════════════════════════════════════════
@@ -697,7 +714,7 @@ class ComboBuilder {
 	) {
 		// Pool actions, knapsack, partition back to cells
 		Array<Action> combinedPool = ComboBuilder._poolFromCells(selectedCells, cellActions)
-		Array<Action> selectedPost = ActionKnapsack.solve(combinedPool, totalAvailableTP, ctx.initialWeapon)
+		Array<Action> selectedPost = ActionKnapsack.solve(combinedPool, totalAvailableTP, ctx.initialWeapon, null)
 		Map<Cell, Array<Action>> partitioned = ComboBuilder._partitionToCells(selectedPost, selectedCells, castCell)
 
 		// ═══════════════════════════════════════════════════════════════════════════
@@ -1217,7 +1234,7 @@ class ComboBuilder {
 
 		for (Array<Cell> selectedCells in validSequences) {
 			Array<Action> combinedPool = ComboBuilder._poolFromCells(selectedCells, cellActions)
-			Array<Action> selected = ActionKnapsack.solve(combinedPool, remainingTP, startWeapon)
+			Array<Action> selected = ActionKnapsack.solve(combinedPool, remainingTP, startWeapon, null)
 			real totalScore = ComboBuilder._sumActionScores(selected)
 
 			if (totalScore > bestScore) {
@@ -1922,7 +1939,7 @@ class ComboBuilder {
 		boolean restrictToCell
 	) {
 		// Knapsack selection
-		Array<Action> selected = ActionKnapsack.solve(pool, availableTP, currentWeapon)
+		Array<Action> selected = ActionKnapsack.solve(pool, availableTP, currentWeapon, null)
 		selected = MapCellScore.sortByPriority(selected)
 
 		// Add selected actions
@@ -2423,6 +2440,33 @@ class ComboBuilder {
 			if (action!.to != target.cell) continue
 
 			// Check reachability (cache may have cells beyond MP, must verify distance)
+			if (action!.from != Fight.selfCell) {
+				Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
+				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
+					csq.currentCell, csq.currentMP, ignoreCells, csq._newObstacles)
+				integer? dist = reachable[action!.from]
+				if (dist == null || dist! > csq.currentMP) continue
+			}
+
+			return action
+		}
+		return null
+	}
+
+	/*
+	 * Find Neutrino action targeting specific entity.
+	 * Similar to _findLiberationAction but for WEAPON_NEUTRINO.
+	 */
+	static Action? _findNeutrinoAction(ExplorationContext ctx, Item neutrinoItem, Entity target, Consequences csq) {
+		Map<Cell, Map<Item, Action>> bestActions = MapAction.getMapBestAction()
+
+		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
+			Action? action = itemActions[neutrinoItem]
+			if (action == null) continue
+
+			if (action!.to != target.cell) continue
+
+			// Check reachability
 			if (action!.from != Fight.selfCell) {
 				Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
 				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(

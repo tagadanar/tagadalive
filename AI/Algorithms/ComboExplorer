@@ -7,7 +7,7 @@
  * Phases (in order):
  * - Phase 0: Stay in place (cheap baseline, 0 MP offense)
  * - Phase T: Target focus
- *   - Each non-bulb enemy: prefix enumeration (Liberation × Str buffs × MP levels)
+ *   - Each non-bulb enemy: prefix enumeration (Liberation × Str buffs × Neutrino × MP levels)
  *   - Each non-bulb ally (canDie): 2 variants (MPBuff)
  * - Phase 1a: Single-cell MP sampling (1..maxMP, no buffs needed)
  * - Phase 1b: Extended range cells (maxMP+1..maxMP+maxMPBuff, with minimal buffs)
@@ -323,13 +323,13 @@ class ComboExplorer {
 
 	/*
 	 * Explore all prefix combinations for a single enemy target.
-	 * Enumerates: lib(0..1) × str(0..N) × mp(useful levels)
+	 * Enumerates: lib(0..1) × str(0..N) × neutrino(0..3) × mp(useful levels)
 	 */
 	static void _exploreTargetEnemy(ExplorationContext ctx, Entity enemy, Array<Action> strBuffOptions) {
 		Array<Action> damageActions = MapCellScore.getActionsDamagingTarget(enemy)
 		if (count(damageActions) == 0) return;
 
-		// Check if we have damage-type actions (str/lib only help EFFECT_DAMAGE, not poison)
+		// Check if we have damage-type actions (str/lib/neutrino only help EFFECT_DAMAGE, not poison)
 		boolean hasDamageType = false
 		for (Action a in damageActions) {
 			if (a.item.isDamage) {
@@ -346,10 +346,18 @@ class ComboExplorer {
 		Array<Action> strOptions = hasDamageType ? strBuffOptions : []
 		integer strCount = count(strOptions)
 
+		// Neutrino option: only if we have damage-type actions and neutrino weapon
+		integer maxNeutrino = 0
+		integer neutrinoCost = 0
+		if (hasDamageType && Fight.neutrinoReady && Fight.neutrinoItem != null) {
+			maxNeutrino = min(3, Fight.neutrinoItem!.maxUse)
+			neutrinoCost = Fight.neutrinoItem!.cost
+		}
+
 		// MP levels: [0] + distinct distances beyond baseMP where damage actions exist
 		Array<integer> mpLevels = ComboExplorer._computeUsefulMPLevels(ctx, damageActions)
 
-		// Enumerate: lib(0..1) × str(0..strCount) × mp(each level)
+		// Enumerate: lib(0..1) × str(0..strCount) × neutrino(0..maxNeutrino) × mp(each level)
 		integer maxLib = canLib ? 1 : 0
 		for (integer useLib = 0; useLib <= maxLib; useLib++) {
 			for (integer strLevel = 0; strLevel <= strCount; strLevel++) {
@@ -372,41 +380,55 @@ class ComboExplorer {
 				}
 				if (!affordable) break  // higher strLevels even more expensive
 
-				for (integer mpIdx = 0; mpIdx < count(mpLevels); mpIdx++) {
-					if (ctx.shouldStop()) return;
-					integer mpDist = mpLevels[mpIdx]
-
-					// Calculate MP buffs for this level
-					Array<Action> mpBuffs = []
-					integer mpBuffTP = 0
-					if (mpDist > ctx.initialMP) {
-						Array<Action>? buffs = ComboBuilder._calculateMPBuffs(
-							mpDist - ctx.initialMP, ctx.initialTP - prefixTP)
-						if (buffs == null) continue
-						mpBuffs = buffs!
-						for (Action b in mpBuffs) {
-							mpBuffTP += b.item.cost
+				for (integer neutrinoLevel = 0; neutrinoLevel <= maxNeutrino; neutrinoLevel++) {
+					// Calculate neutrino TP cost (including weapon switch)
+					integer neutrinoTP = 0
+					if (neutrinoLevel > 0) {
+						neutrinoTP = neutrinoLevel * neutrinoCost
+						// Switch cost to neutrino weapon (if not already equipped)
+						if (ctx.initialWeapon == null || ctx.initialWeapon!.id != WEAPON_NEUTRINO) {
+							neutrinoTP += 1
 						}
+						if (prefixTP + neutrinoTP >= ctx.initialTP) break // higher levels even more expensive
 					}
 
-					// Check minimum remaining TP for damage
-					if (ctx.initialTP - prefixTP - mpBuffTP < 2) continue
+					for (integer mpIdx = 0; mpIdx < count(mpLevels); mpIdx++) {
+						if (ctx.shouldStop()) return;
+						integer mpDist = mpLevels[mpIdx]
 
-					// Filter damage pool by reach at this MP level
-					integer effectiveMP = mpDist == 0 ? ctx.initialMP : mpDist
-					Array<Action> reachablePool = ComboBuilder._filterByReachDistance(
-						ctx, damageActions, effectiveMP)
-					if (count(reachablePool) == 0 && useLib == 0 && strLevel == 0) continue
+						// Calculate MP buffs for this level
+						Array<Action> mpBuffs = []
+						integer mpBuffTP = 0
+						if (mpDist > ctx.initialMP) {
+							Array<Action>? buffs = ComboBuilder._calculateMPBuffs(
+								mpDist - ctx.initialMP, ctx.initialTP - prefixTP - neutrinoTP)
+							if (buffs == null) continue
+							mpBuffs = buffs!
+							for (Action b in mpBuffs) {
+								mpBuffTP += b.item.cost
+							}
+						}
 
-					// Build combo
-					Combo? combo = ComboBuilder.buildForTargetPrefixed(
-						ctx, enemy, reachablePool, useLib == 1, strPrefixes, mpBuffs)
-					if (combo != null && (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0)) {
-						string name = "T:" + enemy.name
-							+ (useLib == 1 ? "+L" : "")
-							+ (strLevel > 0 ? "+S" + strLevel : "")
-							+ (mpDist > ctx.initialMP ? "+M" + (mpDist - ctx.initialMP) : "")
-						ctx.recordResult(ExplorerResult(combo!, name, "T"))
+						// Check minimum remaining TP for damage
+						if (ctx.initialTP - prefixTP - neutrinoTP - mpBuffTP < 2) continue
+
+						// Filter damage pool by reach at this MP level
+						integer effectiveMP = mpDist == 0 ? ctx.initialMP : mpDist
+						Array<Action> reachablePool = ComboBuilder._filterByReachDistance(
+							ctx, damageActions, effectiveMP)
+						if (count(reachablePool) == 0 && useLib == 0 && strLevel == 0 && neutrinoLevel == 0) continue
+
+						// Build combo
+						Combo? combo = ComboBuilder.buildForTargetPrefixed(
+							ctx, enemy, reachablePool, useLib == 1, strPrefixes, mpBuffs, neutrinoLevel)
+						if (combo != null && (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0)) {
+							string name = "T:" + enemy.name
+								+ (useLib == 1 ? "+L" : "")
+								+ (strLevel > 0 ? "+S" + strLevel : "")
+								+ (neutrinoLevel > 0 ? "+N" + neutrinoLevel : "")
+								+ (mpDist > ctx.initialMP ? "+M" + (mpDist - ctx.initialMP) : "")
+							ctx.recordResult(ExplorerResult(combo!, name, "T"))
+						}
 					}
 				}
 			}
