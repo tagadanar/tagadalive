@@ -166,12 +166,12 @@ class MapPosition {
 			}
 		}
 
-		// Fennel King boss: heavy gravity toward graal for positioning
+		// Fennel King boss: gravity toward farthest crystal from graal
 		if (BossFennel.isActive() && !BossFennel.isPuzzleSolved()) {
-			Entity? graal = BossFennel.getGraal()
-			if (graal != null) {
-				_gravity_distance[graal!.cell] = 1  // Get close for casting
-				_gravity_coef[graal!.cell] = BossFennel.W_GRAVITY_GRAAL
+			Entity? farthestCrystal = BossFennel.getFarthestCrystalFromGraal()
+			if (farthestCrystal != null) {
+				_gravity_distance[farthestCrystal!.cell] = 1
+				_gravity_coef[farthestCrystal!.cell] = BossFennel.W_GRAVITY_GRAAL
 			}
 		}
 
@@ -186,18 +186,18 @@ class MapPosition {
 
 	/*
 	 * Cache nearest enemy (leek, mob, or turret - not bulb or chest)
-	 * During Fennel puzzle: calculate from graal position instead of self
+	 * During Fennel puzzle: calculate from farthest crystal position instead of self
 	 */
 	static void _refreshNearestEnemy() {
 		_nearest_enemy = null
 		integer nearestDist = 999
 
-		// During Fennel puzzle, find enemy nearest to graal (not self)
+		// During Fennel puzzle, find enemy nearest to farthest crystal (not self)
 		Cell referenceCell = Fight.self.cell
 		if (BossFennel.isActive() && !BossFennel.isPuzzleSolved()) {
-			Entity? graal = BossFennel.getGraal()
-			if (graal != null) {
-				referenceCell = graal!.cell
+			Entity? farthestCrystal = BossFennel.getFarthestCrystalFromGraal()
+			if (farthestCrystal != null) {
+				referenceCell = farthestCrystal!.cell
 			}
 		}
 
