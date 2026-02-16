@@ -25,6 +25,7 @@ class Combo {
 			push(this.actions, actualized)
 			return true
 		}
+		debugW("[Combo.add] REJECTED " + actualized + " cumul:" + round(actualized.score!) + " <= prev:" + round(prevScore) + " combo:" + this)
 		return false
 	}
 

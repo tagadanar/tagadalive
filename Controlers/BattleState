@@ -29,6 +29,7 @@ class BattleState {
 	static boolean enemyHasMgc = false // any enemy has MGC >= 100 (for antidote value)
 	static boolean enemyHasSnc = false // any enemy has SNC >= 200 (for dmgReturn value)
 	static boolean enemyHasOTK = false // any enemy has STR >= 400, AGI >= 400, SNC >= 400
+	static boolean enemyHasHighAgi = false // any enemy has AGI > 900 (bramble value in OTK)
 	static boolean allyHasStr = false  // any ally has STR >= 100 (for vuln value)
 	static boolean allyHasScience = false // any ally has SNC >= 200 (for rel vuln value)
 	static boolean allyHasPsn = false  // any ally has MGC >= 100 (for enemy antidote map)
@@ -59,6 +60,7 @@ class BattleState {
 	// Maps enemy → position index (0 = plays first after self, higher = later)
 	static Map<Entity, integer> enemyTurnPosition = [:]
 	static integer enemyCount = 0
+	static integer enemyLeekCount = 0
 
 	/*
 	 * Refresh all battle state data.
@@ -89,6 +91,7 @@ class BattleState {
 		enemyHasMgc = false
 		enemyHasSnc = false
 		enemyHasOTK = false
+		enemyHasHighAgi = false
 		wsdReadyChips = [:]
 		rstReadyChips = [:]
 		agiReadyChips = [:]
@@ -193,7 +196,7 @@ class BattleState {
 		// === Combined enemy loop ===
 		// Handles: enemyHasStr flag, enemy life sum
 		real sumEnemyLife = 0.0
-		integer enemyLeekCount = 0
+		enemyLeekCount = 0
 
 		for (Entity entity in Fight.getEnemiesAlive()) {
 			// Check for enemy with significant strength
@@ -211,6 +214,9 @@ class BattleState {
 			// Check for enemy with OTK potential (high STR + AGI + SNC)
 			if (!enemyHasOTK && entity.str >= 400 && entity.agi >= 400 && entity.snc >= 400) {
 				enemyHasOTK = true
+			}
+			if (!enemyHasHighAgi && entity.agi > 900) {
+				enemyHasHighAgi = true
 			}
 
 			// For leeks only: compute ratios

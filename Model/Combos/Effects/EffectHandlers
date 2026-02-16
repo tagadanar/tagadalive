@@ -518,6 +518,9 @@ class EffectHandlers {
 		// Bulbs more valuable when no ally leeks (solo summon army)
 		if (BattleState.allyLeekCount <= 1) duplicateFactor *= 2.0
 
+		// Non-metallic bulbs are nearly worthless vs OTK (die instantly)
+		if (BattleState.enemyHasOTK && bulbType != Entity.BULB_METALLIC) duplicateFactor *= 0.2
+
 		return totalValue * turnFactor * duplicateFactor
 	}
 }
