@@ -71,18 +71,20 @@ class ActionKnapsack {
 		// dp[tp * wStates + (w + wOffset)] = score
 		integer stateCount = (maxTP + 1) * wStates
 		Array<real> dp = []
-		Array<integer> parent = []      // Which item got us here
-		Array<integer> parentState = [] // Previous state index
 
 		for (integer i = 0; i < stateCount; i++) {
 			push(dp, -999999.0)
-			push(parent, -1)
-			push(parentState, -1)
 		}
 
 		// Initial state: 0 TP spent, starting weapon
 		integer initState = 0 * wStates + (startWeaponIdx + wOffset)
 		dp[initState] = 0.0
+
+		// Save dp snapshot before each item for correct backtracking.
+		// The 1D DP computes correct optimal values, but parent-pointer
+		// backtracking can corrupt when later items overwrite intermediate
+		// states. Snapshots allow item-by-item reconstruction instead.
+		Array<Array<real>> snapshots = [clone(dp) as Array<real>]
 
 		// Process each item
 		for (integer itemIdx = 0; itemIdx < count(items); itemIdx++) {
@@ -115,11 +117,11 @@ class ActionKnapsack {
 
 					if (newScore > dp[toState]) {
 						dp[toState] = newScore
-						parent[toState] = itemIdx
-						parentState[toState] = fromState
 					}
 				}
 			}
+
+			push(snapshots, clone(dp) as Array<real>)
 		}
 
 		// Find best final state
@@ -137,12 +139,39 @@ class ActionKnapsack {
 
 		if (bestState == -1 || bestScore <= 0) return []
 
-		// Backtrack to find selected actions
+		// Backtrack using snapshots: compare dp before/after each item
 		Array<Action> selected = []
-		integer state = bestState
-		while (parent[state] != -1) {
-			push(selected, items[parent[state]].action)
-			state = parentState[state]
+		integer currentState = bestState
+
+		for (integer i = count(items) - 1; i >= 0; i--) {
+			// If dp value at currentState didn't change when item i was processed,
+			// then item i was NOT used to reach this state
+			if (snapshots[i + 1][currentState] <= snapshots[i][currentState] + 0.001) continue
+
+			// Item i was used — find the source state
+			push(selected, items[i].action)
+			KnapsackItem ki = items[i]
+			integer currentTP = currentState / wStates
+			integer currentW = (currentState % wStates) - wOffset
+
+			if (ki.weaponIdx == ActionKnapsack.CHIP) {
+				// Chip: weapon unchanged, just subtract cost
+				integer fromTP = currentTP - ki.baseCost
+				currentState = fromTP * wStates + (currentW + wOffset)
+			} else {
+				// Weapon: try all possible previous weapon states
+				for (integer prevW = -1; prevW < numWeapons; prevW++) {
+					integer switchCost = (prevW != ki.weaponIdx) ? 1 : 0
+					integer fromTP = currentTP - ki.baseCost - switchCost
+					if (fromTP < 0) continue
+					integer fromState = fromTP * wStates + (prevW + wOffset)
+					if (snapshots[i][fromState] > -999998.0 &&
+						abs(snapshots[i][fromState] + ki.score - snapshots[i + 1][currentState]) < 0.001) {
+						currentState = fromState
+						break
+					}
+				}
+			}
 		}
 
 		return selected
