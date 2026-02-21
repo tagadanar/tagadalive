@@ -54,16 +54,35 @@ class MapDanger {
 		MapSupport.resetCaches()
 		MapDamage.resetCaches()
 
-		// Collect enemies and prepare their offensive items
+		// Collect enemies and init caches
 		Array<Entity> enemies = []
-		integer maxEnemyItems = 0
 		for(Entity e in Fight.getEnemiesAlive()){
 			_map_entity_item_danger[e] = [:]
 			_map_entity_item_mp[e] = [:]
 			_map_entity_item_jump[e] = [:]
 			_map_entity_item_teleport[e] = [:]
-			e.offensiveItems = Items.getOrderedOffensiveItems(e)
 			push(enemies, e)
+		}
+
+		// Sort enemies by play order after self (soonest first)
+		integer selfOrder = Fight.self.turnOrder
+		enemies = arraySort(enemies, (Entity a, Entity b) => integer {
+			integer aOrd = a.turnOrder > selfOrder ? a.turnOrder : a.turnOrder + 10000
+			integer bOrd = b.turnOrder > selfOrder ? b.turnOrder : b.turnOrder + 10000
+			return aOrd - bOrd
+		})
+
+		// Compute offensiveItems with cumulative liberation shield reduction
+		integer effectiveAbs = Fight.self.absShield
+		integer effectiveRel = Fight.self.relShield
+		integer maxEnemyItems = 0
+		for(Entity e in enemies){
+			// Liberator benefits from own liberation (casts it first, then attacks)
+			if (e.liberationCD <= 1 && effectiveRel > ScoringConfig.LIBE_RELSHIELD_TRIGGER) {
+				effectiveAbs = (effectiveAbs * ScoringConfig.LIBE_DEBUFF_FACTOR) as integer
+				effectiveRel = (effectiveRel * ScoringConfig.LIBE_DEBUFF_FACTOR) as integer
+			}
+			e.offensiveItems = Items.getOrderedOffensiveItems(e, effectiveAbs, effectiveRel)
 			integer itemCount = count(e.offensiveItems)
 			if(itemCount > maxEnemyItems) maxEnemyItems = itemCount
 		}
