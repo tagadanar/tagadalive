@@ -22,9 +22,31 @@ class Damages {
 		real absShield = Fight.self.getCurrentAbs(consequences)
 		real relShield = Fight.self.getCurrentRel(consequences)
 
+		// Pre-compute shields expiring when each caster plays (turns == 1)
+		Map<integer, real> expiringAbs = [:]
+		Map<integer, real> expiringRel = [:]
+		for (EntityEffect ef in Fight.self.effects) {
+			if (ef.turns != 1) continue
+			integer cId = ef.caster.id
+			if (ef.type == EFFECT_ABSOLUTE_SHIELD || ef.type == EFFECT_RAW_ABSOLUTE_SHIELD) {
+				if (expiringAbs[cId] == null) expiringAbs[cId] = 0.0
+				expiringAbs[cId] = expiringAbs[cId]! + ef.value
+			} else if (ef.type == EFFECT_RELATIVE_SHIELD || ef.type == EFFECT_RAW_RELATIVE_SHIELD) {
+				if (expiringRel[cId] == null) expiringRel[cId] = 0.0
+				expiringRel[cId] = expiringRel[cId]! + ef.value
+			}
+		}
+		real libeFactor = 1.0
+
 		// Process entities in turn order (after self, wrapping around)
 		for (Entity e in Fight.getEntitiesAfterSelfInOrder()) {
 			if (consequences && consequences!.isKilled(e)) continue
+
+			// Subtract shields expiring when this entity plays (scaled by liberation)
+			real? expAbs = expiringAbs[e.id]
+			if (expAbs != null) absShield -= expAbs! * libeFactor
+			real? expRel = expiringRel[e.id]
+			if (expRel != null) relShield -= expRel! * libeFactor
 
 			if (!e.isFriend) {
 				// === ENEMY: Add damage ===
@@ -40,15 +62,16 @@ class Damages {
 				real effectiveRel = e.isOTK ? relShield - 25 : relShield
 
 				// Simulate enemy liberation stripping our shields
-				if (relShield > 30 && e.liberationCD <= 1) {
+				if (relShield > ScoringConfig.LIBE_RELSHIELD_TRIGGER && e.liberationCD <= 1) {
 					Map<Cell, real>? libeMap = MapDanger._map_enemy_liberation[e]
 					if (libeMap != null && libeMap![cell] != null) {
 						for (Item item in e.items) {
 							if (item.id == CHIP_LIBERATION) {
 								if (item.cost <= tpLeft) {
 									tpLeft -= item.cost
-									absShield *= 0.6
-									relShield *= 0.6
+									absShield *= ScoringConfig.LIBE_DEBUFF_FACTOR
+									relShield *= ScoringConfig.LIBE_DEBUFF_FACTOR
+									libeFactor *= ScoringConfig.LIBE_DEBUFF_FACTOR
 								}
 								break
 							}
@@ -220,6 +243,8 @@ class Damages {
 				}
 			} else {
 				// === ALLY: Subtract healing and add shields ===
+				// If instant damage is already lethal, entity is dead — allies can't help
+				if (dmg >= currentLife) continue
 				// Check if ally can support this cell (from ally support map)
 				if (MapSupport._map_ally_item_heal[e] == null) continue
 

@@ -204,8 +204,7 @@ class Entity {
 		}
 		*/
 
-		this.loadEffects()
-		this.psnlife = this.life - this.psnTurn
+		this.psnlife = this.life  // Adjusted after loadEffects() in Fight.refresh()
 		this.isOTK = this.str >= 400 && this.agi >= 400 && this.snc >= 400
 	}
 
@@ -288,7 +287,7 @@ class Entity {
 	 * Called by constructor and refreshState().
 	 * Assumes effect-related fields are already initialized/cleared.
 	 */
-	private void loadEffects() {
+	void loadEffects() {
 		for(Array<boolean|integer> e in getEffects(this.id)!) {
 			EntityEffect effect = EntityEffect(e)
 			// RAW_BUFF_POWER: skip, no item associated - use entity.pwr stat instead

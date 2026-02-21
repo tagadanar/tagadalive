@@ -90,6 +90,13 @@ class Fight {
 		}
 		self = _aliveAll[getEntity()]!
 
+		// Second pass: load effects now that all entities are in _aliveAll
+		// (EntityEffect.caster requires all entities to be registered)
+		for (Entity entity in _aliveAll) {
+			entity.loadEffects()
+			entity.psnlife = entity.life - entity.psnTurn
+		}
+
 		// Compute Liberation, Antidote, Inversion, movement chips, and summon availability
 		liberationReady = false
 		liberationItem = null
