@@ -170,7 +170,7 @@ class MapPosition {
 		if (BossFennel.isActive() && !BossFennel.isPuzzleSolved()) {
 			Entity? farthestCrystal = BossFennel.getFarthestCrystalFromGraal()
 			if (farthestCrystal != null) {
-				_gravity_distance[farthestCrystal!.cell] = 1
+				_gravity_distance[farthestCrystal!.cell] = 4
 				_gravity_coef[farthestCrystal!.cell] = BossFennel.W_GRAVITY_GRAAL
 			}
 		}

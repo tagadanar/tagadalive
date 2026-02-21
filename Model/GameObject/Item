@@ -243,6 +243,8 @@ class Item {
 			this.area = getChipArea(id)!
 			this.maxUse = getChipMaxUses(id)!
 			if (this.maxUse == -1) this.maxUse = this.haveCD ? 1 : 99
+			// Tranquilizer: force 1 use — debuff doesn't stack, ComboExplorer wastes TP repeating it
+			if (id == CHIP_TRANQUILIZER) this.maxUse = 1
 			integer i = 0
 			for(Array<real | integer> e in getChipEffects(id)!){
 				push(this.effects, ItemEffect(e, this, i++))

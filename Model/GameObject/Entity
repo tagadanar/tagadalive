@@ -136,6 +136,15 @@ class Entity {
 		this.absShield = getAbsoluteShield(id)!
 		this.dmgReturn = getDamageReturn(id)!
 		this.items = Items.getItems(id)
+		// PotiMalef: hold summon+teleport chips for blocking resurrection cell
+		if (BossPotiMalef.shouldHoldChips() && id == getEntity()) {
+			Array<Item> filtered = []
+			for (Item item in this.items) {
+				if ((item.isSummon && item.id != CHIP_RESURRECTION) || item.id == CHIP_TELEPORTATION) continue
+				push(filtered, item)
+			}
+			this.items = filtered
+		}
 		// Check for support chip cooldowns (antidote, liberation)
 		for (Item item in this.items) {
 			if (item.id == CHIP_ANTIDOTE) {

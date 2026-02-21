@@ -9,6 +9,11 @@ include('auto');
 // ╚═════════════════════════════════════════════════════════════════════╝
 AI.mode = AI.MODE_COMBO_EXPLORER
 
+// Emergency manumission before AI init (temporary)
+if (getMP() <= 0 || (getTotalTP() - getTP()) >= 10) {
+	useChip(CHIP_MANUMISSION, getEntity())
+}
+
 // Initialize game state
 init()
 
