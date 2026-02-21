@@ -198,6 +198,9 @@ class Combo {
 			Benchmark.log("DELAYED_SUMMON>" + delayedAction.item.name + ">c" + spawnCell!.id)
 		}
 
+		// étape 2.75: spend leftover TP with greedy fallback
+		this._postExecutionFallback()
+
 		// étape 3: si il reste des TP, je prend en main une arme aléatoire
 		if(getWeapon(Fight.self.id)==null) {
 			Array<Item> weapons = []
@@ -212,6 +215,109 @@ class Combo {
 		// todo pipotron
 	}
 	
+	/*
+	 * Post-execution greedy fallback: spend leftover TP using pre-computed actions.
+	 * After combo execution, real TP may exceed simulated TP (TP buffs rolled high,
+	 * conservative adjustments reserved extra TP). This method spends them greedily.
+	 */
+	void _postExecutionFallback() {
+		integer leftoverTP = getTP()
+		if (leftoverTP <= 0) return;
+
+		// Build usage map from combo actions: item.id -> count
+		Map<integer, integer> usedCounts = [:]
+		for (Action a in this.actions) {
+			integer itemId = a.item.id
+			if (usedCounts[itemId] == null) usedCounts[itemId] = 0
+			usedCounts[itemId] += 1
+		}
+
+		// Get current cell after final movement
+		Cell currentCell = Board.cells[getCell()!]!
+
+		// Get candidate actions for this cell (cell-specific + self-cast)
+		Array<Action> candidates = MapCellScore.getActionsForCell(currentCell)
+
+		// Filter candidates
+		Array<Action> valid = []
+		for (Action a in candidates) {
+			if (a.score == null || a.score! <= 0) continue
+			if (a.item.isSummon || a.item.isTactical) continue
+			if (a.item.haveCD && getCooldown(a.item.id) > 0) continue
+
+			// Check maxUse
+			integer used = usedCounts[a.item.id] != null ? usedCounts[a.item.id]! : 0
+			if (used >= a.item.maxUse) continue
+
+			// Check affordability (weapon switch costs 1 TP)
+			integer switchCost = 0
+			if (a.item.isWeap && getWeapon(Fight.self.id) != a.item.id) switchCost = 1
+			if (a.item.cost + switchCost > leftoverTP) continue
+
+			push(valid, a)
+		}
+
+		if (count(valid) == 0) return;
+
+		// Sort by score DESC
+		valid = MapCellScore.sortByScore(valid)
+
+		// Greedy execution
+		integer bonusCount = 0
+		for (Action a in valid) {
+			integer currentTP = getTP()
+			if (currentTP <= 0) break
+
+			integer switchCost = 0
+			if (a.item.isWeap && getWeapon(Fight.self.id) != a.item.id) switchCost = 1
+			if (a.item.cost + switchCost > currentTP) continue
+
+			// Re-check maxUse
+			integer used = usedCounts[a.item.id] != null ? usedCounts[a.item.id]! : 0
+			if (used >= a.item.maxUse) continue
+
+			// Execute
+			integer result
+			if (a.to == Fight.selfCell) {
+				a.item.useItemOnCell(currentCell)
+				result = USE_SUCCESS
+			} else {
+				result = a.item.useItemOnCellWithResult(a.to)
+			}
+
+			if (result >= 0) {
+				bonusCount++
+				Benchmark.log("BONUS>" + a.item.name + ">c" + a.to.id)
+				if (usedCounts[a.item.id] == null) usedCounts[a.item.id] = 0
+				usedCounts[a.item.id] += 1
+
+				// Loop repeatable items (no CD, maxUse > 1)
+				if (!a.item.haveCD && a.item.maxUse > 1) {
+					while (getTP() >= a.item.cost + switchCost) {
+						integer u = usedCounts[a.item.id] != null ? usedCounts[a.item.id]! : 0
+						if (u >= a.item.maxUse) break
+						integer r2
+						if (a.to == Fight.selfCell) {
+							a.item.useItemOnCell(currentCell)
+							r2 = USE_SUCCESS
+						} else {
+							r2 = a.item.useItemOnCellWithResult(a.to)
+						}
+						if (r2 >= 0) {
+							bonusCount++
+							usedCounts[a.item.id] += 1
+							Benchmark.log("BONUS>" + a.item.name + ">c" + a.to.id)
+						} else break
+					}
+				}
+			}
+		}
+
+		if (bonusCount > 0) {
+			debug("[Combo] Bonus: " + bonusCount + " actions, " + getTP() + " TP left")
+		}
+	}
+
 	/*
 	 * Short description for Benchmark logging.
 	 * Format: "name(score)→name(score)→mv(cellId:posScore)" or "stay"
