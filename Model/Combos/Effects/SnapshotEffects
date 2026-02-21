@@ -356,7 +356,24 @@ EffectCache.registerHandlers([
 	},
 
 	EFFECT_REMOVE_SHACKLES: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
-		// TODO: estimate value from existing shackles
+		// Remove all negative shackle effects from target
+		for (EntityEffect entityEffect in entityTarget.effects) {
+			if (entityEffect.type != EFFECT_SHACKLE_STRENGTH &&
+				entityEffect.type != EFFECT_SHACKLE_MAGIC &&
+				entityEffect.type != EFFECT_SHACKLE_AGILITY &&
+				entityEffect.type != EFFECT_SHACKLE_WISDOM &&
+				entityEffect.type != EFFECT_SHACKLE_TP &&
+				entityEffect.type != EFFECT_SHACKLE_MP) continue
+
+			integer alreadyAltered = snap.getEffectTypeAlteration(entityTarget, entityEffect.type)
+			integer remaining = entityEffect.value - alreadyAltered
+			if (remaining <= 0) continue
+
+			integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
+			if (stat == null) continue
+			snap.addAlteration(entityTarget, stat!, remaining)
+			snap.addEffectTypeAlteration(entityTarget, entityEffect.type, remaining)
+		}
 	},
 
 	EFFECT_STEAL_LIFE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
