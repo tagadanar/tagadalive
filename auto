@@ -138,7 +138,7 @@ include('AI/AI')
 function init() {
 	Benchmark.initTurn()
 	Benchmark.start('init')
-	if(getTurn()==1) {
+	if(mapSize(Items.getAllItems()) == 0) {
 		Benchmark.start('Map.init')
 		Board.init()
 		Benchmark.stop('Map.init')
