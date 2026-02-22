@@ -444,6 +444,8 @@ class Entity {
 			if (item.cost > tpBudget) continue
 
 			for (ItemEffect effect in item.effects) {
+				// Skip effects that don't apply to self (e.g. bulb-only MP buffs)
+				if (Fight.self.isBulb ? !effect.targetType.onBulbs : !effect.targetType.onLeeks) continue
 				integer gain = 0
 				if (effect.type == EFFECT_RAW_BUFF_MP) {
 					gain = round(effect.avg)

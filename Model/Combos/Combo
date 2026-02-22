@@ -198,8 +198,10 @@ class Combo {
 			Benchmark.log("DELAYED_SUMMON>" + delayedAction.item.name + ">c" + spawnCell!.id)
 		}
 
-		// étape 2.75: spend leftover TP with greedy fallback
-		this._postExecutionFallback()
+		// étape 2.75: spend leftover TP with greedy fallback (leek only — MapCellScore is not refreshed for bulbs)
+		if (!Fight.self.isBulb) {
+			this._postExecutionFallback()
+		}
 
 		// étape 3: si il reste des TP, je prend en main une arme aléatoire
 		if(getWeapon(Fight.self.id)==null) {

@@ -2207,6 +2207,8 @@ class ComboBuilder {
 			// Check for MP buff effect and compute gain
 			integer mpGain = 0
 			for (ItemEffect effect in item.effects) {
+				// Skip effects that don't apply to self (e.g. bulb-only MP buffs)
+				if (Fight.self.isBulb ? !effect.targetType.onBulbs : !effect.targetType.onLeeks) continue
 				if (effect.type == EFFECT_RAW_BUFF_MP) {
 					mpGain = round(effect.avg)
 					break
