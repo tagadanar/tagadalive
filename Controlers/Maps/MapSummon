@@ -741,10 +741,7 @@ class MapSummon {
 
 		// Get offensive chips for this bulb type
 		Array<integer>? chipIds = BULB_OFFENSIVE_CHIPS[profile.bulbType]
-		if (chipIds == null || count(chipIds!) == 0) {
-			if (BossPotiMalef.getResurrectionCell() == null) return []
-			return MapSummon._generateBossCandidates(summonItem, stats.mp)
-		}
+		if (chipIds == null || count(chipIds!) == 0) return []
 
 		// Load chip Items
 		Array<Item> chips = []
@@ -892,42 +889,6 @@ class MapSummon {
 		}
 
 		// Sort by score DESC, then leek MP cost ASC as tiebreaker
-		candidates = arraySort(candidates, (SummonCandidate a, SummonCandidate b) -> integer {
-			if (a.score > b.score + 1) return -1
-			if (b.score > a.score + 1) return 1
-			integer? costA = leekReachable[a.fromCell]
-			integer? costB = leekReachable[b.fromCell]
-			return (costA != null ? costA! : 0) - (costB != null ? costB! : 0)
-		}) as Array<SummonCandidate>
-
-		return candidates
-	}
-
-	/*
-	 * Generate boss-only candidates for defensive bulbs (no offensive chips).
-	 * Scored purely by proximity to boss cell — +100k if within bulb walk range.
-	 */
-	static Array<SummonCandidate> _generateBossCandidates(Item summonItem, integer bulbMP) {
-		integer? bossCell = BossPotiMalef.getResurrectionCell()
-		Map<Cell, integer> leekReachable = Fight.self.reachableCells
-
-		Map<integer, Cell> bestFromCell = [:]
-		Map<integer, integer> bestCost = [:]
-		Map<integer, Cell> spawnCellRefs = [:]
-
-		MapSummon._addTargetsInRange(summonItem, Fight.self.cell, 0, bestFromCell, bestCost, spawnCellRefs)
-		for (Cell fromCell : integer cost in leekReachable) {
-			MapSummon._addTargetsInRange(summonItem, fromCell, cost, bestFromCell, bestCost, spawnCellRefs)
-		}
-
-		Array<SummonCandidate> candidates = []
-		for (integer cellId : Cell fromCell in bestFromCell) {
-			Cell spawnCell = spawnCellRefs[cellId]!
-			integer distToBoss = getCellDistance(spawnCell.id, bossCell!)
-			real score = distToBoss <= bulbMP ? 100000.0 + (bulbMP - distToBoss) * 1000.0 : 0.0
-			push(candidates, SummonCandidate(spawnCell, fromCell, score, Fight.self, 0.0, 0, bulbMP))
-		}
-
 		candidates = arraySort(candidates, (SummonCandidate a, SummonCandidate b) -> integer {
 			if (a.score > b.score + 1) return -1
 			if (b.score > a.score + 1) return 1

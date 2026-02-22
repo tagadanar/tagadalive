@@ -171,9 +171,15 @@ function init() {
 	}
 	Benchmark.stop('BossFennel')
 
-	// BossPotiMalef: detect Potiron Maléfique, decode says, compute resurrection cell
+	// BossPotiMalef: detect Potiron Maléfique, decode says, execute blocking plan
 	Benchmark.start('BossPotiMalef')
 	BossPotiMalef.refresh()
+	if (BossPotiMalef.execute()) {
+		// Blocking action taken - refresh state
+		Fight.refresh()
+		Board.refresh()
+		BossPotiMalef.refresh()
+	}
 	Benchmark.stop('BossPotiMalef')
 
 	Benchmark.start('Scoring.refresh')

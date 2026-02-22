@@ -17,6 +17,10 @@ if (getMP() <= 0 || (getTotalTP() - getTP()) >= 10) {
 // Initialize game state
 init()
 
+// Mark boss resurrection cell
+integer? resuCell = BossPotiMalef.getResurrectionCell()
+if (resuCell != null) mark(resuCell!, getColor(255, 0, 255))
+
 // Collect cooldowns at START of turn (before actions)
 Benchmark.collectCooldownsStart(Fight.self.items, Fight.self.id)
 
@@ -48,7 +52,3 @@ Benchmark.display()
 // MapSummon.showSummonCells()
 // MapTactical.showTactical()
 // MapSummon.showResurrectionCandidate()
-
-// Mark boss resurrection cell
-integer? resuCell = BossPotiMalef.getResurrectionCell()
-if (resuCell != null) mark(resuCell!, getColor(255, 0, 255))

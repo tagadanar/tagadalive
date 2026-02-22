@@ -1958,6 +1958,8 @@ class ComboBuilder {
 		Entity? stopWhenKilled,
 		boolean restrictToCell
 	) {
+		reserveMP += BossPotiMalef.getReservedMP()
+
 		// Knapsack selection
 		Array<Action> selected = ActionKnapsack.solve(pool, availableTP, currentWeapon, null)
 		selected = MapCellScore.sortByPriority(selected)
@@ -2098,14 +2100,23 @@ class ComboBuilder {
 		Consequences csq = combo.getCurrentConsequences()
 		integer? bossCell = BossPotiMalef.getResurrectionCell()
 		if (bossCell != null) {
-			// Only force leek to boss cell if combo has no summon to block it
-			boolean hasSummon = false
-			for (Action a in combo.actions) {
-				if (a.item.isSummon) { hasSummon = true; break }
+			integer planType = BossPotiMalef._planType
+			if (planType == BossPotiMalef.PLAN_SELF) {
+				// Self plan: force leek to boss cell
+				if (ComboBuilder._addForcedFinalPosition(combo, Board.cells[bossCell!]!, 100000.0)) {
+					return;
+				}
+			} else if (planType == BossPotiMalef.PLAN_NONE) {
+				// No plan: fallback — force leek if combo has no summon
+				boolean hasSummon = false
+				for (Action a in combo.actions) {
+					if (a.item.isSummon) { hasSummon = true; break }
+				}
+				if (!hasSummon && ComboBuilder._addForcedFinalPosition(combo, Board.cells[bossCell!]!, 100000.0)) {
+					return;
+				}
 			}
-			if (!hasSummon && ComboBuilder._addForcedFinalPosition(combo, Board.cells[bossCell!]!, 100000.0)) {
-				return;
-			}
+			// PLAN_SUMMON: bulb handles it, don't force leek position
 		}
 		Position pos = MapPosition.findBestPosition(csq.currentCell, csq.currentMP, csq)
 		combo.addFinalPosition(pos)
