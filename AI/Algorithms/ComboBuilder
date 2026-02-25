@@ -1960,8 +1960,9 @@ class ComboBuilder {
 	) {
 		reserveMP += BossPotiMalef.getReservedMP()
 
-		// Knapsack selection
-		Array<Action> selected = ActionKnapsack.solve(pool, availableTP, currentWeapon, null)
+		// Knapsack selection (reduce budget by reserved TP for post-combo movement)
+		integer reservedTP = BossPotiMalef.getReservedTP()
+		Array<Action> selected = ActionKnapsack.solve(pool, availableTP - reservedTP, currentWeapon, null)
 		selected = MapCellScore.sortByPriority(selected)
 
 		// Add selected actions
@@ -2118,7 +2119,12 @@ class ComboBuilder {
 			}
 			// PLAN_SUMMON: bulb handles it, don't force leek position
 		}
-		Position pos = MapPosition.findBestPosition(csq.currentCell, csq.currentMP, csq)
+		// Reserve MP for post-combo jump/teleport movement to boss cell
+		integer posMP = csq.currentMP
+		if (BossPotiMalef._planUsesJump || BossPotiMalef._planUsesTeleport) {
+			posMP = max(0, posMP - BossPotiMalef.getReservedMP())
+		}
+		Position pos = MapPosition.findBestPosition(csq.currentCell, posMP, csq)
 		combo.addFinalPosition(pos)
 	}
 
@@ -2556,6 +2562,7 @@ class ComboBuilder {
 	 * Internal implementation of tryAddAction.
 	 */
 	static boolean _tryAddActionImpl(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP, integer reserveTP, Set<Cell> baseCellsToIgnore) {
+		reserveTP += BossPotiMalef.getReservedTP()
 		// Check usage limit
 		integer uses = usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0
 		if (uses >= action.item.maxUse) return false

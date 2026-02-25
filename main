@@ -30,6 +30,9 @@ Combo combo = AI.getCombo()
 // Execute the combo
 combo.play()
 
+// Post-combo: jump/teleport to boss cell if self-plan needs it
+BossPotiMalef.executePostCombo()
+
 // Warmup teleport destination cache using remaining operation budget
 // Skip if bulbs alive — let the last bulb do it instead
 if (!MapPath._teleportCacheComplete && MapPath._teleportMaxRange > 0
