@@ -29,7 +29,7 @@ class BattleState {
 	static boolean enemyHasMgc = false // any enemy has MGC >= 100 (for antidote value)
 	static boolean enemyHasSnc = false // any enemy has SNC >= 200 (for dmgReturn value)
 	static boolean enemyHasOTK = false // any enemy has STR >= 400, AGI >= 400, SNC >= 400
-	static boolean enemyHasHighAgi = false // any enemy has AGI > 900 (bramble value in OTK)
+	static boolean enemyHasHighAgi = false // any enemy has AGI >= 800 (bramble value in OTK)
 	static boolean allyHasStr = false  // any ally has STR >= 100 (for vuln value)
 	static boolean allyHasScience = false // any ally has SNC >= 200 (for rel vuln value)
 	static boolean allyHasPsn = false  // any ally has MGC >= 100 (for enemy antidote map)
@@ -215,7 +215,7 @@ class BattleState {
 			if (!enemyHasOTK && entity.str >= 400 && entity.agi >= 400 && entity.snc >= 400) {
 				enemyHasOTK = true
 			}
-			if (!enemyHasHighAgi && entity.agi > 900) {
+			if (!enemyHasHighAgi && entity.agi >= 800) {
 				enemyHasHighAgi = true
 			}
 
