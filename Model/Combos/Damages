@@ -222,9 +222,9 @@ class Damages {
 							if (tmp > 0) itemDmg += tmp
 						}
 						else if (ef.type == EFFECT_POISON) {
-							real duration = ScoringConfig.defensive_duration_mitigation[ef.duration]!
+							real duration = Scoring.durationMitigation(ef.duration)
 							// If self can antidote, treat poison as 1-turn (can cure next turn)
-							if (Fight.antidoteReady) duration = ScoringConfig.defensive_duration_mitigation[1]!
+							if (Fight.antidoteReady) duration = Scoring.durationMitigation(1)
 							itemPsn += ef.avgmax * (1 + e.getCurrentMgc(consequences) / 100) * (1 + e.pwr / 100) * critFactor * ratioDmg! * duration
 						}
 					}
@@ -386,9 +386,9 @@ class Damages {
 				if (tmp > 0) dmg += tmp
 			}
 			else if (e.type == EFFECT_POISON) {
-				real duration = ScoringConfig.defensive_duration_mitigation[e.duration]!
+				real duration = Scoring.durationMitigation(e.duration)
 				// If self can antidote, treat poison as 1-turn
-				if (Fight.antidoteReady) duration = ScoringConfig.defensive_duration_mitigation[1]!
+				if (Fight.antidoteReady) duration = Scoring.durationMitigation(1)
 				psn += e.avgmax * (1 + eSource.getCurrentMgc(conseq) / 100) * (1 + eSource.pwr / 100) * ratioDmg * duration
 			}
 		}

@@ -112,7 +112,7 @@ class EffectSnapshot {
 		if (isOverTime) {
 			// Over-time effects use duration mitigation
 			integer duration = (effect as EffectOverTime).duration
-			real mitigation = ScoringConfig.offensive_duration_mitigation[duration]!
+			real mitigation = Scoring.durationMitigation(duration)
 			this.effectScore += value * coef * mitigation
 		} else {
 			// Immediate effects scored at full value

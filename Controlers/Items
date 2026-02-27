@@ -130,7 +130,7 @@ class Items {
 			if (Items.isEffectAlreadyOnSelf(item, e)) continue
 
 			integer duration = Scoring.getEffectiveDuration(e.duration, entity, Fight.self)
-			real mitigation = ScoringConfig.offensive_duration_mitigation[duration]!
+			real mitigation = Scoring.durationMitigation(duration)
 
 			// === HEAL EFFECTS ===
 			if (e.type == EFFECT_HEAL) {

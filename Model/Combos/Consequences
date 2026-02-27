@@ -467,7 +467,7 @@ class Consequences {
 		real coef = Scoring.getDynamicCoef(entity, key, this)
 		real scoreDelta = value * coef
 		if(!isOverTime) this.score += scoreDelta
-		else this.score += scoreDelta * ScoringConfig.offensive_duration_mitigation[(effect as EffectOverTime).duration]!
+		else this.score += scoreDelta * Scoring.durationMitigation((effect as EffectOverTime).duration)
 	}
 
 	/*
