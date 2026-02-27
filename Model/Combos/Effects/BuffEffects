@@ -45,7 +45,7 @@ Consequences.registerHandlers([
 	},
 
 	EFFECT_RAW_BUFF_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		// Not implemented - placeholder
+		EffectHandlers.rawBuffScience(effect, entitySource, entityTarget, ratioDmg, conseq)
 	},
 
 	// ============================================

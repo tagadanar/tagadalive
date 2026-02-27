@@ -175,7 +175,8 @@ EffectCache.registerHandlers([
 	},
 
 	EFFECT_RAW_BUFF_SCIENCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
-		// Placeholder - not implemented
+		if (snap.isKilled(entityTarget)) return;
+		EffectHandlers.rawBuffScience(effect, entitySource, entityTarget, ratioDmg, snap)
 	},
 
 	// SCALED BUFFS (scaled by science)

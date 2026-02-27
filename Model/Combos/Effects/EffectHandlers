@@ -322,6 +322,13 @@ class EffectHandlers {
 		ctx.add(target, Stats.MGC, eot)
 	}
 
+	static void rawBuffScience(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
+		EffectHandlers.dedupeIfNeeded(effect, target, Stats.SNC, ctx)
+		integer value = EffectCalc.rawBuff(effect.avg, ratio)
+		EffectOverTime eot = EffectOverTime(effect.item, value, effect.duration, effect.type)
+		ctx.add(target, Stats.SNC, eot)
+	}
+
 	static void rawBuffAgility(ItemEffect effect, Entity source, Entity target, real ratio, ctx) {
 		EffectHandlers.dedupeIfNeeded(effect, target, Stats.AGI, ctx)
 		integer value = EffectCalc.rawBuff(effect.avg, ratio)
