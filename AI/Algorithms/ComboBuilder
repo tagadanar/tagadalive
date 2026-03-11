@@ -1398,50 +1398,46 @@ class ComboBuilder {
 	}
 
 	/*
-	 * Build combo at a cell reachable only via jump.
-	 * Pattern: [MP buffs] → [walk to launch] → [jump] → [walk to cell] → [attacks]
+	 * Shared helper: build combo at a cell reachable via a movement ability (jump or teleport).
+	 * Handles: walk distance validation, MP buffs, ability action, position override, attack fill.
+	 *
+	 * @param ctx Exploration context
+	 * @param cell Target cell for attacks
+	 * @param abilityItem The movement ability item (jump chip / teleport chip)
+	 * @param launchCell Cell to walk to before using ability
+	 * @param abilityDest Cell where ability lands us
+	 * @return Combo, or null if not feasible
 	 */
-	static Combo? buildAtCellWithJump(ExplorationContext ctx, Cell cell) {
-		if (!ctx.hasJump || ctx.jumpItem == null) return null
-
-		Item jumpItem = ctx.jumpItem!
-		integer jumpCost = jumpItem.cost
-
-		// Not enough TP for jump + at least one attack
-		if (ctx.initialTP < jumpCost + 2) return null
-
-		// Find jump route using extended walk map
-		Array<Cell>? route = ComboBuilder._findJumpRoute(
-			cell, ctx.extendedReachableCells, ctx.initialMP + ctx.maxMPBuff, ctx.cellsToIgnore)
-		if (route == null) return null
-
-		Cell launchCell = route![0]
-		Cell jumpDest = route![1]
+	static Combo? _buildWithAbilityAtCell(
+		ExplorationContext ctx, Cell cell, Item abilityItem,
+		Cell launchCell, Cell abilityDest
+	) {
+		integer abilityCost = abilityItem.cost
 
 		// Walk distance to launch cell
 		integer? walkToLaunch = ctx.extendedReachableCells[launchCell]
 		if (walkToLaunch == null) return null
 		integer walkDist = walkToLaunch!
 
-		// Compute post-jump walk distance (jumpDest → cell) BEFORE MP buffs
-		integer walkFromJump = 0
-		if (jumpDest != cell) {
+		// Compute post-ability walk distance (abilityDest → cell)
+		integer walkFromAbility = 0
+		if (abilityDest != cell) {
 			Map<Cell, integer> reachFromDest = MapPath.getCachedReachableCells(
-				jumpDest, ctx.initialMP + ctx.maxMPBuff - walkDist, ctx.cellsToIgnore)
+				abilityDest, ctx.initialMP + ctx.maxMPBuff - walkDist, ctx.cellsToIgnore)
 			integer? dist = reachFromDest[cell]
 			if (dist == null) return null
-			walkFromJump = dist!
+			walkFromAbility = dist!
 		}
-		integer totalWalk = walkDist + walkFromJump
+		integer totalWalk = walkDist + walkFromAbility
 
-		// Calculate MP buffs for TOTAL walk (pre-jump + post-jump)
-		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(totalWalk, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - jumpCost)
+		// Calculate MP buffs for total walk (pre-ability + post-ability)
+		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(totalWalk, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - abilityCost)
 		if (mpBuffResult == null) return null
 		Array<Action> mpBuffActions = mpBuffResult!
 		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
-		// Check TP budget: buffs + jump + at least 2 TP for attacks
-		if (ctx.initialTP - mpBuffTPCost - jumpCost < 2) return null
+		// Check TP budget: buffs + ability + at least 2 TP for attacks
+		if (ctx.initialTP - mpBuffTPCost - abilityCost < 2) return null
 
 		// Build combo
 		Combo combo = Combo()
@@ -1450,34 +1446,26 @@ class ComboBuilder {
 		// 1. Apply MP buff actions
 		ComboBuilder._applyBuffs(combo, mpBuffActions, usesThisTurn)
 
-		// 2. Create and add jump action
+		// 2. Create and add ability action
 		Consequences priorCsq = combo.getCurrentConsequences()
-
-		// Check we have enough MP after buffs to reach launch cell
 		if (priorCsq.currentMP < walkDist) return null
 
-		Action jumpAction = Action(jumpItem, launchCell, jumpDest)
-		Action actualizedJump = Action(jumpAction, priorCsq)
+		Action abilityAction = Action(abilityItem, launchCell, abilityDest)
+		Action actualizedAbility = Action(abilityAction, priorCsq)
+		actualizedAbility.consequences.currentCell = abilityDest
+		actualizedAbility.consequences.currentMP = priorCsq.currentMP - walkDist
 
-		// Override position: after jump, we're at jumpDest
-		actualizedJump.consequences.currentCell = jumpDest
+		push(combo.actions, actualizedAbility)
+		usesThisTurn[abilityItem] = 1
 
-		// Deduct MP for walking to launch cell
-		actualizedJump.consequences.currentMP = priorCsq.currentMP - walkDist
+		// 3. Validate post-ability walk
+		integer remainingTP = actualizedAbility.consequences.currentTP
+		integer remainingMP = actualizedAbility.consequences.currentMP
+		Item? weapon = actualizedAbility.consequences.currentWeapon
 
-		// Push directly (bypass combo.add score check — jump has no intrinsic damage score)
-		push(combo.actions, actualizedJump)
-		usesThisTurn[jumpItem] = 1
-
-		// 3. Calculate remaining resources
-		integer remainingTP = actualizedJump.consequences.currentTP
-		integer remainingMP = actualizedJump.consequences.currentMP
-		Item? weapon = actualizedJump.consequences.currentWeapon
-
-		// Deduct post-jump walk (distance already validated above)
-		if (walkFromJump > 0) {
-			if (remainingMP < walkFromJump) return null
-			remainingMP -= walkFromJump
+		if (walkFromAbility > 0) {
+			if (remainingMP < walkFromAbility) return null
+			remainingMP -= walkFromAbility
 		}
 
 		// 4. Get actions for target cell, exclude used items
@@ -1492,7 +1480,24 @@ class ComboBuilder {
 			true    // restrictToCell
 		)
 
-		return count(combo.actions) > 1 ? combo : null  // > 1 because jump action is always there
+		return count(combo.actions) > 1 ? combo : null
+	}
+
+	/*
+	 * Build combo at a cell reachable only via jump.
+	 * Pattern: [MP buffs] → [walk to launch] → [jump] → [walk to cell] → [attacks]
+	 */
+	static Combo? buildAtCellWithJump(ExplorationContext ctx, Cell cell) {
+		if (!ctx.hasJump || ctx.jumpItem == null) return null
+
+		Item jumpItem = ctx.jumpItem!
+		if (ctx.initialTP < jumpItem.cost + 2) return null
+
+		Array<Cell>? route = ComboBuilder._findJumpRoute(
+			cell, ctx.extendedReachableCells, ctx.initialMP + ctx.maxMPBuff, ctx.cellsToIgnore)
+		if (route == null) return null
+
+		return ComboBuilder._buildWithAbilityAtCell(ctx, cell, jumpItem, route![0], route![1])
 	}
 
 	// ════════════════════════════════════════════════════════════
@@ -1573,95 +1578,14 @@ class ComboBuilder {
 		if (!ctx.hasTeleport || ctx.teleportItem == null) return null
 
 		Item teleportItem = ctx.teleportItem!
-		integer teleportCost = teleportItem.cost
+		if (ctx.initialTP < teleportItem.cost + 2) return null
 
-		// Not enough TP for teleport + at least one attack
-		if (ctx.initialTP < teleportCost + 2) return null
-
-		// Find teleport route using extended walk map
 		Array<Cell>? route = ComboBuilder._findTeleportRoute(
 			cell, ctx.extendedReachableCells, ctx.initialMP + ctx.maxMPBuff,
 			ctx.cellsToIgnore, teleportItem)
 		if (route == null) return null
 
-		Cell launchCell = route![0]
-		Cell teleportDest = route![1]
-
-		// Walk distance to launch cell
-		integer? walkToLaunch = ctx.extendedReachableCells[launchCell]
-		if (walkToLaunch == null) return null
-		integer walkDist = walkToLaunch!
-
-		// Compute post-teleport walk distance (teleportDest → cell) BEFORE MP buffs
-		integer walkFromTeleport = 0
-		if (teleportDest != cell) {
-			Map<Cell, integer> reachFromDest = MapPath.getCachedReachableCells(
-				teleportDest, ctx.initialMP + ctx.maxMPBuff - walkDist, ctx.cellsToIgnore)
-			integer? dist = reachFromDest[cell]
-			if (dist == null) return null
-			walkFromTeleport = dist!
-		}
-		integer totalWalk = walkDist + walkFromTeleport
-
-		// Calculate MP buffs for TOTAL walk (pre-teleport + post-teleport)
-		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(totalWalk, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - teleportCost)
-		if (mpBuffResult == null) return null
-		Array<Action> mpBuffActions = mpBuffResult!
-		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
-
-		// Check TP budget: buffs + teleport + at least 2 TP for attacks
-		if (ctx.initialTP - mpBuffTPCost - teleportCost < 2) return null
-
-		// Build combo
-		Combo combo = Combo()
-		Map<Item, integer> usesThisTurn = [:]
-
-		// 1. Apply MP buff actions
-		ComboBuilder._applyBuffs(combo, mpBuffActions, usesThisTurn)
-
-		// 2. Create and add teleport action
-		Consequences priorCsq = combo.getCurrentConsequences()
-
-		// Check we have enough MP after buffs to reach launch cell
-		if (priorCsq.currentMP < walkDist) return null
-
-		Action teleportAction = Action(teleportItem, launchCell, teleportDest)
-		Action actualizedTeleport = Action(teleportAction, priorCsq)
-
-		// Override position: after teleport, we're at teleportDest
-		actualizedTeleport.consequences.currentCell = teleportDest
-
-		// Deduct MP for walking to launch cell
-		actualizedTeleport.consequences.currentMP = priorCsq.currentMP - walkDist
-
-		// Push directly (bypass combo.add score check — teleport has no intrinsic damage score)
-		push(combo.actions, actualizedTeleport)
-		usesThisTurn[teleportItem] = 1
-
-		// 3. Calculate remaining resources
-		integer remainingTP = actualizedTeleport.consequences.currentTP
-		integer remainingMP = actualizedTeleport.consequences.currentMP
-		Item? weapon = actualizedTeleport.consequences.currentWeapon
-
-		// Deduct post-teleport walk (distance already validated above)
-		if (walkFromTeleport > 0) {
-			if (remainingMP < walkFromTeleport) return null
-			remainingMP -= walkFromTeleport
-		}
-
-		// 4. Get actions for target cell, exclude used items
-		Array<Action> pool = MapCellScore.getActionsForCell(cell)
-		pool = ComboBuilder._excludeUsed(pool, usesThisTurn)
-
-		// 5. Build core into combo (knapsack, greedy, position)
-		ComboBuilder._buildCoreInto(
-			ctx, combo, usesThisTurn, pool, remainingTP, weapon,
-			0,      // reserveMP
-			null,   // stopWhenKilled
-			true    // restrictToCell
-		)
-
-		return count(combo.actions) > 1 ? combo : null
+		return ComboBuilder._buildWithAbilityAtCell(ctx, cell, teleportItem, route![0], route![1])
 	}
 
 	/*
