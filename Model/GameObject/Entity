@@ -134,26 +134,8 @@ class Entity {
 			}
 			this.items = filtered
 		}
-		// Check for support chip cooldowns (antidote, liberation)
-		for (Item item in this.items) {
-			if (item.id == CHIP_ANTIDOTE) {
-				this.antidoteCD = getCooldown(item.id, this.id)!
-			} else if (item.id == CHIP_LIBERATION) {
-				this.liberationCD = getCooldown(item.id, this.id)!
-			} else if (item.id == CHIP_MANUMISSION) {
-				this.manumissionCD = getCooldown(item.id, this.id)!
-			} else if (item.id == CHIP_JUMP) {
-				this.jumpCD = getCooldown(item.id, this.id)!
-				this.jumpItem = item
-			} else if (item.id == CHIP_TELEPORTATION) {
-				this.teleportCD = getCooldown(item.id, this.id)!
-				this.teleportItem = item
-				MapPath._teleportMaxRange = item.maxRange
-			} else if (item.id == CHIP_GRAPPLE) {
-				this.grappleCD = getCooldown(item.id, this.id)!
-				this.grappleItem = item
-			}
-		}
+		this._loadCooldowns()
+		if (this.teleportItem != null) MapPath._teleportMaxRange = this.teleportItem!.maxRange
 		// Load passive effects from entity
 		for(Array e in getPassiveEffects(this.id)!) {
 			integer type = e[0] as integer
@@ -257,26 +239,24 @@ class Entity {
 		this.teleportItem = null
 		this.grappleCD = 4
 		this.grappleItem = null
-		for (Item item in this.items) {
-			if (item.id == CHIP_ANTIDOTE) {
-				this.antidoteCD = getCooldown(item.id, this.id)!
-			} else if (item.id == CHIP_LIBERATION) {
-				this.liberationCD = getCooldown(item.id, this.id)!
-			} else if (item.id == CHIP_MANUMISSION) {
-				this.manumissionCD = getCooldown(item.id, this.id)!
-			} else if (item.id == CHIP_JUMP) {
-				this.jumpCD = getCooldown(item.id, this.id)!
-				this.jumpItem = item
-			} else if (item.id == CHIP_TELEPORTATION) {
-				this.teleportCD = getCooldown(item.id, this.id)!
-				this.teleportItem = item
-			} else if (item.id == CHIP_GRAPPLE) {
-				this.grappleCD = getCooldown(item.id, this.id)!
-				this.grappleItem = item
-			}
-		}
+		this._loadCooldowns()
 		this.loadEffects()
 		this.psnlife = this.life - this.psnTurn
+	}
+
+	/*
+	 * Scans items for special chips and caches their cooldowns + item refs.
+	 * Called by constructor and refreshState().
+	 */
+	void _loadCooldowns() {
+		for (Item item in this.items) {
+			if (item.id == CHIP_ANTIDOTE) { this.antidoteCD = getCooldown(item.id, this.id)! }
+			else if (item.id == CHIP_LIBERATION) { this.liberationCD = getCooldown(item.id, this.id)! }
+			else if (item.id == CHIP_MANUMISSION) { this.manumissionCD = getCooldown(item.id, this.id)! }
+			else if (item.id == CHIP_JUMP) { this.jumpCD = getCooldown(item.id, this.id)!; this.jumpItem = item }
+			else if (item.id == CHIP_TELEPORTATION) { this.teleportCD = getCooldown(item.id, this.id)!; this.teleportItem = item }
+			else if (item.id == CHIP_GRAPPLE) { this.grappleCD = getCooldown(item.id, this.id)!; this.grappleItem = item }
+		}
 	}
 
 	/*

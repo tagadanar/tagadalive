@@ -27,7 +27,7 @@ class MapAction {
 	static Map<integer, Set<Item>> _entityTargetedItems
 
 	// Budget: 80% of max operations
-	static real BUDGET_RATIO = 0.8
+	static real BUDGET_RATIO = 0.70
 	// Counter for actions created during refresh (for guaranteed minimum)
 	static integer _actionsCreated = 0
 
@@ -165,7 +165,7 @@ class MapAction {
 		integer totalTuples = count(tuples)
 		integer pass1Count = 0
 		integer pass2Count = 0
-		integer emergencyBudget = (getMaxOperations() * 0.95) as integer
+		integer emergencyBudget = (getMaxOperations() * 0.90) as integer
 
 		// --- Pass 1: Best tuple per item (guaranteed coverage) ---
 		Map<integer, boolean> seenItems = [:]

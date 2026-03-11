@@ -96,7 +96,7 @@ class MapDanger {
 		integer maxAllySupport = MapSupport.collectAllies()
 		integer maxAllyDamage = MapDamage.collectAllies()
 
-		integer dangerBudget = (getMaxOperations() * 0.4) as integer
+		integer dangerBudget = (getMaxOperations() * 0.35) as integer
 		integer enemyRound = 0
 		integer allySupportRound = 0
 		integer allyDamageRound = 0
