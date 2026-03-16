@@ -418,7 +418,7 @@ class MapTactical {
 				// Grapple: cast from away-from-enemy direction (pull away from enemy)
 				// Boxing: cast from enemy direction (push away from enemy)
 				integer castDir = isGrapple ? dirAwayFromEnemy : dirToEnemy
-				if (!inArray(directions, castDir)) {
+				if (castDir not in directions) {
 					push(directions, castDir)
 				}
 			}
