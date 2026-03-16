@@ -1,11 +1,11 @@
 /*
  * BulbProfile - Static definition of a bulb type using game API
- * Uses getBulbCharacteristics() to fetch stat ranges dynamically.
+ * Uses getBulbStats() to fetch stat ranges dynamically.
  */
 class BulbProfile {
 	integer bulbType       // BULB_LIGHTNING, etc. (game constant)
 	integer summonChip     // CHIP_LIGHTNING_BULB
-	Map<integer, Array<integer>>? characs = null  // cached from getBulbCharacteristics()
+	Map<integer, Array<integer>>? characs = null  // cached from getBulbStats()
 
 	constructor(integer bulbType, integer summonChip) {
 		this.bulbType = bulbType
@@ -19,22 +19,20 @@ class BulbProfile {
 	 */
 	BulbStats computeStats(integer summonerLevel) {
 		if (this.characs == null) {
-			this.characs = getBulbCharacteristics(this.summonChip)
+			this.characs = getBulbStats(this.summonChip)
 		}
 		Map<integer, Array<integer>> c = this.characs!
 		real ratio = min(300, summonerLevel) / 300.0
-		// Keys: 0=life, 1=tp, 2=mp, 3=str, 4=agi, 6=wsd, 11=mgc, 12=snc, 13=rst
-		// TODO: replace with CHARAC_* constants when they become available
 		return BulbStats(
-			BulbProfile._interp(c[0], ratio),   // life
-			BulbProfile._interp(c[3], ratio),   // str
-			BulbProfile._interp(c[4], ratio),   // agi
-			BulbProfile._interp(c[2], ratio),   // mp
-			BulbProfile._interp(c[1], ratio),   // tp
-			BulbProfile._interp(c[12], ratio),  // snc
-			BulbProfile._interp(c[6], ratio),   // wsd
-			BulbProfile._interp(c[13], ratio),  // mgc
-			BulbProfile._interp(c[11], ratio)   // rst
+			BulbProfile._interp(c[STAT_LIFE], ratio),
+			BulbProfile._interp(c[STAT_STRENGTH], ratio),
+			BulbProfile._interp(c[STAT_AGILITY], ratio),
+			BulbProfile._interp(c[STAT_MP], ratio),
+			BulbProfile._interp(c[STAT_TP], ratio),
+			BulbProfile._interp(c[STAT_SCIENCE], ratio),
+			BulbProfile._interp(c[STAT_WISDOM], ratio),
+			BulbProfile._interp(c[STAT_MAGIC], ratio),
+			BulbProfile._interp(c[STAT_RESISTANCE], ratio)
 		)
 	}
 
