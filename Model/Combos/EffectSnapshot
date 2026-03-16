@@ -210,7 +210,7 @@ class EffectSnapshot {
 	 */
 	integer getHP(Entity entity) {
 		integer? hpDelta = this.getAlteration(entity, Stats.HP)
-		return entity.life + (hpDelta != null ? hpDelta! : 0)
+		return entity.life + (hpDelta ?? 0)
 	}
 
 	/*
@@ -219,7 +219,7 @@ class EffectSnapshot {
 	 */
 	integer getHPMissing(Entity entity) {
 		integer? hpMaxDelta = this.getAlteration(entity, Stats.HPMAX)
-		integer currentMax = entity.totalLife + (hpMaxDelta != null ? hpMaxDelta! : 0)
+		integer currentMax = entity.totalLife + (hpMaxDelta ?? 0)
 		return currentMax - this.getHP(entity)
 	}
 
@@ -247,6 +247,6 @@ class EffectSnapshot {
 	 */
 	integer getCurrentStat(Entity entity, integer stat, integer baseValue) {
 		integer? delta = this.getAlteration(entity, stat)
-		return baseValue + (delta != null ? delta! : 0)
+		return baseValue + (delta ?? 0)
 	}
 }

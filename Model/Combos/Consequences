@@ -136,7 +136,7 @@ class Consequences {
 		this.currentWeapon = consequences.currentWeapon
 		this.hashcode = consequences.hashcode
 		this.dangerMPHash = consequences.dangerMPHash
-		this.score = consequences.score != null ? consequences.score : 0.0
+		this.score = consequences.score ?? 0.0
 
 		// COPY-ON-WRITE: Handle different parent modes
 		if (consequences._shared != null) {
@@ -251,7 +251,7 @@ class Consequences {
 		}
 
 		// Track score before effects (for opportunity cost calculation)
-		real scoreBefore = this.score != null ? this.score! : 0.0
+		real scoreBefore = this.score ?? 0.0
 
 		// Track MP/TP boosts before applying effects
 		integer? boostMPbefore = this.getAlteration(Fight.self, Stats.MP)
@@ -407,11 +407,11 @@ class Consequences {
 
 		// Apply MP/TP boost from snapshot (with conservative adjustment for self buffs)
 		integer? boostMP = this._shared!.getAlteration(Fight.self, Stats.MP)
-		integer mpDelta = (boostMP != null ? boostMP! : 0) + this._shared!.selfMPConservativeAdjustment
+		integer mpDelta = (boostMP ?? 0) + this._shared!.selfMPConservativeAdjustment
 		if (mpDelta != 0) this.currentMP += mpDelta
 
 		integer? boostTP = this._shared!.getAlteration(Fight.self, Stats.TP)
-		integer tpDelta = (boostTP != null ? boostTP! : 0) + this._shared!.selfTPConservativeAdjustment
+		integer tpDelta = (boostTP ?? 0) + this._shared!.selfTPConservativeAdjustment
 		if (tpDelta != 0) this.currentTP += tpDelta
 	}
 
@@ -811,12 +811,12 @@ class Consequences {
 
 	integer getHP(Entity entity) {
 		integer? hpDelta = this.getAlteration(entity, Stats.HP)
-		return entity.life + (hpDelta != null ? hpDelta! : 0)
+		return entity.life + (hpDelta ?? 0)
 	}
 
 	integer getHPMissing(Entity entity) {
 		integer? hpMaxDelta = this.getAlteration(entity, Stats.HPMAX)
-		integer currentMax = entity.totalLife + (hpMaxDelta != null ? hpMaxDelta! : 0)
+		integer currentMax = entity.totalLife + (hpMaxDelta ?? 0)
 		return currentMax - this.getHP(entity)
 	}
 
@@ -825,11 +825,11 @@ class Consequences {
 	}
 
 	integer getPsnPerTurn(Entity entity) {
-		return _psnPerTurn[entity] != null ? _psnPerTurn[entity]! : 0
+		return _psnPerTurn[entity] ?? 0
 	}
 
 	void addPsnPerTurn(Entity entity, integer value) {
-		this._psnPerTurn[entity] = (this._psnPerTurn[entity] != null ? this._psnPerTurn[entity]! : 0) + value
+		this._psnPerTurn[entity] = (this._psnPerTurn[entity] ?? 0) + value
 	}
 
 	real? getScore(){

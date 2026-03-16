@@ -453,7 +453,7 @@ class EffectHandlers {
 
 		// Base value for having a bulb (intrinsic strategic value)
 		real? baseValueMaybe = ScoringConfig.SUMMON_VALUES[bulbType]
-		real baseValue = baseValueMaybe != null ? baseValueMaybe! : ScoringConfig.SUMMON_VALUE_DEFAULT
+		real baseValue = baseValueMaybe ?? ScoringConfig.SUMMON_VALUE_DEFAULT
 
 		// Computed score from simulation (includes: dmg*coef + kill bonus + distFactor)
 		real computedScore = 0

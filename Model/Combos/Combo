@@ -18,7 +18,7 @@ class Combo {
 		if(this.getUsageCount(action.item) >= action.item.maxUse) return false
 
 		Consequences currentCsq = this.getCurrentConsequences()
-		real prevScore = currentCsq.score != null ? currentCsq.score! : 0.0
+		real prevScore = currentCsq.score ?? 0.0
 		Action actualized = Action(action, currentCsq)
 
 		// Check score improvement (actualized.score is cumulative)
@@ -231,8 +231,7 @@ class Combo {
 		Map<integer, integer> usedCounts = [:]
 		for (Action a in this.actions) {
 			integer itemId = a.item.id
-			if (usedCounts[itemId] == null) usedCounts[itemId] = 0
-			usedCounts[itemId] += 1
+			usedCounts[itemId] = (usedCounts[itemId] ?? 0) + 1
 		}
 
 		// Get current cell after final movement
@@ -249,8 +248,7 @@ class Combo {
 			if (a.item.haveCD && getCooldown(a.item.id) > 0) continue
 
 			// Check maxUse
-			integer used = usedCounts[a.item.id] != null ? usedCounts[a.item.id]! : 0
-			if (used >= a.item.maxUse) continue
+			if ((usedCounts[a.item.id] ?? 0) >= a.item.maxUse) continue
 
 			// Check affordability (weapon switch costs 1 TP)
 			integer switchCost = 0
@@ -276,8 +274,7 @@ class Combo {
 			if (a.item.cost + switchCost > currentTP) continue
 
 			// Re-check maxUse
-			integer used = usedCounts[a.item.id] != null ? usedCounts[a.item.id]! : 0
-			if (used >= a.item.maxUse) continue
+			if ((usedCounts[a.item.id] ?? 0) >= a.item.maxUse) continue
 
 			// Execute
 			integer result
@@ -291,13 +288,12 @@ class Combo {
 			if (result >= 0) {
 				bonusCount++
 				Benchmark.log("BONUS>" + a.item.name + ">c" + a.to.id)
-				if (usedCounts[a.item.id] == null) usedCounts[a.item.id] = 0
-				usedCounts[a.item.id] += 1
+				usedCounts[a.item.id] = (usedCounts[a.item.id] ?? 0) + 1
 
 				// Loop repeatable items (no CD, maxUse > 1)
 				if (!a.item.haveCD && a.item.maxUse > 1) {
 					while (getTP() >= a.item.cost + switchCost) {
-						integer u = usedCounts[a.item.id] != null ? usedCounts[a.item.id]! : 0
+						integer u = usedCounts[a.item.id] ?? 0
 						if (u >= a.item.maxUse) break
 						integer r2
 						if (a.to == Fight.selfCell) {

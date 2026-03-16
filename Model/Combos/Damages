@@ -29,11 +29,9 @@ class Damages {
 			if (ef.turns != 1) continue
 			integer cId = ef.caster.id
 			if (ef.type == EFFECT_ABSOLUTE_SHIELD || ef.type == EFFECT_RAW_ABSOLUTE_SHIELD) {
-				if (expiringAbs[cId] == null) expiringAbs[cId] = 0.0
-				expiringAbs[cId] = expiringAbs[cId]! + ef.value
+				expiringAbs[cId] = (expiringAbs[cId] ?? 0.0) + ef.value
 			} else if (ef.type == EFFECT_RELATIVE_SHIELD || ef.type == EFFECT_RAW_RELATIVE_SHIELD) {
-				if (expiringRel[cId] == null) expiringRel[cId] = 0.0
-				expiringRel[cId] = expiringRel[cId]! + ef.value
+				expiringRel[cId] = (expiringRel[cId] ?? 0.0) + ef.value
 			}
 		}
 		real libeFactor = 1.0
