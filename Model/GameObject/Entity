@@ -155,13 +155,12 @@ class Entity {
 		this.turnOrder = getEntityTurnOrder(id)!
 		this.isFriend = isAlly(id)
 		this.isBulb = isSummon(id)!
-		// Fennel King boss: detect crystals by name (must NOT be damaged)
-		this.isCrystal = this.name == "blue_crystal" || this.name == "green_crystal" || this.name == "red_crystal" || this.name == "yellow_crystal"
-		// Fennel King boss: detect graal (must NOT be moved)
-		this.isGraal = this.name == "graal"
-		// Fennel King boss: detect main boss (boosted TP/MP shackle coefs)
-		this.isFennelKing = this.name == "fennel_king"
-		this.isEvilPumpkin = this.name == "evil_pumpkin"
+		// Boss detection via getMobType() API (15 ops, replaces name matching)
+		integer mobType = getMobType(id)
+		this.isCrystal = mobType == MOB_RED_CRYSTAL || mobType == MOB_GREEN_CRYSTAL || mobType == MOB_BLUE_CRYSTAL || mobType == MOB_YELLOW_CRYSTAL
+		this.isGraal = mobType == MOB_GRAAL
+		this.isFennelKing = mobType == MOB_FENNEL_KING
+		this.isEvilPumpkin = mobType == MOB_EVIL_PUMPKIN
 		this.isProtected = !this.isFriend && getFarmerName(id) == "tagadalton"
 		this.entityType = getType(id)!
 		// Cache extended type via getBulbType() API (15 ops, replaces name matching)
