@@ -249,12 +249,14 @@ class Entity {
 	 */
 	void _loadCooldowns() {
 		for (Item item in this.items) {
-			if (item.id == CHIP_ANTIDOTE) { this.antidoteCD = getCooldown(item.id, this.id)! }
-			else if (item.id == CHIP_LIBERATION) { this.liberationCD = getCooldown(item.id, this.id)! }
-			else if (item.id == CHIP_MANUMISSION) { this.manumissionCD = getCooldown(item.id, this.id)! }
-			else if (item.id == CHIP_JUMP) { this.jumpCD = getCooldown(item.id, this.id)!; this.jumpItem = item }
-			else if (item.id == CHIP_TELEPORTATION) { this.teleportCD = getCooldown(item.id, this.id)!; this.teleportItem = item }
-			else if (item.id == CHIP_GRAPPLE) { this.grappleCD = getCooldown(item.id, this.id)!; this.grappleItem = item }
+			switch (item.id) {
+				case CHIP_ANTIDOTE: this.antidoteCD = getCooldown(item.id, this.id)!; break;
+				case CHIP_LIBERATION: this.liberationCD = getCooldown(item.id, this.id)!; break;
+				case CHIP_MANUMISSION: this.manumissionCD = getCooldown(item.id, this.id)!; break;
+				case CHIP_JUMP: this.jumpCD = getCooldown(item.id, this.id)!; this.jumpItem = item; break;
+				case CHIP_TELEPORTATION: this.teleportCD = getCooldown(item.id, this.id)!; this.teleportItem = item; break;
+				case CHIP_GRAPPLE: this.grappleCD = getCooldown(item.id, this.id)!; this.grappleItem = item; break;
+			}
 		}
 	}
 
@@ -280,30 +282,40 @@ class Entity {
 			// COVID detection (propagates to nearby entities)
 			if (effect.item.id == CHIP_COVID) this.hasCovid = true
 			// piste d'optimisation en ayant une meilleure structure pour les effets ici ?
-			// les eval en dessous pourrait être déléguer à un tab pour éviter les ifelseif?
-			// et ptete ajouter d'autres alt pour les autres stats ?
-			if(effect.type == EFFECT_POISON) {
-				this.psnTurn += effect.value
-				this.psnTotal += effect.value * effect.turns
-			} else if(effect.type == EFFECT_HEAL) {
-				this.psnTurn += -effect.value
-				this.psnTotal += -effect.value * effect.turns
-			} else if(effect.type == EFFECT_SHACKLE_STRENGTH) {
-				this.altStr += -effect.value
-			//	} else if(effect.type == EFFECT_SHACKLE_MAGIC) {
-			//		this.altMgc -= value
-			} else if(effect.type == EFFECT_SHACKLE_TP) {
-				this.altTP += -effect.value
-			} else if(effect.type == EFFECT_SHACKLE_MP) {
-				this.altMP += -effect.value
-			} else if(effect.type == EFFECT_BUFF_STRENGTH || effect.type == EFFECT_RAW_BUFF_STRENGTH) {
-				this.altStr += effect.value
-			} else if(effect.type == EFFECT_BUFF_TP || effect.type == EFFECT_RAW_BUFF_TP) {
-				this.altTP += effect.value
-			} else if(effect.type == EFFECT_BUFF_MP || effect.type == EFFECT_RAW_BUFF_MP) {
-				this.altMP += effect.value
-			} else if(effect.type == EFFECT_BUFF_AGILITY || effect.type == EFFECT_RAW_BUFF_AGILITY) {
-				this.altAgi += effect.value
+			switch (effect.type) {
+				case EFFECT_POISON:
+					this.psnTurn += effect.value
+					this.psnTotal += effect.value * effect.turns
+					break;
+				case EFFECT_HEAL:
+					this.psnTurn += -effect.value
+					this.psnTotal += -effect.value * effect.turns
+					break;
+				case EFFECT_SHACKLE_STRENGTH:
+					this.altStr += -effect.value
+					break;
+				case EFFECT_SHACKLE_TP:
+					this.altTP += -effect.value
+					break;
+				case EFFECT_SHACKLE_MP:
+					this.altMP += -effect.value
+					break;
+				case EFFECT_BUFF_STRENGTH:
+				case EFFECT_RAW_BUFF_STRENGTH:
+					this.altStr += effect.value
+					break;
+				case EFFECT_BUFF_TP:
+				case EFFECT_RAW_BUFF_TP:
+					this.altTP += effect.value
+					break;
+				case EFFECT_BUFF_MP:
+				case EFFECT_RAW_BUFF_MP:
+					this.altMP += effect.value
+					break;
+				case EFFECT_BUFF_AGILITY:
+				case EFFECT_RAW_BUFF_AGILITY:
+					this.altAgi += effect.value
+					break;
 			}
 		}
 	}

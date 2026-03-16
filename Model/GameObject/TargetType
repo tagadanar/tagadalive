@@ -108,19 +108,16 @@ class TargetType {
 		
 		integer tt = TargetType.CONVERTER[effect.type]!
 		if(!tt) debugE('unhandled type in TargetType on effect: ' + effect)
-		if(tt == TargetType.ENEMIES) this.enemies = true
-		else if(tt == TargetType.ALLIES) this.allies = true
-		else if(tt == TargetType.ALL){
-			this.enemies = true
-			this.allies = true
-		}else if(tt == TargetType.EMPTY){
-			this.onEmpty = true
-		}else if(tt == TargetType.PASSIVE){
-			// Passive effects only affect caster, don't contribute to item targeting
-			this.onCaster = true
-		}else{
-			// else everything should be on false for .NONE
-			debugE("Strange behavior in TargetType, should never get there")
+		switch (tt) {
+			case TargetType.ENEMIES: this.enemies = true; break;
+			case TargetType.ALLIES: this.allies = true; break;
+			case TargetType.ALL:
+				this.enemies = true
+				this.allies = true
+				break;
+			case TargetType.EMPTY: this.onEmpty = true; break;
+			case TargetType.PASSIVE: this.onCaster = true; break;
+			default: debugE("Strange behavior in TargetType, should never get there")
 		}
 
 		// For modifCaster effects (e.g., CHIP_VAMPIRIZATION), the effect applies to SELF

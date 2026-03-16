@@ -95,20 +95,20 @@ class Items {
 			if(item.targetKey == Item.ALLBULBS || item.targetKey == Item.ENEMIESBULBS) continue;
 			dmg=0.0;
 			for(ItemEffect e in item.effects){
-				if(e.type == EFFECT_DAMAGE ){
-					dmg += (e.avg*(1+(entity.str/100))*(1+(entity.pwr/100))*(1-(relShield/100)))-absShield;
+				switch (e.type) {
+					case EFFECT_DAMAGE:
+						dmg += (e.avg*(1+(entity.str/100))*(1+(entity.pwr/100))*(1-(relShield/100)))-absShield
+						break;
+					case EFFECT_POISON:
+						dmg += e.avg*(1+(entity.mgc/100))*(1+(entity.pwr/100))*e.duration
+						break;
+					case EFFECT_LIFE_DAMAGE:
+						dmg += (entity.life*(e.avg/100)*(1+(entity.pwr/100))*(1-(relShield/100)))-absShield
+						break;
+					case EFFECT_HEAL:
+						dmg -= e.avg*(1+(entity.wsd/100))
+						break;
 				}
-				else if(e.type == EFFECT_POISON){
-					dmg += e.avg*(1+(entity.mgc/100))*(1+(entity.pwr/100))*e.duration;
-				}
-				else if(e.type == EFFECT_LIFE_DAMAGE){
-					// Life damage: sourceLife * (avg%/100) * (1+pwr/100), then shields
-					dmg += (entity.life*(e.avg/100)*(1+(entity.pwr/100))*(1-(relShield/100)))-absShield;
-				}
-				else if(e.type == EFFECT_HEAL){
-					dmg -= e.avg*(1+(entity.wsd/100));
-				}
-				// ici add les effets d'entrave en score pts->dmg
 			}
 			if(dmg>0) dmgPerItem[item] = dmg/item.cost;
 		}
@@ -135,34 +135,32 @@ class Items {
 			integer duration = Scoring.getEffectiveDuration(e.duration, entity, Fight.self)
 			real mitigation = Scoring.durationMitigation(duration)
 
-			// === HEAL EFFECTS ===
-			if (e.type == EFFECT_HEAL) {
-				real healValue = e.avg * (1 + entity.wsd / 100)
-				real coef = Scoring.getDynamicCoef(Fight.self, Stats.HP, null)
-				value += healValue * coef * mitigation
-			}
-			else if (e.type == EFFECT_BOOST_MAX_LIFE) {
-				real boostValue = e.avg * (1 + entity.wsd / 100)
-				real coef = Scoring.getDynamicCoef(Fight.self, Stats.HPMAX, null)
-				value += boostValue * coef * mitigation
-			}
-			// === SHIELD EFFECTS ===
-			else if (e.type == EFFECT_ABSOLUTE_SHIELD) {
-				real shieldValue = e.avg * (1 + entity.rst / 100)
-				real coef = Scoring.getDynamicCoef(Fight.self, Stats.ABSSHIELD, null)
-				value += shieldValue * coef * mitigation
-			}
-			else if (e.type == EFFECT_RELATIVE_SHIELD) {
-				real shieldValue = e.avg * (1 + entity.rst / 100)
-				real coef = Scoring.getDynamicCoef(Fight.self, Stats.RELSHIELD, null)
-				value += shieldValue * coef * mitigation
-			}
-			// === ANTIDOTE EFFECT ===
-			else if (e.type == EFFECT_ANTIDOTE) {
-				// When enemyHasMgc, use DEATH_VALUE to guarantee selection
-				if (BattleState.enemyHasMgc) {
-					value += ScoringConfig.DEATH_VALUE
-				}
+			switch (e.type) {
+				case EFFECT_HEAL:
+					real healValue = e.avg * (1 + entity.wsd / 100)
+					real coef = Scoring.getDynamicCoef(Fight.self, Stats.HP, null)
+					value += healValue * coef * mitigation
+					break;
+				case EFFECT_BOOST_MAX_LIFE:
+					real boostValue = e.avg * (1 + entity.wsd / 100)
+					real coef = Scoring.getDynamicCoef(Fight.self, Stats.HPMAX, null)
+					value += boostValue * coef * mitigation
+					break;
+				case EFFECT_ABSOLUTE_SHIELD:
+					real shieldValue = e.avg * (1 + entity.rst / 100)
+					real coef = Scoring.getDynamicCoef(Fight.self, Stats.ABSSHIELD, null)
+					value += shieldValue * coef * mitigation
+					break;
+				case EFFECT_RELATIVE_SHIELD:
+					real shieldValue = e.avg * (1 + entity.rst / 100)
+					real coef = Scoring.getDynamicCoef(Fight.self, Stats.RELSHIELD, null)
+					value += shieldValue * coef * mitigation
+					break;
+				case EFFECT_ANTIDOTE:
+					if (BattleState.enemyHasMgc) {
+						value += ScoringConfig.DEATH_VALUE
+					}
+					break;
 			}
 		}
 		return value
