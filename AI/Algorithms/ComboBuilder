@@ -1295,7 +1295,7 @@ class ComboBuilder {
 	static Map<Item, integer> _countUsage(Array<Action> actions) {
 		Map<Item, integer> usage = [:]
 		for (Action a in actions) {
-			integer count = usage[a.item] != null ? usage[a.item]! : 0
+			integer count = usage[a.item] ?? 0
 			usage[a.item] = count + 1
 		}
 		return usage
@@ -1308,8 +1308,8 @@ class ComboBuilder {
 		Array<Action> filtered = []
 		Map<Item, integer> remaining = [:]
 		for (Action a in pool) {
-			integer used = usedCounts[a.item] != null ? usedCounts[a.item]! : 0
-			integer seen = remaining[a.item] != null ? remaining[a.item]! : 0
+			integer used = usedCounts[a.item] ?? 0
+			integer seen = remaining[a.item] ?? 0
 			if (used + seen < a.item.maxUse) {
 				push(filtered, a)
 				remaining[a.item] = seen + 1
@@ -2382,7 +2382,7 @@ class ComboBuilder {
 	static Array<Action> _excludeUsed(Array<Action> pool, Map<Item, integer> usesThisTurn) {
 		Array<Action> filtered = []
 		for (Action a in pool) {
-			integer uses = usesThisTurn[a.item] != null ? usesThisTurn[a.item]! : 0
+			integer uses = usesThisTurn[a.item] ?? 0
 			if (uses < a.item.maxUse) {
 				push(filtered, a)
 			}
@@ -2488,7 +2488,7 @@ class ComboBuilder {
 	static boolean _tryAddActionImpl(Combo combo, Action action, Map<Item, integer> usesThisTurn, integer reserveMP, integer reserveTP, Set<Cell> baseCellsToIgnore) {
 		reserveTP += BossPotiMalef.getReservedTP()
 		// Check usage limit
-		integer uses = usesThisTurn[action.item] != null ? usesThisTurn[action.item]! : 0
+		integer uses = usesThisTurn[action.item] ?? 0
 		if (uses >= action.item.maxUse) return false
 
 		// Get current state

@@ -348,19 +348,19 @@ class MCTS {
 			Action chainedAction = Action(bestAction!, currentState)
 
 			// Only continue if score improved (positive delta)
-			real prevScore = currentState.score == null ? 0.0 : currentState.score!
+			real prevScore = currentState.score ?? 0.0
 			if (chainedAction.score! <= prevScore) break
 
 			// Apply action: update state and resources (switch cost now in Consequences)
 			currentState = chainedAction.consequences
 			simTP = currentState.currentTP  // Switch cost already deducted by Consequences
 			simWeapon = currentState.currentWeapon
-			usageCounts[bestAction!.item] = (usageCounts[bestAction!.item] ? usageCounts[bestAction!.item]! : 0) + 1
+			usageCounts[bestAction!.item] = (usageCounts[bestAction!.item] ?? 0) + 1
 			rolloutSteps++
 		}
 
 		// Final score = accumulated consequence score + danger at final position
-		real totalScore = currentState.score == null ? 0.0 : currentState.score!
+		real totalScore = currentState.score ?? 0.0
 		Danger finalDanger = MapDanger.getCellDanger(currentState.currentCell, currentState)
 		totalScore += finalDanger.score
 

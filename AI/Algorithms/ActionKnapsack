@@ -229,7 +229,7 @@ class ActionKnapsack {
 		for (Action a in pool) {
 			// Note: score > 0 filtering done upstream in MapCellScore
 			Item item = a.item
-			integer used = useCounts[item] != null ? useCounts[item]! : 0
+			integer used = useCounts[item] ?? 0
 			integer remaining = item.maxUse - used
 			if (remaining <= 0) continue
 

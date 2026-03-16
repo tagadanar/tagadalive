@@ -132,7 +132,7 @@ class BulbGreedy {
 			push(combo.actions, bestAction!)
 
 			// Update state for next iteration
-			integer prevUsed = usedItems[bestAction!.item] != null ? usedItems[bestAction!.item]! : 0
+			integer prevUsed = usedItems[bestAction!.item] ?? 0
 			usedItems[bestAction!.item] = prevUsed + 1
 			currentCsq = bestAction!.consequences
 			currentCell = currentCsq!.currentCell
@@ -205,7 +205,7 @@ class BulbGreedy {
 			if (item.cost > currentTP) continue
 
 			// Skip if maxUse reached
-			integer used = usedItems[item] != null ? usedItems[item]! : 0
+			integer used = usedItems[item] ?? 0
 			if (used >= item.maxUse) continue
 
 			// Skip summons - bulbs can't summon
