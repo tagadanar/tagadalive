@@ -12,7 +12,7 @@ class Targets{
 			if(action.item.isAOE) {
 				// For AOE self-cast, get targets around actual caster position
 				// Use simulatedSelfCell if provided (combo context), else Fight.self.cell
-				Cell actualPosition = simulatedSelfCell != null ? simulatedSelfCell! : Fight.self.cell
+				Cell actualPosition = simulatedSelfCell ?? Fight.self.cell
 				targets = Targets.getItemTargets(action.item, actualPosition)
 				// Only add self if item allows targeting caster
 				if(action.item.onCaster) {

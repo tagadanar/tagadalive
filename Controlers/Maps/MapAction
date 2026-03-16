@@ -535,7 +535,7 @@ class MapAction {
 			if (getCooldown(chip.id, Fight.self.id) > 0) continue
 
 			// Skip if already used >= maxUse
-			integer uses = usesThisTurn[chip] != null ? usesThisTurn[chip]! : 0
+			integer uses = usesThisTurn[chip] ?? 0
 			if (uses >= chip.maxUse) continue
 
 			// Skip if cost > remaining TP

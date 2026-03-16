@@ -472,7 +472,7 @@ class MapSummon {
 			SummonCandidate best = candidates[0]
 			BulbProfile? profile = PROFILES[chipId]
 			string? letterVal = profile != null ? BULB_LETTERS[profile!.bulbType] : null
-			string letter = letterVal != null ? letterVal! : "?"
+			string letter = letterVal ?? "?"
 			mark(best.cell.id, getColor(255, 165, 0))
 			markText(best.cell.id, letter + ":" + round(best.score))
 		}
@@ -615,7 +615,7 @@ class MapSummon {
 
 		// Determine target mode: enemy damage, ally heal, or ally shield
 		integer? modeVal = BULB_TARGET_MODE[profile.bulbType]
-		integer targetMode = modeVal != null ? modeVal! : TARGET_MODE_ENEMY
+		integer targetMode = modeVal ?? TARGET_MODE_ENEMY
 		boolean targetsAllies = targetMode != TARGET_MODE_ENEMY
 
 		Map<integer, Entity> targets = targetsAllies
@@ -744,7 +744,7 @@ class MapSummon {
 			if (b.score > a.score + 1) return 1
 			integer? costA = leekReachable[a.fromCell]
 			integer? costB = leekReachable[b.fromCell]
-			return (costA != null ? costA! : 0) - (costB != null ? costB! : 0)
+			return (costA ?? 0) - (costB ?? 0)
 		}) as Array<SummonCandidate>
 
 		return candidates

@@ -114,7 +114,7 @@ class BulbSimulator {
 		}) as Array<BulbChipAction>
 
 		for (BulbChipAction a in actions) {
-			integer uses = useCounts[a.item] != null ? useCounts[a.item]! : 0
+			integer uses = useCounts[a.item] ?? 0
 			if (uses >= a.maxUse) continue
 			push(expanded, a)
 			useCounts[a.item] = uses + 1

@@ -350,7 +350,7 @@ class MapPosition {
 
 			// Use path distance for nearest enemy (accurate), cell distance for others
 			if (_nearest_enemy != null && targetCell == _nearest_enemy!.cell && _nearest_enemy_path_dist != null) {
-				actualDist = _nearest_enemy_path_dist![cell] != null ? _nearest_enemy_path_dist![cell]! : 99
+				actualDist = _nearest_enemy_path_dist![cell] ?? 99
 			} else {
 				actualDist = getCellDistance(cell.id, targetCell.id)
 			}

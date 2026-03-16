@@ -22,7 +22,7 @@ class Entity {
 	 */
 	static string getBulbRegisterKey(integer bulbType) {
 		string? key = BULB_KEYS[bulbType]
-		return "bo_" + (key != null ? key! : "unknown")
+		return "bo_" + (key ?? "unknown")
 	}
 
 	integer id

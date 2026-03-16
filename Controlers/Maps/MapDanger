@@ -507,7 +507,7 @@ class MapDanger {
 						if (dist > e.mp) break
 						Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(item, cell)
 						for (Cell c in targetableCells) {
-							if (map[c] == null) map[c] = 1.0
+							map[c] ??= 1.0
 						}
 					}
 					coverageMap[e] = map

@@ -92,7 +92,7 @@ class BattleState {
 			if (entity.isBulb) {
 				integer bt = entity.extendedType
 				integer? prev = bulbCounts[bt]
-				bulbCounts[bt] = (prev != null ? prev! : 0) + 1
+				bulbCounts[bt] = (prev ?? 0) + 1
 				if (bt == BULB_FIRE || bt == BULB_ICED || bt == BULB_LIGHTNING || bt == BULB_ROCKY) {
 					countStrBulbs++
 				}
@@ -213,7 +213,7 @@ class BattleState {
 	 */
 	static integer getBulbCount(integer bulbType) {
 		integer? c = bulbCounts[bulbType]
-		return c != null ? c! : 0
+		return c ?? 0
 	}
 
 	/*
