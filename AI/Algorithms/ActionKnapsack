@@ -59,8 +59,8 @@ class ActionKnapsack {
 
 		// Starting weapon index (-1 if no weapon or chip-only)
 		integer startWeaponIdx = ActionKnapsack.CHIP
-		if (currentWeapon != null && ActionKnapsack.weaponToIdx[currentWeapon!] != null) {
-			startWeaponIdx = ActionKnapsack.weaponToIdx[currentWeapon!]!
+		if (currentWeapon != null && ActionKnapsack.weaponToIdx[currentWeapon] != null) {
+			startWeaponIdx = ActionKnapsack.weaponToIdx[currentWeapon]!
 		}
 
 		// DP: dp[tp][w] = max score using exactly tp, with weapon w equipped
@@ -185,9 +185,9 @@ class ActionKnapsack {
 		ActionKnapsack.weaponToIdx = [:]
 
 		// Add current weapon first (index 0)
-		if (currentWeapon != null && currentWeapon!.isWeap) {
-			push(ActionKnapsack.weaponList, currentWeapon!)
-			ActionKnapsack.weaponToIdx[currentWeapon!] = 0
+		if (currentWeapon != null && currentWeapon.isWeap) {
+			push(ActionKnapsack.weaponList, currentWeapon)
+			ActionKnapsack.weaponToIdx[currentWeapon] = 0
 		}
 
 		// Add other weapons from pool
@@ -216,7 +216,7 @@ class ActionKnapsack {
 
 		// Initialize with prefix uses (items already consumed before knapsack)
 		if (prefixUses != null) {
-			for (Item pi : integer pu in prefixUses!) {
+			for (Item pi : integer pu in prefixUses) {
 				useCounts[pi] = pu
 			}
 		}

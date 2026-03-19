@@ -23,7 +23,7 @@ class EffectHandlers {
 		if (effect.stackable) return false
 		EffectOverTime? existing = ctx.getExistingItemEffect(target, effect.item)
 		if (existing != null) {
-			EffectOverTime counter = EffectOverTime(effect.item, -existing!.value, existing!.duration, effect.type)
+			EffectOverTime counter = EffectOverTime(effect.item, -existing.value, existing.duration, effect.type)
 			ctx.add(target, stat, counter)
 			return true
 		}
@@ -458,7 +458,7 @@ class EffectHandlers {
 		// Computed score from simulation (includes: dmg*coef + kill bonus + distFactor)
 		real computedScore = 0
 		if (targetCell != null) {
-			computedScore = MapSummon.getComputedScore(item.id, targetCell!)
+			computedScore = MapSummon.getComputedScore(item.id, targetCell)
 		}
 
 		// Total value = base strategic value + combat score

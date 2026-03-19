@@ -93,7 +93,7 @@ class BeamState {
 
 		if (baseAction.to != Fight.selfCell) {
 			Entity? target = Board.entityCells[baseAction.to]
-			if (target != null && this.state.isKilled(target!)) return false
+			if (target != null && this.state.isKilled(target)) return false
 		}
 
 		// Use state.currentWeapon for switch cost check
@@ -186,7 +186,7 @@ class BeamSearch {
 
 					BeamState? newState = state.extend(baseAction)
 					if (newState != null) {
-						push(candidates, newState!)
+						push(candidates, newState)
 						totalCandidates++
 					}
 				}

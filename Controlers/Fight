@@ -154,9 +154,10 @@ class Fight {
 				integer bestMaxHP = 0
 				for (integer deadId in getDeadAllies()) {
 					if (isSummon(deadId)) continue  // Skip bulbs, only leeks
+					if (getName(deadId) == "4lone") continue  // 4lone not worth resurrecting
 					integer? maxHP = getTotalLife(deadId)
-					if (maxHP != null && maxHP! > bestMaxHP) {
-						bestMaxHP = maxHP!
+					if (maxHP != null && maxHP > bestMaxHP) {
+						bestMaxHP = maxHP
 						resurrectTargetId = deadId
 					}
 				}
@@ -361,7 +362,7 @@ class Fight {
 	 * Cached - computed once per turn.
 	 */
 	static Array<Entity> getEntitiesAfterSelfInOrder() {
-		if (_entitiesAfterSelfInOrder != null) return _entitiesAfterSelfInOrder!
+		if (_entitiesAfterSelfInOrder != null) return _entitiesAfterSelfInOrder
 
 		integer selfOrder = self.turnOrder
 

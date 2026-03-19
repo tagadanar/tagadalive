@@ -43,13 +43,13 @@ class Items {
 			_stuff[entityId] = []
 			Array<integer>? weapons = getWeapons(entityId)
 			if (weapons != null) {
-				for(integer itemId in weapons!){
+				for(integer itemId in weapons){
 					push(_stuff[entityId]!, _items[itemId]);
 				}
 			}
 			Array<integer>? chips = getChips(entityId)
 			if (chips != null) {
-				for(integer itemId in chips!){
+				for(integer itemId in chips){
 					push(_stuff[entityId]!, _items[itemId]);
 				}
 			}
@@ -176,7 +176,7 @@ class Items {
 		if (effect.stackable) return false
 		if (effect.duration <= 1) return false
 		Array<EffectOverTime>? existing = Fight.self.items_effectOverTime[item]
-		return existing != null && count(existing!) > 0
+		return existing != null && count(existing) > 0
 	}
 
 	/*

@@ -70,12 +70,12 @@ class Board {
 	 */	
 	static void color(Array<integer>|Array<Cell>|integer|Cell cells, integer color) {
 		if(typeOf(cells) != TYPE_ARRAY){
-			if(cells instanceof Cell) mark((cells as Cell).id, color)
-			else mark(cells as integer, color)
+			if(cells instanceof Cell) mark(cells.id, color)
+			else mark(cells, color)
 		}else{
 			for(Cell|integer cell in cells as Array<Cell|integer>){
-				if(cell instanceof Cell) mark((cell as Cell).id, color)
-				else mark(cell as integer, color)
+				if(cell instanceof Cell) mark(cell.id, color)
+				else mark(cell, color)
 			}
 		}
 	}
@@ -88,11 +88,11 @@ class Board {
 	static void colorKey(Map<Cell|integer, integer> cells, integer color){
 		for(Cell|integer cell:integer mp in cells){
 			if(cell instanceof Cell){
-				mark((cell as Cell).id, color)
-				markText((cell as Cell).id, mp)	
+				mark(cell.id, color)
+				markText(cell.id, mp)
 			} else {
-				mark(cell as integer, color)
-				markText(cell as integer, mp)
+				mark(cell, color)
+				markText(cell, mp)
 			}
 			
 		}

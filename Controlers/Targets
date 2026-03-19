@@ -41,7 +41,7 @@ class Targets{
 		Array<integer>? targetsId = item.isWeap ? getWeaponTargets(item.id, cell.id) : getChipTargets(item.id, cell.id)
 		Set<Entity> targets = <>
 		if (targetsId != null) {
-			for(integer targetId in targetsId!){
+			for(integer targetId in targetsId){
 				if(targetId == Fight.self.id && cell != Fight.selfCell) continue // skip moi mm si c'est pas selfcast
 				// TODO better, handle minrange & fromcell ?
 				setPut(targets, Fight.getEntity(targetId))
@@ -57,34 +57,38 @@ class Targets{
 		Array<Cell> result = []
 		Cell? c = Board.cellsXY[cell.x+item.minRange]![cell.y]
 		integer inc = 1
-		if(c!=null && c!.isNotWall && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
-			while(c!=null && c!.isNotWall && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
+		if(c!=null && c.isNotWall && !Board.entityCells[c] && lineOfSight(cell.id, c.id, [Fight.self.cell.id])){
+			while(c.isNotWall && !Board.entityCells[c] && getCellDistance(cell.id, c.id)<=item.maxRange){
 				push(result, c)
 				c = Board.cellsXY[cell.x+item.minRange+inc++]![cell.y]
+				if(c == null) break
 			}
 		}
 		c = Board.cellsXY[cell.x-item.minRange]![cell.y]
 		inc = 1
-		if(c!=null && c!.isNotWall && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
-			while(c!=null && c!.isNotWall && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
+		if(c!=null && c.isNotWall && !Board.entityCells[c] && lineOfSight(cell.id, c.id, [Fight.self.cell.id])){
+			while(c.isNotWall && !Board.entityCells[c] && getCellDistance(cell.id, c.id)<=item.maxRange){
 				push(result, c)
 				c = Board.cellsXY[cell.x-item.minRange-inc++]![cell.y]
+				if(c == null) break
 			}
 		}
 		c = Board.cellsXY[cell.x]![cell.y+item.minRange]
 		inc = 1
-		if(c!=null && c!.isNotWall && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
-			while(c!=null && c!.isNotWall && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
+		if(c!=null && c.isNotWall && !Board.entityCells[c] && lineOfSight(cell.id, c.id, [Fight.self.cell.id])){
+			while(c.isNotWall && !Board.entityCells[c] && getCellDistance(cell.id, c.id)<=item.maxRange){
 				push(result, c);
 				c = Board.cellsXY[cell.x]![cell.y+item.minRange+inc++]
+				if(c == null) break
 			}
 		}
 		c = Board.cellsXY[cell.x]![cell.y-item.minRange]
 		inc = 1
-		if(c!=null && c!.isNotWall && !Board.entityCells[c!] && lineOfSight(cell.id, c!.id, [Fight.self.cell.id])){
-			while(c!=null && c!.isNotWall && !Board.entityCells[c!] && getCellDistance(cell.id, c!.id)<=item.maxRange){
+		if(c!=null && c.isNotWall && !Board.entityCells[c] && lineOfSight(cell.id, c.id, [Fight.self.cell.id])){
+			while(c.isNotWall && !Board.entityCells[c] && getCellDistance(cell.id, c.id)<=item.maxRange){
 				push(result, c);
 				c = Board.cellsXY[cell.x]![cell.y-item.minRange-inc++]
+				if(c == null) break
 			}
 		}
 		return result;
@@ -102,16 +106,16 @@ class Targets{
 			if(from.y<to.y){ // y++
 				while(true){
 					tmpCell = Board.cellsXY[to.x]![to.y+inc]
-					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
-					Entity? entityOnCell = Board.entityCells[tmpCell!]
+					if(tmpCell == null || tmpCell.isWall || inc > maxInc) break;
+					Entity? entityOnCell = Board.entityCells[tmpCell]
 					if(entityOnCell != null) setPut(result, entityOnCell)
 					inc++
 				}
 			}else{ // y--
 				while(true){
 					tmpCell = Board.cellsXY[to.x]![to.y-inc]
-					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
-					Entity? entityOnCell = Board.entityCells[tmpCell!]
+					if(tmpCell == null || tmpCell.isWall || inc > maxInc) break;
+					Entity? entityOnCell = Board.entityCells[tmpCell]
 					if(entityOnCell != null) setPut(result, entityOnCell)
 					inc++
 				}
@@ -120,16 +124,16 @@ class Targets{
 			if(from.x<to.x){ // x++
 				while(true){
 					tmpCell = Board.cellsXY[to.x+inc]![to.y]
-					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
-					Entity? entityOnCell = Board.entityCells[tmpCell!]
+					if(tmpCell == null || tmpCell.isWall || inc > maxInc) break;
+					Entity? entityOnCell = Board.entityCells[tmpCell]
 					if(entityOnCell != null) setPut(result, entityOnCell)
 					inc++
 				}
 			}else{ // x--
 				while(true){
 					tmpCell = Board.cellsXY[to.x-inc]![to.y]
-					if(tmpCell == null || tmpCell!.isWall || inc > maxInc) break;
-					Entity? entityOnCell = Board.entityCells[tmpCell!]
+					if(tmpCell == null || tmpCell.isWall || inc > maxInc) break;
+					Entity? entityOnCell = Board.entityCells[tmpCell]
 					if(entityOnCell!= null) setPut(result, entityOnCell)
 					inc++
 				}
@@ -189,9 +193,9 @@ class Targets{
 				if (abs(cell.x-x) < item.minRange) continue;
 				Cell? fromCell = Board.cellsXY[x]![cell.y]
 				if(fromCell!=null 
-				&& fromCell!.isNotWall
-				&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
-				&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))) {
+				&& fromCell.isNotWall
+				&& (shouldReturnOccupiedCells || Board.entityCells[fromCell]==null)
+				&& (!item.needLOS || lineOfSight(fromCell.id, cell.id, entitiesIdToIgnore))) {
 					push(result, fromCell)
 				}
 			}
@@ -199,9 +203,9 @@ class Targets{
 				if(abs(cell.y-y) < item.minRange) continue;
 				Cell? fromCell = Board.cellsXY[cell.x]![y]
 				if(fromCell!=null
-				&& fromCell!.isNotWall
-				&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
-				&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
+				&& fromCell.isNotWall
+				&& (shouldReturnOccupiedCells || Board.entityCells[fromCell]==null)
+				&& (!item.needLOS || lineOfSight(fromCell.id, cell.id, entitiesIdToIgnore))){
 					push(result, fromCell)
 				}
 			}
@@ -216,9 +220,9 @@ class Targets{
 					if(dist > item.maxRange || dist < item.minRange) continue;
 					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& fromCell!.isNotWall
-					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
-					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
+					&& fromCell.isNotWall
+					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
 					}
 				}
@@ -237,9 +241,9 @@ class Targets{
 					if(dist > item.maxRange || dist < item.minRange) continue;
 					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& fromCell!.isNotWall
-					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
-					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
+					&& fromCell.isNotWall
+					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
 					}
 				}
@@ -258,9 +262,9 @@ class Targets{
 					if(dist > item.maxRange || dist < item.minRange) continue;
 					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& fromCell!.isNotWall
-					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
-					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
+					&& fromCell.isNotWall
+					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
 					}
 				}
@@ -276,9 +280,9 @@ class Targets{
 					if(dist > item.maxRange || dist < item.minRange) continue;
 					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& fromCell!.isNotWall
-					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
-					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
+					&& fromCell.isNotWall
+					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
 					}
 				}
@@ -296,9 +300,9 @@ class Targets{
 					if(dist > item.maxRange || dist < item.minRange) continue;
 					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& fromCell!.isNotWall
-					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
-					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
+					&& fromCell.isNotWall
+					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
 					}
 				}
@@ -313,9 +317,9 @@ class Targets{
 					if(dist > item.maxRange || dist < item.minRange) continue;
 					Cell? fromCell = Board.cellsXY[x]![y]
 					if(fromCell!=null 
-					&& fromCell!.isNotWall
-					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell!]==null)
-					&& (!item.needLOS || lineOfSight(fromCell!.id, cell.id, entitiesIdToIgnore))){
+					&& fromCell.isNotWall
+					&& (shouldReturnOccupiedCells || Board.entityCells[fromCell]==null)
+					&& (!item.needLOS || lineOfSight(fromCell.id, cell.id, entitiesIdToIgnore))){
 						push(result, fromCell)
 					}
 				}

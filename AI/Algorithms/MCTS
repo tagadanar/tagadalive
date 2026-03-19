@@ -74,7 +74,7 @@ class MCTSNode {
 
 			// Skip if target is dead
 			Entity? target = Board.entityCells[baseAction.to]
-			if (target != null && this.state.isKilled(target!)) continue
+			if (target != null && this.state.isKilled(target)) continue
 
 			// Check TP cost (use state.currentWeapon for switch cost check)
 			integer switchCost = baseAction.item.isWeap && (this.state.currentWeapon == null || baseAction.item.id != this.state.currentWeapon!.id) ? 1 : 0
@@ -93,8 +93,8 @@ class MCTSNode {
 		integer count = 0
 		MCTSNode? node = this
 		while (node != null) {
-			if (node!.action != null && node!.action!.item == item) count++
-			node = node!.parent
+			if (node.action != null && node.action!.item == item) count++
+			node = node.parent
 		}
 		return count
 	}
@@ -266,7 +266,7 @@ class MCTS {
 			}
 
 			if (best == null) break
-			node = best!
+			node = best
 		}
 		return node
 	}
@@ -305,11 +305,11 @@ class MCTS {
 		Map<Item, integer> usageCounts = [:]
 		MCTSNode? n = node
 		while (n != null) {
-			if (n!.action != null) {
-				Item usedItem = n!.action!.item
+			if (n.action != null) {
+				Item usedItem = n.action.item
 				usageCounts[usedItem] = (usageCounts[usedItem] ? usageCounts[usedItem]! : 0) + 1
 			}
-			n = n!.parent
+			n = n.parent
 		}
 
 		// Use pre-computed pruned actions (self-cast first, sorted by score)
@@ -330,11 +330,11 @@ class MCTS {
 				// Skip if target dead (for non-self-cast)
 				if (baseAction.to != Fight.selfCell) {
 					Entity? target = Board.entityCells[baseAction.to]
-					if (target != null && currentState.isKilled(target!)) continue
+					if (target != null && currentState.isKilled(target)) continue
 				}
 
 				// Check TP
-				integer switchCost = baseAction.item.isWeap && (simWeapon == null || baseAction.item.id != simWeapon!.id) ? 1 : 0
+				integer switchCost = baseAction.item.isWeap && (simWeapon == null || baseAction.item.id != simWeapon.id) ? 1 : 0
 				if (baseAction.item.cost + switchCost > simTP) continue
 
 				// Found valid action (list is prioritized: self-cast first, then by score)
@@ -345,7 +345,7 @@ class MCTS {
 			if (bestAction == null) break
 
 			// Create chained action to get proper score with consequences
-			Action chainedAction = Action(bestAction!, currentState)
+			Action chainedAction = Action(bestAction, currentState)
 
 			// Only continue if score improved (positive delta)
 			real prevScore = currentState.score ?? 0.0
@@ -355,7 +355,7 @@ class MCTS {
 			currentState = chainedAction.consequences
 			simTP = currentState.currentTP  // Switch cost already deducted by Consequences
 			simWeapon = currentState.currentWeapon
-			usageCounts[bestAction!.item] = (usageCounts[bestAction!.item] ?? 0) + 1
+			usageCounts[bestAction.item] = (usageCounts[bestAction.item] ?? 0) + 1
 			rolloutSteps++
 		}
 
@@ -373,9 +373,9 @@ class MCTS {
 	static void backpropagate(MCTSNode node, real value) {
 		MCTSNode? current = node
 		while (current != null) {
-			current!.visits++
-			current!.totalValue += value
-			current = current!.parent
+			current.visits++
+			current.totalValue += value
+			current = current.parent
 		}
 	}
 
@@ -388,13 +388,13 @@ class MCTS {
 
 		MCTSNode? node = root
 		while (node != null) {
-			MCTSNode? bestChild = node!.getBestChild()
+			MCTSNode? bestChild = node.getBestChild()
 			if (bestChild == null) break
 
 			// Add action to combo using Combo.add() which handles chaining
-			if (bestChild!.action != null) {
+			if (bestChild.action != null) {
 				// combo.add() will re-chain with combo's current consequences
-				if (!combo.add(bestChild!.action!)) break
+				if (!combo.add(bestChild.action)) break
 			}
 
 			node = bestChild

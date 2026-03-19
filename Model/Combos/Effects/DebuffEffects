@@ -81,7 +81,7 @@ Consequences.registerHandlers([
 			// Get materialized effects for iteration (COW-aware)
 			Map<Item, Array<EffectOverTime>>? entityEffects = conseq.getEntityAltEffects(entityTarget)
 			if (entityEffects != null) {
-				for (Item item : Array<EffectOverTime> effects in entityEffects!) {
+				for (Item item : Array<EffectOverTime> effects in entityEffects) {
 					for (EffectOverTime simEffect in effects) {
 						integer absValue = abs(simEffect.value)
 						integer reduction = round(absValue * (effect.avg/100.0))
@@ -94,7 +94,7 @@ Consequences.registerHandlers([
 						integer counterValue = simEffect.value > 0 ? -reduction : reduction
 						EffectOverTime eot = EffectOverTime(effect.item, counterValue, simEffect.duration, simEffect.effectType)
 						if (entityTarget.isFriend && counterValue > 0) simSuspicious += " sim!" + simEffect.effectType + "v" + counterValue
-						conseq.add(entityTarget, stat!, eot)
+						conseq.add(entityTarget, stat, eot)
 					}
 				}
 			}

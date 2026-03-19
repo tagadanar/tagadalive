@@ -38,13 +38,13 @@ class Damages {
 
 		// Process entities in turn order (after self, wrapping around)
 		for (Entity e in Fight.getEntitiesAfterSelfInOrder()) {
-			if (consequences && consequences!.isKilled(e)) continue
+			if (consequences && consequences.isKilled(e)) continue
 
 			// Subtract shields expiring when this entity plays (scaled by liberation)
 			real? expAbs = expiringAbs[e.id]
-			if (expAbs != null) absShield -= expAbs! * libeFactor
+			if (expAbs != null) absShield -= expAbs * libeFactor
 			real? expRel = expiringRel[e.id]
-			if (expRel != null) relShield -= expRel! * libeFactor
+			if (expRel != null) relShield -= expRel * libeFactor
 
 			if (!e.isFriend) {
 				// === ENEMY: Add damage ===
@@ -62,7 +62,7 @@ class Damages {
 				// Simulate enemy liberation stripping our shields
 				if (relShield > ScoringConfig.LIBE_RELSHIELD_TRIGGER && e.liberationCD <= 1) {
 					Map<Cell, real>? libeMap = MapDanger._map_enemy_liberation[e]
-					if (libeMap != null && libeMap![cell] != null) {
+					if (libeMap != null && libeMap[cell] != null) {
 						for (Item item in e.items) {
 							if (item.id == CHIP_LIBERATION) {
 								if (item.cost <= tpLeft) {
@@ -81,7 +81,7 @@ class Damages {
 				boolean applyShackle = false
 				integer shackledMP = 0
 				if (consequences && e.nextManumission > 1) {
-					shackledMP = max(0, e.getCurrentMP(consequences!))
+					shackledMP = max(0, e.getCurrentMP(consequences))
 					applyShackle = shackledMP < e.mp
 				}
 
@@ -89,21 +89,21 @@ class Damages {
 					Map<Cell, real>? itemMap = MapDanger._map_entity_item_danger[e]![item]
 					if (itemMap == null) continue  // Item not processed (early exit in MapDanger)
 
-					real? ratioDmg = itemMap![cell]
+					real? ratioDmg = itemMap[cell]
 					if (ratioDmg == null || ratioDmg <= 0) continue
 
 					// Determine if this cell requires jump (not walk-reachable)
 					boolean needsJump = false
 					Map<Cell, integer>? mpMap = MapDanger._map_entity_item_mp[e]![item]
 					Map<Cell, integer>? jumpMap = MapDanger._map_entity_item_jump[e]![item]
-					if (mpMap![cell] == null && jumpMap != null && jumpMap![cell] != null) {
+					if (mpMap![cell] == null && jumpMap != null && jumpMap[cell] != null) {
 						needsJump = true
 					}
 
 					// Determine if this cell requires teleport (not walk or jump reachable)
 					boolean needsTeleport = false
 					Map<Cell, integer>? teleportMap = MapDanger._map_entity_item_teleport[e] != null ? MapDanger._map_entity_item_teleport[e]![item] : null
-					if (mpMap![cell] == null && (jumpMap == null || jumpMap![cell] == null) && teleportMap != null && teleportMap![cell] != null) {
+					if (mpMap![cell] == null && (jumpMap == null || jumpMap[cell] == null) && teleportMap != null && teleportMap[cell] != null) {
 						needsTeleport = true
 					}
 
@@ -117,14 +117,14 @@ class Damages {
 								directReachable = jumpMap![cell]! <= shackledMP
 							} else {
 								integer? minMp = mpMap![cell]
-								if (minMp != null && minMp! <= shackledMP) {
+								if (minMp != null && minMp <= shackledMP) {
 									directReachable = true
-								} else if (e.jumpCD <= 1 && jumpMap != null && jumpMap![cell] != null && jumpMap![cell]! <= shackledMP) {
+								} else if (e.jumpCD <= 1 && jumpMap != null && jumpMap[cell] != null && jumpMap[cell]! <= shackledMP) {
 									// Walk unreachable but jump reachable under shackle
 									directReachable = true
 									needsJump = true
 									ratioDmg = 1.0
-								} else if (teleportMap != null && teleportMap![cell] != null && teleportMap![cell]! <= shackledMP) {
+								} else if (teleportMap != null && teleportMap[cell] != null && teleportMap[cell]! <= shackledMP) {
 									// Walk+jump unreachable but teleport reachable under shackle
 									directReachable = true
 									needsTeleport = true
@@ -140,7 +140,7 @@ class Damages {
 										if (src == cell) continue
 										// Check walk sources
 										integer? srcMp = mpMap![src]
-										if (srcMp != null && srcMp! <= shackledMP) {
+										if (srcMp != null && srcMp <= shackledMP) {
 											integer dist = abs(cell.x - src.x) + abs(cell.y - src.y)
 											real ratio = 1 - ScoringConfig.AOE_DECAY_RATE * dist
 											if (ratio > bestAoe) {
@@ -151,8 +151,8 @@ class Damages {
 										}
 										// Check jump sources (no break — walk source at same dist is cheaper)
 										if (e.jumpCD <= 1 && jumpMap != null) {
-											integer? srcJMp = jumpMap![src]
-											if (srcJMp != null && srcJMp! <= shackledMP) {
+											integer? srcJMp = jumpMap[src]
+											if (srcJMp != null && srcJMp <= shackledMP) {
 												integer dist = abs(cell.x - src.x) + abs(cell.y - src.y)
 												real ratio = 1 - ScoringConfig.AOE_DECAY_RATE * dist
 												if (ratio > bestAoe) {
@@ -164,8 +164,8 @@ class Damages {
 										}
 										// Check teleport sources
 										if (teleportMap != null) {
-											integer? srcTMp = teleportMap![src]
-											if (srcTMp != null && srcTMp! <= shackledMP) {
+											integer? srcTMp = teleportMap[src]
+											if (srcTMp != null && srcTMp <= shackledMP) {
 												integer dist = abs(cell.x - src.x) + abs(cell.y - src.y)
 												real ratio = 1 - ScoringConfig.AOE_DECAY_RATE * dist
 												if (ratio > bestAoe) {
@@ -251,11 +251,11 @@ class Damages {
 
 				integer tpLeft = e.getCurrentTP(consequences)
 
-				for (Item item in supportItems!) {
+				for (Item item in supportItems) {
 					Map<Cell, real>? itemMap = MapSupport._map_ally_item_heal[e]![item]
 					if (itemMap == null) continue
 
-					real? ratio = itemMap![cell]
+					real? ratio = itemMap[cell]
 					if (ratio == null || ratio <= 0) continue
 
 					// Calculate support for each effect type
@@ -264,7 +264,7 @@ class Damages {
 							// Skip non-stackable HoT already on self
 							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
 
-							real healVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio!
+							real healVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio
 
 							if (ef.duration > 1) {
 								// Heal over time → reduces psnDmg
@@ -297,7 +297,7 @@ class Damages {
 						}
 						else if (ef.type == EFFECT_BOOST_MAX_LIFE) {
 							// Max life boost → reduces dmg (uncapped) and increases maxLife
-							real boostVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio!
+							real boostVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
 								str += " " + item.name
@@ -313,7 +313,7 @@ class Damages {
 							// Skip non-stackable shield already on self
 							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
 
-							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio!
+							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
 								str += " " + item.name
@@ -327,7 +327,7 @@ class Damages {
 							// Skip non-stackable shield already on self
 							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
 
-							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio!
+							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
 								str += " " + item.name

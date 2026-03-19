@@ -117,11 +117,11 @@ class MapCellScore {
 			if (isInteresting[c]) {
 				mark(c.id, getColor(0, 0, 255))
 				markText(c.id, round(score!) + "")
-			} else if (score != null && score! > 0) {
-				integer green = ((score! * 255) / maxScore) as integer
+			} else if (score != null && score > 0) {
+				integer green = ((score * 255) / maxScore) as integer
 				integer red = 255 - green
 				mark(c.id, getColor(red, green, 0))
-				markText(c.id, round(score!) + "")
+				markText(c.id, round(score) + "")
 			} else {
 				// Reachable but no useful action
 				mark(c.id, getColor(0, 0, 0))

@@ -19,7 +19,7 @@ init()
 
 // Mark boss resurrection cell
 integer? resuCell = BossPotiMalef.getResurrectionCell()
-if (resuCell != null) mark(resuCell!, getColor(255, 0, 255))
+if (resuCell != null) mark(resuCell, getColor(255, 0, 255))
 
 // Collect cooldowns at START of turn (before actions)
 Benchmark.collectCooldownsStart(Fight.self.items, Fight.self.id)

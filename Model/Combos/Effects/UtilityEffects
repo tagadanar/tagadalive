@@ -35,7 +35,7 @@ Consequences.registerHandlers([
 
 			integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
 			if (stat == null) continue
-			conseq.add(entityTarget, stat!, remaining)
+			conseq.add(entityTarget, stat, remaining)
 			conseq.addEffectTypeAlteration(entityTarget, entityEffect.type, remaining)
 		}
 	},

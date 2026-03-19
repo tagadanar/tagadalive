@@ -127,20 +127,20 @@ class BattleState {
 				real? wsdW = ScoringConfig.WSD_CHIPS[chipId]
 				if (wsdW != null) {
 					integer cd = getCooldown(chipId, entityId)!
-					if (cd == 0) wsdCount += wsdW!
-					else if (cd == 1) wsdCount += wsdW! * 0.5
+					if (cd == 0) wsdCount += wsdW
+					else if (cd == 1) wsdCount += wsdW * 0.5
 				}
 				real? rstW = ScoringConfig.RST_CHIPS[chipId]
 				if (rstW != null) {
 					integer cd = getCooldown(chipId, entityId)!
-					if (cd == 0) rstCount += rstW!
-					else if (cd == 1) rstCount += rstW! * 0.5
+					if (cd == 0) rstCount += rstW
+					else if (cd == 1) rstCount += rstW * 0.5
 				}
 				real? agiW = ScoringConfig.AGI_CHIPS[chipId]
 				if (agiW != null) {
 					integer cd = getCooldown(chipId, entityId)!
-					if (cd == 0) agiCount += agiW!
-					else if (cd == 1) agiCount += agiW! * 0.5
+					if (cd == 0) agiCount += agiW
+					else if (cd == 1) agiCount += agiW * 0.5
 				}
 			}
 			wsdReadyChips[entityId] = wsdCount
@@ -232,12 +232,12 @@ class BattleState {
 			if (enemyMaps == null) continue
 			integer tpLeft = entity.tp
 			for (Item item in entity.offensiveItems) {
-				Map<Cell, real>? itemMap = enemyMaps![item]
+				Map<Cell, real>? itemMap = enemyMaps[item]
 				if (itemMap == null) continue
-				real? ratioDmg = itemMap![ally.cell]
+				real? ratioDmg = itemMap[ally.cell]
 				if (ratioDmg == null || ratioDmg <= 0) continue
 				// Estimate damage from this item
-				real itemDmg = Damages.getDamage(entity, ally, item, ratioDmg!, null)
+				real itemDmg = Damages.getDamage(entity, ally, item, ratioDmg, null)
 				if (itemDmg > 0) {
 					integer uses = 0
 					while (item.cost <= tpLeft && uses < item.maxUse) {

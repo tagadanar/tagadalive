@@ -182,7 +182,7 @@ class ComboBuilder {
 			if (maxDist > baseMP) {
 				Array<Action>? buffs = ComboBuilder._calculateMPBuffs(maxDist - baseMP, baseTP)
 				if (buffs == null) return null
-				mpBuffActions = buffs!
+				mpBuffActions = buffs
 			}
 		} else {
 			helpActions = ComboBuilder._filterByReachDistance(ctx, helpActions, ctx.initialMP)
@@ -261,7 +261,7 @@ class ComboBuilder {
 			Consequences csq = combo.getCurrentConsequences()
 			Action? libAction = ComboBuilder._findLiberationAction(ctx, Fight.liberationItem!, target, csq)
 			if (libAction != null) {
-				combo.add(libAction!)
+				combo.add(libAction)
 				usesThisTurn[Fight.liberationItem!] = 1
 			} else {
 				// Can't reach liberation cell at this MP level — redundant with no-lib variant
@@ -278,7 +278,7 @@ class ComboBuilder {
 			Action? neutrinoAction = ComboBuilder._findNeutrinoAction(ctx, Fight.neutrinoItem!, target, csq)
 			if (neutrinoAction != null) {
 				for (integer i = 0; i < neutrinoCount; i++) {
-					combo.add(neutrinoAction!)
+					combo.add(neutrinoAction)
 				}
 				usesThisTurn[Fight.neutrinoItem!] = neutrinoCount
 			} else {
@@ -356,7 +356,7 @@ class ComboBuilder {
 			if (!useMPBuff) return null  // Need buffs but not allowed
 			Array<Action>? buffs = ComboBuilder._calculateMPBuffs(neededBuff, baseTP)
 			if (buffs == null) return null
-			mpBuffActions = buffs!
+			mpBuffActions = buffs
 
 			// Adjust effective TP/weapon
 			for (Action buff in mpBuffActions) {
@@ -395,7 +395,7 @@ class ComboBuilder {
 			Array<Action>? actions = cellActionMap[cell]
 			if (actions == null) continue
 
-			for (Action action in actions!) {
+			for (Action action in actions) {
 				ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, 0)
 			}
 		}
@@ -489,7 +489,7 @@ class ComboBuilder {
 				swapItem, swapCost, mpToCast, useScoreBonus)
 
 			if (combo != null) {
-				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+				if (bestCombo == null || combo.getScore()! > bestCombo.getScore()!) {
 					bestCombo = combo
 				}
 			}
@@ -591,7 +591,7 @@ class ComboBuilder {
 			Array<Action>? actions = partitioned[cell]
 			if (actions == null) continue
 
-			for (Action a in actions!) {
+			for (Action a in actions) {
 				ComboBuilder.tryAddAction(combo, a, usesThisTurn, 0)
 			}
 		}
@@ -687,7 +687,7 @@ class ComboBuilder {
 				castCell, moveItem, moveCost, mpToCast)
 
 			if (combo != null) {
-				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+				if (bestCombo == null || combo.getScore()! > bestCombo.getScore()!) {
 					bestCombo = combo
 				}
 			}
@@ -749,7 +749,7 @@ class ComboBuilder {
 			Array<Action>? actions = partitioned[cell]
 			if (actions == null) continue
 
-			for (Action a in actions!) {
+			for (Action a in actions) {
 				ComboBuilder.tryAddAction(combo, a, usesThisTurn, 0)
 			}
 		}
@@ -1027,7 +1027,7 @@ class ComboBuilder {
 				cellScores[fromCell] = 0
 			}
 			push(outCellActions[fromCell]!, a)
-			if (a.score != null) cellScores[fromCell] += a.score!
+			if (a.score != null) cellScores[fromCell] += a.score
 		}
 
 		// Sort cells by score descending
@@ -1063,7 +1063,7 @@ class ComboBuilder {
 		for (Cell cell in cells) {
 			Array<Action>? actions = cellActions[cell]
 			if (actions == null) continue
-			for (Action a in actions!) {
+			for (Action a in actions) {
 				integer key = ComboBuilder.actionKey(a)
 				if (!seenKeys[key]) {
 					push(combined, a)
@@ -1142,8 +1142,8 @@ class ComboBuilder {
 				// If at least one ordering is valid, return all valid orderings for THIS pair
 				if (seqAB != null || seqBA != null) {
 					Array<Array<Cell>> result = []
-					if (seqAB != null) push(result, seqAB!)
-					if (seqBA != null) push(result, seqBA!)
+					if (seqAB != null) push(result, seqAB)
+					if (seqBA != null) push(result, seqBA)
 					return result
 				}
 			}
@@ -1153,7 +1153,7 @@ class ComboBuilder {
 		for (Cell cell in sortedCells) {
 			if (cell == newSelfCell) return [[cell]]
 			integer? dist = reachableFromNew[cell]
-			if (dist != null && dist! <= availableMP) return [[cell]]
+			if (dist != null && dist <= availableMP) return [[cell]]
 		}
 
 		// Nothing reachable - just stay at newSelfCell
@@ -1176,8 +1176,8 @@ class ComboBuilder {
 		integer costToFirst = 0
 		if (first != newSelfCell) {
 			integer? dist = reachableFromNew[first]
-			if (dist == null || dist! > availableMP) return null
-			costToFirst = dist!
+			if (dist == null || dist > availableMP) return null
+			costToFirst = dist
 		}
 
 		// MP remaining after reaching first cell
@@ -1190,7 +1190,7 @@ class ComboBuilder {
 			first, mpAfterFirst, Fight.self.cellsToIgnore, obstacles)
 
 		integer? costToSecond = reachableFromFirst[second]
-		if (costToSecond == null || costToSecond! > mpAfterFirst) return null
+		if (costToSecond == null || costToSecond > mpAfterFirst) return null
 
 		// Valid path!
 		return [first, second]
@@ -1253,7 +1253,7 @@ class ComboBuilder {
 			Array<Action>? actions = partitioned[cell]
 			if (actions == null) continue
 
-			for (Action a in actions!) {
+			for (Action a in actions) {
 				ComboBuilder.tryAddAction(combo, a, usesThisTurn, 0)
 			}
 		}
@@ -1266,7 +1266,7 @@ class ComboBuilder {
 		integer total = 0
 		Item? currentWeapon = startWeapon
 		for (Action a in actions) {
-			if (a.item.isWeap && (currentWeapon == null || a.item.id != currentWeapon!.id)) {
+			if (a.item.isWeap && (currentWeapon == null || a.item.id != currentWeapon.id)) {
 				total += 1  // Weapon switch cost
 				currentWeapon = a.item
 			}
@@ -1324,7 +1324,7 @@ class ComboBuilder {
 	static real _sumActionScores(Array<Action> actions) {
 		real total = 0
 		for (Action a in actions) {
-			if (a.score != null) total += a.score!
+			if (a.score != null) total += a.score
 		}
 		return total
 	}
@@ -1352,8 +1352,8 @@ class ComboBuilder {
 		for (Cell L in MapPath.getJumpDests(target)) {
 			integer? walkToL = walkMap[L]
 			if (walkToL == null) continue
-			if (walkToL! < bestCost) {
-				bestCost = walkToL!
+			if (walkToL < bestCost) {
+				bestCost = walkToL
 				bestLaunch = L
 				bestDest = target
 			}
@@ -1383,7 +1383,7 @@ class ComboBuilder {
 				Map<Cell, integer> reachFromJ = MapPath.getCachedReachableCells(J, maxMP - walkToL, ignoreCells)
 				integer? walkJToTarget = reachFromJ[target]
 				if (walkJToTarget != null) {
-					integer totalCost = walkToL + walkJToTarget!
+					integer totalCost = walkToL + walkJToTarget
 					if (totalCost < bestCost) {
 						bestCost = totalCost
 						bestLaunch = L
@@ -1426,7 +1426,7 @@ class ComboBuilder {
 				abilityDest, ctx.initialMP + ctx.maxMPBuff - walkDist, ctx.cellsToIgnore)
 			integer? dist = reachFromDest[cell]
 			if (dist == null) return null
-			walkFromAbility = dist!
+			walkFromAbility = dist
 		}
 		integer totalWalk = walkDist + walkFromAbility
 
@@ -1525,8 +1525,8 @@ class ComboBuilder {
 		for (Cell L in MapPath.getTeleportDests(target, maxRange)) {
 			integer? walkToL = walkMap[L]
 			if (walkToL == null) continue
-			if (walkToL! < bestCost) {
-				bestCost = walkToL!
+			if (walkToL < bestCost) {
+				bestCost = walkToL
 				bestLaunch = L
 				bestDest = target
 			}
@@ -1556,7 +1556,7 @@ class ComboBuilder {
 				Map<Cell, integer> reachFromT = MapPath.getCachedReachableCells(T, maxMP - walkToL, ignoreCells)
 				integer? walkTToTarget = reachFromT[target]
 				if (walkTToTarget != null) {
-					integer totalCost = walkToL + walkTToTarget!
+					integer totalCost = walkToL + walkTToTarget
 					if (totalCost < bestCost) {
 						bestCost = totalCost
 						bestLaunch = L
@@ -1615,8 +1615,8 @@ class ComboBuilder {
 		for (Cell L2 in MapPath.getTeleportDests(target, teleportRange)) {
 			integer? cost = jumpExtReachable[L2]
 			if (cost == null) continue
-			if (cost! < bestCost) {
-				bestCost = cost!
+			if (cost < bestCost) {
+				bestCost = cost
 				bestCell1 = L2      // teleport launch cell (in jumpExtReachable)
 				bestCell2 = target  // teleport destination
 				bestOrder = 0
@@ -1632,8 +1632,8 @@ class ComboBuilder {
 			for (Cell L in MapPath.getTeleportDests(JD, teleportRange)) {
 				integer? walkToL = walkMap[L]
 				if (walkToL == null) continue
-				if (walkToL! >= bestCost) continue
-				bestCost = walkToL!
+				if (walkToL >= bestCost) continue
+				bestCost = walkToL
 				bestCell1 = L   // walk to here, then teleport
 				bestCell2 = JD  // teleport destination, then jump to target
 				bestOrder = 1
@@ -1710,7 +1710,7 @@ class ComboBuilder {
 				jumpDest, ctx.initialMP + ctx.maxMPBuff - walkDist, ctx.cellsToIgnore)
 			integer? dist = reachFromJump[teleportLaunch]
 			if (dist == null) return null
-			walkJumpToTeleport = dist!
+			walkJumpToTeleport = dist
 		}
 		integer totalWalk = walkDist + walkJumpToTeleport
 
@@ -1891,7 +1891,7 @@ class ComboBuilder {
 
 		// Add selected actions
 		for (Action action in selected) {
-			if (stopWhenKilled != null && combo.getCurrentConsequences().isKilled(stopWhenKilled!)) break
+			if (stopWhenKilled != null && combo.getCurrentConsequences().isKilled(stopWhenKilled)) break
 
 			boolean added = ComboBuilder.tryAddAction(ctx, combo, action, usesThisTurn, reserveMP)
 
@@ -2028,7 +2028,7 @@ class ComboBuilder {
 			integer planType = BossPotiMalef._planType
 			if (planType == BossPotiMalef.PLAN_SELF) {
 				// Self plan: force leek to boss cell
-				if (ComboBuilder._addForcedFinalPosition(combo, Board.cells[bossCell!]!, 100000.0)) {
+				if (ComboBuilder._addForcedFinalPosition(combo, Board.cells[bossCell]!, 100000.0)) {
 					return;
 				}
 			} else if (planType == BossPotiMalef.PLAN_NONE) {
@@ -2037,7 +2037,7 @@ class ComboBuilder {
 				for (Action a in combo.actions) {
 					if (a.item.isSummon) { hasSummon = true; break }
 				}
-				if (!hasSummon && ComboBuilder._addForcedFinalPosition(combo, Board.cells[bossCell!]!, 100000.0)) {
+				if (!hasSummon && ComboBuilder._addForcedFinalPosition(combo, Board.cells[bossCell]!, 100000.0)) {
 					return;
 				}
 			}
@@ -2085,8 +2085,8 @@ class ComboBuilder {
 		for (Action a in actions) {
 			if (a.from == Fight.selfCell) continue
 			integer? dist = reachable[a.from]
-			if (dist != null && dist! > maxDist) {
-				maxDist = dist!
+			if (dist != null && dist > maxDist) {
+				maxDist = dist
 			}
 		}
 		return maxDist
@@ -2261,7 +2261,7 @@ class ComboBuilder {
 				push(filtered, a)
 			} else {
 				integer? dist = reachable[a.from]
-				if (dist != null && dist! <= maxDistance) {
+				if (dist != null && dist <= maxDistance) {
 					push(filtered, a)
 				}
 			}
@@ -2291,8 +2291,8 @@ class ComboBuilder {
 			integer? dist = reachable[target]
 			if (dist == null) return -1  // Unreachable
 
-			totalDist += dist!
-			remainingMP -= dist!
+			totalDist += dist
+			remainingMP -= dist
 			if (remainingMP < 0) return -1
 			current = target
 		}
@@ -2400,15 +2400,15 @@ class ComboBuilder {
 			Action? action = itemActions[liberationItem]
 			if (action == null) continue
 
-			if (action!.to != target.cell) continue
+			if (action.to != target.cell) continue
 
 			// Check reachability (cache may have cells beyond MP, must verify distance)
-			if (action!.from != Fight.selfCell) {
+			if (action.from != Fight.selfCell) {
 				Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
 				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
 					csq.currentCell, csq.currentMP, ignoreCells, csq._newObstacles)
-				integer? dist = reachable[action!.from]
-				if (dist == null || dist! > csq.currentMP) continue
+				integer? dist = reachable[action.from]
+				if (dist == null || dist > csq.currentMP) continue
 			}
 
 			return action
@@ -2427,15 +2427,15 @@ class ComboBuilder {
 			Action? action = itemActions[neutrinoItem]
 			if (action == null) continue
 
-			if (action!.to != target.cell) continue
+			if (action.to != target.cell) continue
 
 			// Check reachability
-			if (action!.from != Fight.selfCell) {
+			if (action.from != Fight.selfCell) {
 				Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
 				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
 					csq.currentCell, csq.currentMP, ignoreCells, csq._newObstacles)
-				integer? dist = reachable[action!.from]
-				if (dist == null || dist! > csq.currentMP) continue
+				integer? dist = reachable[action.from]
+				if (dist == null || dist > csq.currentMP) continue
 			}
 
 			return action

@@ -61,9 +61,9 @@ class MapAction {
 				if (candidate != null) {
 					// Don't use addSummonAction - it uses bulb scoring which returns 0
 					// Use resurrection-specific scoring: KILL_VALUE * 10
-					Action? resAction = MapAction.addResurrectionAction(item, candidate!.fromCell, candidate!.spawnCell)
+					Action? resAction = MapAction.addResurrectionAction(item, candidate.fromCell, candidate.spawnCell)
 					if (resAction != null) {
-						debug("RESU ACTION: score=" + resAction!.score + " from=c" + candidate!.fromCell.id + " to=c" + candidate!.spawnCell.id + " target=e" + candidate!.entityId)
+						debug("RESU ACTION: score=" + resAction.score + " from=c" + candidate.fromCell.id + " to=c" + candidate.spawnCell.id + " target=e" + candidate.entityId)
 					}
 				} else {
 					debug("RESU: no candidate (ready=" + Fight.resurrectionReady + " targetId=" + Fight.resurrectTargetId + ")")
@@ -242,7 +242,7 @@ class MapAction {
 			if (item.minRange == 0) {
 				Action? action = MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
 				if (action != null) {
-					MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell, action!.score!)
+					MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell, action.score!)
 				}
 			}
 			return;
@@ -261,7 +261,7 @@ class MapAction {
 		for (Cell c in cells) {
 			Action? action = MapAction.addActionWithSnapshot(item, c, entity.cell, snapshot)
 			if (action != null) {
-				MapAction.addEntityIndex(item, entity.id, c, entity.cell, action!.score!)
+				MapAction.addEntityIndex(item, entity.id, c, entity.cell, action.score!)
 			}
 		}
 	}
@@ -277,7 +277,7 @@ class MapAction {
 		for (Cell cell in cellsFrom) {
 			Action? action = MapAction.addAction(item, cell, entity.cell)
 			if (action != null) {
-				MapAction.addEntityIndex(item, entity.id, cell, entity.cell, action!.score!)
+				MapAction.addEntityIndex(item, entity.id, cell, entity.cell, action.score!)
 			}
 		}
 	}
@@ -291,7 +291,7 @@ class MapAction {
 			if (item.minRange == 0 && item.onCaster) {
 				Action? action = MapAction.addAction(item, Fight.selfCell, Fight.selfCell)
 				if (action != null) {
-					MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell, action!.score!)
+					MapAction.addEntityIndex(item, entity.id, Fight.selfCell, Fight.selfCell, action.score!)
 				}
 			}
 			return;
@@ -303,7 +303,7 @@ class MapAction {
 
 			// Early exit: if snapshot exists and base score is <= 0, skip all fromCells
 			// Note: null snapshot means not cacheable (e.g., onCaster with self in AOE) - must still process
-			if (baseSnapshot != null && baseSnapshot!.effectScore - baseSnapshot!.opportunityCost <= 0) continue
+			if (baseSnapshot != null && baseSnapshot.effectScore - baseSnapshot.opportunityCost <= 0) continue
 
 			// For onCaster AOE: pre-compute area cells to check if fromCell is inside AOE
 			// (snapshot excludes self, but if fromCell is in AOE, self should be included)
@@ -316,12 +316,12 @@ class MapAction {
 			for (Cell c in cells) {
 				EffectSnapshot? snapshot = baseSnapshot
 				// Invalidate cache if this fromCell is inside AOE (self-damage not in snapshot)
-				if (aoeCells != null && setContains(aoeCells!, c)) {
+				if (aoeCells != null && setContains(aoeCells, c)) {
 					snapshot = null
 				}
 				Action? action = MapAction.addActionWithSnapshot(item, c, aimCell, snapshot)
 				if (action != null) {
-					MapAction.addEntityIndex(item, entity.id, c, aimCell, action!.score!)
+					MapAction.addEntityIndex(item, entity.id, c, aimCell, action.score!)
 				}
 			}
 		}
@@ -356,7 +356,7 @@ class MapAction {
 
 		// Keep aimCell with best score (fixes AOE: best aimCell instead of first)
 		real? existingScore = _item_entityId_scores[item]![entityId]![fromCell]
-		if (existingScore == null || score > existingScore!) {
+		if (existingScore == null || score > existingScore) {
 			_item_entityId_attackCells[item]![entityId]![fromCell] = aimCell
 			_item_entityId_scores[item]![entityId]![fromCell] = score
 		}
@@ -408,7 +408,7 @@ class MapAction {
 	static Action? addActionCore(Item item, Cell from, Cell targetCell, EffectSnapshot? snapshot) {
 		Action action
 		if (snapshot != null) {
-			action = new Action(item, from, targetCell, snapshot!)
+			action = new Action(item, from, targetCell, snapshot)
 		} else {
 			action = new Action(item, from, targetCell)
 		}
@@ -549,7 +549,7 @@ class MapAction {
 			for (Cell castCell in castCells) {
 				// Check if castCell is reachable
 				integer? dist = reachable[castCell]
-				boolean castCellReachable = (castCell == fromCell) || (dist != null && dist! <= remainingMP)
+				boolean castCellReachable = (castCell == fromCell) || (dist != null && dist <= remainingMP)
 				if (!castCellReachable) continue
 
 				// Create action targeting the pending entity cell

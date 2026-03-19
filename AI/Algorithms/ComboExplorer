@@ -214,12 +214,12 @@ class ComboExplorer {
 		// Debug best inversion combo
 		ExplorerResult? bestInv = null
 		for (ExplorerResult r in ctx.topResults) {
-			if (r.phase == "I" && (bestInv == null || r.score > bestInv!.score)) {
+			if (r.phase == "I" && (bestInv == null || r.score > bestInv.score)) {
 				bestInv = r
 			}
 		}
 		if (bestInv != null) {
-			debug("PhaseI best: " + bestInv!.name + " score=" + round(bestInv!.score) + " " + bestInv!.combo)
+			debug("PhaseI best: " + bestInv.name + " score=" + round(bestInv.score) + " " + bestInv.combo)
 		}
 
 		// Phase R: Repotting strategies (swap with allied bulbs)
@@ -350,8 +350,8 @@ class ComboExplorer {
 		integer maxNeutrino = 0
 		integer neutrinoCost = 0
 		if (hasDamageType && Fight.neutrinoReady && Fight.neutrinoItem != null) {
-			maxNeutrino = min(3, Fight.neutrinoItem!.maxUse)
-			neutrinoCost = Fight.neutrinoItem!.cost
+			maxNeutrino = min(3, Fight.neutrinoItem.maxUse)
+			neutrinoCost = Fight.neutrinoItem.cost
 		}
 
 		// MP levels: [0] + distinct distances beyond baseMP where damage actions exist
@@ -403,7 +403,7 @@ class ComboExplorer {
 							Array<Action>? buffs = ComboBuilder._calculateMPBuffs(
 								mpDist - ctx.initialMP, ctx.initialTP - prefixTP - neutrinoTP)
 							if (buffs == null) continue
-							mpBuffs = buffs!
+							mpBuffs = buffs
 							for (Action b in mpBuffs) {
 								mpBuffTP += b.item.cost
 							}
@@ -421,13 +421,13 @@ class ComboExplorer {
 						// Build combo
 						Combo? combo = ComboBuilder.buildForTargetPrefixed(
 							ctx, enemy, reachablePool, useLib == 1, strPrefixes, mpBuffs, neutrinoLevel)
-						if (combo != null && (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0)) {
+						if (combo != null && (count(combo.actions) > 0 || combo.finalPosition!.score > 0)) {
 							string name = "T:" + enemy.name
 								+ (useLib == 1 ? "+L" : "")
 								+ (strLevel > 0 ? "+S" + strLevel : "")
 								+ (neutrinoLevel > 0 ? "+N" + neutrinoLevel : "")
 								+ (mpDist > ctx.initialMP ? "+M" + (mpDist - ctx.initialMP) : "")
-							ctx.recordResult(ExplorerResult(combo!, name, "T"))
+							ctx.recordResult(ExplorerResult(combo, name, "T"))
 						}
 					}
 				}
@@ -448,9 +448,9 @@ class ComboExplorer {
 		for (Action a in actions) {
 			if (a.from == Fight.selfCell) continue
 			integer? dist = ctx.extendedReachableCells[a.from]
-			if (dist != null && dist! > ctx.initialMP && !seen[dist!]) {
-				push(levels, dist!)
-				seen[dist!] = true
+			if (dist != null && dist > ctx.initialMP && !seen[dist]) {
+				push(levels, dist)
+				seen[dist] = true
 			}
 		}
 
@@ -485,9 +485,9 @@ class ComboExplorer {
 			explored++
 
 			Combo? combo = ComboBuilder.buildWithInversion(ctx, candidate)
-			if (combo != null && count(combo!.actions) > 0) {
+			if (combo != null && count(combo.actions) > 0) {
 				string tag = candidate.target.isFriend ? "Ally" : "Enemy"
-				ctx.recordResult(ExplorerResult(combo!, "I:" + tag + "_" + candidate.target.name, "I"))
+				ctx.recordResult(ExplorerResult(combo, "I:" + tag + "_" + candidate.target.name, "I"))
 			}
 		}
 		debug("PhaseI: " + explored + "/" + count(MapTactical.getInversionCandidates()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
@@ -511,8 +511,8 @@ class ComboExplorer {
 			explored++
 
 			Combo? combo = ComboBuilder.buildWithRepotting(ctx, candidate)
-			if (combo != null && count(combo!.actions) > 0) {
-				ctx.recordResult(ExplorerResult(combo!, "R:" + candidate.target.name, "R"))
+			if (combo != null && count(combo.actions) > 0) {
+				ctx.recordResult(ExplorerResult(combo, "R:" + candidate.target.name, "R"))
 			}
 		}
 		debug("PhaseR: " + explored + "/" + count(MapTactical.getRepottingCandidates()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
@@ -542,10 +542,10 @@ class ComboExplorer {
 			explored++
 
 			Combo? combo = ComboBuilder.buildWithAttract(ctx, candidate)
-			if (combo != null && count(combo!.actions) > 0) {
+			if (combo != null && count(combo.actions) > 0) {
 				string name = "A:" + candidate.target.name
-				ctx.recordResult(ExplorerResult(combo!, name, "A"))
-				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+				ctx.recordResult(ExplorerResult(combo, name, "A"))
+				if (bestCombo == null || combo.getScore()! > bestCombo.getScore()!) {
 					bestCombo = combo
 					bestName = name
 				}
@@ -553,7 +553,7 @@ class ComboExplorer {
 		}
 		debug("PhaseA: " + explored + "/" + count(MapTactical.getGrappleCandidates()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 		if (bestCombo != null) {
-			debug("PhaseA best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
+			debug("PhaseA best: " + bestName + " score=" + round(bestCombo.getScore()!) + " " + bestCombo)
 		}
 
 		Benchmark.stop("ComboExplorer.phaseAttract")
@@ -581,10 +581,10 @@ class ComboExplorer {
 			explored++
 
 			Combo? combo = ComboBuilder.buildWithPush(ctx, candidate)
-			if (combo != null && count(combo!.actions) > 0) {
+			if (combo != null && count(combo.actions) > 0) {
 				string name = "P:" + candidate.target.name
-				ctx.recordResult(ExplorerResult(combo!, name, "P"))
-				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+				ctx.recordResult(ExplorerResult(combo, name, "P"))
+				if (bestCombo == null || combo.getScore()! > bestCombo.getScore()!) {
 					bestCombo = combo
 					bestName = name
 				}
@@ -592,7 +592,7 @@ class ComboExplorer {
 		}
 		debug("PhaseP: " + explored + "/" + count(MapTactical.getBoxingGloveCandidates()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 		if (bestCombo != null) {
-			debug("PhaseP best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
+			debug("PhaseP best: " + bestName + " score=" + round(bestCombo.getScore()!) + " " + bestCombo)
 		}
 
 		Benchmark.stop("ComboExplorer.phasePush")
@@ -622,10 +622,10 @@ class ComboExplorer {
 			explored++
 
 			Combo? combo = ComboBuilder.buildWithAttractPush(ctx, candidate)
-			if (combo != null && count(combo!.actions) > 0) {
+			if (combo != null && count(combo.actions) > 0) {
 				string name = "AP:" + candidate.target.name
-				ctx.recordResult(ExplorerResult(combo!, name, "AP"))
-				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+				ctx.recordResult(ExplorerResult(combo, name, "AP"))
+				if (bestCombo == null || combo.getScore()! > bestCombo.getScore()!) {
 					bestCombo = combo
 					bestName = name
 				}
@@ -633,7 +633,7 @@ class ComboExplorer {
 		}
 		debug("PhaseAP: " + explored + "/" + count(MapTactical.getAttractPushCombos()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 		if (bestCombo != null) {
-			debug("PhaseAP best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
+			debug("PhaseAP best: " + bestName + " score=" + round(bestCombo.getScore()!) + " " + bestCombo)
 		}
 
 		Benchmark.stop("ComboExplorer.phaseAttractPush")
@@ -662,10 +662,10 @@ class ComboExplorer {
 			explored++
 
 			Combo? combo = ComboBuilder.buildWithPullInvPush(ctx, candidate)
-			if (combo != null && count(combo!.actions) > 0) {
+			if (combo != null && count(combo.actions) > 0) {
 				string name = "PIP:" + candidate.target.name
-				ctx.recordResult(ExplorerResult(combo!, name, "PIP"))
-				if (bestCombo == null || combo!.getScore()! > bestCombo!.getScore()!) {
+				ctx.recordResult(ExplorerResult(combo, name, "PIP"))
+				if (bestCombo == null || combo.getScore()! > bestCombo.getScore()!) {
 					bestCombo = combo
 					bestName = name
 				}
@@ -673,7 +673,7 @@ class ComboExplorer {
 		}
 		debug("PhasePIP: " + explored + "/" + count(MapTactical.getPullInversionPushCombos()) + " candidates, cost=" + Benchmark.format(getOperations() - startOps))
 		if (bestCombo != null) {
-			debug("PhasePIP best: " + bestName + " score=" + round(bestCombo!.getScore()!) + " " + bestCombo!)
+			debug("PhasePIP best: " + bestName + " score=" + round(bestCombo.getScore()!) + " " + bestCombo)
 		}
 
 		Benchmark.stop("ComboExplorer.phasePullInvPush")
@@ -711,7 +711,7 @@ class ComboExplorer {
 		integer? distFromHere = reverseReach[Fight.self.cell]
 		if (distFromHere != null) {
 			Combo combo = ComboBuilder.buildAtCellForcedEnd(
-				ctx, Fight.self.cell, targetCell, scoreBonus, distFromHere!)
+				ctx, Fight.self.cell, targetCell, scoreBonus, distFromHere)
 			ctx.recordResult(ExplorerResult(combo, label + ":Stay", label))
 		}
 
@@ -720,12 +720,12 @@ class ComboExplorer {
 			if (ctx.shouldStop()) break
 			Cell? bestCell = ComboExplorer.findBestCellAtDistance(ctx, offenseMP)
 			if (bestCell == null) continue
-			integer? distToTarget = reverseReach[bestCell!]
+			integer? distToTarget = reverseReach[bestCell]
 			if (distToTarget == null) continue
-			if (offenseMP + distToTarget! > maxMP) continue
+			if (offenseMP + distToTarget > maxMP) continue
 
 			Combo combo = ComboBuilder.buildAtCellForcedEnd(
-				ctx, bestCell!, targetCell, scoreBonus, distToTarget!)
+				ctx, bestCell, targetCell, scoreBonus, distToTarget)
 			ctx.recordResult(ExplorerResult(combo, label + ":MP" + offenseMP, label))
 		}
 
@@ -735,14 +735,14 @@ class ComboExplorer {
 				if (ctx.shouldStop()) break
 				Cell? bestCell = ComboExplorer.findBestCellAtExtendedDistance(ctx, offenseMP)
 				if (bestCell == null) continue
-				integer? distToTarget = reverseReach[bestCell!]
+				integer? distToTarget = reverseReach[bestCell]
 				if (distToTarget == null) continue
-				if (offenseMP + distToTarget! > maxMP) continue
+				if (offenseMP + distToTarget > maxMP) continue
 
 				Combo? combo = ComboBuilder.buildAtCellBuffedForcedEnd(
-					ctx, bestCell!, targetCell, scoreBonus, offenseMP, distToTarget!)
+					ctx, bestCell, targetCell, scoreBonus, offenseMP, distToTarget)
 				if (combo != null) {
-					ctx.recordResult(ExplorerResult(combo!, label + ":MP" + offenseMP + "B", label))
+					ctx.recordResult(ExplorerResult(combo, label + ":MP" + offenseMP + "B", label))
 				}
 			}
 		}
@@ -770,7 +770,7 @@ class ComboExplorer {
 
 			// Reserve (maxMP - offenseMP) for defense
 			integer reserveMP = maxMP - offenseMP
-			Combo combo = ComboBuilder.buildAtCell(ctx, bestCell!, reserveMP)
+			Combo combo = ComboBuilder.buildAtCell(ctx, bestCell, reserveMP)
 			ctx.recordResult(ExplorerResult(combo, "P1:MP" + offenseMP, "1"))
 		}
 
@@ -786,9 +786,9 @@ class ComboExplorer {
 				if (bestCell == null) continue
 
 				// Build combo with auto MP buffs
-				Combo? combo = ComboBuilder.buildAtCellBuffed(ctx, bestCell!, offenseMP)
+				Combo? combo = ComboBuilder.buildAtCellBuffed(ctx, bestCell, offenseMP)
 				if (combo != null) {
-					ctx.recordResult(ExplorerResult(combo!, "P1:MP" + offenseMP + "B", "1"))
+					ctx.recordResult(ExplorerResult(combo, "P1:MP" + offenseMP + "B", "1"))
 				}
 			}
 		}
@@ -814,7 +814,7 @@ class ComboExplorer {
 				// Try teleport
 				if (ctx.hasTeleport) {
 					Combo? c = ComboBuilder.buildAtCellWithTeleport(ctx, cell)
-					if (c != null && (best == null || c!.getScore()! > best!.getScore()!)) {
+					if (c != null && (best == null || c.getScore()! > best.getScore()!)) {
 						best = c; bestLabel = "TP"
 					}
 				}
@@ -826,7 +826,7 @@ class ComboExplorer {
 				}
 
 				if (best != null) {
-					ctx.recordResult(ExplorerResult(best!, "P1:" + bestLabel + ">c" + cell.id, "1"))
+					ctx.recordResult(ExplorerResult(best, "P1:" + bestLabel + ">c" + cell.id, "1"))
 				}
 			}
 		}
@@ -847,7 +847,7 @@ class ComboExplorer {
 
 		for (Cell cell : real score in MapCellScore.cellScores) {
 			integer? dist = reachable[cell]
-			if (dist == null || dist! != distance) continue  // exact match only
+			if (dist == null || dist != distance) continue  // exact match only
 
 			if (score > bestScore) {
 				bestScore = score
@@ -871,7 +871,7 @@ class ComboExplorer {
 
 		for (Cell cell : real score in MapCellScore.cellScores) {
 			integer? dist = reachable[cell]
-			if (dist == null || dist! != distance) continue  // exact match only
+			if (dist == null || dist != distance) continue  // exact match only
 
 			if (score > bestScore) {
 				bestScore = score

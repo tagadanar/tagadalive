@@ -70,9 +70,9 @@ class BulbGreedy {
 		integer reservedMP = 0
 		if (bossCell != null) {
 			Map<Cell, integer> fullReach = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, <>)
-			integer? pathDist = fullReach[Board.cells[bossCell!]!]
+			integer? pathDist = fullReach[Board.cells[bossCell]!]
 			if (pathDist != null) {
-				reservedMP = pathDist!
+				reservedMP = pathDist
 			}
 		}
 
@@ -83,7 +83,7 @@ class BulbGreedy {
 				if (ally.isBulb || ally == Fight.self) continue
 				if (!ally.passives[EFFECT_POISON_TO_SCIENCE]) continue
 				real? danger = BattleState.allyDanger[ally]
-				if (danger != null && danger! > 0) continue
+				if (danger != null && danger > 0) continue
 				if (ally.psnlife < 500) continue
 				psnTarget = ally
 				break
@@ -94,13 +94,13 @@ class BulbGreedy {
 					Item? item = null
 					for (Item i in Fight.self.items) { if (i.id == chipId) { item = i; break } }
 					if (item == null) continue
-					if (item!.haveCD && getCooldown(item!.id, Fight.self.id) > 0) continue
-					if (item!.cost > currentTP) continue
-					Cell? useCell = BulbGreedy.getClosestUseCell(item!, psnTarget!.cell, reachCells, currentMP)
+					if (item.haveCD && getCooldown(item.id, Fight.self.id) > 0) continue
+					if (item.cost > currentTP) continue
+					Cell? useCell = BulbGreedy.getClosestUseCell(item, psnTarget.cell, reachCells, currentMP)
 					if (useCell == null) continue
-					Action action = BulbGreedy.createAction(item!, useCell!, psnTarget!.cell, currentCsq)
+					Action action = BulbGreedy.createAction(item, useCell, psnTarget.cell, currentCsq)
 					push(combo.actions, action)
-					usedItems[item!] = 1
+					usedItems[item] = 1
 					currentCsq = action.consequences
 					currentCell = currentCsq!.currentCell
 					currentTP = currentCsq!.currentTP
@@ -129,12 +129,12 @@ class BulbGreedy {
 			if (bestAction == null) break
 
 			// Add action to combo
-			push(combo.actions, bestAction!)
+			push(combo.actions, bestAction)
 
 			// Update state for next iteration
-			integer prevUsed = usedItems[bestAction!.item] ?? 0
-			usedItems[bestAction!.item] = prevUsed + 1
-			currentCsq = bestAction!.consequences
+			integer prevUsed = usedItems[bestAction.item] ?? 0
+			usedItems[bestAction.item] = prevUsed + 1
+			currentCsq = bestAction.consequences
 			currentCell = currentCsq!.currentCell
 			currentTP = currentCsq!.currentTP
 			currentMP = currentCsq!.currentMP
@@ -149,13 +149,13 @@ class BulbGreedy {
 			// Verify boss cell is actually reachable from current position with remaining MP
 			Set<Cell> newObstacles = currentCsq != null ? currentCsq!._newObstacles : <>
 			Map<Cell, integer> endReach = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, newObstacles)
-			Cell bossCellObj = Board.cells[bossCell!]!
+			Cell bossCellObj = Board.cells[bossCell]!
 			if (endReach[bossCellObj] != null) {
 				Position pos = MapPosition.evaluatePosition(bossCellObj, currentCsq)
 				pos.score += 100000.0
 				combo.addFinalPosition(pos)
 			} else {
-				debugW("BULB: Boss cell c" + bossCell! + " unreachable with " + currentMP + "MP, falling back")
+				debugW("BULB: Boss cell c" + bossCell + " unreachable with " + currentMP + "MP, falling back")
 				Position position = MapPosition.findBestPosition(currentCell, currentMP, currentCsq)
 				combo.addFinalPosition(position)
 			}
@@ -223,7 +223,7 @@ class BulbGreedy {
 					// Use currentCell (may have moved), not Fight.self.cell (start of turn)
 					Action action = BulbGreedy.createAction(item, currentCell, Fight.selfCell, parentCsq)
 					if (action.score != null && action.score! > bestScore) {
-						bestScore = action.score!
+						bestScore = action.score
 						bestAction = action
 					}
 				}
@@ -233,7 +233,7 @@ class BulbGreedy {
 			// Iterate through valid targets
 			for (integer targetId : Entity target in targets) {
 				// Skip dead targets (from previous actions in combo)
-				if (parentCsq != null && parentCsq!.isKilled(target)) continue
+				if (parentCsq != null && parentCsq.isKilled(target)) continue
 
 				// Skip invincible targets and Fennel puzzle entities
 				if (target.isInvincible || BossFennel.shouldNotTarget(target)) continue
@@ -246,7 +246,7 @@ class BulbGreedy {
 				Cell targetCell = (target == Fight.self) ? Fight.selfCell : target.cell
 
 				// Create and score action
-				Action action = BulbGreedy.createAction(item, useCell!, targetCell, parentCsq)
+				Action action = BulbGreedy.createAction(item, useCell, targetCell, parentCsq)
 
 				if (action.score! > bestScore) {
 					bestScore = action.score!
@@ -277,8 +277,8 @@ class BulbGreedy {
 		for (Cell cell in useCells) {
 			integer? dist = reachableCells[cell]
 			// Check cell is reachable and within MP budget
-			if (dist != null && dist! <= currentMP && dist! < bestDist) {
-				bestDist = dist!
+			if (dist != null && dist <= currentMP && dist < bestDist) {
+				bestDist = dist
 				bestCell = cell
 			}
 		}
@@ -292,7 +292,7 @@ class BulbGreedy {
 	static Action createAction(Item item, Cell fromCell, Cell toCell, Consequences? parentCsq) {
 		if (parentCsq != null) {
 			// Chain directly with parent (no throwaway base Action)
-			return new Action(item, fromCell, toCell, parentCsq!, true)
+			return new Action(item, fromCell, toCell, parentCsq, true)
 		} else {
 			// First action - no parent
 			return new Action(item, fromCell, toCell)

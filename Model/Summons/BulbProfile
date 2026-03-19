@@ -18,9 +18,7 @@ class BulbProfile {
 	 * Fetches stat ranges from game API on first call (40 ops, cached).
 	 */
 	BulbStats computeStats(integer summonerLevel) {
-		if (this.characs == null) {
-			this.characs = getBulbStats(this.summonChip)
-		}
+		this.characs ??= getBulbStats(this.summonChip)
 		Map<integer, Array<integer>> c = this.characs!
 		real ratio = min(300, summonerLevel) / 300.0
 		return BulbStats(

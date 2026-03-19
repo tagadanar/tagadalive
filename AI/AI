@@ -55,7 +55,7 @@ class AI {
 
 		// Save expected danger at our final position so bulbs can check ally safety
 		if (combo.finalPosition != null)
-			BattleState.allyDanger[Fight.self] = combo.finalPosition!.dmg + combo.finalPosition!.psnDmg
+			BattleState.allyDanger[Fight.self] = combo.finalPosition.dmg + combo.finalPosition.psnDmg
 
 		return combo
 	}

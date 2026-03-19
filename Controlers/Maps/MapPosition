@@ -71,7 +71,7 @@ class MapPosition {
 	static void _refreshNearestEnemyPathDist() {
 		if (_nearest_enemy != null) {
 			// Ignore all entities to get pure terrain path distance
-			_nearest_enemy_path_dist = MapPath.getCachedReachableCells(_nearest_enemy!.cell, 100, arrayToSet(mapKeys(Board.entityCells)) as Set<Cell>)
+			_nearest_enemy_path_dist = MapPath.getCachedReachableCells(_nearest_enemy.cell, 100, arrayToSet(mapKeys(Board.entityCells)) as Set<Cell>)
 		} else {
 			_nearest_enemy_path_dist = null
 		}
@@ -93,7 +93,7 @@ class MapPosition {
 
 		_is_cac = false
 		Item? currentWeapon = Fight.self.getWeaponInHand()
-		if (currentWeapon != null && currentWeapon!.maxRange <= 2) {
+		if (currentWeapon != null && currentWeapon.maxRange <= 2) {
 			_is_cac = true
 		}
 	}
@@ -141,15 +141,15 @@ class MapPosition {
 			// Nearest enemy
 			if (_nearest_enemy != null) {
 				integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
-				_gravity_distance[_nearest_enemy!.cell] = distToEnemy
-				_gravity_coef[_nearest_enemy!.cell] = ScoringConfig.W_GRAVITY_NEAREST_ENEMY
+				_gravity_distance[_nearest_enemy.cell] = distToEnemy
+				_gravity_coef[_nearest_enemy.cell] = ScoringConfig.W_GRAVITY_NEAREST_ENEMY
 			}
 
 			// Farthest ally from barycentre (team cohesion - help isolated teammates)
 			Entity? farthestAlly = MapTactical.getFarthestAllyFromBarycentre()
 			if (farthestAlly != null) {
-				_gravity_distance[farthestAlly!.cell] = ScoringConfig.IDEAL_DIST_ALLY
-				_gravity_coef[farthestAlly!.cell] = ScoringConfig.W_GRAVITY_ALLY_BARYCENTRE
+				_gravity_distance[farthestAlly.cell] = ScoringConfig.IDEAL_DIST_ALLY
+				_gravity_coef[farthestAlly.cell] = ScoringConfig.W_GRAVITY_ALLY_BARYCENTRE
 			}
 		} else {
 			// Solo/default: nearest enemy + center
@@ -157,15 +157,15 @@ class MapPosition {
 			// Nearest enemy
 			if (_nearest_enemy != null) {
 				integer distToEnemy = _is_cac ? ScoringConfig.IDEAL_DIST_CAC : Scoring.IDEAL_DIST_RANGED
-				_gravity_distance[_nearest_enemy!.cell] = distToEnemy
-				_gravity_coef[_nearest_enemy!.cell] = ScoringConfig.W_GRAVITY_NEAREST_ENEMY
+				_gravity_distance[_nearest_enemy.cell] = distToEnemy
+				_gravity_coef[_nearest_enemy.cell] = ScoringConfig.W_GRAVITY_NEAREST_ENEMY
 			}
 
 			// Center
 			Cell? centerCell = Board.getCell(306)
 			if (centerCell != null) {
-				_gravity_distance[centerCell!] = ScoringConfig.IDEAL_DIST_CENTER
-				_gravity_coef[centerCell!] = ScoringConfig.W_GRAVITY_CENTER
+				_gravity_distance[centerCell] = ScoringConfig.IDEAL_DIST_CENTER
+				_gravity_coef[centerCell] = ScoringConfig.W_GRAVITY_CENTER
 			}
 		}
 
@@ -173,8 +173,8 @@ class MapPosition {
 		if (BossFennel.isActive() && !BossFennel.isPuzzleSolved()) {
 			Entity? farthestCrystal = BossFennel.getFarthestCrystalFromGraal()
 			if (farthestCrystal != null) {
-				_gravity_distance[farthestCrystal!.cell] = 4
-				_gravity_coef[farthestCrystal!.cell] = BossFennel.W_GRAVITY_GRAAL
+				_gravity_distance[farthestCrystal.cell] = 4
+				_gravity_coef[farthestCrystal.cell] = BossFennel.W_GRAVITY_GRAAL
 			}
 		}
 
@@ -202,7 +202,7 @@ class MapPosition {
 		if (BossFennel.isActive() && !BossFennel.isPuzzleSolved()) {
 			Entity? farthestCrystal = BossFennel.getFarthestCrystalFromGraal()
 			if (farthestCrystal != null) {
-				referenceCell = farthestCrystal!.cell
+				referenceCell = farthestCrystal.cell
 			}
 		}
 
@@ -239,8 +239,8 @@ class MapPosition {
 		Benchmark.start("MP.evalPos")
 
 		// Check cache first (like MapDanger pattern)
-		if (consequences != null && consequences!.isAlteringDanger) {
-			integer key = consequences!.hashcode * 997 + consequences!.dangerMPHash
+		if (consequences != null && consequences.isAlteringDanger) {
+			integer key = consequences.hashcode * 997 + consequences.dangerMPHash
 			if (_hash_position[key] != null &&
 				_hash_position[key]![cell] != null) {
 				Benchmark.stop("MP.evalPos")
@@ -261,7 +261,7 @@ class MapPosition {
 
 		// OPTIMIZATION: Reuse precomputed tactical scores for altering consequences
 		// These scores don't depend on consequences (use real board state, not simulated)
-		if (consequences != null && consequences!.isAlteringDanger && _position[cell] != null) {
+		if (consequences != null && consequences.isAlteringDanger && _position[cell] != null) {
 			Position base = _position[cell]!
 			pos.proximityScore = base.proximityScore
 			pos.gravityScore = base.gravityScore
@@ -275,8 +275,8 @@ class MapPosition {
 		}
 
 		// Store in cache
-		if (consequences != null && consequences!.isAlteringDanger) {
-			integer key = consequences!.hashcode * 997 + consequences!.dangerMPHash
+		if (consequences != null && consequences.isAlteringDanger) {
+			integer key = consequences.hashcode * 997 + consequences.dangerMPHash
 			if (_hash_position[key] == null) {
 				_hash_position[key] = [:]
 			}
@@ -308,7 +308,7 @@ class MapPosition {
 		for (Cell c in area1) {
 			if (c == cell) continue
 			Entity? entity = Board.entityCells[c]
-			if (entity != null && entity!.isFriend) {
+			if (entity != null && entity.isFriend) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA1
 			}
 		}
@@ -317,7 +317,7 @@ class MapPosition {
 		for (Cell c in area2) {
 			if (setContains(area1, c)) continue  // O(1) lookup instead of inArray O(n)
 			Entity? entity = Board.entityCells[c]
-			if (entity != null && entity!.isFriend) {
+			if (entity != null && entity.isFriend) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA2
 			}
 		}
@@ -326,7 +326,7 @@ class MapPosition {
 		for (Cell c in area3) {
 			if (setContains(area2, c)) continue  // O(1) lookup instead of inArray O(n)
 			Entity? entity = Board.entityCells[c]
-			if (entity != null && entity!.isFriend) {
+			if (entity != null && entity.isFriend) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA3
 			}
 		}
@@ -349,16 +349,16 @@ class MapPosition {
 			integer actualDist
 
 			// Use path distance for nearest enemy (accurate), cell distance for others
-			if (_nearest_enemy != null && targetCell == _nearest_enemy!.cell && _nearest_enemy_path_dist != null) {
-				actualDist = _nearest_enemy_path_dist![cell] ?? 99
+			if (_nearest_enemy != null && targetCell == _nearest_enemy.cell && _nearest_enemy_path_dist != null) {
+				actualDist = _nearest_enemy_path_dist[cell] ?? 99
 			} else {
 				actualDist = getCellDistance(cell.id, targetCell.id)
 			}
 
 			integer deviation = abs(idealDist - actualDist)
 
-			if (_is_cac && _nearest_enemy != null && targetCell == _nearest_enemy!.cell) {
-				integer enemyMP = _nearest_enemy!.mp - _nearest_enemy!.altMP
+			if (_is_cac && _nearest_enemy != null && targetCell == _nearest_enemy.cell) {
+				integer enemyMP = _nearest_enemy.mp - _nearest_enemy.altMP
 				if (actualDist <= enemyMP + Fight.self.mp) {
 					score += ScoringConfig.W_CAC_IN_RANGE
 				}
@@ -380,11 +380,11 @@ class MapPosition {
 
 		// Lock bonus
 		if (_nearest_enemy != null) {
-			Set<Cell> enemyAdjacent = _nearest_enemy!.cell.getAreaCells(AREA_CIRCLE_1)
+			Set<Cell> enemyAdjacent = _nearest_enemy.cell.getAreaCells(AREA_CIRCLE_1)
 			integer walkableCount = 0
 			Cell? onlyWalkable = null
 			for (Cell c in enemyAdjacent) {
-				if (c == _nearest_enemy!.cell) continue
+				if (c == _nearest_enemy.cell) continue
 				if (Board.entityCells[c] == null) {
 					walkableCount++
 					onlyWalkable = c
@@ -400,17 +400,17 @@ class MapPosition {
 		if (Fight.self.hasCovid && !Fight.antidoteReady) {
 			for (Cell c in cell.getAreaCells(AREA_CIRCLE_2)) {
 				Entity? entity = Board.entityCells[c]
-				if (entity != null && entity! != Fight.self) {
-					if (!entity!.isFriend && !entity!.hasCovid) {
+				if (entity != null && entity != Fight.self) {
+					if (!entity.isFriend && !entity.hasCovid) {
 						// Bonus for enemies without COVID (can spread to them)
-						if (entity!.isBulb) {
+						if (entity.isBulb) {
 							bonus += ScoringConfig.W_COVID_SUMMON
 						} else {
 							bonus += ScoringConfig.W_COVID_LEEK
 						}
-					} else if (entity!.isFriend && !entity!.hasCovid) {
+					} else if (entity.isFriend && !entity.hasCovid) {
 						// Penalty for allies without COVID (avoid infecting them)
-						if (entity!.isBulb) {
+						if (entity.isBulb) {
 							bonus -= ScoringConfig.W_COVID_SUMMON
 						} else {
 							bonus -= ScoringConfig.W_COVID_LEEK
@@ -434,7 +434,7 @@ class MapPosition {
 		for (Cell cell : integer mp in reachableCells) {
 			if (mp > mpLeft) continue  // Skip cells exceeding MP budget (cache may return superset)
 			Position pos = MapPosition.evaluatePosition(cell, consequences)
-			if (bestPosition == null || pos.score > bestPosition!.score) {
+			if (bestPosition == null || pos.score > bestPosition.score) {
 				bestPosition = pos
 			}
 		}
@@ -457,7 +457,7 @@ class MapPosition {
 		Position? best = null
 		for (Cell cell : integer mp in reachableMap) {
 			Position pos = MapPosition.evaluatePosition(cell, csq)
-			if (best == null || pos.score > best!.score) best = pos
+			if (best == null || pos.score > best.score) best = pos
 		}
 		if (best == null) best = MapPosition.evaluatePosition(Fight.self.cell, csq)
 		Benchmark.stop("MP.findBestMap")
@@ -477,7 +477,7 @@ class MapPosition {
 	 */
 	static real findBestPositionScoreFast(Cell fromCell, integer mp, Consequences? csq) {
 		// If consequences alter danger (kills, debuffs), fall back to full evaluation
-		if (csq != null && csq!.isAlteringDanger) {
+		if (csq != null && csq.isAlteringDanger) {
 			return MapPosition.findBestPosition(fromCell, mp, csq).score
 		}
 

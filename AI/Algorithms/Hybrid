@@ -44,7 +44,7 @@ class Hybrid {
 				Fight.self.getWeaponInHand()
 			)
 
-			if (!bestCombo || bestCombo!.getScore()! < combo.getScore()!) {
+			if (!bestCombo || bestCombo.getScore()! < combo.getScore()!) {
 				bestCombo = combo
 			}
 		}
@@ -103,7 +103,7 @@ class Hybrid {
 				Fight.self.getWeaponInHand()
 			)
 
-			if (!bestCombo || bestCombo!.getScore()! < combo.getScore()!) {
+			if (!bestCombo || bestCombo.getScore()! < combo.getScore()!) {
 				bestCombo = combo
 			}
 		}

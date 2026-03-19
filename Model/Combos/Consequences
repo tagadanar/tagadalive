@@ -142,10 +142,10 @@ class Consequences {
 		if (consequences._shared != null) {
 			// Parent uses shared snapshot - must materialize (snapshot is immutable)
 			this._parent = null
-			this._alterations = clone(consequences._shared!.alterations, 2) as Map<Entity, Map<integer, integer>>
-			this._altEffects = clone(consequences._shared!.altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
-			this._effectTypeAlterations = clone(consequences._shared!.effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
-			this._killed = clone(consequences._shared!.killed) as Set<Entity>
+			this._alterations = clone(consequences._shared.alterations, 2) as Map<Entity, Map<integer, integer>>
+			this._altEffects = clone(consequences._shared.altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
+			this._effectTypeAlterations = clone(consequences._shared.effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
+			this._killed = clone(consequences._shared.killed) as Set<Entity>
 			// Mark all entities as local (since we materialized)
 			for (Entity e : Map<integer, integer> _ in this._alterations) {
 				this._localEntities[e] = true
@@ -265,7 +265,7 @@ class Consequences {
 		// Pass currentCell for self-cast AoE (combo may have moved us)
 		// Use overrideTargets for simulated positions (e.g., post-inversion actions)
 		if (action.overrideTargets != null) {
-			this.targets = action.overrideTargets!
+			this.targets = action.overrideTargets
 		} else {
 			this.targets = Targets.getTargets(action, this.currentCell)
 		}
@@ -289,16 +289,16 @@ class Consequences {
 
 				BulbProfile? profile = MapSummon.PROFILES[effect.item.id]
 				if (profile != null) {
-					BulbStats stats = profile!.computeStats(Fight.self.level)
+					BulbStats stats = profile.computeStats(Fight.self.level)
 					Entity? target = MapSummon.getTargetForCell(effect.item.id, action.to)
-					Array<Item> chips = MapSummon.getOffensiveChips(profile!.bulbType)
+					Array<Item> chips = MapSummon.getOffensiveChips(profile.bulbType)
 
 					if (target != null && count(chips) > 0) {
-						real baseDmg = MapSummon._calcKnapsackDamageForEnemy(stats, chips, target!)
-						real baseDmgScore = MapSummon.computeDamageScore(baseDmg, target!)
-						this.pendingBulbs[action.to] = PendingBulb(stats, target!, chips, profile!.bulbType, baseDmgScore)
+						real baseDmg = MapSummon._calcKnapsackDamageForEnemy(stats, chips, target)
+						real baseDmgScore = MapSummon.computeDamageScore(baseDmg, target)
+						this.pendingBulbs[action.to] = PendingBulb(stats, target, chips, profile.bulbType, baseDmgScore)
 					} else {
-						this.pendingBulbs[action.to] = PendingBulb(stats, Fight.self, [], profile!.bulbType, 0)
+						this.pendingBulbs[action.to] = PendingBulb(stats, Fight.self, [], profile.bulbType, 0)
 					}
 				}
 				continue
@@ -311,10 +311,10 @@ class Consequences {
 				}
 				// Create PendingResurrect for follow-up buff scoring
 				if (Fight.resurrectTargetId != null) {
-					integer? maxHP = getTotalLife(Fight.resurrectTargetId!)
-					if (maxHP != null && maxHP! > 0) {
+					integer? maxHP = getTotalLife(Fight.resurrectTargetId)
+					if (maxHP != null && maxHP > 0) {
 						this.pendingResurrect[action.to] = PendingResurrect(
-							Fight.resurrectTargetId!, maxHP!, action.to, action.from
+							Fight.resurrectTargetId, maxHP, action.to, action.from
 						)
 					}
 				}
@@ -390,8 +390,8 @@ class Consequences {
 
 		if (action.from != Fight.selfCell) {
 			integer? moveCost = reachableCells[action.from]
-			if (moveCost != null && moveCost! <= this.currentMP) {
-				this.currentMP = this.currentMP - moveCost!
+			if (moveCost != null && moveCost <= this.currentMP) {
+				this.currentMP = this.currentMP - moveCost
 			}
 			this.currentCell = action.from
 		}
@@ -525,7 +525,7 @@ class Consequences {
 	 */
 	integer? getAlteration(Entity entity, integer key){
 		// Check shared mode first
-		if (_shared != null) return _shared!.getAlteration(entity, key)
+		if (_shared != null) return _shared.getAlteration(entity, key)
 
 		// Check local data
 		if(_alterations[entity] != null) {
@@ -534,7 +534,7 @@ class Consequences {
 
 		// Walk parent chain
 		if (_parent != null) {
-			return _parent!.getAlteration(entity, key)
+			return _parent.getAlteration(entity, key)
 		}
 
 		return null
@@ -544,14 +544,14 @@ class Consequences {
 	 * Check if entity is killed, walking parent chain.
 	 */
 	boolean isKilled(Entity entity){
-		if (_shared != null) return _shared!.isKilled(entity)
+		if (_shared != null) return _shared.isKilled(entity)
 
 		// Check local kills
 		if (setContains(this._killed, entity)) return true
 
 		// Walk parent chain
 		if (this._parent != null) {
-			return this._parent!.isKilled(entity)
+			return this._parent.isKilled(entity)
 		}
 
 		return false
@@ -561,17 +561,17 @@ class Consequences {
 	 * Get effect type alteration, walking parent chain.
 	 */
 	integer getEffectTypeAlteration(Entity entity, integer effectType){
-		if (_shared != null) return _shared!.getEffectTypeAlteration(entity, effectType)
+		if (_shared != null) return _shared.getEffectTypeAlteration(entity, effectType)
 
 		// Check local data
 		if(_effectTypeAlterations[entity] != null) {
 			integer? local = _effectTypeAlterations[entity]![effectType]
-			if (local != null) return local!
+			if (local != null) return local
 		}
 
 		// Walk parent chain
 		if (_parent != null) {
-			return _parent!.getEffectTypeAlteration(entity, effectType)
+			return _parent.getEffectTypeAlteration(entity, effectType)
 		}
 
 		return 0
@@ -582,7 +582,7 @@ class Consequences {
 	 * Note: This is called rarely (mainly for debug output).
 	 */
 	Map<Entity, Map<integer, integer>> getAlterations(){
-		if (_shared != null) return _shared!.alterations
+		if (_shared != null) return _shared.alterations
 		return this._materializeAllAlterations()
 	}
 
@@ -592,8 +592,8 @@ class Consequences {
 	 */
 	EffectOverTime? getExistingItemEffect(Entity entity, Item item) {
 		if (_shared != null) {
-			if (_shared!.altEffects[entity] && _shared!.altEffects[entity]![item]) {
-				Array<EffectOverTime> effects = _shared!.altEffects[entity]![item]!
+			if (_shared.altEffects[entity] && _shared.altEffects[entity]![item]) {
+				Array<EffectOverTime> effects = _shared.altEffects[entity]![item]!
 				return effects[count(effects) - 1]
 			}
 		} else {
@@ -604,7 +604,7 @@ class Consequences {
 			}
 			// Walk parent chain
 			if (_parent != null) {
-				return _parent!.getExistingItemEffect(entity, item)
+				return _parent.getExistingItemEffect(entity, item)
 			}
 		}
 		// Check turn-start effects
@@ -617,10 +617,10 @@ class Consequences {
 	 */
 	boolean hasAltEffects(Entity entity) {
 		if (_shared != null) {
-			return _shared!.altEffects[entity] != null
+			return _shared.altEffects[entity] != null
 		}
 		if (_altEffects[entity] != null) return true
-		if (_parent != null) return _parent!.hasAltEffects(entity)
+		if (_parent != null) return _parent.hasAltEffects(entity)
 		return false
 	}
 
@@ -631,7 +631,7 @@ class Consequences {
 	 */
 	Map<Item, Array<EffectOverTime>>? getEntityAltEffects(Entity entity) {
 		if (_shared != null) {
-			return _shared!.altEffects[entity]
+			return _shared.altEffects[entity]
 		}
 		// Need to merge local + parent chain
 		return this._materializeEntityAltEffects(entity)
@@ -654,7 +654,7 @@ class Consequences {
 
 		// Get from parent chain first
 		if (_parent != null) {
-			result = _parent!._materializeEntityAltEffects(entity)
+			result = _parent._materializeEntityAltEffects(entity)
 		}
 
 		// Merge local data
@@ -665,7 +665,7 @@ class Consequences {
 			} else {
 				// Merge - local takes precedence for same item
 				for (Item item : Array<EffectOverTime> effects in _altEffects[entity]!) {
-					result![item] = effects
+					result[item] = effects
 				}
 			}
 		}
@@ -706,11 +706,11 @@ class Consequences {
 	private Map<integer, integer>? _getParentAlterationMap(Entity entity) {
 		if (_parent != null) {
 			// Check parent's local data first
-			if (_parent!._alterations[entity] != null) {
-				return _parent!._alterations[entity]
+			if (_parent._alterations[entity] != null) {
+				return _parent._alterations[entity]
 			}
 			// Recurse up chain
-			return _parent!._getParentAlterationMap(entity)
+			return _parent._getParentAlterationMap(entity)
 		}
 		return null
 	}
@@ -720,10 +720,10 @@ class Consequences {
 	 */
 	private Map<Item, Array<EffectOverTime>>? _getParentAltEffectsMap(Entity entity) {
 		if (_parent != null) {
-			if (_parent!._altEffects[entity] != null) {
-				return _parent!._altEffects[entity]
+			if (_parent._altEffects[entity] != null) {
+				return _parent._altEffects[entity]
 			}
-			return _parent!._getParentAltEffectsMap(entity)
+			return _parent._getParentAltEffectsMap(entity)
 		}
 		return null
 	}
@@ -733,10 +733,10 @@ class Consequences {
 	 */
 	private Map<integer, integer>? _getParentEffectTypeMap(Entity entity) {
 		if (_parent != null) {
-			if (_parent!._effectTypeAlterations[entity] != null) {
-				return _parent!._effectTypeAlterations[entity]
+			if (_parent._effectTypeAlterations[entity] != null) {
+				return _parent._effectTypeAlterations[entity]
 			}
-			return _parent!._getParentEffectTypeMap(entity)
+			return _parent._getParentEffectTypeMap(entity)
 		}
 		return null
 	}
@@ -752,7 +752,7 @@ class Consequences {
 		}
 		// Walk parent chain
 		if (_parent != null) {
-			_parent!.appendKilledCells(cells)
+			_parent.appendKilledCells(cells)
 		}
 	}
 
@@ -794,7 +794,7 @@ class Consequences {
 
 		// Collect from parent chain first (bottom-up)
 		if (_parent != null) {
-			result = _parent!._materializeAllAlterations()
+			result = _parent._materializeAllAlterations()
 		}
 
 		// Apply local modifications (overwrites parent data for same entity)

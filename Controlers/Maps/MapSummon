@@ -109,7 +109,7 @@ class MapSummon {
 			}
 
 			Array<SummonCandidate> candidates = MapSummon._evaluateSummonChip(
-				item, profile!, summonerLevel
+				item, profile, summonerLevel
 			)
 			_candidates[item.id] = candidates
 
@@ -201,7 +201,7 @@ class MapSummon {
 		Array<Item> chips = []
 		for (integer chipId in chipIds!) {
 			Item? chip = Items.getItem(chipId)
-			if (chip != null) push(chips, chip!)
+			if (chip != null) push(chips, chip)
 		}
 		return chips
 	}
@@ -275,13 +275,13 @@ class MapSummon {
 
 		// Check if offensive chips are defined
 		Array<integer>? chipIds = BULB_OFFENSIVE_CHIPS[profile!.bulbType]
-		if (chipIds == null || count(chipIds!) == 0) {
+		if (chipIds == null || count(chipIds) == 0) {
 			return true  // No offensive chips = defensive bulb
 		}
 
 		// Check if ally-targeting bulb in solo (no other allies)
 		integer? modeVal = BULB_TARGET_MODE[profile!.bulbType]
-		if (modeVal != null && modeVal! != TARGET_MODE_ENEMY) {
+		if (modeVal != null && modeVal != TARGET_MODE_ENEMY) {
 			// Count allies excluding self
 			integer allyCount = 0
 			for (Entity ally in Fight.getAlliesAlive()) {
@@ -313,11 +313,11 @@ class MapSummon {
 
 				Cell? cell = Board.cellsXY[x] != null ? Board.cellsXY[x]![y] : null
 				if (cell == null) continue
-				if (cell!.isWall) continue
-				if (Board.entityCells[cell!] != null) continue  // Must be empty
+				if (cell.isWall) continue
+				if (Board.entityCells[cell] != null) continue  // Must be empty
 
 				// Check LOS if required
-				if (summonItem.needLOS && !lineOfSight(fromCell.id, cell!.id, [])) continue
+				if (summonItem.needLOS && !lineOfSight(fromCell.id, cell.id, [])) continue
 
 				// Prefer farthest cell
 				if (dist > bestDist) {
@@ -400,18 +400,18 @@ class MapSummon {
 				integer ty = fromCell.y + dy
 				Cell? targetCell = Board.cellsXY[tx] != null ? Board.cellsXY[tx]![ty] : null
 				if (targetCell == null) continue
-				if (targetCell!.isWall) continue
-				if (Board.entityCells[targetCell!] != null) continue  // Must be empty
+				if (targetCell.isWall) continue
+				if (Board.entityCells[targetCell] != null) continue  // Must be empty
 
 				// Check LOS if required
-				if (item.needLOS && !lineOfSight(fromCell.id, targetCell!.id, [Fight.self.id])) continue
+				if (item.needLOS && !lineOfSight(fromCell.id, targetCell.id, [Fight.self.id])) continue
 
-				integer cellId = targetCell!.id
+				integer cellId = targetCell.id
 				integer? existing = bestCost[cellId]
-				if (existing == null || cost < existing!) {
+				if (existing == null || cost < existing) {
 					bestFromCell[cellId] = fromCell
 					bestCost[cellId] = cost
-					spawnCellRefs[cellId] = targetCell!
+					spawnCellRefs[cellId] = targetCell
 				}
 			}
 		}
@@ -433,7 +433,7 @@ class MapSummon {
 
 		integer deadId = Fight.resurrectTargetId!
 		integer? originalMaxHP = getTotalLife(deadId)
-		if (originalMaxHP == null || originalMaxHP! <= 0) return null
+		if (originalMaxHP == null || originalMaxHP <= 0) return null
 
 		Array<DefensiveCandidate> candidates = MapSummon.getDefensiveCandidates(Fight.resurrectionItem!, 10)
 
@@ -591,13 +591,13 @@ class MapSummon {
 
 		// Get offensive chips for this bulb type
 		Array<integer>? chipIds = BULB_OFFENSIVE_CHIPS[profile.bulbType]
-		if (chipIds == null || count(chipIds!) == 0) return []
+		if (chipIds == null || count(chipIds) == 0) return []
 
 		// Load chip Items
 		Array<Item> chips = []
 		for (integer chipId in chipIds!) {
 			Item? chip = Items.getItem(chipId)
-			if (chip != null) push(chips, chip!)
+			if (chip != null) push(chips, chip)
 		}
 		if (count(chips) == 0) return []
 
@@ -684,7 +684,7 @@ class MapSummon {
 
 				// Keep only if this is a better score
 				real? existingScore = cellScores[cellId]
-				if (existingScore != null && existingScore! >= score) continue
+				if (existingScore != null && existingScore >= score) continue
 
 				cellScores[cellId] = score
 				cellTargets[cellId] = target
@@ -709,8 +709,8 @@ class MapSummon {
 			integer bestCost = 9999
 			for (Cell castCell in castCells) {
 				integer? cost = leekReachable[castCell]
-				if (cost != null && cost! < bestCost) {
-					bestCost = cost!
+				if (cost != null && cost < bestCost) {
+					bestCost = cost
 					bestFrom = castCell
 				}
 			}
@@ -722,7 +722,7 @@ class MapSummon {
 			integer distToTarget = getCellDistance(spawnCell.id, target.cell.id)
 
 			push(candidates, SummonCandidate(
-				spawnCell, bestFrom!, score, target,
+				spawnCell, bestFrom, score, target,
 				expectedDmg, distToTarget, bulbReach
 			))
 		}
@@ -731,7 +731,7 @@ class MapSummon {
 		integer? bossCell = BossPotiMalef.getResurrectionCell()
 		if (bossCell != null) {
 			for (SummonCandidate c in candidates) {
-				integer distToBoss = getCellDistance(c.cell.id, bossCell!)
+				integer distToBoss = getCellDistance(c.cell.id, bossCell)
 				if (distToBoss <= bulbMP) {
 					c.score += 100000.0 + (bulbMP - distToBoss) * 1000.0
 				}

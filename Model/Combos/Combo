@@ -50,16 +50,18 @@ class Combo {
 	 * Action scores are cumulative (each includes all previous effects), so we only need the last one.
 	 */
 	real? getScore(){
-		if(this.score == null){
-			// Last action's score is cumulative (includes all previous action effects)
-			if(count(this.actions) > 0) {
-				this.score = this.actions[count(this.actions) - 1].score!
-			} else {
-				this.score = 0.0  // Movement-only combo
-			}
-			this.score += this.finalPosition!.score
-		}
+		this.score ??= Combo._computeScore(this.actions, this.finalPosition!)
 		return this.score
+	}
+
+	private static real _computeScore(Array<Action> actions, Position finalPos) {
+		real s
+		if(count(actions) > 0) {
+			s = actions[count(actions) - 1].score!
+		} else {
+			s = 0.0
+		}
+		return s + finalPos.score
 	}
 	
 	/*
@@ -195,8 +197,8 @@ class Combo {
 				continue
 			}
 
-			summon(delayedAction.item.id, spawnCell!.id, BulbGreedy.runTurn, Combo.BULB_NAME)
-			Benchmark.log("DELAYED_SUMMON>" + delayedAction.item.name + ">c" + spawnCell!.id)
+			summon(delayedAction.item.id, spawnCell.id, BulbGreedy.runTurn, Combo.BULB_NAME)
+			Benchmark.log("DELAYED_SUMMON>" + delayedAction.item.name + ">c" + spawnCell.id)
 		}
 
 		// étape 2.75: spend leftover TP with greedy fallback (leek only — MapCellScore is not refreshed for bulbs)

@@ -300,8 +300,8 @@ class MapDanger {
 	 * @return un objet <Danger>
 	 */
 	static Danger getCellDanger(Cell cell, Consequences? consequences) {
-		if(consequences && consequences!.isAlteringDanger){
-			integer key = consequences!.hashcode * 997 + consequences!.dangerMPHash
+		if(consequences && consequences.isAlteringDanger){
+			integer key = consequences.hashcode * 997 + consequences.dangerMPHash
 			if(!_hash_danger[key])
 				_hash_danger[key] = [:]
 			if(!_hash_danger[key]![cell]){
@@ -413,7 +413,7 @@ class MapDanger {
 		// Pass 3: teleport-only reachable cells (cells NOT reachable by walk or jump alone)
 		Map<Cell, integer> map_teleport = [:]
 		if (enemy.reachableCellsTeleport != null) {
-			for (Cell cell : integer dist in enemy.reachableCellsTeleport!) {
+			for (Cell cell : integer dist in enemy.reachableCellsTeleport) {
 				if (dist > enemy.mp) continue
 				// Skip cells already reachable by walk at same or lower distance
 				if (enemy.reachableCells[cell] != null && enemy.reachableCells[cell]! <= dist) continue
@@ -555,7 +555,7 @@ class MapDanger {
 						turnsForT = max(0, getCD(e) - 1)
 						if (turnsForT == 0) {
 							Map<Cell, real>? map = coverageMap[e]
-							if (map == null || map![target.cell] == null) turnsForT = 1
+							if (map == null || map[target.cell] == null) turnsForT = 1
 						}
 					} else {
 						turnsForT = max(1, getCD(e))

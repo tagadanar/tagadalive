@@ -30,7 +30,7 @@ Consequences.registerHandlers([
 		// Score from pre-computed candidate (ally damage delta + vulnerability impact)
 		// This is the full tactical value of the position swap
 		if (conseq.movementCandidate != null) {
-			conseq.score += conseq.movementCandidate!.score
+			conseq.score += conseq.movementCandidate.score
 		}
 	},
 
@@ -38,7 +38,7 @@ Consequences.registerHandlers([
 		// Pushes target away from caster
 		// Track target's new position and add score from pre-computed candidate
 		if (conseq.movementCandidate != null) {
-			conseq.score += conseq.movementCandidate!.score
+			conseq.score += conseq.movementCandidate.score
 			// TODO: Track target position change for subsequent action planning
 		}
 	},
@@ -47,7 +47,7 @@ Consequences.registerHandlers([
 		// Pulls target toward caster
 		// Track target's new position and add score from pre-computed candidate
 		if (conseq.movementCandidate != null) {
-			conseq.score += conseq.movementCandidate!.score
+			conseq.score += conseq.movementCandidate.score
 			// TODO: Track target position change for subsequent action planning
 		}
 	},

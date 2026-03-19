@@ -169,7 +169,7 @@ class EffectCache {
 			if (effect.modifCaster) {
 				real ratio = 1.0
 				if (item.isAOE && aimCell != null) {
-					ratio = 1 - (0.2 * getCellDistance(aimCell!.id, Fight.self.cell.id))
+					ratio = 1 - (0.2 * getCellDistance(aimCell.id, Fight.self.cell.id))
 				}
 				EffectCache.applyEffect(snap, effect, Fight.self, Fight.self, ratio)
 				continue
@@ -186,7 +186,7 @@ class EffectCache {
 				// Calculate damage ratio for AOE (laser has no ratio)
 				real ratioDmg = 1.0
 				if (item.isAOE && aimCell != null) {
-					ratioDmg = 1 - (0.2 * getCellDistance(aimCell!.id, target.cell.id))
+					ratioDmg = 1 - (0.2 * getCellDistance(aimCell.id, target.cell.id))
 					if (ratioDmg <= 0) continue  // Target too far from AOE center
 				}
 
@@ -266,7 +266,7 @@ class EffectCache {
 		// For AREA_POINT, target is entity on aimCell
 		if (item.area == AREA_POINT) {
 			Entity? entityOnCell = Board.entityCells[aimCell]
-			if (entityOnCell != null) return <entityOnCell!>
+			if (entityOnCell != null) return <entityOnCell>
 			return <>
 		}
 

@@ -1,16 +1,10 @@
 class Stats {
 	// The Singleton's instance is stored in a static field.
-	private static HiddenSingleton? _instance = null
+	private static HiddenSingleton _instance = new HiddenSingleton()
 	private constructor(){}
-	
-	// This is the static method that controls the access to the singleton instance.
-	// On the first run, it creates a singleton object and places it into the static field.
-	// On subsequent runs, it returns the existing object stored in the static field.
+
 	public static HiddenSingleton getInstance(){
-		if (_instance == null){
-			_instance = new HiddenSingleton();
-		}
-		return _instance!;
+		return _instance
 	}
 	
 	public static Array<string> getFields(){

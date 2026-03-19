@@ -207,8 +207,8 @@ class MapTactical {
 		integer bestCost = 9999
 		for (Cell fromCell in fromCells) {
 			integer? cost = reachable[fromCell]
-			if (cost != null && cost! < bestCost) {
-				bestCost = cost!
+			if (cost != null && cost < bestCost) {
+				bestCost = cost
 				bestFrom = fromCell
 			}
 		}
@@ -246,8 +246,8 @@ class MapTactical {
 			Array<any>? castResult = _findBestCastCell(invItem, entity.cell, reachable, selfCell)
 			if (castResult == null) continue
 
-			Cell bestFrom = castResult![0] as Cell
-			integer bestCost = castResult![1] as integer
+			Cell bestFrom = castResult[0] as Cell
+			integer bestCost = castResult[1] as integer
 
 			// Score swaps using shared functions
 			real score = 0
@@ -286,11 +286,11 @@ class MapTactical {
 		// Select best ally and best enemy candidates (by score)
 		for (MovementCandidate c in _inversionCandidates) {
 			if (c.target.isFriend) {
-				if (_bestAllyCandidate == null || c.score > _bestAllyCandidate!.score) {
+				if (_bestAllyCandidate == null || c.score > _bestAllyCandidate.score) {
 					_bestAllyCandidate = c
 				}
 			} else {
-				if (_bestEnemyCandidate == null || c.score > _bestEnemyCandidate!.score) {
+				if (_bestEnemyCandidate == null || c.score > _bestEnemyCandidate.score) {
 					_bestEnemyCandidate = c
 				}
 			}
@@ -321,8 +321,8 @@ class MapTactical {
 			Array<any>? castResult = _findBestCastCell(repItem, entity.cell, reachable, selfCell)
 			if (castResult == null) continue
 
-			Cell bestFrom = castResult![0] as Cell
-			integer bestCost = castResult![1] as integer
+			Cell bestFrom = castResult[0] as Cell
+			integer bestCost = castResult[1] as integer
 
 			// Estimate damage to bulb
 			integer bulbDamage = _estimateRepottingDamage(repItem, entity)
@@ -401,7 +401,7 @@ class MapTactical {
 
 		// Direction 1: toward ally barycenter
 		if (_allyBarycentre != null) {
-			integer dirToAlly = _getCardinalDirection(targetCell, _allyBarycentre!)
+			integer dirToAlly = _getCardinalDirection(targetCell, _allyBarycentre)
 			if (dirToAlly >= 0) {
 				// Grapple: cast from ally direction (pull toward ally)
 				// Boxing: cast from opposite (push toward ally)
@@ -412,7 +412,7 @@ class MapTactical {
 
 		// Direction 2: away from enemy barycenter
 		if (_enemyBarycentre != null) {
-			integer dirToEnemy = _getCardinalDirection(targetCell, _enemyBarycentre!)
+			integer dirToEnemy = _getCardinalDirection(targetCell, _enemyBarycentre)
 			if (dirToEnemy >= 0) {
 				integer dirAwayFromEnemy = _oppositeDirection(dirToEnemy)
 				// Grapple: cast from away-from-enemy direction (pull away from enemy)
@@ -464,13 +464,13 @@ class MapTactical {
 
 			Map<integer, Cell>? col = Board.cellsXY[checkX]
 			if (col == null) continue
-			Cell? cell = col![checkY]
-			if (cell == null || cell!.isWall) continue
+			Cell? cell = col[checkY]
+			if (cell == null || cell.isWall) continue
 
-			integer? cost = reachable[cell!]
-			if (cost != null && cost! < bestCost) {
-				bestCost = cost!
-				bestCell = cell!
+			integer? cost = reachable[cell]
+			if (cost != null && cost < bestCost) {
+				bestCost = cost
+				bestCell = cell
 			}
 		}
 
@@ -516,8 +516,8 @@ class MapTactical {
 				Array<any>? castResult = _findBestCastCellInDirection(grappleItem, entity.cell, reachable, selfCell, dir)
 				if (castResult == null) continue
 
-				Cell castFrom = castResult![0] as Cell
-				integer mpCost = castResult![1] as integer
+				Cell castFrom = castResult[0] as Cell
+				integer mpCost = castResult[1] as integer
 
 				// Check LOS is clear (no walls or other entities blocking)
 				if (!_checkLOS(castFrom, entity.cell, entity, null, null)) continue
@@ -525,18 +525,18 @@ class MapTactical {
 				// Calculate where target ends up after being pulled
 				Cell? destCell = _computeAttractDestination(castFrom, entity.cell, grappleItem)
 				if (destCell == null) continue
-				if (destCell!.id == entity.cell.id) continue  // No movement
+				if (destCell.id == entity.cell.id) continue  // No movement
 
 				// Score the pull (score added via movementCandidate in ComboBuilder)
-				real score = _scoreAttract(entity, entity.cell, destCell!, grappleItem)
+				real score = _scoreAttract(entity, entity.cell, destCell, grappleItem)
 
 				// Keep best scoring candidate
-				if (bestCandidate == null || score > bestCandidate!.score) {
+				if (bestCandidate == null || score > bestCandidate.score) {
 					bestCandidate = MovementCandidate.forAttract(
 						grappleItem,
 						castFrom,
 						entity,
-						destCell!,
+						destCell,
 						mpCost,
 						score
 					)
@@ -544,9 +544,9 @@ class MapTactical {
 			}
 
 			// Only keep candidates with positive score (actual benefit)
-			if (bestCandidate != null && bestCandidate!.score > 0) {
-				push(_grappleCandidates, bestCandidate!)
-				_grappleCandidateByTargetId[entityId] = bestCandidate!
+			if (bestCandidate != null && bestCandidate.score > 0) {
+				push(_grappleCandidates, bestCandidate)
+				_grappleCandidateByTargetId[entityId] = bestCandidate
 			}
 		}
 
@@ -596,27 +596,27 @@ class MapTactical {
 				Array<any>? castResult = _findBestCastCellInDirection(boxingItem, entity.cell, reachable, selfCell, dir)
 				if (castResult == null) continue
 
-				Cell castFrom = castResult![0] as Cell
-				integer mpCost = castResult![1] as integer
+				Cell castFrom = castResult[0] as Cell
+				integer mpCost = castResult[1] as integer
 
 				// Calculate where target ends up after being pushed
 				Cell? destCell = _computePushDestination(castFrom, entity.cell, boxingItem)
 				if (destCell == null) continue
-				if (destCell!.id == entity.cell.id) continue  // No movement
+				if (destCell.id == entity.cell.id) continue  // No movement
 
 				// Check LOS to destination is clear (entity is on the line, will be pushed)
-				if (!_checkLOS(castFrom, destCell!, entity, null, null)) continue
+				if (!_checkLOS(castFrom, destCell, entity, null, null)) continue
 
 				// Score the push (score added via movementCandidate in ComboBuilder)
-				real score = _scorePush(entity, entity.cell, destCell!, boxingItem)
+				real score = _scorePush(entity, entity.cell, destCell, boxingItem)
 
 				// Keep best scoring candidate
-				if (bestCandidate == null || score > bestCandidate!.score) {
+				if (bestCandidate == null || score > bestCandidate.score) {
 					bestCandidate = MovementCandidate.forPush(
 						boxingItem,
 						castFrom,
 						entity,
-						destCell!,
+						destCell,
 						mpCost,
 						score
 					)
@@ -624,9 +624,9 @@ class MapTactical {
 			}
 
 			// Only keep candidates with positive score (actual benefit)
-			if (bestCandidate != null && bestCandidate!.score > 0) {
-				push(_boxingGloveCandidates, bestCandidate!)
-				_boxingGloveCandidateByTargetId[entityId] = bestCandidate!
+			if (bestCandidate != null && bestCandidate.score > 0) {
+				push(_boxingGloveCandidates, bestCandidate)
+				_boxingGloveCandidateByTargetId[entityId] = bestCandidate
 			}
 		}
 
@@ -708,8 +708,8 @@ class MapTactical {
 					grappleItem, enemy.cell, reachable, selfCell, pullDir)
 				if (grappleResult == null) continue
 
-				Cell grappleFrom = grappleResult![0] as Cell
-				integer grappleMP = grappleResult![1] as integer
+				Cell grappleFrom = grappleResult[0] as Cell
+				integer grappleMP = grappleResult[1] as integer
 
 				// Check grapple LOS is clear
 				if (!_checkLOS(grappleFrom, enemy.cell, enemy, null, null)) continue
@@ -717,42 +717,42 @@ class MapTactical {
 				// Compute where enemy ends up after grapple
 				Cell? afterGrapple = _computeAttractDestination(grappleFrom, enemy.cell, grappleItem)
 				if (afterGrapple == null) continue
-				if (afterGrapple!.id == enemy.cell.id) continue
+				if (afterGrapple.id == enemy.cell.id) continue
 
 				// Compute reachability from grapple position
 				integer remainingMP = Fight.self.mp - grappleMP
 				if (remainingMP < 0) continue
 
-				Set<Cell> newObstacles = <afterGrapple!>
+				Set<Cell> newObstacles = <afterGrapple>
 				Map<Cell, integer> reachFromGrapple = MapPath.getCachedReachableCells(
 					grappleFrom, remainingMP, Fight.self.cellsToIgnore, newObstacles)
 
 				// Find boxing cast cell
 				Array<any>? boxingResult = _findBestCastCellInDirection(
-					boxingItem, afterGrapple!, reachFromGrapple, grappleFrom, pushCastDir)
+					boxingItem, afterGrapple, reachFromGrapple, grappleFrom, pushCastDir)
 				if (boxingResult == null) continue
 
-				Cell boxingFrom = boxingResult![0] as Cell
-				integer transitionMP = boxingResult![1] as integer
+				Cell boxingFrom = boxingResult[0] as Cell
+				integer transitionMP = boxingResult[1] as integer
 
 				// Check total MP
 				integer totalMP = grappleMP + transitionMP
 				if (totalMP > Fight.self.mp) continue
 
 				// Compute final destination
-				Cell? finalDest = _computePushDestination(boxingFrom, afterGrapple!, boxingItem)
+				Cell? finalDest = _computePushDestination(boxingFrom, afterGrapple, boxingItem)
 				if (finalDest == null) continue
-				if (finalDest!.id == afterGrapple!.id) continue
+				if (finalDest.id == afterGrapple.id) continue
 
 				// Check boxing LOS to destination is clear (enemy at afterGrapple after pull)
-				if (!_checkLOS(boxingFrom, finalDest!, enemy, afterGrapple!, null)) continue
+				if (!_checkLOS(boxingFrom, finalDest, enemy, afterGrapple, null)) continue
 
 				// Score the combo (score added via movementCandidate in ComboBuilder)
-				real score = _scoreAttractPushCombo(enemy, enemy.cell, finalDest!)
+				real score = _scoreAttractPushCombo(enemy, enemy.cell, finalDest)
 
 				// Keep best (highest score, or same score with lower MP)
-				if (bestCombo == null || score > bestCombo!.score ||
-				    (score == bestCombo!.score && totalMP < bestCombo!.totalMP)) {
+				if (bestCombo == null || score > bestCombo.score ||
+				    (score == bestCombo.score && totalMP < bestCombo.totalMP)) {
 					bestCombo = AttractPushCandidate(
 						grappleItem,
 						boxingItem,
@@ -760,8 +760,8 @@ class MapTactical {
 						grappleFrom,
 						boxingFrom,
 						enemy.cell,
-						afterGrapple!,
-						finalDest!,
+						afterGrapple,
+						finalDest,
 						grappleMP,
 						transitionMP,
 						score
@@ -770,9 +770,9 @@ class MapTactical {
 			}
 
 			// Only keep combos with positive score (actual benefit)
-			if (bestCombo != null && bestCombo!.score > 0) {
-				push(_attractPushCombos, bestCombo!)
-				_attractPushByTargetId[enemy.id] = bestCombo!
+			if (bestCombo != null && bestCombo.score > 0) {
+				push(_attractPushCombos, bestCombo)
+				_attractPushByTargetId[enemy.id] = bestCombo
 			}
 		}
 
@@ -852,8 +852,8 @@ class MapTactical {
 				grappleItem, enemy.cell, reachable, selfCell, dirToAlly)
 			if (grappleResult == null) continue
 
-			Cell grappleFrom = grappleResult![0] as Cell
-			integer grappleMP = grappleResult![1] as integer
+			Cell grappleFrom = grappleResult[0] as Cell
+			integer grappleMP = grappleResult[1] as integer
 
 			// Check grapple LOS is clear
 			if (!_checkLOS(grappleFrom, enemy.cell, enemy, null, null)) continue
@@ -861,15 +861,15 @@ class MapTactical {
 			// Step 2: Compute enemy position after grapple
 			Cell? afterGrapple = _computeAttractDestination(grappleFrom, enemy.cell, grappleItem)
 			if (afterGrapple == null) continue
-			if (afterGrapple!.id == enemy.cell.id) continue  // No movement from grapple
+			if (afterGrapple.id == enemy.cell.id) continue  // No movement from grapple
 
 			// Step 3: Check if inversion is possible
 			// After grapple, we're at grappleFrom, enemy at afterGrapple (adjacent)
-			integer distToEnemy = getCellDistance(grappleFrom.id, afterGrapple!.id)
+			integer distToEnemy = getCellDistance(grappleFrom.id, afterGrapple.id)
 			if (distToEnemy < inversionItem.minRange || distToEnemy > inversionItem.maxRange) continue
 
 			// After inversion: we're at afterGrapple, enemy at grappleFrom
-			Cell ourPosAfterInv = afterGrapple!
+			Cell ourPosAfterInv = afterGrapple
 			Cell enemyPosAfterInv = grappleFrom
 
 			// Step 4: Find push position (need to move back to reach minRange 2)
@@ -886,19 +886,19 @@ class MapTactical {
 			if (transitionMP > remainingMP) continue
 
 			// Check boxing glove range from push position
-			integer distForPush = getCellDistance(pushFromCell!.id, enemyPosAfterInv.id)
+			integer distForPush = getCellDistance(pushFromCell.id, enemyPosAfterInv.id)
 			if (distForPush < boxingItem.minRange || distForPush > boxingItem.maxRange) continue
 
 			// Step 5: Compute final position after push
-			Cell? finalDest = _computePushDestination(pushFromCell!, enemyPosAfterInv, boxingItem)
+			Cell? finalDest = _computePushDestination(pushFromCell, enemyPosAfterInv, boxingItem)
 			if (finalDest == null) continue
-			if (finalDest!.id == enemyPosAfterInv.id) continue  // No movement from push
+			if (finalDest.id == enemyPosAfterInv.id) continue  // No movement from push
 
 			// Check boxing LOS to destination is clear (enemy at enemyPosAfterInv after inversion)
-			if (!_checkLOS(pushFromCell!, finalDest!, enemy, enemyPosAfterInv, null)) continue
+			if (!_checkLOS(pushFromCell, finalDest, enemy, enemyPosAfterInv, null)) continue
 
 			// Score the combo (score added via movementCandidate in ComboBuilder)
-			real score = _scoreAttractPushCombo(enemy, enemy.cell, finalDest!)
+			real score = _scoreAttractPushCombo(enemy, enemy.cell, finalDest)
 
 			// Only keep combos with positive score (actual benefit)
 			if (score <= 0) continue
@@ -910,10 +910,10 @@ class MapTactical {
 				boxingItem,
 				enemy,
 				grappleFrom,
-				pushFromCell!,
+				pushFromCell,
 				enemy.cell,
-				afterGrapple!,
-				finalDest!,
+				afterGrapple,
+				finalDest,
 				grappleMP,
 				transitionMP,
 				score
@@ -963,7 +963,7 @@ class MapTactical {
 		Map<integer, Cell>? col = Board.cellsXY[pushX]
 		if (col == null) return null
 		Cell? pushCell = col![pushY]
-		if (pushCell == null || pushCell!.isWall) return null
+		if (pushCell == null || pushCell.isWall) return null
 
 		// Check it's not occupied
 		Entity? occupant = Board.entityCells[pushCell!]
@@ -1012,16 +1012,16 @@ class MapTactical {
 			integer nextY = y + dy
 
 			Cell? nextCell = Board.cellsXY[nextX]![nextY]
-			if (nextCell == null || nextCell!.isWall) break
+			if (nextCell == null || nextCell.isWall) break
 
 			// Stop before caster's cell (target ends up adjacent)
-			if (nextCell!.id == fromCell.id) break
+			if (nextCell.id == fromCell.id) break
 
 			// Check if cell is occupied (by entity other than self and target)
-			Entity? occupant = Board.entityCells[nextCell!]
+			Entity? occupant = Board.entityCells[nextCell]
 			if (occupant != null && occupant != Fight.self) break
 
-			lastValid = nextCell!
+			lastValid = nextCell
 			x = nextX
 			y = nextY
 		}
@@ -1066,17 +1066,17 @@ class MapTactical {
 			Cell? nextCell = Board.cellsXY[nextX]![nextY]
 
 			// Hit edge of map or wall - stop at last valid cell
-			if (nextCell == null || nextCell!.isWall) break
+			if (nextCell == null || nextCell.isWall) break
 
 			// Destination must stay within maxRange from caster
 			integer distFromCaster = abs(nextX - fromCell.x) + abs(nextY - fromCell.y)
 			if (distFromCaster > item.maxRange) break
 
 			// Check if cell is occupied by another entity
-			Entity? occupant = Board.entityCells[nextCell!]
+			Entity? occupant = Board.entityCells[nextCell]
 			if (occupant != null) break
 
-			lastValid = nextCell!
+			lastValid = nextCell
 			x = nextX
 			y = nextY
 		}
@@ -1355,12 +1355,12 @@ class MapTactical {
 
 		// Display team barycentres
 		if (_allyBarycentre != null) {
-			mark(_allyBarycentre!.id, white)
-			markText(_allyBarycentre!.id, "A-BAR")
+			mark(_allyBarycentre.id, white)
+			markText(_allyBarycentre.id, "A-BAR")
 		}
 		if (_enemyBarycentre != null) {
-			mark(_enemyBarycentre!.id, white)
-			markText(_enemyBarycentre!.id, "E-BAR")
+			mark(_enemyBarycentre.id, white)
+			markText(_enemyBarycentre.id, "E-BAR")
 		}
 
 		// Display inversion candidates
@@ -1490,7 +1490,7 @@ class MapTactical {
 
 				// Create action with correct from cell
 				EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, moveConseq)
-				Action action = Action(item, bestCast!, enemyCell, snapshot)
+				Action action = Action(item, bestCast, enemyCell, snapshot)
 				action.overrideTargets = snapshot.targets
 				if (action.score != null && action.score! > 0) {
 					push(postPool, action)
@@ -1532,7 +1532,7 @@ class MapTactical {
 		if (includeAllySupport) {
 			Set<Item>? targetingItems = MapAction.getItemsTargetingEntity(moveTarget)
 			if (targetingItems != null) {
-				for (Item item in targetingItems!) {
+				for (Item item in targetingItems) {
 					if (getCooldown(item.id, Fight.self.id) > 0) continue
 
 					// Use shared cache - verify LOS lazily
@@ -1567,7 +1567,7 @@ class MapTactical {
 
 					// Create action with correct from cell
 					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, moveTarget, targetNewCell, moveConseq)
-					Action action = Action(item, bestCast!, targetNewCell, snapshot)
+					Action action = Action(item, bestCast, targetNewCell, snapshot)
 					action.overrideTargets = snapshot.targets
 					if (action.score != null && action.score! > 0) {
 						push(postPool, action)
@@ -1658,7 +1658,7 @@ class MapTactical {
 
 				// Create action with correct from cell
 				EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, enemy, enemyCell, swapConseq)
-				Action action = Action(item, bestCast!, enemyCell, snapshot)
+				Action action = Action(item, bestCast, enemyCell, snapshot)
 				action.overrideTargets = snapshot.targets
 				if (action.score != null && action.score! > 0) {
 					push(postPool, action)
@@ -1703,7 +1703,7 @@ class MapTactical {
 				// Ally's new position after swap
 				Cell allyNewCell = swapTargetNewCell
 
-				for (Item item in targetingItems!) {
+				for (Item item in targetingItems) {
 					if (getCooldown(item.id, Fight.self.id) > 0) continue
 
 					// Use shared cache - verify LOS lazily
@@ -1739,7 +1739,7 @@ class MapTactical {
 
 					// Create action targeting ally at new position
 					EffectSnapshot snapshot = EffectCache.computeSnapshotForTarget(item, swapTarget, allyNewCell, swapConseq)
-					Action action = Action(item, bestCast!, allyNewCell, snapshot)
+					Action action = Action(item, bestCast, allyNewCell, snapshot)
 					action.overrideTargets = snapshot.targets
 					if (action.score != null && action.score! > 0) {
 						push(postPool, action)
@@ -1800,7 +1800,7 @@ class MapTactical {
 			if (cell != newSelfCell) {
 				integer? cost = reachableCells[cell]
 				if (cost == null) continue  // Unreachable
-				mpCost = cost!
+				mpCost = cost
 			}
 
 			// Collect valid actions
@@ -1809,7 +1809,7 @@ class MapTactical {
 
 			for (Action a in postActions) {
 				if (a.score != null && a.score! > 0) {
-					score += a.score!
+					score += a.score
 					push(validActions, a)
 				}
 			}
@@ -1921,13 +1921,13 @@ class MapTactical {
 			if (c == castCell || c == targetCell) continue
 
 			// Skip simulated entity position (combo sequences)
-			if (ignoreCell != null && c == ignoreCell!) continue
+			if (ignoreCell != null && c == ignoreCell) continue
 
 			// Wall blocks LOS
 			if (c.isWall) return false
 
 			// Explicit blocker cell (swapped entity at new position)
-			if (blockCell != null && c == blockCell!) return false
+			if (blockCell != null && c == blockCell) return false
 
 			// Other entities block LOS (not self, not ignoreEntity)
 			Entity? entityOnCell = Board.entityCells[c]
@@ -1953,7 +1953,7 @@ class MapTactical {
 
 		// Check cache first
 		Array<Cell>? cached = _losCache[key]
-		if (cached != null) return cached!
+		if (cached != null) return cached
 
 		// Compute LOS line
 		Array<Cell> cells = []
@@ -1980,7 +1980,7 @@ class MapTactical {
 
 		// DDA can step through coordinates with no cell (e.g. corner of diamond board)
 		Cell? c = Board.cellsXY[x]![y]
-		if (c != null) push(cells, c!)
+		if (c != null) push(cells, c)
 
 		while (x != to.x || y != to.y) {
 			if (tMaxX < tMaxY) {
@@ -1991,7 +1991,7 @@ class MapTactical {
 				tMaxY += tStepY
 			}
 			c = Board.cellsXY[x]![y]
-			if (c != null) push(cells, c!)
+			if (c != null) push(cells, c)
 		}
 
 		// Store in cache

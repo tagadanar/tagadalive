@@ -72,14 +72,17 @@ class PendingResurrect {
 	 * Build (or return cached) Entity for this dead leek, patched with resurrection HP/cell.
 	 */
 	Entity getOrCreateEntity() {
-		if (this.entity == null) {
-			this.entity = new Entity(this.entityId)
-			this.entity!.totalLife = this.newMaxHP
-			this.entity!.life = this.currentHP
-			this.entity!.psnlife = this.entity!.life - this.entity!.psnTurn
-			this.entity!.cell = this.spawnCell
-		}
+		this.entity ??= PendingResurrect._buildEntity(this.entityId, this.newMaxHP, this.currentHP, this.spawnCell)
 		return this.entity!
+	}
+
+	static Entity _buildEntity(integer entityId, integer newMaxHP, integer currentHP, Cell spawnCell) {
+		Entity e = new Entity(entityId)
+		e.totalLife = newMaxHP
+		e.life = currentHP
+		e.psnlife = e.life - e.psnTurn
+		e.cell = spawnCell
+		return e
 	}
 
 	/*

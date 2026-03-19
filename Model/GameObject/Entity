@@ -135,7 +135,7 @@ class Entity {
 			this.items = filtered
 		}
 		this._loadCooldowns()
-		if (this.teleportItem != null) MapPath._teleportMaxRange = this.teleportItem!.maxRange
+		if (this.teleportItem != null) MapPath._teleportMaxRange = this.teleportItem.maxRange
 		// Load passive effects from entity
 		for(Array e in getPassiveEffects(this.id)!) {
 			integer type = e[0] as integer
@@ -351,11 +351,11 @@ class Entity {
 				if (canJump) {
 					this.reachableCellsTeleport = MapPath.getJumpTeleportReachableCells(
 						this.reachableCells, this.mp, this.cellsToIgnore, <>,
-						this.teleportItem!.maxRange)
+						this.teleportItem.maxRange)
 				} else {
 					this.reachableCellsTeleport = MapPath.getTeleportReachableCells(
 						this.reachableCells, this.mp, this.cellsToIgnore, <>,
-						this.teleportItem!.maxRange)
+						this.teleportItem.maxRange)
 				}
 			}
 		}
@@ -455,7 +455,7 @@ class Entity {
 	// Uses Consequences.getExistingItemEffect which is COW-aware
 	EffectOverTime? getCurrentItemEffect(Item item, Consequences? consequences){
 		if (consequences != null) {
-			return consequences!.getExistingItemEffect(this, item)
+			return consequences.getExistingItemEffect(this, item)
 		}
 		return this.items_effectOverTime[item] ? this.items_effectOverTime[item]![0] : null
 	}

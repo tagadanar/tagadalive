@@ -49,7 +49,7 @@ class MapPath{
 
 	static Array<Cell> getJumpDests(Cell cell) {
 		Array<Cell>? cached = _cache_jumpDests[cell]
-		if (cached != null) return cached!
+		if (cached != null) return cached
 		Array<Cell> dests = []
 		for (Cell c in cell.getAreaCells(AREA_CIRCLE_3)) {
 			if (c != cell) push(dests, c)
@@ -126,7 +126,7 @@ class MapPath{
 	 */
 	static Array<Cell> getTeleportDests(Cell cell, integer maxRange) {
 		Array<Cell>? cached = _cache_teleportDests[cell]
-		if (cached != null) return cached!
+		if (cached != null) return cached
 		Array<Cell> dests = []
 		for (integer dx = -maxRange; dx <= maxRange; dx++) {
 			integer maxDy = maxRange - abs(dx)
@@ -134,8 +134,8 @@ class MapPath{
 			if (col == null) continue
 			for (integer dy = -maxDy; dy <= maxDy; dy++) {
 				if (dx == 0 && dy == 0) continue
-				Cell? c = col![cell.y + dy]
-				if (c != null && c!.isNotWall) push(dests, c!)
+				Cell? c = col[cell.y + dy]
+				if (c != null && c.isNotWall) push(dests, c)
 			}
 		}
 		_cache_teleportDests[cell] = dests
