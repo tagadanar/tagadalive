@@ -444,7 +444,7 @@ class MapPosition {
 		}
 
 		Benchmark.stop("MP.findBest")
-		return bestPosition!
+		return bestPosition
 	}
 
 	/*
@@ -461,7 +461,7 @@ class MapPosition {
 		}
 		if (best == null) best = MapPosition.evaluatePosition(Fight.self.cell, csq)
 		Benchmark.stop("MP.findBestMap")
-		return best!
+		return best
 	}
 
 	/*
@@ -492,8 +492,8 @@ class MapPosition {
 			if (pos == null) {
 				pos = MapPosition.evaluatePosition(cell, null)
 			}
-			if (pos!.score > best) {
-				best = pos!.score
+			if (pos.score > best) {
+				best = pos.score
 			}
 		}
 
@@ -503,7 +503,7 @@ class MapPosition {
 			if (fromPos == null) {
 				fromPos = MapPosition.evaluatePosition(fromCell, null)
 			}
-			best = fromPos!.score
+			best = fromPos.score
 		}
 
 		return best

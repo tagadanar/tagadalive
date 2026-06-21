@@ -69,7 +69,7 @@ class Combo {
 	 */
 	Cell getCurrentCell(){
 		Cell currentCell
-		if(this.finalPosition) currentCell = this.finalPosition!.cell
+		if(this.finalPosition) currentCell = this.finalPosition.cell
 		else if(count(this.actions)>0) {
 			currentCell = actions[count(this.actions)-1].from
 			// For self-cast actions, get actual position from consequences
@@ -182,7 +182,7 @@ class Combo {
 
 		// étape 2: je vais me planquer
 		if(this.finalPosition){
-			moveTowardCell(this.finalPosition!.cell.id)
+			moveTowardCell(this.finalPosition.cell.id)
 			if(Fight.self.cell.id != getCell()){
 				Benchmark.logMove(Fight.self.cell.id, getCell()!)
 			}
@@ -332,7 +332,7 @@ class Combo {
 		}
 		if (this.finalPosition) {
 			if (desc != "") desc += "→"
-			Position p = this.finalPosition!
+			Position p = this.finalPosition
 			desc += "mv(" + p.cell.id + ":" + round(p.score) + ")"
 		}
 		if (desc == "") desc = "stay"

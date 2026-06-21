@@ -73,7 +73,7 @@ class ComboBuilder {
 		// Start combo with buffs
 		Combo combo = Combo()
 		Map<Item, integer> usesThisTurn = [:]
-		ComboBuilder._applyBuffs(combo, buffs!, usesThisTurn)
+		ComboBuilder._applyBuffs(combo, buffs, usesThisTurn)
 
 		// Get state after buffs
 		Consequences csq = combo.getCurrentConsequences()
@@ -141,7 +141,7 @@ class ComboBuilder {
 
 		Combo combo = Combo()
 		Map<Item, integer> usesThisTurn = [:]
-		ComboBuilder._applyBuffs(combo, buffs!, usesThisTurn)
+		ComboBuilder._applyBuffs(combo, buffs, usesThisTurn)
 
 		Consequences csq = combo.getCurrentConsequences()
 		Array<Action> pool = MapCellScore.getActionsForCell(actionCell)
@@ -451,7 +451,7 @@ class ComboBuilder {
 
 		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(mpToCast, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - swapCost)
 		if (mpBuffResult == null) return null
-		Array<Action> mpBuffActions = mpBuffResult!
+		Array<Action> mpBuffActions = mpBuffResult
 		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		integer totalAvailableTP = ctx.initialTP - mpBuffTPCost - swapCost
@@ -651,7 +651,7 @@ class ComboBuilder {
 
 		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(mpToCast, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - moveCost)
 		if (mpBuffResult == null) return null
-		Array<Action> mpBuffActions = mpBuffResult!
+		Array<Action> mpBuffActions = mpBuffResult
 		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		integer totalAvailableTP = ctx.initialTP - mpBuffTPCost - moveCost
@@ -793,7 +793,7 @@ class ComboBuilder {
 
 		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(comboMPCost, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - comboTPCost)
 		if (mpBuffResult == null) return null
-		Array<Action> mpBuffActions = mpBuffResult!
+		Array<Action> mpBuffActions = mpBuffResult
 		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		integer remainingTP = ctx.initialTP - mpBuffTPCost - comboTPCost
@@ -906,7 +906,7 @@ class ComboBuilder {
 
 		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(comboMPCost, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - comboTPCost)
 		if (mpBuffResult == null) return null
-		Array<Action> mpBuffActions = mpBuffResult!
+		Array<Action> mpBuffActions = mpBuffResult
 		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		integer remainingTP = ctx.initialTP - mpBuffTPCost - comboTPCost
@@ -1246,10 +1246,10 @@ class ComboBuilder {
 
 		if (bestSequence == null || bestSelected == null) return;
 
-		Map<Cell, Array<Action>> partitioned = ComboBuilder._partitionToCells(bestSelected!, bestSequence!, startCell)
+		Map<Cell, Array<Action>> partitioned = ComboBuilder._partitionToCells(bestSelected, bestSequence, startCell)
 
 		// Add actions in cell sequence order
-		for (Cell cell in bestSequence!) {
+		for (Cell cell in bestSequence) {
 			Array<Action>? actions = partitioned[cell]
 			if (actions == null) continue
 
@@ -1394,7 +1394,7 @@ class ComboBuilder {
 		}
 
 		if (bestLaunch == null) return null
-		return [bestLaunch!, bestDest!]
+		return [bestLaunch, bestDest!]
 	}
 
 	/*
@@ -1417,7 +1417,7 @@ class ComboBuilder {
 		// Walk distance to launch cell
 		integer? walkToLaunch = ctx.extendedReachableCells[launchCell]
 		if (walkToLaunch == null) return null
-		integer walkDist = walkToLaunch!
+		integer walkDist = walkToLaunch
 
 		// Compute post-ability walk distance (abilityDest → cell)
 		integer walkFromAbility = 0
@@ -1433,7 +1433,7 @@ class ComboBuilder {
 		// Calculate MP buffs for total walk (pre-ability + post-ability)
 		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(totalWalk, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - abilityCost)
 		if (mpBuffResult == null) return null
-		Array<Action> mpBuffActions = mpBuffResult!
+		Array<Action> mpBuffActions = mpBuffResult
 		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		// Check TP budget: buffs + ability + at least 2 TP for attacks
@@ -1497,7 +1497,7 @@ class ComboBuilder {
 			cell, ctx.extendedReachableCells, ctx.initialMP + ctx.maxMPBuff, ctx.cellsToIgnore)
 		if (route == null) return null
 
-		return ComboBuilder._buildWithAbilityAtCell(ctx, cell, jumpItem, route![0], route![1])
+		return ComboBuilder._buildWithAbilityAtCell(ctx, cell, jumpItem, route[0], route[1])
 	}
 
 	// ════════════════════════════════════════════════════════════
@@ -1567,7 +1567,7 @@ class ComboBuilder {
 		}
 
 		if (bestLaunch == null) return null
-		return [bestLaunch!, bestDest!]
+		return [bestLaunch, bestDest!]
 	}
 
 	/*
@@ -1585,7 +1585,7 @@ class ComboBuilder {
 			ctx.cellsToIgnore, teleportItem)
 		if (route == null) return null
 
-		return ComboBuilder._buildWithAbilityAtCell(ctx, cell, teleportItem, route![0], route![1])
+		return ComboBuilder._buildWithAbilityAtCell(ctx, cell, teleportItem, route[0], route[1])
 	}
 
 	/*
@@ -1641,7 +1641,7 @@ class ComboBuilder {
 		}
 
 		if (bestCell1 == null) return null
-		return [Board.cells[bestOrder]!, bestCell1!, bestCell2!]
+		return [Board.cells[bestOrder]!, bestCell1, bestCell2!]
 	}
 
 	/*
@@ -1668,9 +1668,9 @@ class ComboBuilder {
 		if (route == null) return null
 
 		// Decode ordering from first element (Cell at index 0 or 1 in Board.cells)
-		integer ordering = route![0].id  // 0 = jump-first, 1 = teleport-first
-		Cell routeCell1 = route![1]
-		Cell routeCell2 = route![2]
+		integer ordering = route[0].id  // 0 = jump-first, 1 = teleport-first
+		Cell routeCell1 = route[1]
+		Cell routeCell2 = route[2]
 
 		if (ordering == 0) {
 			// Jump-first: routeCell1 = teleport launch (in jumpExtReachable), routeCell2 = target
@@ -1695,13 +1695,13 @@ class ComboBuilder {
 			teleportLaunch, ctx.extendedReachableCells, ctx.initialMP + ctx.maxMPBuff, ctx.cellsToIgnore)
 		if (jumpRoute == null) return null
 
-		Cell jumpLaunchCell = jumpRoute![0]
-		Cell jumpDest = jumpRoute![1]
+		Cell jumpLaunchCell = jumpRoute[0]
+		Cell jumpDest = jumpRoute[1]
 
 		// Walk distance to jump launch
 		integer? walkToJumpLaunch = ctx.extendedReachableCells[jumpLaunchCell]
 		if (walkToJumpLaunch == null) return null
-		integer walkDist = walkToJumpLaunch!
+		integer walkDist = walkToJumpLaunch
 
 		// Compute post-jump walk distance (jumpDest → teleportLaunch) BEFORE MP buffs
 		integer walkJumpToTeleport = 0
@@ -1717,7 +1717,7 @@ class ComboBuilder {
 		// Calculate MP buffs for TOTAL walk (pre-jump + post-jump)
 		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(totalWalk, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - totalAbilityCost)
 		if (mpBuffResult == null) return null
-		Array<Action> mpBuffActions = mpBuffResult!
+		Array<Action> mpBuffActions = mpBuffResult
 		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		if (ctx.initialTP - mpBuffTPCost - totalAbilityCost < 2) return null
@@ -1784,12 +1784,12 @@ class ComboBuilder {
 		// Walk distance to teleport launch
 		integer? walkToLaunch = ctx.extendedReachableCells[teleportLaunch]
 		if (walkToLaunch == null) return null
-		integer walkDist = walkToLaunch!
+		integer walkDist = walkToLaunch
 
 		// Calculate MP buffs
 		Array<Action>? mpBuffResult = ComboBuilder._getMPBuffs(walkDist, ctx.initialMP, ctx.maxMPBuff, ctx.initialTP - totalAbilityCost)
 		if (mpBuffResult == null) return null
-		Array<Action> mpBuffActions = mpBuffResult!
+		Array<Action> mpBuffActions = mpBuffResult
 		integer mpBuffTPCost = ComboBuilder._sumBuffTPCost(mpBuffActions)
 
 		if (ctx.initialTP - mpBuffTPCost - totalAbilityCost < 2) return null

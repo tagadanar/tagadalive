@@ -36,6 +36,6 @@ class BulbProfile {
 
 	static integer _interp(Array<integer>? range, real ratio) {
 		if (range == null) return 0
-		return floor(range![0] + (range![1] - range![0]) * ratio)
+		return floor(range[0] + (range[1] - range[0]) * ratio)
 	}
 }

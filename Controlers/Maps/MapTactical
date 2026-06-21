@@ -667,8 +667,8 @@ class MapTactical {
 			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy)) continue
 
 			// Get direction components to ally barycenter
-			integer dx = _allyBarycentre!.x - enemy.cell.x
-			integer dy = _allyBarycentre!.y - enemy.cell.y
+			integer dx = _allyBarycentre.x - enemy.cell.x
+			integer dy = _allyBarycentre.y - enemy.cell.y
 			if (dx == 0 && dy == 0) continue
 
 			// Build list of (pullDir, pushDir) combinations to try
@@ -690,7 +690,7 @@ class MapTactical {
 			}
 
 			// Same direction approach: pull toward ally, then push same direction
-			integer primaryDir = _getCardinalDirection(enemy.cell, _allyBarycentre!)
+			integer primaryDir = _getCardinalDirection(enemy.cell, _allyBarycentre)
 			if (primaryDir >= 0) {
 				integer pushCastDir = _oppositeDirection(primaryDir)
 				push(combosToTry, [primaryDir, pushCastDir])
@@ -844,7 +844,7 @@ class MapTactical {
 			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy)) continue
 
 			// Direction toward ally barycenter
-			integer dirToAlly = _getCardinalDirection(enemy.cell, _allyBarycentre!)
+			integer dirToAlly = _getCardinalDirection(enemy.cell, _allyBarycentre)
 			if (dirToAlly < 0) continue
 
 			// Step 1: Find grapple cast position (toward ally barycenter)
@@ -962,15 +962,15 @@ class MapTactical {
 
 		Map<integer, Cell>? col = Board.cellsXY[pushX]
 		if (col == null) return null
-		Cell? pushCell = col![pushY]
+		Cell? pushCell = col[pushY]
 		if (pushCell == null || pushCell.isWall) return null
 
 		// Check it's not occupied
-		Entity? occupant = Board.entityCells[pushCell!]
+		Entity? occupant = Board.entityCells[pushCell]
 		if (occupant != null && occupant != Fight.self) return null
 
 		// Verify we're now at minRange
-		integer dist = getCellDistance(pushCell!.id, enemyPos.id)
+		integer dist = getCellDistance(pushCell.id, enemyPos.id)
 		if (dist < boxingItem.minRange) return null
 
 		return pushCell
@@ -1188,7 +1188,7 @@ class MapTactical {
 
 		for (Entity ally in Fight.getAlliesAlive()) {
 			if (ally.entityType != ENTITY_LEEK) continue
-			integer dist = getCellDistance(ally.cell.id, _allyBarycentre!.id)
+			integer dist = getCellDistance(ally.cell.id, _allyBarycentre.id)
 			if (dist > maxDist) {
 				maxDist = dist
 				farthest = ally

@@ -215,7 +215,7 @@ class MapSupport {
 	static real getSupport(Entity ally, Item item, real ratio) {
 		real? value = _ally_item_value[ally]![item]
 		if (value == null) return 0.0
-		return value! * ratio
+		return value * ratio
 	}
 
 	/*
@@ -313,7 +313,7 @@ class MapSupport {
 		}
 
 		debug("Showing support coverage for " + ally.name)
-		for (Item item in supportItems!) {
+		for (Item item in supportItems) {
 			Map<Cell, real>? itemMap = _map_ally_item_heal[ally]![item]
 			if (itemMap == null) continue
 

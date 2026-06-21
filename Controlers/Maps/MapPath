@@ -399,6 +399,6 @@ class MapPath{
 			MapPath._cache_reachable_size[hash] = mp
 			MapPath._cache_reachable[hash] = result
 		}
-		return result!
+		return result
 	}
 }

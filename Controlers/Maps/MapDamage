@@ -69,7 +69,7 @@ class MapDamage {
 			_map_ally_item_dmg[ally] = [:]
 
 			// Use existing getOrderedOffensiveItems with reference enemy, then slice to limit
-			Array<Item> allItems = Items.getOrderedOffensiveItems(ally, _referenceEnemy!)
+			Array<Item> allItems = Items.getOrderedOffensiveItems(ally, _referenceEnemy)
 			Array<Item> offensiveItems = []
 			for (integer i = 0; i < count(allItems) && i < OFFENSIVE_ITEMS_LIMIT; i++) {
 				push(offensiveItems, allItems[i])
@@ -464,7 +464,7 @@ class MapDamage {
 		}
 
 		debug("Showing damage coverage for " + ally.name)
-		for (Item item in items!) {
+		for (Item item in items) {
 			Map<Cell, real>? itemMap = _map_ally_item_dmg[ally]![item]
 			if (itemMap == null) continue
 

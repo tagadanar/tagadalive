@@ -254,7 +254,7 @@ class MapAction {
 		// Early exit: if base score (before movement) is <= 0, skip all fromCells
 		// For POINT items, snapshot is only null for self-cast (handled above)
 		if (snapshot == null) return;
-		if (snapshot!.effectScore - snapshot!.opportunityCost <= 0) return;
+		if (snapshot.effectScore - snapshot.opportunityCost <= 0) return;
 
 		// Get all cells from which we can hit this target
 		Array<Cell> cells = Targets.getCellsToUseItemOnCell(item, entity.cell, [Fight.self.id])

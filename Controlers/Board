@@ -60,7 +60,7 @@ class Board {
 	 */	
 	static Cell? getCell(integer? id) {
 		if(id==null) return null // sinon ça retourne la cell 0 !
-		return Board.cells[id!]
+		return Board.cells[id]
 	}
 	
 	/*

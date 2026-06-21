@@ -316,8 +316,8 @@ class ComboExplorer {
 		Combo? combo = ComboBuilder.buildForAlly(ctx, ally, useMPBuff)
 		if (combo == null) return;
 
-		if (count(combo!.actions) > 0 || combo!.finalPosition!.score > 0) {
-			ctx.recordResult(ExplorerResult(combo!, name, "T"))
+		if (count(combo.actions) > 0 || combo.finalPosition!.score > 0) {
+			ctx.recordResult(ExplorerResult(combo, name, "T"))
 		}
 	}
 
@@ -924,7 +924,7 @@ class ComboExplorer {
 		if (combo == null) return;
 
 		string name = "P2:" + first.id + "->" + second.id
-		ctx.recordResult(ExplorerResult(combo!, name, "2"))
+		ctx.recordResult(ExplorerResult(combo, name, "2"))
 	}
 
 	// ════════════════════════════════════════════════════════════
@@ -980,7 +980,7 @@ class ComboExplorer {
 		if (combo == null) return;
 
 		string name = "P3:" + first.id + "->" + second.id + "->" + third.id
-		ctx.recordResult(ExplorerResult(combo!, name, "3"))
+		ctx.recordResult(ExplorerResult(combo, name, "3"))
 	}
 
 	// ════════════════════════════════════════════════════════════
