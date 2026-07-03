@@ -7,6 +7,13 @@ class Board {
 	public static Map<integer, Cell> cells = [:]
 	public static Map<integer, Map<integer, Cell>> cellsXY = [:]
 	public static Map<Cell, Entity> entityCells
+	// Real cell coordinate bounds (computed in init). Used to clamp range scans
+	// so long-range items (e.g. CHIP_TREBUCHET, maxRange 50) don't index cellsXY
+	// out of bounds and don't waste ops scanning non-existent cells.
+	public static integer MIN_X = 0
+	public static integer MAX_X = 0
+	public static integer MIN_Y = 0
+	public static integer MAX_Y = 0
 	
 	/*
 	 * Fonction d'initialisation, initialise les Cellules Cell, et pour chaque Cell, les obstacles et leurs voisins.
@@ -22,6 +29,10 @@ class Board {
 			Cell cell = new Cell(i)
 			Board.cells[i] = cell
 			Board.cellsXY[cell.x]![cell.y] = cell
+			if(cell.x < Board.MIN_X) Board.MIN_X = cell.x
+			if(cell.x > Board.MAX_X) Board.MAX_X = cell.x
+			if(cell.y < Board.MIN_Y) Board.MIN_Y = cell.y
+			if(cell.y > Board.MAX_Y) Board.MAX_Y = cell.y
 		}
 		//for(integer i in getObstacles()) Board.obstacles[Board.cells[i]!]=true
 		for(Cell cell in Board.cells) cell.init()
