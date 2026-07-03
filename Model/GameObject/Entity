@@ -279,6 +279,7 @@ class Entity {
 			if(!this.items_effectOverTime[effect.item]) this.items_effectOverTime[effect.item] = []
 			push(this.items_effectOverTime[effect.item]!, EffectOverTime(effect))
 			// COVID detection (propagates to nearby entities)
+			if (effect.item == null) { debugW("Unknown item for effect type:" + effect.type + " value:" + effect.value); continue }
 			if (effect.item.id == CHIP_COVID) this.hasCovid = true
 			// piste d'optimisation en ayant une meilleure structure pour les effets ici ?
 			switch (effect.type) {
