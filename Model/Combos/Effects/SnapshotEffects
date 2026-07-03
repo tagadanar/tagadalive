@@ -401,6 +401,9 @@ EffectCache.registerHandlers([
 	EFFECT_DAMAGE_TO_STRENGTH: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		// Handled inline in damage
 	},
+	EFFECT_DAMAGE_TO_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		// Handled inline in damage
+	},
 	EFFECT_ALLY_KILLED_TO_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		// Complex - not tracked in snapshot
 	},

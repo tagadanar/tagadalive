@@ -47,6 +47,11 @@ Consequences.registerHandlers([
 		// Handled inline in DamageEffects.EFFECT_DAMAGE
 	},
 
+	EFFECT_DAMAGE_TO_RESISTANCE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Passive: gains resistance when taking damage
+		// Handled inline in DamageEffects.EFFECT_DAMAGE
+	},
+
 	EFFECT_ALLY_KILLED_TO_AGILITY: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Passive: gains agility when ally is killed
 		// TODO: requires tracking ally deaths across the fight

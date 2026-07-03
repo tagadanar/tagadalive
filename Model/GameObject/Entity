@@ -141,6 +141,7 @@ class Entity {
 			real value = e[1] as real
 			// Percentage-based passives (convert damage/poison/erosion/cells to stat)
 			if(type == EFFECT_DAMAGE_TO_STRENGTH
+				|| type == EFFECT_DAMAGE_TO_RESISTANCE
 				|| type == EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD
 				|| type == EFFECT_NOVA_DAMAGE_TO_MAGIC
 				|| type == EFFECT_POISON_TO_SCIENCE

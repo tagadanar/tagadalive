@@ -68,6 +68,10 @@ class EffectHandlers {
 			integer strGain = round(value * passives[EFFECT_DAMAGE_TO_STRENGTH]!)
 			if (strGain > 0) ctx.add(target, Stats.STR, strGain)
 		}
+		if (passives[EFFECT_DAMAGE_TO_RESISTANCE]) {
+			integer rstGain = round(value * passives[EFFECT_DAMAGE_TO_RESISTANCE]!)
+			if (rstGain > 0) ctx.add(target, Stats.RST, rstGain)
+		}
 		if (passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]) {
 			integer shieldGain = round(value * passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]!)
 			if (shieldGain > 0) ctx.add(target, Stats.ABSSHIELD, shieldGain)
