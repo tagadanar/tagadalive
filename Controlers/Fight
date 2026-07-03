@@ -67,12 +67,6 @@ class Fight {
 		for(integer e in getAliveEnemies()) {
 			Entity entity = Entity(e)
 			_aliveAll[e] = entity
-			if (entity.isProtected) {
-				// Protected alt: keep in _aliveAll (pathfinding) but not in enemy maps
-				if (entity.isBulb) _aliveAllBulbs[e] = entity
-				else _aliveAllLeeks[e] = entity
-				continue
-			}
 			_aliveEnemies[e] = entity
 			if(entity.isBulb){
 				_aliveEnemiesBulbs[e] = entity
