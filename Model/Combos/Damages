@@ -1,4 +1,26 @@
 class Damages {
+	// Cached shields expiring when each caster plays (turns == 1). Depends only on
+	// Fight.self.effects (turn-start state), so it is computed once per turn.
+	static integer _expiringTurn = -1
+	static Map<integer, real> _expiringAbs = [:]
+	static Map<integer, real> _expiringRel = [:]
+
+	static void _refreshExpiringShields() {
+		if (Damages._expiringTurn == getTurn()) return;
+		Damages._expiringAbs = [:]
+		Damages._expiringRel = [:]
+		for (EntityEffect ef in Fight.self.effects) {
+			if (ef.turns != 1) continue
+			integer cId = ef.caster.id
+			if (ef.type == EFFECT_ABSOLUTE_SHIELD || ef.type == EFFECT_RAW_ABSOLUTE_SHIELD) {
+				Damages._expiringAbs[cId] = (Damages._expiringAbs[cId] ?? 0.0) + ef.value
+			} else if (ef.type == EFFECT_RELATIVE_SHIELD || ef.type == EFFECT_RAW_RELATIVE_SHIELD) {
+				Damages._expiringRel[cId] = (Damages._expiringRel[cId] ?? 0.0) + ef.value
+			}
+		}
+		Damages._expiringTurn = getTurn()
+	}
+
 	/*
 	 * Calcule le danger sur une cellule en prenant en compte:
 	 * - Les dommages des ennemis (EFFECT_DAMAGE → dmg, EFFECT_POISON → psnDmg)
@@ -22,18 +44,11 @@ class Damages {
 		real absShield = Fight.self.getCurrentAbs(consequences)
 		real relShield = Fight.self.getCurrentRel(consequences)
 
-		// Pre-compute shields expiring when each caster plays (turns == 1)
-		Map<integer, real> expiringAbs = [:]
-		Map<integer, real> expiringRel = [:]
-		for (EntityEffect ef in Fight.self.effects) {
-			if (ef.turns != 1) continue
-			integer cId = ef.caster.id
-			if (ef.type == EFFECT_ABSOLUTE_SHIELD || ef.type == EFFECT_RAW_ABSOLUTE_SHIELD) {
-				expiringAbs[cId] = (expiringAbs[cId] ?? 0.0) + ef.value
-			} else if (ef.type == EFFECT_RELATIVE_SHIELD || ef.type == EFFECT_RAW_RELATIVE_SHIELD) {
-				expiringRel[cId] = (expiringRel[cId] ?? 0.0) + ef.value
-			}
-		}
+		// Pre-computed shields expiring when each caster plays (turns == 1).
+		// Cached per turn (read-only here) — see _refreshExpiringShields.
+		Damages._refreshExpiringShields()
+		Map<integer, real> expiringAbs = Damages._expiringAbs
+		Map<integer, real> expiringRel = Damages._expiringRel
 		real libeFactor = 1.0
 
 		// Process entities in turn order (after self, wrapping around)
@@ -84,6 +99,11 @@ class Damages {
 					shackledMP = max(0, e.getCurrentMP(consequences))
 					applyShackle = shackledMP < e.mp
 				}
+
+				// Entity stats are constant across e's item loop (consequences is only read)
+				integer eStr = e.getCurrentStr(consequences)
+				integer eHP = e.getCurrentHP(consequences)
+				integer eMgc = e.getCurrentMgc(consequences)
 
 				for (Item item in e.offensiveItems) {
 					Map<Cell, real>? itemMap = MapDanger._map_entity_item_danger[e]![item]
@@ -209,13 +229,13 @@ class Damages {
 					real itemPsn = 0.0
 					for (ItemEffect ef in item.effects) {
 						if (ef.type == EFFECT_DAMAGE) {
-							real tmp = ef.avgmax * (1 + e.getCurrentStr(consequences) / 100) * (1 + e.pwr / 100)
+							real tmp = ef.avgmax * (1 + eStr / 100) * (1 + e.pwr / 100)
 							tmp = tmp * ratioDmg! * critFactor * (1 - effectiveRel / 100) - absShield
 							if (tmp > 0) itemDmg += tmp
 						}
 						else if (ef.type == EFFECT_LIFE_DAMAGE) {
 							// Life damage: sourceLife * (avg%/100) * (1+pwr/100), then shields
-							real tmp = e.getCurrentHP(consequences) * (ef.avgmax / 100) * (1 + e.pwr / 100)
+							real tmp = eHP * (ef.avgmax / 100) * (1 + e.pwr / 100)
 							tmp = tmp * ratioDmg! * critFactor * (1 - effectiveRel / 100) - absShield
 							if (tmp > 0) itemDmg += tmp
 						}
@@ -223,7 +243,7 @@ class Damages {
 							real duration = Scoring.durationMitigation(ef.duration)
 							// If self can antidote, treat poison as 1-turn (can cure next turn)
 							if (Fight.antidoteReady) duration = Scoring.durationMitigation(1)
-							itemPsn += ef.avgmax * (1 + e.getCurrentMgc(consequences) / 100) * (1 + e.pwr / 100) * critFactor * ratioDmg! * duration
+							itemPsn += ef.avgmax * (1 + eMgc / 100) * (1 + e.pwr / 100) * critFactor * ratioDmg! * duration
 						}
 					}
 
@@ -251,6 +271,10 @@ class Damages {
 
 				integer tpLeft = e.getCurrentTP(consequences)
 
+				// Ally stats are constant across e's support-item loop (consequences is only read)
+				integer eWsd = e.getCurrentWsd(consequences)
+				integer eRst = e.getCurrentRst(consequences)
+
 				for (Item item in supportItems) {
 					Map<Cell, real>? itemMap = MapSupport._map_ally_item_heal[e]![item]
 					if (itemMap == null) continue
@@ -264,7 +288,7 @@ class Damages {
 							// Skip non-stackable HoT already on self
 							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
 
-							real healVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio
+							real healVal = ef.avgmax * (1 + eWsd / 100) * ratio
 
 							if (ef.duration > 1) {
 								// Heal over time → reduces psnDmg
@@ -297,7 +321,7 @@ class Damages {
 						}
 						else if (ef.type == EFFECT_BOOST_MAX_LIFE) {
 							// Max life boost → reduces dmg (uncapped) and increases maxLife
-							real boostVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio
+							real boostVal = ef.avgmax * (1 + eWsd / 100) * ratio
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
 								if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
@@ -313,7 +337,7 @@ class Damages {
 							// Skip non-stackable shield already on self
 							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
 
-							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio
+							real shieldVal = ef.avgmax * (1 + eRst / 100) * ratio
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
 								if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
@@ -327,7 +351,7 @@ class Damages {
 							// Skip non-stackable shield already on self
 							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
 
-							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio
+							real shieldVal = ef.avgmax * (1 + eRst / 100) * ratio
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
 								if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
