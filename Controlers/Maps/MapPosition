@@ -23,6 +23,7 @@ class MapPosition {
 	// === Cached data ===
 	static Map<Cell, integer>? _nearest_enemy_path_dist = null  // path distances FROM nearest enemy
 	static Entity? _nearest_enemy = null
+	static Cell? _lock_cell = null  // the unique walkable cell adjacent to nearest enemy (lock bonus target)
 
 	// === Position cache (like MapDanger pattern) ===
 	static Map<Cell, Position> _position = [:]  // [cell: position]
@@ -37,6 +38,7 @@ class MapPosition {
 		_hash_position = [:]
 
 		MapPosition._refreshNearestEnemy()
+		MapPosition._refreshLockCell()
 		MapPosition._refreshNearestEnemyPathDist()
 		MapPosition._refreshThreatDetection()
 		MapPosition._refreshGravityCells()
@@ -219,6 +221,27 @@ class MapPosition {
 	}
 
 	/*
+	 * Precompute the lock cell: the single walkable cell adjacent to the nearest
+	 * enemy. Depends only on _nearest_enemy and board occupancy (fixed per turn),
+	 * so it is computed once instead of per evaluated position.
+	 */
+	static void _refreshLockCell() {
+		_lock_cell = null
+		if (_nearest_enemy == null) return;
+
+		integer walkableCount = 0
+		Cell? onlyWalkable = null
+		for (Cell c in _nearest_enemy.cell.getAreaCells(AREA_CIRCLE_1)) {
+			if (c == _nearest_enemy.cell) continue
+			if (Board.entityCells[c] == null) {
+				walkableCount++
+				onlyWalkable = c
+			}
+		}
+		if (walkableCount == 1) _lock_cell = onlyWalkable
+	}
+
+	/*
 	 * Get cached path distances from nearest enemy.
 	 */
 	static Map<Cell, integer>? getNearestEnemyPathDist() {
@@ -292,41 +315,23 @@ class MapPosition {
 	/*
 	 * Compute proximity penalty for nearby allies (avoid AoE clustering)
 	 *
-	 * Optimization: Use Set area cells and use setContains for O(1) lookup
-	 * instead of calling getAreaCells() + inArray() O(n) at each iteration.
-	 * Saves ~380 ops per call × ~50-100 positions = ~19k-38k ops per turn.
+	 * Optimization: iterate the handful of on-board entities and bucket by
+	 * Manhattan distance, instead of scanning the 43-cell CIRCLE_3 diamond.
+	 * AREA_CIRCLE_n is exactly {abs(dx)+abs(dy) <= n} (see Cell.initAreas),
+	 * so ring membership == Manhattan distance == n. Entities only ever sit
+	 * on non-wall cells, so this sees the same friends the area scan did.
 	 */
 	static real _computeProximityPenalty(Cell cell, Entity? primaryTarget) {
 		real penalty = 0.0
 
-		// Pre-compute area cells ONCE (instead of recalculating each iteration)
-		Set<Cell> area1 = cell.getAreaCells(AREA_CIRCLE_1)
-		Set<Cell> area2 = cell.getAreaCells(AREA_CIRCLE_2)
-		Set<Cell> area3 = cell.getAreaCells(AREA_CIRCLE_3)
-
-		// Loop 1: AREA_CIRCLE_1 (innermost ring)
-		for (Cell c in area1) {
-			if (c == cell) continue
-			Entity? entity = Board.entityCells[c]
-			if (entity != null && entity.isFriend) {
+		for (Cell ecell : Entity entity in Board.entityCells) {
+			if (ecell == cell || !entity.isFriend) continue
+			integer d = abs(ecell.x - cell.x) + abs(ecell.y - cell.y)
+			if (d == 1) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA1
-			}
-		}
-
-		// Loop 2: AREA_CIRCLE_2 minus AREA_CIRCLE_1 (middle ring only)
-		for (Cell c in area2) {
-			if (setContains(area1, c)) continue  // O(1) lookup instead of inArray O(n)
-			Entity? entity = Board.entityCells[c]
-			if (entity != null && entity.isFriend) {
+			} else if (d == 2) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA2
-			}
-		}
-
-		// Loop 3: AREA_CIRCLE_3 minus AREA_CIRCLE_2 (outer ring only)
-		for (Cell c in area3) {
-			if (setContains(area2, c)) continue  // O(1) lookup instead of inArray O(n)
-			Entity? entity = Board.entityCells[c]
-			if (entity != null && entity.isFriend) {
+			} else if (d == 3) {
 				penalty -= ScoringConfig.W_PROXIMITY_AREA3
 			}
 		}
@@ -378,21 +383,9 @@ class MapPosition {
 	static real _computeTacticalScore(Cell cell) {
 		real bonus = 0.0
 
-		// Lock bonus
-		if (_nearest_enemy != null) {
-			Set<Cell> enemyAdjacent = _nearest_enemy.cell.getAreaCells(AREA_CIRCLE_1)
-			integer walkableCount = 0
-			Cell? onlyWalkable = null
-			for (Cell c in enemyAdjacent) {
-				if (c == _nearest_enemy.cell) continue
-				if (Board.entityCells[c] == null) {
-					walkableCount++
-					onlyWalkable = c
-				}
-			}
-			if (walkableCount == 1 && onlyWalkable == cell) {
-				bonus += Scoring.W_LOCK_BONUS
-			}
+		// Lock bonus (lock cell precomputed once per turn in _refreshLockCell)
+		if (_lock_cell != null && cell == _lock_cell) {
+			bonus += Scoring.W_LOCK_BONUS
 		}
 
 		// COVID positioning: when self has COVID effect, get close to enemies (spread) and away from allies (protect)
