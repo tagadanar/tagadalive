@@ -33,6 +33,8 @@ class MapPath{
 			}
 			tmp = next
 			next = [:]
+			// Frontier exhausted: no cell at the next distance, so none beyond it either
+			if (mapSize(tmp) == 0) break
 		}
 		return stack
 	}
