@@ -195,17 +195,13 @@ class MapTactical {
 	static Array<any>? _findBestCastCell(Item item, Cell targetCell, Map<Cell, integer> reachable, Cell selfCell) {
 		Array<Cell> fromCells = Targets.getCellsToUseItemOnCell(item, targetCell, [Fight.self.id])
 
-		// First check if selfCell is in the valid cast cells (0 MP cost)
+		// Single pass: selfCell (0 MP) wins immediately; otherwise track closest reachable
+		Cell? bestFrom = null
+		integer bestCost = 9999
 		for (Cell fromCell in fromCells) {
 			if (fromCell.id == selfCell.id) {
 				return [selfCell, 0]
 			}
-		}
-
-		// Find closest reachable cell
-		Cell? bestFrom = null
-		integer bestCost = 9999
-		for (Cell fromCell in fromCells) {
 			integer? cost = reachable[fromCell]
 			if (cost != null && cost < bestCost) {
 				bestCost = cost

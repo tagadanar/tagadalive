@@ -125,22 +125,23 @@ class BattleState {
 				integer chipId = item.id
 
 				real? wsdW = ScoringConfig.WSD_CHIPS[chipId]
-				if (wsdW != null) {
-					integer cd = getCooldown(chipId, entityId)!
-					if (cd == 0) wsdCount += wsdW
-					else if (cd == 1) wsdCount += wsdW * 0.5
-				}
 				real? rstW = ScoringConfig.RST_CHIPS[chipId]
-				if (rstW != null) {
-					integer cd = getCooldown(chipId, entityId)!
-					if (cd == 0) rstCount += rstW
-					else if (cd == 1) rstCount += rstW * 0.5
-				}
 				real? agiW = ScoringConfig.AGI_CHIPS[chipId]
-				if (agiW != null) {
+				// Fetch cooldown once — same for all three weight categories
+				if (wsdW != null || rstW != null || agiW != null) {
 					integer cd = getCooldown(chipId, entityId)!
-					if (cd == 0) agiCount += agiW
-					else if (cd == 1) agiCount += agiW * 0.5
+					if (wsdW != null) {
+						if (cd == 0) wsdCount += wsdW
+						else if (cd == 1) wsdCount += wsdW * 0.5
+					}
+					if (rstW != null) {
+						if (cd == 0) rstCount += rstW
+						else if (cd == 1) rstCount += rstW * 0.5
+					}
+					if (agiW != null) {
+						if (cd == 0) agiCount += agiW
+						else if (cd == 1) agiCount += agiW * 0.5
+					}
 				}
 			}
 			wsdReadyChips[entityId] = wsdCount

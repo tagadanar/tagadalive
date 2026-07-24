@@ -160,21 +160,27 @@ class Consequences {
 			// Local maps start empty - populated on first write via COW
 		}
 
-		// pendingBulbs still need cloning (modified in-place, rare)
+		// pendingBulbs still need cloning (modified in-place, rare) — usually empty
 		this.pendingBulbs = [:]
-		for (Cell c : PendingBulb bulb in consequences.pendingBulbs) {
-			this.pendingBulbs[c] = bulb.clone()
+		if (mapSize(consequences.pendingBulbs) > 0) {
+			for (Cell c : PendingBulb bulb in consequences.pendingBulbs) {
+				this.pendingBulbs[c] = bulb.clone()
+			}
 		}
 
-		// pendingResurrect also needs cloning
+		// pendingResurrect also needs cloning — usually empty
 		this.pendingResurrect = [:]
-		for (Cell c : PendingResurrect res in consequences.pendingResurrect) {
-			this.pendingResurrect[c] = res.clone()
+		if (mapSize(consequences.pendingResurrect) > 0) {
+			for (Cell c : PendingResurrect res in consequences.pendingResurrect) {
+				this.pendingResurrect[c] = res.clone()
+			}
 		}
 
-		// Propagate poison per-turn tracking
-		for (Entity e : integer v in consequences._psnPerTurn) {
-			this._psnPerTurn[e] = v
+		// Propagate poison per-turn tracking — usually empty
+		if (mapSize(consequences._psnPerTurn) > 0) {
+			for (Entity e : integer v in consequences._psnPerTurn) {
+				this._psnPerTurn[e] = v
+			}
 		}
 
 		// Propagate invalidated actions through chain (set once, persists)

@@ -400,7 +400,8 @@ class MapDanger {
 			for (Cell cell : integer dist in enemy.reachableCellsJump) {
 				if (dist > enemy.mp) continue
 				// Skip cells already walk-reachable at same or lower distance
-				if (enemy.reachableCells[cell] != null && enemy.reachableCells[cell]! <= dist) continue
+				integer? walkDist = enemy.reachableCells[cell]
+				if (walkDist != null && walkDist <= dist) continue
 				Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(rangeItem, cell)
 				for (Cell c in targetableCells) {
 					if (map[c] == null) {
@@ -421,9 +422,11 @@ class MapDanger {
 			for (Cell cell : integer dist in enemy.reachableCellsTeleport) {
 				if (dist > enemy.mp) continue
 				// Skip cells already reachable by walk at same or lower distance
-				if (enemy.reachableCells[cell] != null && enemy.reachableCells[cell]! <= dist) continue
+				integer? walkDist = enemy.reachableCells[cell]
+				if (walkDist != null && walkDist <= dist) continue
 				// Skip cells already reachable by jump at same or lower distance
-				if (enemy.reachableCellsJump[cell] != null && enemy.reachableCellsJump[cell]! <= dist) continue
+				integer? jumpDist = enemy.reachableCellsJump[cell]
+				if (jumpDist != null && jumpDist <= dist) continue
 				Array<Cell> targetableCells = MapDanger.getCachedTargetableCells(rangeItem, cell)
 				for (Cell c in targetableCells) {
 					if (map[c] == null) {
