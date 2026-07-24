@@ -68,7 +68,7 @@ Identical operation budget check in MCTS:177-179, BeamSearch:144-146, ComboExplo
 
 ### 3.1 Optimize findBestCellAtDistance (CRITICAL)
 
-- [ ] **Pre-bucket cells by distance** — `ComboExplorer:724-765`, currently O(all cells) per distance query. Pre-bucket during MapCellScore.refresh() for O(bucket size) lookups.
+- [x] **Pre-bucket cells by distance** — DONE (commit f7ebc61). `findBestCellAtDistance`/`findBestCellAtExtendedDistance` now build a best-cell-per-distance map once per ExplorationContext (lazy) and look up, instead of rescanning `cellScores` per MP level. Behavior-preserving (same order, strict-> tie-break, sentinel).
 
 ### 3.2 Optimize Entity Effect Loading
 
@@ -76,7 +76,15 @@ Identical operation budget check in MCTS:177-179, BeamSearch:144-146, ComboExplo
 
 ### 3.3 Single Map Lookup Pattern
 
-- [ ] **Avoid double lookups throughout codebase** — e.g. `Scoring:117-122` checks `map[key] == null` then accesses `map[key]!`. Cache the first lookup.
+- [ ] **Avoid double lookups throughout codebase** — e.g. `Scoring:117-122` checks `map[key] == null` then accesses `map[key]!`. Cache the first lookup. (Hot getters already done: MapDanger/MapDamage/MapSupport/MapAction, commits cb86fc6/6961157/b53a7fd.)
+
+### 3.4 Held-back micro-optimizations (low value, each needs a verification first)
+
+Reviewed during the 2026-07-24 ops-economy pass and deliberately deferred — the win is small and each has a specific correctness question that must be answered before acting. Not blind-safe.
+
+- [ ] **`Combo.getUsageCount` linear scan → maintained count map** — `Combo:36-42`. *Risk:* ~17 `push(combo.actions, …)` sites across ComboBuilder/BeamSearch/BulbGreedy bypass `Combo.add()`, so a maintained counter would desync unless every push site updates it. Low value (scan is over ≤~10 actions).
+- [ ] **`ComboExplorer.recordResult` sort+slice → track-min / replace-in-place** — `ComboExplorer:143-151`. *Risk:* min-replace leaves `topResults` unsorted, a behavior change unless every consumer re-sorts. Must trace all `topResults` consumers first (or do a sorted insert to preserve order).
+- [ ] **`Targets.getLazerCellsToUseItemOnCell` `getCellDistance` → integer arithmetic** — `Targets:56-94`. *Risk:* the axis-aligned identity (`dist = minRange + step`) is valid, but tracking `dist` across the 4 direction loops risks an off-by-one; benefit is laser-only. Verify with a fight after.
 
 ---
 
