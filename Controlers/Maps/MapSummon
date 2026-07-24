@@ -400,19 +400,23 @@ class MapSummon {
 				integer ty = fromCell.y + dy
 				Cell? targetCell = Board.cellsXY[tx] != null ? Board.cellsXY[tx]![ty] : null
 				if (targetCell == null) continue
+
+				// Skip the expensive wall/occupancy/LOS work when we already hold an
+				// equal-or-cheaper fromCell for this spawn — the final update below
+				// would reject it anyway (order-independent, so no BFS assumption).
+				integer cellId = targetCell.id
+				integer? existing = bestCost[cellId]
+				if (existing != null && existing <= cost) continue
+
 				if (targetCell.isWall) continue
 				if (Board.entityCells[targetCell] != null) continue  // Must be empty
 
 				// Check LOS if required
 				if (item.needLOS && !lineOfSight(fromCell.id, targetCell.id, [Fight.self.id])) continue
 
-				integer cellId = targetCell.id
-				integer? existing = bestCost[cellId]
-				if (existing == null || cost < existing) {
-					bestFromCell[cellId] = fromCell
-					bestCost[cellId] = cost
-					spawnCellRefs[cellId] = targetCell
-				}
+				bestFromCell[cellId] = fromCell
+				bestCost[cellId] = cost
+				spawnCellRefs[cellId] = targetCell
 			}
 		}
 	}
