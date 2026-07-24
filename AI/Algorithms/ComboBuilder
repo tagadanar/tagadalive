@@ -2125,6 +2125,7 @@ class ComboBuilder {
 		// Build set of already-active MP buff chips
 		Map<integer, boolean> activeBuffChips = [:]
 		for (EntityEffect e in Fight.self.effects) {
+			if (e.item == null) continue
 			if (e.type == EFFECT_BUFF_MP || e.type == EFFECT_RAW_BUFF_MP) {
 				activeBuffChips[e.item.id] = true
 			}
@@ -2204,6 +2205,7 @@ class ComboBuilder {
 		// Build set of already-active str buff chips
 		Map<integer, boolean> activeChips = [:]
 		for (EntityEffect e in Fight.self.effects) {
+			if (e.item == null) continue
 			if (e.type == EFFECT_BUFF_STRENGTH || e.type == EFFECT_RAW_BUFF_STRENGTH) {
 				activeChips[e.item.id] = true
 			}

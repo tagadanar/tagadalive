@@ -16,7 +16,9 @@ class EntityEffect {
 		// Infinite duration (-1) → convert to remaining fight turns
 		if (this.turns < 0) this.turns = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
 		this.critical = effect[4] as boolean
-		this.item = Items.getItem(effect[5] as integer)!
+		Item? knownItem = Items.getItem(effect[5] as integer)
+		if (knownItem == null) debugW("Unknown effect item id:" + effect[5] + " type:" + effect[0] + " value:" + effect[1])
+		this.item = knownItem!
 		this.target = Fight.getEntity(effect[6] as integer)
 		// pas sur d'avoir besoin des modifiers ici, je save ocazou
 		this.modifiers = effect[7] as integer
