@@ -2119,8 +2119,46 @@ class ComboBuilder {
 	 * Returns null if impossible.
 	 * Note: Uses Fight.self.effects to check active buffs (entity state, not context).
 	 */
+	// Cached collect+sort of MP-buff candidates (turn-invariant: depends only on
+	// Fight.self items/effects/cooldowns, none of which change during exploration).
+	static Array<Action>? _mpBuffCandidates = null
+	static integer _mpBuffCandidatesTurn = -1
+
 	static Array<Action>? _calculateMPBuffs(integer neededMP, integer availableTP) {
 		if (neededMP <= 0) return []
+
+		Array<Action> allBuffs = ComboBuilder._getMPBuffCandidates()
+		if (count(allBuffs) == 0) return null
+
+		// Greedy selection (affordability filtered here — including unaffordable
+		// items in the candidate list is safe: they always fail the check below).
+		integer baseMP = Fight.self.mp
+		Array<Action> selected = []
+		integer totalGain = 0
+		integer tpSpent = 0
+
+		for (Action a in allBuffs) {
+			if (totalGain >= neededMP) break
+			if (tpSpent + a.item.cost > availableTP) continue
+
+			integer gain = a.consequences.currentMP - baseMP
+			push(selected, a)
+			totalGain += gain
+			tpSpent += a.item.cost
+		}
+
+		return totalGain >= neededMP ? selected : null
+	}
+
+	/*
+	 * Collect and sort all self-castable MP-buff actions (efficiency descending).
+	 * Cached per turn: no items are actually used during exploration, so item
+	 * cooldowns and active effects stay constant across all calls in an execution.
+	 */
+	static Array<Action> _getMPBuffCandidates() {
+		if (ComboBuilder._mpBuffCandidatesTurn == getTurn() && ComboBuilder._mpBuffCandidates != null) {
+			return ComboBuilder._mpBuffCandidates!
+		}
 
 		// Build set of already-active MP buff chips
 		Map<integer, boolean> activeBuffChips = [:]
@@ -2141,8 +2179,6 @@ class ComboBuilder {
 			if (item.minRange > 0) continue
 			// Skip if on cooldown
 			if (item.haveCD && getCooldown(item.id, Fight.self.id) > 0) continue
-			// Skip if can't afford
-			if (item.cost > availableTP) continue
 			// Skip if already active
 			if (activeBuffChips[item.id]) continue
 
@@ -2166,8 +2202,6 @@ class ComboBuilder {
 			push(allBuffs, buffAction)
 		}
 
-		if (count(allBuffs) == 0) return null
-
 		// Sort by efficiency (MP gain / TP cost) descending
 		integer baseMP = Fight.self.mp
 		allBuffs = arraySort(allBuffs, (Action a, Action b) => integer|real {
@@ -2178,22 +2212,9 @@ class ComboBuilder {
 			return Sort.desc(effA, effB)
 		}) as Array<Action>
 
-		// Greedy selection
-		Array<Action> selected = []
-		integer totalGain = 0
-		integer tpSpent = 0
-
-		for (Action a in allBuffs) {
-			if (totalGain >= neededMP) break
-			if (tpSpent + a.item.cost > availableTP) continue
-
-			integer gain = a.consequences.currentMP - baseMP
-			push(selected, a)
-			totalGain += gain
-			tpSpent += a.item.cost
-		}
-
-		return totalGain >= neededMP ? selected : null
+		ComboBuilder._mpBuffCandidates = allBuffs
+		ComboBuilder._mpBuffCandidatesTurn = getTurn()
+		return allBuffs
 	}
 
 	/*

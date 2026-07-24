@@ -357,6 +357,14 @@ class ComboExplorer {
 		// MP levels: [0] + distinct distances beyond baseMP where damage actions exist
 		Array<integer> mpLevels = ComboExplorer._computeUsefulMPLevels(ctx, damageActions)
 
+		// Precompute reach-filtered pools per MP level (loop-invariant across lib/str/neutrino).
+		// Each entry is only read downstream (buildForTargetPrefixed copies via _excludeUsed).
+		Array<Array<Action>> poolByMpIdx = []
+		for (integer i = 0; i < count(mpLevels); i++) {
+			integer em = mpLevels[i] == 0 ? ctx.initialMP : mpLevels[i]
+			push(poolByMpIdx, ComboBuilder._filterByReachDistance(ctx, damageActions, em))
+		}
+
 		// Enumerate: lib(0..1) × str(0..strCount) × neutrino(0..maxNeutrino) × mp(each level)
 		integer maxLib = canLib ? 1 : 0
 		for (integer useLib = 0; useLib <= maxLib; useLib++) {
@@ -412,10 +420,8 @@ class ComboExplorer {
 						// Check minimum remaining TP for damage
 						if (ctx.initialTP - prefixTP - neutrinoTP - mpBuffTP < 2) continue
 
-						// Filter damage pool by reach at this MP level
-						integer effectiveMP = mpDist == 0 ? ctx.initialMP : mpDist
-						Array<Action> reachablePool = ComboBuilder._filterByReachDistance(
-							ctx, damageActions, effectiveMP)
+						// Reach-filtered pool for this MP level (precomputed above)
+						Array<Action> reachablePool = poolByMpIdx[mpIdx]
 						if (count(reachablePool) == 0 && useLib == 0 && strLevel == 0 && neutrinoLevel == 0) continue
 
 						// Build combo
