@@ -25,6 +25,8 @@ class Consequences {
 	Map<Entity, Map<Item, Array<EffectOverTime>>> _altEffects = [:]
 	Map<Entity, Map<integer, integer>> _effectTypeAlterations = [:]
 	Set<Entity> _killed = <>
+	// True if any node in this chain has kills (avoids chain walks when empty)
+	boolean _anyKills = false
 	Map<Entity, integer> _psnPerTurn = [:]  // Accumulated per-turn poison from combo
 
 	// Track which entities have local data (for efficient iteration)
@@ -146,6 +148,7 @@ class Consequences {
 			this._altEffects = clone(consequences._shared.altEffects, 3) as Map<Entity, Map<Item, Array<EffectOverTime>>>
 			this._effectTypeAlterations = clone(consequences._shared.effectTypeAlterations, 2) as Map<Entity, Map<integer, integer>>
 			this._killed = clone(consequences._shared.killed) as Set<Entity>
+			this._anyKills = setSize(this._killed) > 0
 			// Mark all entities as local (since we materialized)
 			for (Entity e : Map<integer, integer> _ in this._alterations) {
 				this._localEntities[e] = true
@@ -153,6 +156,7 @@ class Consequences {
 		} else {
 			// Parent is already in COW mode - just reference it
 			this._parent = consequences
+			this._anyKills = consequences._anyKills
 			// Local maps start empty - populated on first write via COW
 		}
 
@@ -193,6 +197,7 @@ class Consequences {
 		Benchmark.start("Consequences.shared")
 		Consequences c = new Consequences()
 		c._shared = snapshot
+		c._anyKills = setSize(snapshot.killed) > 0
 		c.targets = snapshot.targets
 		c.score = snapshot.effectScore
 		c.isAlteringDanger = snapshot.isAlteringDanger
@@ -213,19 +218,20 @@ class Consequences {
 	// ════════════════════════════════════════════════════════════════════════
 
 	construct(Action action, boolean warnOnUnreachable){
-		// Build ignoreCells: our starting cell + cells of killed entities (can path through kills)
-		// Also include freed cells from position swaps (e.g., after inversion)
-		Set<Cell> ignoreCells = clone(Fight.self.cellsToIgnore) as Set<Cell>
-		// Use COW-aware iteration for killed entities
-		this.appendKilledCells(ignoreCells)
-		this.appendFreedCells(ignoreCells)
-
-		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, ignoreCells, this._newObstacles)
-
 		// Movement to action cell
 		if(action.from != Fight.selfCell){
 			// Skip reachability check if we're already at the target cell
 			if(action.from != this.currentCell) {
+				// Build ignoreCells: our starting cell + cells of killed entities (can path through kills)
+				// Also include freed cells from position swaps (e.g., after inversion)
+				// Clone only when the chain has kills/frees to append
+				Set<Cell> ignoreCells = Fight.self.cellsToIgnore
+				if (this._anyKills || setSize(this._freedCells) > 0) {
+					ignoreCells = clone(ignoreCells) as Set<Cell>
+					this.appendKilledCells(ignoreCells)
+					this.appendFreedCells(ignoreCells)
+				}
+				Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, ignoreCells, this._newObstacles)
 				if(reachableCells[action.from] != null) {
 					integer moveCost = reachableCells[action.from]!
 					if(warnOnUnreachable && moveCost > 0 && moveCost > max(0, this.currentMP)) {
@@ -380,15 +386,14 @@ class Consequences {
 	 * Note: Cache may contain cells beyond MP, must verify distance.
 	 */
 	void constructMovementOnly(Action action) {
-		// Build ignoreCells with freed cells from position swaps
-		Set<Cell> ignoreCells = Fight.self.cellsToIgnore
-		if (setSize(this._freedCells) > 0) {
-			ignoreCells = clone(ignoreCells) as Set<Cell>
-			this.appendFreedCells(ignoreCells)
-		}
-		Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, ignoreCells, this._newObstacles)
-
 		if (action.from != Fight.selfCell) {
+			// Build ignoreCells with freed cells from position swaps
+			Set<Cell> ignoreCells = Fight.self.cellsToIgnore
+			if (setSize(this._freedCells) > 0) {
+				ignoreCells = clone(ignoreCells) as Set<Cell>
+				this.appendFreedCells(ignoreCells)
+			}
+			Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(this.currentCell, this.currentMP, ignoreCells, this._newObstacles)
 			integer? moveCost = reachableCells[action.from]
 			if (moveCost != null && moveCost <= this.currentMP) {
 				this.currentMP = this.currentMP - moveCost
@@ -479,6 +484,7 @@ class Consequences {
 
 		// Add to local killed map (no need to clone - kills don't override)
 		setPut(this._killed, entity)
+		this._anyKills = true
 
 		this.score+= ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
 

@@ -87,11 +87,15 @@ class ActionKnapsack {
 		Array<Array<real>> snapshots = [clone(dp) as Array<real>]
 
 		// Process each item
+		// spendCap = max TP any reachable state can have spent so far;
+		// states above it are all unreachable, so the scan skips them.
+		integer spendCap = 0
 		for (integer itemIdx = 0; itemIdx < count(items); itemIdx++) {
 			KnapsackItem ki = items[itemIdx]
+			boolean changed = false
 
 			// Process in reverse TP order (0/1 knapsack style)
-			for (integer tp = maxTP; tp >= 0; tp--) {
+			for (integer tp = min(maxTP, spendCap); tp >= 0; tp--) {
 				for (integer w = -1; w < numWeapons; w++) {
 					integer fromState = tp * wStates + (w + wOffset)
 					if (dp[fromState] < -999998.0) continue  // Unreachable
@@ -117,11 +121,15 @@ class ActionKnapsack {
 
 					if (newScore > dp[toState]) {
 						dp[toState] = newScore
+						changed = true
 					}
 				}
 			}
 
-			push(snapshots, clone(dp) as Array<real>)
+			// Snapshots are read-only after creation: when the item changed no
+			// state, reuse the previous snapshot instead of cloning dp again.
+			push(snapshots, changed ? clone(dp) as Array<real> : snapshots[itemIdx])
+			spendCap += ki.baseCost + (ki.weaponIdx != ActionKnapsack.CHIP ? 1 : 0)
 		}
 
 		// Find best final state

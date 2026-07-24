@@ -2398,6 +2398,8 @@ class ComboBuilder {
 	static Action? _findLiberationAction(ExplorationContext ctx, Item liberationItem, Entity target, Consequences csq) {
 		Map<Cell, Map<Item, Action>> bestActions = MapAction.getMapBestAction()
 
+		// Loop-invariant: computed lazily on first moving candidate
+		Map<Cell, integer>? reachable = null
 		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
 			Action? action = itemActions[liberationItem]
 			if (action == null) continue
@@ -2406,10 +2408,12 @@ class ComboBuilder {
 
 			// Check reachability (cache may have cells beyond MP, must verify distance)
 			if (action.from != Fight.selfCell) {
-				Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
-				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
-					csq.currentCell, csq.currentMP, ignoreCells, csq._newObstacles)
-				integer? dist = reachable[action.from]
+				if (reachable == null) {
+					Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
+					reachable = MapPath.getCachedReachableCells(
+						csq.currentCell, csq.currentMP, ignoreCells, csq._newObstacles)
+				}
+				integer? dist = reachable![action.from]
 				if (dist == null || dist > csq.currentMP) continue
 			}
 
@@ -2425,6 +2429,8 @@ class ComboBuilder {
 	static Action? _findNeutrinoAction(ExplorationContext ctx, Item neutrinoItem, Entity target, Consequences csq) {
 		Map<Cell, Map<Item, Action>> bestActions = MapAction.getMapBestAction()
 
+		// Loop-invariant: computed lazily on first moving candidate
+		Map<Cell, integer>? reachable = null
 		for (Cell cell : Map<Item, Action> itemActions in bestActions) {
 			Action? action = itemActions[neutrinoItem]
 			if (action == null) continue
@@ -2433,10 +2439,12 @@ class ComboBuilder {
 
 			// Check reachability
 			if (action.from != Fight.selfCell) {
-				Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
-				Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
-					csq.currentCell, csq.currentMP, ignoreCells, csq._newObstacles)
-				integer? dist = reachable[action.from]
+				if (reachable == null) {
+					Set<Cell> ignoreCells = ComboBuilder.buildIgnoreCells(ctx, csq)
+					reachable = MapPath.getCachedReachableCells(
+						csq.currentCell, csq.currentMP, ignoreCells, csq._newObstacles)
+				}
+				integer? dist = reachable![action.from]
 				if (dist == null || dist > csq.currentMP) continue
 			}
 
@@ -2453,10 +2461,14 @@ class ComboBuilder {
 	 * Build ignoreCells array for pathfinding: base cells + killed entities + freed cells
 	 */
 	static Set<Cell> buildIgnoreCells(ExplorationContext ctx, Consequences csq) {
-		Set<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Set<Cell>
-		csq.appendKilledCells(ignoreCells)
-		csq.appendFreedCells(ignoreCells)
-		return ignoreCells
+		// Clone only when the chain has kills/frees to append; callers only read the set
+		if (csq._anyKills || setSize(csq._freedCells) > 0) {
+			Set<Cell> ignoreCells = clone(ctx.cellsToIgnore) as Set<Cell>
+			csq.appendKilledCells(ignoreCells)
+			csq.appendFreedCells(ignoreCells)
+			return ignoreCells
+		}
+		return ctx.cellsToIgnore
 	}
 
 	/*
@@ -2506,9 +2518,13 @@ class ComboBuilder {
 		// Check reachability
 		if (action.from != Fight.selfCell) {
 			// Build ignore cells: base + killed entities + freed cells (COW-aware)
-			Set<Cell> ignoreCells = clone(baseCellsToIgnore) as Set<Cell>
-			csq.appendKilledCells(ignoreCells)
-			csq.appendFreedCells(ignoreCells)
+			// Clone only when the chain has kills/frees to append
+			Set<Cell> ignoreCells = baseCellsToIgnore
+			if (csq._anyKills || setSize(csq._freedCells) > 0) {
+				ignoreCells = clone(baseCellsToIgnore) as Set<Cell>
+				csq.appendKilledCells(ignoreCells)
+				csq.appendFreedCells(ignoreCells)
+			}
 			integer effectiveMP = max(0, csq.currentMP - reserveMP)
 			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
 				csq.currentCell, effectiveMP, ignoreCells, csq._newObstacles)
