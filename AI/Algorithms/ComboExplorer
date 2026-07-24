@@ -59,6 +59,10 @@ class ExplorationContext {
 	Map<Cell, integer> jumpExtendedReachableCells
 	Set<Cell> cellsToIgnore
 
+	// Lazy best-scoring cell per exact distance (one pass over cellScores, reused by both phases)
+	Map<integer, Cell>? _bestCellByDist = null
+	Map<integer, Cell>? _bestCellByExtDist = null
+
 	// Jump state
 	boolean hasJump
 	Item? jumpItem
@@ -846,22 +850,10 @@ class ComboExplorer {
 	 * evaluation of closer cells already covered by smaller budgets.
 	 */
 	static Cell? findBestCellAtDistance(ExplorationContext ctx, integer distance) {
-		Cell? best = null
-		real bestScore = -999999.0
-
-		Map<Cell, integer> reachable = ctx.reachableCells
-
-		for (Cell cell : real score in MapCellScore.cellScores) {
-			integer? dist = reachable[cell]
-			if (dist == null || dist != distance) continue  // exact match only
-
-			if (score > bestScore) {
-				bestScore = score
-				best = cell
-			}
+		if (ctx._bestCellByDist == null) {
+			ctx._bestCellByDist = ComboExplorer._buildBestCellByDistance(ctx.reachableCells)
 		}
-
-		return best
+		return ctx._bestCellByDist![distance]
 	}
 
 	/*
@@ -870,22 +862,30 @@ class ComboExplorer {
 	 * Only considers cells in the extended range (distance > currentMP).
 	 */
 	static Cell? findBestCellAtExtendedDistance(ExplorationContext ctx, integer distance) {
-		Cell? best = null
-		real bestScore = -999999.0
+		if (ctx._bestCellByExtDist == null) {
+			ctx._bestCellByExtDist = ComboExplorer._buildBestCellByDistance(ctx.extendedReachableCells)
+		}
+		return ctx._bestCellByExtDist![distance]
+	}
 
-		Map<Cell, integer> reachable = ctx.extendedReachableCells
-
+	/*
+	 * Bucket cellScores into best-scoring cell per exact distance in one pass.
+	 * Replicates the per-call scan: same iteration order, strict-> first-wins-tie,
+	 * and -999999 sentinel (a cell only counts if it beats it).
+	 */
+	static Map<integer, Cell> _buildBestCellByDistance(Map<Cell, integer> reachable) {
+		Map<integer, Cell> bestCell = [:]
+		Map<integer, real> bestScore = [:]
 		for (Cell cell : real score in MapCellScore.cellScores) {
 			integer? dist = reachable[cell]
-			if (dist == null || dist != distance) continue  // exact match only
-
-			if (score > bestScore) {
-				bestScore = score
-				best = cell
+			if (dist == null) continue
+			real cur = bestScore[dist] ?? -999999.0
+			if (score > cur) {
+				bestScore[dist] = score
+				bestCell[dist] = cell
 			}
 		}
-
-		return best
+		return bestCell
 	}
 
 	// ════════════════════════════════════════════════════════════
