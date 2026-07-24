@@ -146,18 +146,22 @@ class MapSupport {
 	 */
 	static HealPotential getCellSupport(Cell cell, Consequences? consequences) {
 		if (consequences && consequences.isAlteringDanger) {
-			if (!_hash_heal[consequences.hashcode]) {
-				_hash_heal[consequences.hashcode] = [:]
+			Map<Cell, HealPotential>? bucket = _hash_heal[consequences.hashcode]
+			if (bucket == null) {
+				bucket = [:]
+				_hash_heal[consequences.hashcode] = bucket
 			}
-			if (!_hash_heal[consequences.hashcode]![cell]) {
-				_hash_heal[consequences.hashcode]![cell] = MapSupport.computeSupport(cell, consequences)
-			}
-			return _hash_heal[consequences.hashcode]![cell]!
+			HealPotential? p = bucket[cell]
+			if (p != null) return p
+			HealPotential np = MapSupport.computeSupport(cell, consequences)
+			bucket[cell] = np
+			return np
 		} else {
-			if (!_heal[cell]) {
-				_heal[cell] = MapSupport.computeSupport(cell, null)
-			}
-			return _heal[cell]!
+			HealPotential? p = _heal[cell]
+			if (p != null) return p
+			HealPotential np = MapSupport.computeSupport(cell, null)
+			_heal[cell] = np
+			return np
 		}
 	}
 

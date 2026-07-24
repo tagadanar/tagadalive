@@ -172,18 +172,22 @@ class MapDamage {
 	 */
 	static AllyDamagePotential getCellDamage(Cell cell, Consequences? consequences) {
 		if (consequences && consequences.isAlteringDanger) {
-			if (!_hash_dmg[consequences.hashcode]) {
-				_hash_dmg[consequences.hashcode] = [:]
+			Map<Cell, AllyDamagePotential>? bucket = _hash_dmg[consequences.hashcode]
+			if (bucket == null) {
+				bucket = [:]
+				_hash_dmg[consequences.hashcode] = bucket
 			}
-			if (!_hash_dmg[consequences.hashcode]![cell]) {
-				_hash_dmg[consequences.hashcode]![cell] = MapDamage.computeDamage(cell, consequences)
-			}
-			return _hash_dmg[consequences.hashcode]![cell]!
+			AllyDamagePotential? p = bucket[cell]
+			if (p != null) return p
+			AllyDamagePotential np = MapDamage.computeDamage(cell, consequences)
+			bucket[cell] = np
+			return np
 		} else {
-			if (!_dmg[cell]) {
-				_dmg[cell] = MapDamage.computeDamage(cell, null)
-			}
-			return _dmg[cell]!
+			AllyDamagePotential? p = _dmg[cell]
+			if (p != null) return p
+			AllyDamagePotential np = MapDamage.computeDamage(cell, null)
+			_dmg[cell] = np
+			return np
 		}
 	}
 
