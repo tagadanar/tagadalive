@@ -348,17 +348,22 @@ class MapAction {
 	 * @param score The action score - keeps aimCell with best score per (item, entity, attackCell)
 	 */
 	static void addEntityIndex(Item item, integer entityId, Cell fromCell, Cell aimCell, real score) {
-		// Initialize nested maps if needed
-		if (!_item_entityId_attackCells[item]) _item_entityId_attackCells[item] = [:]
-		if (!_item_entityId_attackCells[item]![entityId]) _item_entityId_attackCells[item]![entityId] = [:]
-		if (!_item_entityId_scores[item]) _item_entityId_scores[item] = [:]
-		if (!_item_entityId_scores[item]![entityId]) _item_entityId_scores[item]![entityId] = [:]
+		// Initialize nested maps if needed (bind each level once)
+		Map<integer, Map<Cell, Cell>>? attackByEntity = _item_entityId_attackCells[item]
+		if (attackByEntity == null) { attackByEntity = [:]; _item_entityId_attackCells[item] = attackByEntity }
+		Map<Cell, Cell>? attackCells = attackByEntity[entityId]
+		if (attackCells == null) { attackCells = [:]; attackByEntity[entityId] = attackCells }
+
+		Map<integer, Map<Cell, real>>? scoreByEntity = _item_entityId_scores[item]
+		if (scoreByEntity == null) { scoreByEntity = [:]; _item_entityId_scores[item] = scoreByEntity }
+		Map<Cell, real>? scores = scoreByEntity[entityId]
+		if (scores == null) { scores = [:]; scoreByEntity[entityId] = scores }
 
 		// Keep aimCell with best score (fixes AOE: best aimCell instead of first)
-		real? existingScore = _item_entityId_scores[item]![entityId]![fromCell]
+		real? existingScore = scores[fromCell]
 		if (existingScore == null || score > existingScore) {
-			_item_entityId_attackCells[item]![entityId]![fromCell] = aimCell
-			_item_entityId_scores[item]![entityId]![fromCell] = score
+			attackCells[fromCell] = aimCell
+			scores[fromCell] = score
 		}
 	}
 
@@ -385,17 +390,23 @@ class MapAction {
 	 * Register an action into all lookup maps.
 	 */
 	static void _registerAction(Item item, Cell from, Action action) {
-		if(!_item_cell_actions[item]) _item_cell_actions[item] = [:]
-		if(!_item_cell_actions[item]![from]) _item_cell_actions[item]![from] = []
-		push(_item_cell_actions[item]![from]!, action)
+		Map<Cell, Array<Action>>? cellActions = _item_cell_actions[item]
+		if (cellActions == null) { cellActions = [:]; _item_cell_actions[item] = cellActions }
+		Array<Action>? icActions = cellActions[from]
+		if (icActions == null) { icActions = []; cellActions[from] = icActions }
+		push(icActions, action)
 
-		if(!_cell_item_actions[from]) _cell_item_actions[from] = [:]
-		if(!_cell_item_actions[from]![item]) _cell_item_actions[from]![item] = []
-		push(_cell_item_actions[from]![item]!, action)
+		Map<Item, Array<Action>>? itemActions = _cell_item_actions[from]
+		if (itemActions == null) { itemActions = [:]; _cell_item_actions[from] = itemActions }
+		Array<Action>? ciActions = itemActions[item]
+		if (ciActions == null) { ciActions = []; itemActions[item] = ciActions }
+		push(ciActions, action)
 
-		if(!_cell_item_bestAction[from]) _cell_item_bestAction[from] = [:]
-		if(!_cell_item_bestAction[from]![item]) _cell_item_bestAction[from]![item] = action
-		else if(_cell_item_bestAction[from]![item]!.score! < action.score!) _cell_item_bestAction[from]![item] = action
+		Map<Item, Action>? bestByItem = _cell_item_bestAction[from]
+		if (bestByItem == null) { bestByItem = [:]; _cell_item_bestAction[from] = bestByItem }
+		Action? best = bestByItem[item]
+		if (best == null) bestByItem[item] = action
+		else if (best.score! < action.score!) bestByItem[item] = action
 
 		_actionsCreated++
 	}
