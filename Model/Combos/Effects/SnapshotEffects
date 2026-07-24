@@ -8,14 +8,6 @@
  * Combo building always uses real Consequences with cloned/chained state.
  */
 
-// Helper: check if entity has an effect from a specific item (for notReplaceable)
-function snapshotHasItemEffect(Entity target, Item item) {
-	for (EntityEffect ee in target.effects) {
-		if (ee.item != null && ee.item.id == item.id) return true;
-	}
-	return false
-}
-
 // ============================================================================
 // DAMAGE EFFECTS
 // ============================================================================
@@ -32,7 +24,9 @@ EffectCache.registerHandlers([
 
 	EFFECT_POISON: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
-		EffectHandlers.poison(effect, entitySource, entityTarget, ratioDmg, entitySource.mgc, entitySource.pwr, snapshotHasItemEffect(entityTarget, effect.item), snap)
+		// O(1) index lookup (matches the real combo path's getCurrentItemEffect keying)
+		// instead of scanning target.effects; base-state, same as before.
+		EffectHandlers.poison(effect, entitySource, entityTarget, ratioDmg, entitySource.mgc, entitySource.pwr, entityTarget.items_effectOverTime[effect.item] != null, snap)
 	},
 
 	EFFECT_LIFE_DAMAGE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
