@@ -64,15 +64,15 @@ class EffectHandlers {
 
 		// Inline passives for damage taken (target's passives)
 		Map<integer, real> passives = target.passives
-		if (passives[EFFECT_DAMAGE_TO_STRENGTH]) {
+		if (target.hasPassives && passives[EFFECT_DAMAGE_TO_STRENGTH]) {
 			integer strGain = round(value * passives[EFFECT_DAMAGE_TO_STRENGTH]!)
 			if (strGain > 0) ctx.add(target, Stats.STR, strGain)
 		}
-		if (passives[EFFECT_DAMAGE_TO_RESISTANCE]) {
+		if (target.hasPassives && passives[EFFECT_DAMAGE_TO_RESISTANCE]) {
 			integer rstGain = round(value * passives[EFFECT_DAMAGE_TO_RESISTANCE]!)
 			if (rstGain > 0) ctx.add(target, Stats.RST, rstGain)
 		}
-		if (passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]) {
+		if (target.hasPassives && passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]) {
 			integer shieldGain = round(value * passives[EFFECT_DAMAGE_TO_ABSOLUTE_SHIELD]!)
 			if (shieldGain > 0) ctx.add(target, Stats.ABSSHIELD, shieldGain)
 		}
@@ -86,7 +86,7 @@ class EffectHandlers {
 		// Erosion
 		ctx.add(target, Stats.HPMAX, -EffectCalc.erosion(value))
 		// Inline passive for nova/erosion
-		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+		if (target.hasPassives && passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 			integer magicGain = round(EffectCalc.erosion(value) * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
 			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
 		}
@@ -128,7 +128,7 @@ class EffectHandlers {
 
 		// Inline passive for poison taken (target's passives)
 		Map<integer, real> passives = target.passives
-		if (passives[EFFECT_POISON_TO_SCIENCE]) {
+		if (target.hasPassives && passives[EFFECT_POISON_TO_SCIENCE]) {
 			integer sciGain = round(effect.avg * passives[EFFECT_POISON_TO_SCIENCE]!)
 			if (sciGain > 0) ctx.add(target, Stats.SNC, sciGain)
 		}
@@ -137,7 +137,7 @@ class EffectHandlers {
 		integer erosion = EffectCalc.poisonErosion(value, duration)
 		ctx.add(target, Stats.HPMAX, -erosion)
 		// Inline passive for nova/erosion
-		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+		if (target.hasPassives && passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 			integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
 			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
 		}
@@ -164,7 +164,7 @@ class EffectHandlers {
 		ctx.add(target, Stats.HPMAX, -EffectCalc.erosion(value))
 		// Inline passive for nova/erosion (target's passives)
 		Map<integer, real> passives = target.passives
-		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+		if (target.hasPassives && passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 			integer magicGain = round(EffectCalc.erosion(value) * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
 			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
 		}
@@ -192,7 +192,7 @@ class EffectHandlers {
 
 		// Inline passive for nova (target's passives)
 		Map<integer, real> passives = target.passives
-		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+		if (target.hasPassives && passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 			integer magicGain = round(value * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
 			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
 		}
@@ -212,7 +212,7 @@ class EffectHandlers {
 		ctx.add(target, Stats.HPMAX, -EffectCalc.erosion(value))
 		// Inline passive for nova/erosion (target's passives)
 		Map<integer, real> passives = target.passives
-		if (passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+		if (target.hasPassives && passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
 			integer magicGain = round(EffectCalc.erosion(value) * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
 			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
 		}

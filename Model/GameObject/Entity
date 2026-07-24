@@ -102,6 +102,7 @@ class Entity {
 	Array<EntityEffect> launchedEffects
 	// passive effects from weapons (auras) - effect.type -> conversion rate
 	Map<integer, real> passives = [:]
+	boolean hasPassives = false  // cached mapSize(passives) > 0 (passives never change after construction)
 
 	constructor(integer id){
 		this.id = id
@@ -152,6 +153,7 @@ class Entity {
 			// Absolute passives (KILL_TO_TP, ALLY_KILLED_TO_AGILITY) stored as-is
 			this.passives[type] = value
 		}
+		this.hasPassives = mapSize(this.passives) > 0
 		this.turnOrder = getEntityTurnOrder(id)!
 		this.isFriend = isAlly(id)
 		this.isBulb = isSummon(id)!
