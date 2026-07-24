@@ -302,17 +302,22 @@ class MapDanger {
 	static Danger getCellDanger(Cell cell, Consequences? consequences) {
 		if(consequences && consequences.isAlteringDanger){
 			integer key = consequences.hashcode * 997 + consequences.dangerMPHash
-			if(!_hash_danger[key])
-				_hash_danger[key] = [:]
-			if(!_hash_danger[key]![cell]){
-				_hash_danger[key]![cell] = Damages.computeDanger(cell, consequences)
+			Map<Cell, Danger>? bucket = _hash_danger[key]
+			if (bucket == null) {
+				bucket = [:]
+				_hash_danger[key] = bucket
 			}
-			return _hash_danger[key]![cell]!
+			Danger? d = bucket[cell]
+			if (d != null) return d
+			Danger nd = Damages.computeDanger(cell, consequences)
+			bucket[cell] = nd
+			return nd
 		}else{
-			if(!_danger[cell]) {
-				_danger[cell] = Damages.computeDanger(cell, null)
-			}
-			return _danger[cell]!
+			Danger? d = _danger[cell]
+			if (d != null) return d
+			Danger nd = Damages.computeDanger(cell, null)
+			_danger[cell] = nd
+			return nd
 		}
 	}
 
@@ -481,12 +486,17 @@ class MapDanger {
 	 */
 	static Array<Cell> getCachedTargetableCells(Item item, Cell cell){
 		// init du cache si nécessaire
-		if(MapDanger._cache_item_targetableCells[item]==null) 
-			MapDanger._cache_item_targetableCells[item] = [:]
-		if(MapDanger._cache_item_targetableCells[item]![cell]==null)
-			MapDanger._cache_item_targetableCells[item]![cell] = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
-		
-		return MapDanger._cache_item_targetableCells[item]![cell]!;
+		Map<Cell, Array<Cell>>? byCell = MapDanger._cache_item_targetableCells[item]
+		if (byCell == null) {
+			byCell = [:]
+			MapDanger._cache_item_targetableCells[item] = byCell
+		}
+		Array<Cell>? cells = byCell[cell]
+		if (cells == null) {
+			cells = Targets.getTargetableCells(item, cell, Fight.allEntitiesId)
+			byCell[cell] = cells
+		}
+		return cells
 	}
 		
 	/*
