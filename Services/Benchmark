@@ -27,6 +27,10 @@ class TrackOperations {
 }
 
 class Benchmark{
+	// Gates debug-only string building in hot loops (Damages, Combo.add,
+	// ScoringModifiers, MapDamage, MapSupport). Flip to true when investigating.
+	static boolean DEBUG_VERBOSE = false
+
 	static Map<string, integer> _count_func = [:]
 	static Map<string, integer> _cumul_func = [:]
 	static Map<string, integer> _laststart_func = [:]

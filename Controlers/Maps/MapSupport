@@ -191,7 +191,7 @@ class MapSupport {
 				if (itemSupport > 0) {
 					integer uses = 0
 					while (item.cost <= tpLeft && uses < item.maxUse) {
-						str += " " + item.name
+						if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
 						totalSupport += itemSupport
 						tpLeft -= item.cost
 						uses++

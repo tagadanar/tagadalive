@@ -230,7 +230,7 @@ class Damages {
 					if (itemDmg > 0 || itemPsn > 0) {
 						integer uses = 0
 						while (item.cost <= tpLeft && uses < item.maxUse) {
-							str += " " + item.name
+							if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
 							dmg += itemDmg
 							psnDmg += itemPsn
 							tpLeft -= item.cost
@@ -272,7 +272,7 @@ class Damages {
 								while (item.cost <= tpLeft && uses < item.maxUse) {
 									real effectiveHeal = min(healVal, psnDmg)
 									if (effectiveHeal > 0) {
-										str += " " + item.name
+										if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
 										psnDmg -= effectiveHeal
 									}
 									tpLeft -= item.cost
@@ -286,7 +286,7 @@ class Damages {
 									real missingHP = maxLife - currentLife + dmg
 									real effectiveHeal = min(healVal, missingHP)
 									if (effectiveHeal > 0) {
-										str += " " + item.name
+										if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
 										dmg -= effectiveHeal
 									}
 									tpLeft -= item.cost
@@ -300,7 +300,7 @@ class Damages {
 							real boostVal = ef.avgmax * (1 + e.getCurrentWsd(consequences) / 100) * ratio
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
-								str += " " + item.name
+								if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
 								dmg -= boostVal
 								maxLife += boostVal  // Track increased max life
 								tpLeft -= item.cost
@@ -316,7 +316,7 @@ class Damages {
 							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
-								str += " " + item.name
+								if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
 								absShield += shieldVal  // Increases shield for subsequent enemy attacks
 								tpLeft -= item.cost
 								uses++
@@ -330,7 +330,7 @@ class Damages {
 							real shieldVal = ef.avgmax * (1 + e.getCurrentRst(consequences) / 100) * ratio
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
-								str += " " + item.name
+								if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
 								relShield += shieldVal  // Increases shield for subsequent enemy attacks
 								tpLeft -= item.cost
 								uses++
@@ -343,7 +343,7 @@ class Damages {
 							// (poison from enemies who played before this ally)
 							integer uses = 0
 							while (item.cost <= tpLeft && uses < item.maxUse) {
-								str += " " + item.name
+								if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
 								psnDmg = 0  // Antidote removes ALL poison
 								tpLeft -= item.cost
 								uses++
