@@ -197,6 +197,17 @@ class MapDamage {
 		real totalDmg = 0.0
 		string str = ""
 
+		// Reference enemy (first living): same for every ally/item, depends only on
+		// consequences — hoisted out of the per-(ally x item) loop.
+		Entity? target = null
+		for (Entity e in Fight.getEnemiesAlive()) {
+			if (consequences == null || !consequences.isKilled(e)) {
+				target = e
+				break
+			}
+		}
+		if (target == null) return AllyDamagePotential(cell, 0.0, "")
+
 		for (Entity ally in Fight.getAlliesAlive()) {
 			if (ally == Fight.self) continue
 			if (consequences && consequences.isKilled(ally)) continue
@@ -213,17 +224,7 @@ class MapDamage {
 				real? ratioDmg = itemMap[cell]
 				if (ratioDmg == null || ratioDmg <= 0) continue
 
-				// Calcule les dommages sur un ennemi moyen (on prend le premier ennemi vivant comme reference)
-				Entity? target = null
-				for (Entity e in Fight.getEnemiesAlive()) {
-					if (consequences == null || !consequences.isKilled(e)) {
-						target = e
-						break
-					}
-				}
-				if (target == null) continue
-
-				real itemDmg = MapDamage.getDamage(ally, target, item, ratioDmg, consequences)
+				real itemDmg = MapDamage.getDamage(ally, target!, item, ratioDmg, consequences)
 				if (itemDmg > 0) {
 					integer uses = 0
 					while (item.cost <= tpLeft && uses < item.maxUse) {
