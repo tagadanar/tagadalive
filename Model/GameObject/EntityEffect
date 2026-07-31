@@ -17,8 +17,8 @@ class EntityEffect {
 		if (this.turns < 0) this.turns = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
 		this.critical = effect[4] as boolean
 		Item? knownItem = Items.getItem(effect[5] as integer)
-		// EFFECT_MULTIPLY_STATS: colossus passive, game-applied with no item — expected
-		if (knownItem == null && this.type != EFFECT_MULTIPLY_STATS) debugW("Unknown effect item id:" + effect[5] + " type:" + effect[0] + " value:" + effect[1])
+		// EFFECT_MULTIPLY_STATS (colossus passive) and EFFECT_RAW_BUFF_POWER: game-applied with no item — expected
+		if (knownItem == null && this.type != EFFECT_MULTIPLY_STATS && this.type != EFFECT_RAW_BUFF_POWER) debugW("Unknown effect item id:" + effect[5] + " type:" + effect[0] + " value:" + effect[1])
 		this.item = knownItem!
 		this.target = Fight.getEntity(effect[6] as integer)
 		// pas sur d'avoir besoin des modifiers ici, je save ocazou
