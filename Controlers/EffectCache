@@ -178,6 +178,8 @@ class EffectCache {
 			// Apply effect to all targets
 			for (Entity target in targets) {
 				if (snap.isKilled(target)) continue
+				// Per-effect target mask (e.g. CHIP_BURNING damage only hits bulbs)
+				if (!effect.appliesTo(target)) continue
 				// Skip enemy dying from poison (except damage on chest/BR: secure the kill)
 				if (!target.isFriend && target.willBeDead && (!item.isDamage || (target.entityType != ENTITY_CHEST && !Fight.isBattleRoyale))) continue
 				// Skip invincible enemies unless item works on invincible (shackles)
@@ -236,6 +238,8 @@ class EffectCache {
 			}
 
 			if (snap.isKilled(target)) continue
+			// Per-effect target mask (simulated positions can't query getChipTargets)
+			if (!effect.appliesTo(target)) continue
 			// Skip enemy dying from poison (except damage on chest/BR: secure the kill)
 			if (!target.isFriend && target.willBeDead && (!item.isDamage || (target.entityType != ENTITY_CHEST && !Fight.isBattleRoyale))) continue
 

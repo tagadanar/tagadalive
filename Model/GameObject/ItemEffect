@@ -44,6 +44,32 @@ class ItemEffect {
 	}
 	
 	/*
+	 * Whether this effect can affect this entity, per the game's target bitmask
+	 * (team bits: enemies/allies/caster; type bits: summons/non-summons).
+	 * Mirrors in-game filtering — verified empirically: getChipTargets() excludes
+	 * non-matching entities (e.g. CHIP_BURNING damage never hits leeks).
+	 * Needed for simulated positions where getChipTargets() can't be queried.
+	 */
+	boolean appliesTo(Entity target) {
+		if (this.targets == 0) return true  // no restriction declared
+		// Team bit (caster only matches the CASTER bit, not ALLIES)
+		if (target == Fight.self) {
+			if (!(this.targets & EFFECT_TARGET_CASTER)) return false
+		} else if (target.isFriend) {
+			if (!(this.targets & EFFECT_TARGET_ALLIES)) return false
+		} else {
+			if (!(this.targets & EFFECT_TARGET_ENEMIES)) return false
+		}
+		// Type bit (neither set = both allowed)
+		if (this.targets & (EFFECT_TARGET_SUMMONS | EFFECT_TARGET_NON_SUMMONS)) {
+			if (target.isBulb) {
+				if (!(this.targets & EFFECT_TARGET_SUMMONS)) return false
+			} else if (!(this.targets & EFFECT_TARGET_NON_SUMMONS)) return false
+		}
+		return true
+	}
+
+	/*
 	 * Format chaîne de caracteres utilisée pour des tests / debugs.
 	 */
 	string string() {

@@ -26,6 +26,7 @@ class Item {
 	boolean isTactical = false
 	boolean isOffensive = false  // Can deal damage/debuff to enemies (O(1) check)
 	boolean isDamage = false     // Has EFFECT_DAMAGE or EFFECT_LIFE_DAMAGE
+	boolean hasAllyKill = false  // Has EFFECT_KILL targeting own summons (burning)
 	boolean worksOnInvincible = false  // Shackle items work on invincible targets
 
 	static integer ALL = 0
@@ -265,6 +266,10 @@ class Item {
 			}
 			if (e.type == EFFECT_DAMAGE || e.type == EFFECT_LIFE_DAMAGE) {
 				this.isDamage = true
+			}
+			// KILL effect targeting own summons (e.g. CHIP_BURNING mask allies+summons)
+			if (e.type == EFFECT_KILL && (e.targets & EFFECT_TARGET_ALLIES)) {
+				this.hasAllyKill = true
 			}
 			if (e.type == EFFECT_SHACKLE_STRENGTH ||
 				e.type == EFFECT_SHACKLE_MAGIC ||
