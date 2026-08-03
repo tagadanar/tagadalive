@@ -183,9 +183,11 @@ class Fight {
 	 */
 	static void updateForSummon() {
 		integer selfId = getEntity()
+		boolean selfCreated = false
 
 		// Create summon entity if it doesn't exist yet
 		if (_aliveAll[selfId] == null) {
+			selfCreated = true
 			Entity entity = Entity(selfId)
 			_aliveAll[selfId] = entity
 			push(allEntitiesId, entity.id)
@@ -236,11 +238,16 @@ class Fight {
 		// refreshState() ensures entities have current HP/stats/effects after main leek's actions
 		for (integer id : Entity entity in _aliveAll) {
 			entity.updatePosition()
-			// Refresh state for existing entities (not the newly created bulb)
-			if (id != selfId) {
+			// Refresh state for existing entities (the newly created bulb is already fresh)
+			if (id != selfId || !selfCreated) {
 				entity.refreshState()
 			}
 		}
+
+		// Ready-flags were computed from the summoner's items during its turn;
+		// bulbs carry no antidote, and a stale true here disables COVID spread
+		// positioning in MapPosition._computeTacticalScore for infected bulbs
+		antidoteReady = false
 	}
 
 	/*
