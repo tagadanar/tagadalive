@@ -68,6 +68,9 @@ class Position extends Danger {
 		real totalDmg = this.dmg + this.psnDmg
 		if (totalDmg <= 0) return;
 
+		// Per-brother danger rules (Averell : aucune tolérance, Joe : bravade)
+		if (BossDalton.applyPositionDanger(this, consequences)) return;
+
 		real currentLife = Fight.self.getCurrentHP(consequences)
 
 		// Ignore small damage (scratches) - bulbs tolerate more (80%) than leeks (10%)

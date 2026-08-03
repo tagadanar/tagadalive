@@ -191,6 +191,9 @@ class Combo {
 		// étape 2.5: execute delayed summons at farthest cell from final position
 		Cell currentCell = Board.cells[getCell()!]!
 		for (Action delayedAction in delayedSummons) {
+			// William handles his own delayed summons (spawn at 2 cells + reserved buffs)
+			if (BossDalton.executeDelayedSummon(delayedAction, currentCell)) continue
+
 			Cell? spawnCell = MapSummon.getFarthestSpawnCell(delayedAction.item, currentCell)
 			if (spawnCell == null) {
 				debugW("No valid spawn cell for delayed summon: " + delayedAction.item.name)

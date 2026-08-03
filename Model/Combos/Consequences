@@ -251,8 +251,9 @@ class Consequences {
 			this.currentCell = action.from
 		}
 
-		// TP cost
+		// TP cost (+ TP reserved by BossDalton, e.g. William's summon+bulb buffs)
 		this.currentTP -= action.item.cost
+		if (BossDalton._buffsPlanned) this.currentTP -= BossDalton.extraActionCost(action, this.currentTP)
 
 		// Weapon switch cost (compare by ID: Item != Item? is unreliable in LS4)
 		if (action.item.isWeap && (this.currentWeapon == null || action.item.id != this.currentWeapon!.id)) {
@@ -335,6 +336,8 @@ class Consequences {
 
 			for (Entity target in this.targets) {
 				if (this.isKilled(target)) continue
+				// Per-effect target mask (e.g. CHIP_BURNING damage only hits bulbs)
+				if (!effect.appliesTo(target)) continue
 				// Skip enemy dying from poison overkill (except damage on chest/BR: secure the kill)
 				if (!target.isFriend && target.nextAntidote >= 1) {
 					integer epsl = this.getHP(target) - target.psnTurn - this.getPsnPerTurn(target)
@@ -408,6 +411,7 @@ class Consequences {
 		}
 
 		this.currentTP -= action.item.cost
+		if (BossDalton._buffsPlanned) this.currentTP -= BossDalton.extraActionCost(action, this.currentTP)
 
 		if (action.item.isWeap && (this.currentWeapon == null || action.item.id != this.currentWeapon!.id)) {
 			this.currentTP -= 1

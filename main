@@ -33,6 +33,9 @@ combo.play()
 // Post-combo: jump/teleport to boss cell if self-plan needs it
 BossPotiMalef.executePostCombo()
 
+// Dalton brothers: themed say with leftover TP
+BossDalton.sayMaybe()
+
 // Warmup teleport destination cache using remaining operation budget
 // Skip if bulbs alive — let the last bulb do it instead
 if (!MapPath._teleportCacheComplete && MapPath._teleportMaxRange > 0

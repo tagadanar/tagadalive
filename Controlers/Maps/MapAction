@@ -73,6 +73,9 @@ class MapAction {
 
 			// Handle summon chips: use MapSummon's best target cells, find fromCells like other items
 			if (item.isSummon) {
+				// William: summons planned only as delayed self-summons (BossDalton)
+				if (BossDalton.handleSummonPlanning(item)) continue
+
 				Array<SummonCandidate> candidates = MapSummon.getBestCells(item.id, 5)
 
 				// If no candidates, create self-cast action (delayed spawn at final position)
@@ -145,12 +148,25 @@ class MapAction {
 				// Skip invincible enemies unless item works on invincible (shackles)
 				if (entity.isInvincible && !entity.isFriend && !item.worksOnInvincible) continue
 				if (BossFennel.shouldNotTarget(entity)) continue
+				// Per-brother target rules (e.g. William never poisons a covid-free enemy)
+				if (BossDalton.shouldSkipTarget(item, entity)) continue
 
 				// Compute score using direct hit on target
 				EffectSnapshot? snapshot = EffectCache.getOrCompute(item, entity.cell, Fight.selfCell)
 				real score = snapshot != null ? snapshot!.effectScore : 0
 
 				push(tuples, new ItemTarget(item, entity, score))
+			}
+
+			// Ally-kill items (burning): own bulbs become targets ONLY when the
+			// kill is profitable (fodder rule — same condition as the coef inversion)
+			if (item.hasAllyKill) {
+				for (Entity bulb in Fight.getAlliesBulbsAlive()) {
+					if (!Scoring.isAllyBulbFodder(bulb)) continue
+					EffectSnapshot? snapshot = EffectCache.getOrCompute(item, bulb.cell, Fight.selfCell)
+					real score = snapshot != null ? snapshot!.effectScore : 0
+					push(tuples, new ItemTarget(item, bulb, score))
+				}
 			}
 		}
 
