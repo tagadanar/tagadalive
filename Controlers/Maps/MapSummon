@@ -58,9 +58,9 @@ class MapSummon {
 	]
 
 	// Target modes for bulb types
-	static integer TARGET_MODE_ENEMY = 0       // Damage enemies (default)
-	static integer TARGET_MODE_ALLY_HEAL = 1   // Heal allies
-	static integer TARGET_MODE_ALLY_SHIELD = 2 // Shield allies
+	static final integer TARGET_MODE_ENEMY = 0       // Damage enemies (default)
+	static final integer TARGET_MODE_ALLY_HEAL = 1   // Heal allies
+	static final integer TARGET_MODE_ALLY_SHIELD = 2 // Shield allies
 
 	static Map<integer, integer> BULB_TARGET_MODE = [
 		BULB_HEALER: TARGET_MODE_ALLY_HEAL,

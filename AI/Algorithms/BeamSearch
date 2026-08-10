@@ -127,10 +127,10 @@ class BeamState {
 
 class BeamSearch {
 	// Configuration
-	static integer BEAM_WIDTH = 15        // Number of candidates to keep at each level
-	static integer MAX_DEPTH = 6          // Maximum actions in a combo
-	static integer MAX_ACTIONS_TO_TRY = 8 // Prune action space
-	static integer SAFETY_BUFFER = 200000 // Keep 200k ops for combo execution
+	static final integer BEAM_WIDTH = 15        // Number of candidates to keep at each level
+	static final integer MAX_DEPTH = 6          // Maximum actions in a combo
+	static final integer MAX_ACTIONS_TO_TRY = 8 // Prune action space
+	static final integer SAFETY_BUFFER = 200000 // Keep 200k ops for combo execution
 
 	// Statistics for debugging
 	static integer lastIterations = 0

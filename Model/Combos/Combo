@@ -3,7 +3,7 @@
  * L'objet combo contient les dommages approximatifs calculé dans MapDanger::getPotentialCombo
  */
 class Combo {
-	static string BULB_NAME = "Fab"
+	static final string BULB_NAME = "Fab"
 	Array<Action> actions = []
 	Position? finalPosition = null  // End-of-turn position (best scored cell)
 	real? score = null

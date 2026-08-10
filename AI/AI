@@ -12,9 +12,9 @@
  */
 class AI {
 	// === Algorithm Modes ===
-	static integer MODE_MCTS = 1            // Monte Carlo Tree Search (thorough, slower)
-	static integer MODE_BEAM = 2            // Beam Search (balanced speed/quality)
-	static integer MODE_COMBO_EXPLORER = 9   // Multi-phase combo exploration
+	static final integer MODE_MCTS = 1            // Monte Carlo Tree Search (thorough, slower)
+	static final integer MODE_BEAM = 2            // Beam Search (balanced speed/quality)
+	static final integer MODE_COMBO_EXPLORER = 9   // Multi-phase combo exploration
 
 	// Current mode (default value, can be overridden in main)
 	static integer mode = AI.MODE_COMBO_EXPLORER

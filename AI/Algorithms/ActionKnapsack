@@ -35,7 +35,7 @@ class ActionKnapsack {
 	// Weapon index mapping
 	static Array<Item> weaponList = []
 	static Map<Item, integer> weaponToIdx = [:]
-	static integer CHIP = -1  // Chips don't change weapon state
+	static final integer CHIP = -1  // Chips don't change weapon state
 
 	/*
 	 * Select actions maximizing score within TP budget

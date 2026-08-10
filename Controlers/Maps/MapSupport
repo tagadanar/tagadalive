@@ -5,7 +5,7 @@
 class MapSupport {
 	// === Configuration ===
 	// Nombre max d'items de support par allié à considérer (0 = illimité/tous les items)
-	static integer SUPPORT_ITEMS_LIMIT = 4
+	static final integer SUPPORT_ITEMS_LIMIT = 4
 
 	// Cache du heal estimé sur la case, reset à chaque tour
 	static Map<Cell, HealPotential> _heal = [:] // [cell:HealPotential]

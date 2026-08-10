@@ -110,10 +110,10 @@ class MapTactical {
 	static Map<integer, Array<Cell>> _losCache = [:]
 
 	// Direction constants: 0=+X(East), 1=-X(West), 2=+Y(South), 3=-Y(North)
-	static integer DIR_EAST = 0
-	static integer DIR_WEST = 1
-	static integer DIR_SOUTH = 2
-	static integer DIR_NORTH = 3
+	static final integer DIR_EAST = 0
+	static final integer DIR_WEST = 1
+	static final integer DIR_SOUTH = 2
+	static final integer DIR_NORTH = 3
 	static Array<Array<integer>> _dirDeltas = [[1,0], [-1,0], [0,1], [0,-1]]
 
 	// ═══════════════════════════════════════════════════════════════════════════

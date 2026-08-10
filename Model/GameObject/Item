@@ -29,19 +29,19 @@ class Item {
 	boolean hasAllyKill = false  // Has EFFECT_KILL targeting own summons (burning)
 	boolean worksOnInvincible = false  // Shackle items work on invincible targets
 
-	static integer ALL = 0
-	static integer ALLLEEKS = 1
-	static integer ALLBULBS = 2
-	static integer ALLIES = 3
-	static integer ALLIESLEEKS = 4
-	static integer ALLIESBULBS = 5
-	static integer ENEMIES = 6
-	static integer ENEMIESLEEKS = 7
-	static integer ENEMIESBULBS = 8
-	static integer NONE = 9
+	static final integer ALL = 0
+	static final integer ALLLEEKS = 1
+	static final integer ALLBULBS = 2
+	static final integer ALLIES = 3
+	static final integer ALLIESLEEKS = 4
+	static final integer ALLIESBULBS = 5
+	static final integer ENEMIES = 6
+	static final integer ENEMIESLEEKS = 7
+	static final integer ENEMIESBULBS = 8
+	static final integer NONE = 9
 
 	// Default priority for items not in PRIORITIES map
-	static integer UNKNOWN_PRIORITY = 50
+	static final integer UNKNOWN_PRIORITY = 50
 
 	// Priority groups (suggested consolidation for future reference):
 	// -1: Antidote (before Liberation - full poison removal)

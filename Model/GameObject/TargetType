@@ -12,11 +12,11 @@ class TargetType {
 
 	// ALLIES et ENEMIES permettent de définir un effet positif ou négatif, et sont utilisés pour savoir
 	// si la value d'un entityEffect doit être négative ou positive
-	static integer ENEMIES = -1
-	static integer ALLIES = 1
-	static integer ALL = 2
-	static integer EMPTY = 3
-	static integer PASSIVE = 4  // Caster-only effects triggered by events (damage dealt, kills, etc.)
+	static final integer ENEMIES = -1
+	static final integer ALLIES = 1
+	static final integer ALL = 2
+	static final integer EMPTY = 3
+	static final integer PASSIVE = 4  // Caster-only effects triggered by events (damage dealt, kills, etc.)
 	
 	static Map<integer, integer> CONVERTER = [
 		EFFECT_DAMAGE: 					TargetType.ENEMIES,

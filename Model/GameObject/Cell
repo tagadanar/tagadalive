@@ -2,7 +2,7 @@
  * Cellule de jeu contenant l'id, 'les coordonnées, les voisins et le type
  */ 
 class Cell {
-	static integer SELF_CAST_ID = 1312 // sentinel cell ID for self-cast actions (outside valid range 0-612)
+	static final integer SELF_CAST_ID = 1312 // sentinel cell ID for self-cast actions (outside valid range 0-612)
 
 	integer id
 	boolean isWall
