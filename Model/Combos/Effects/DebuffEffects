@@ -43,21 +43,36 @@ Consequences.registerHandlers([
 	},
 
 	EFFECT_SHACKLE_TP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if (entityTarget.getCurrentTP(conseq) <= 0) return;
+		integer tpBefore = entityTarget.getCurrentTP(conseq)
+		if (tpBefore <= 0) return;
 		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.TP, conseq)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
+		// Cap at remaining TP (post-dedupe): overshoot below 0 denies nothing
+		integer remaining = entityTarget.getCurrentTP(conseq)
+		if (value > remaining) value = remaining
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.TP, eot)
+		// TP lock bonus: enemy leek pinned to <=1 TP can't cast anything, manumission included
+		// (tpBefore > 1 avoids re-awarding on a second shackle in the same combo)
+		if (!entityTarget.isBulb && tpBefore > 1
+			&& entityTarget.getCurrentTP(conseq) <= 1) {
+			conseq.score += Scoring.W_TP_LOCK_BONUS
+		}
 	},
 
 	EFFECT_SHACKLE_MP: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		if (entityTarget.getCurrentMP(conseq) <= 0) return;
+		integer mpBefore = entityTarget.getCurrentMP(conseq)
+		if (mpBefore <= 0) return;
 		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.MP, conseq)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.getCurrentMgc(conseq), ratioDmg)
+		// Overshoot beyond 0 MP keeps partial value: insurance against enemy MP boosts
+		integer remaining = entityTarget.getCurrentMP(conseq)
+		if (value > remaining) value = remaining + round((value - remaining) * ScoringConfig.MP_OVERSHACKLE_FACTOR)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.MP, eot)
-		// Lock bonus: enemy leek pinned to 0 MP without manumission
-		if (!entityTarget.isBulb && entityTarget.nextManumission > 1
+		// Lock bonus: enemy leek pinned to 0 MP, no manumission available (on CD or TP-locked)
+		if (!entityTarget.isBulb
+			&& (entityTarget.nextManumission > 1 || entityTarget.getCurrentTP(conseq) <= 1)
 			&& entityTarget.getCurrentMP(conseq) <= 0) {
 			conseq.score += Scoring.W_LOCK_BONUS
 		}

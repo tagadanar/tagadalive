@@ -247,6 +247,9 @@ EffectCache.registerHandlers([
 		if (entityTarget.tp <= 0) return;
 		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.TP, snap)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
+		// Cap at remaining TP (post-dedupe): overshoot below 0 denies nothing
+		integer remaining = max(0, snap.getCurrentStat(entityTarget, Stats.TP, entityTarget.tp))
+		if (value > remaining) value = remaining
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		snap.addAlteration(entityTarget, Stats.TP, eot)
 	},
@@ -256,6 +259,9 @@ EffectCache.registerHandlers([
 		if (entityTarget.mp <= 0) return;
 		EffectHandlers.dedupeIfNeeded(effect, entityTarget, Stats.MP, snap)
 		integer value = EffectCalc.shackle(effect.avg, entitySource.mgc, ratioDmg)
+		// Overshoot beyond 0 MP keeps partial value: insurance against enemy MP boosts
+		integer remaining = max(0, snap.getCurrentStat(entityTarget, Stats.MP, entityTarget.mp))
+		if (value > remaining) value = remaining + round((value - remaining) * ScoringConfig.MP_OVERSHACKLE_FACTOR)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		snap.addAlteration(entityTarget, Stats.MP, eot)
 	},
