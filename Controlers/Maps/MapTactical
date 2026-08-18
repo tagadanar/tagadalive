@@ -258,8 +258,10 @@ class MapTactical {
 				score = _scoreMoveEnemy(entity, entity.cell, bestFrom, invConseq)
 			}
 
-			// Only keep candidates with positive score (actual benefit)
-			if (score <= 0) continue
+			// Ally swaps need actual danger reduction; enemy swaps are kept at score 0 —
+			// in 1v1 the ally-damage delta is always 0 (self excluded from MapDamage) and
+			// the vulnerability's value only appears in the combo simulation
+			if (entity.isFriend ? score <= 0 : score < 0) continue
 
 			// Create candidate using factory method
 			MovementCandidate candidate = MovementCandidate.forInversion(
