@@ -74,6 +74,15 @@ class Damages {
 				real critFactor = e.isOTK ? CRITICAL_FACTOR : 1.0
 				real effectiveRel = e.isOTK ? relShield - 25 : relShield
 
+				// MP shackle: cache outside item loop (before liberation sim mutates tpLeft)
+				// Applies when manumission is on CD, or unaffordable because enemy is TP-locked
+				boolean applyShackle = false
+				integer shackledMP = 0
+				if (consequences && (e.nextManumission > 1 || tpLeft <= 1)) {
+					shackledMP = max(0, e.getCurrentMP(consequences))
+					applyShackle = shackledMP < e.mp
+				}
+
 				// Simulate enemy liberation stripping our shields
 				if (relShield > ScoringConfig.LIBE_RELSHIELD_TRIGGER && e.liberationCD <= 1) {
 					Map<Cell, real>? libeMap = MapDanger._map_enemy_liberation[e]
@@ -90,14 +99,6 @@ class Damages {
 							}
 						}
 					}
-				}
-
-				// MP shackle: cache outside item loop
-				boolean applyShackle = false
-				integer shackledMP = 0
-				if (consequences && e.nextManumission > 1) {
-					shackledMP = max(0, e.getCurrentMP(consequences))
-					applyShackle = shackledMP < e.mp
 				}
 
 				// Entity stats are constant across e's item loop (consequences is only read)
