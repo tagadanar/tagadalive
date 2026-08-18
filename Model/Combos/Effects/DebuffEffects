@@ -52,10 +52,11 @@ Consequences.registerHandlers([
 		if (value > remaining) value = remaining
 		EffectOverTime eot = EffectOverTime(effect.item, -value, effect.duration, effect.type)
 		conseq.add(entityTarget, Stats.TP, eot)
-		// TP lock bonus: enemy leek pinned to <=1 TP can't cast anything, manumission included
-		// (tpBefore > 1 avoids re-awarding on a second shackle in the same combo)
-		if (!entityTarget.isBulb && tpBefore > 1
-			&& entityTarget.getCurrentTP(conseq) <= 1) {
+		// TP lock bonus: enemy leek below manumission cost can't unshackle.
+		// (tpBefore > lockTP avoids re-awarding on a second shackle in the same combo)
+		integer lockTP = entityTarget.getTPLockThreshold()
+		if (!entityTarget.isBulb && tpBefore > lockTP
+			&& entityTarget.getCurrentTP(conseq) <= lockTP) {
 			conseq.score += Scoring.W_TP_LOCK_BONUS
 		}
 	},
@@ -72,7 +73,7 @@ Consequences.registerHandlers([
 		conseq.add(entityTarget, Stats.MP, eot)
 		// Lock bonus: enemy leek pinned to 0 MP, no manumission available (on CD or TP-locked)
 		if (!entityTarget.isBulb
-			&& (entityTarget.nextManumission > 1 || entityTarget.getCurrentTP(conseq) <= 1)
+			&& (entityTarget.nextManumission > 1 || entityTarget.getCurrentTP(conseq) <= entityTarget.getTPLockThreshold())
 			&& entityTarget.getCurrentMP(conseq) <= 0) {
 			conseq.score += Scoring.W_LOCK_BONUS
 		}

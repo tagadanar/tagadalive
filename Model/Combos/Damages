@@ -78,7 +78,7 @@ class Damages {
 				// Applies when manumission is on CD, or unaffordable because enemy is TP-locked
 				boolean applyShackle = false
 				integer shackledMP = 0
-				if (consequences && (e.nextManumission > 1 || tpLeft <= 1)) {
+				if (consequences && (e.nextManumission > 1 || tpLeft <= e.getTPLockThreshold())) {
 					shackledMP = max(0, e.getCurrentMP(consequences))
 					applyShackle = shackledMP < e.mp
 				}

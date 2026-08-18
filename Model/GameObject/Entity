@@ -76,6 +76,7 @@ class Entity {
 	integer nextLiberation = 6   // Turns until enemy team can liberate this entity (0-6, set by MapDanger)
 	integer manumissionCD = 6    // CHIP_MANUMISSION cooldown (6 = no manumission chip, 0-5 = current cd)
 	integer nextManumission = 6  // Turns until entity can self-manumission (0-6, set by MapDanger)
+	integer adrenalineCD = 8     // CHIP_ADRENALINE cooldown (8 = no adrenaline chip, 0-7 = current cd)
 	integer jumpCD = 4           // CHIP_JUMP cooldown (4 = no jump chip, 0-3 = current cd)
 	Item? jumpItem = null        // CHIP_JUMP item reference (for minRange/maxRange access)
 	integer teleportCD = 11      // CHIP_TELEPORTATION cooldown (11 = no chip, 0-10 = current cd)
@@ -257,6 +258,7 @@ class Entity {
 				case CHIP_ANTIDOTE: this.antidoteCD = getCooldown(item.id, this.id)!; break;
 				case CHIP_LIBERATION: this.liberationCD = getCooldown(item.id, this.id)!; break;
 				case CHIP_MANUMISSION: this.manumissionCD = getCooldown(item.id, this.id)!; break;
+				case CHIP_ADRENALINE: this.adrenalineCD = getCooldown(item.id, this.id)!; break;
 				case CHIP_JUMP: this.jumpCD = getCooldown(item.id, this.id)!; this.jumpItem = item; break;
 				case CHIP_TELEPORTATION: this.teleportCD = getCooldown(item.id, this.id)!; this.teleportItem = item; break;
 				case CHIP_GRAPPLE: this.grappleCD = getCooldown(item.id, this.id)!; this.grappleItem = item; break;
@@ -476,7 +478,12 @@ class Entity {
 		return this.getCurrentMaxHP(consequences) - this.getCurrentHP(consequences) 
 	}
 	integer getCurrentTP(Consequences? consequences){
-		return consequences ? this.tp+consequences!.getAlteration(this, Stats.TP) : this.tp 
+		return consequences ? this.tp+consequences!.getAlteration(this, Stats.TP) : this.tp
+	}
+	// TP at or below which this entity can't afford manumission (6 TP).
+	// Adrenaline ready (1 TP -> +5 TP) lets it climb back, so only a full drain locks.
+	integer getTPLockThreshold(){
+		return this.adrenalineCD == 0 ? 0 : 5
 	}
 	integer getCurrentMP(Consequences? consequences){
 		return consequences ? this.mp+consequences!.getAlteration(this, Stats.MP) : this.mp 
