@@ -2031,6 +2031,10 @@ class ComboBuilder {
 				if (ComboBuilder._addForcedFinalPosition(combo, Board.cells[bossCell]!, 100000.0)) {
 					return;
 				}
+				// Jump/teleport plan: end on a launch cell that keeps the boss cell in range
+				if (BossPotiMalef.forceLaunchFinalPosition(combo)) {
+					return;
+				}
 			} else if (planType == BossPotiMalef.PLAN_NONE) {
 				// No plan: fallback — force leek if combo has no summon
 				boolean hasSummon = false

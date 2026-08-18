@@ -129,7 +129,10 @@ class Entity {
 			Array<Item> filtered = []
 			for (Item item in this.items) {
 				if ((item.isSummon && item.id != CHIP_RESURRECTION) || item.id == CHIP_TELEPORTATION) continue
-				if (item.id == CHIP_JUMP && BossPotiMalef._planUsesJump) continue
+				// Only trust the jump-plan flag when computed for THIS turn — Entity
+				// init runs before execute(), so the flag may be last turn's
+				if (item.id == CHIP_JUMP && BossPotiMalef._planUsesJump
+					&& BossPotiMalef._planTurn == getTurn()) continue
 				push(filtered, item)
 			}
 			this.items = filtered
