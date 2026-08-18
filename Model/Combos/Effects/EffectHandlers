@@ -21,7 +21,7 @@ class EffectHandlers {
 	 */
 	static boolean dedupeIfNeeded(ItemEffect effect, Entity target, integer stat, ctx) {
 		if (effect.stackable) return false
-		EffectOverTime? existing = ctx.getExistingItemEffect(target, effect.item)
+		EffectOverTime? existing = ctx.getExistingItemEffectOfType(target, effect.item, effect.type)
 		if (existing != null) {
 			EffectOverTime counter = EffectOverTime(effect.item, -existing.value, existing.duration, effect.type)
 			ctx.add(target, stat, counter)

@@ -238,6 +238,27 @@ class EffectSnapshot {
 		return entity.items_effectOverTime[item] ? entity.items_effectOverTime[item]![0] : null
 	}
 
+	/*
+	 * Unified interface: Get existing effect of a specific type from same item.
+	 * Multi-component items (e.g. Doping, Prism) apply several effects per cast,
+	 * so non-stackable de-dupe must match the component by effect type.
+	 */
+	EffectOverTime? getExistingItemEffectOfType(Entity entity, Item item, integer effectType) {
+		if (this.altEffects[entity] && this.altEffects[entity]![item]) {
+			Array<EffectOverTime> effects = this.altEffects[entity]![item]!
+			for (integer i = count(effects) - 1; i >= 0; i--) {
+				if (effects[i].effectType == effectType) return effects[i]
+			}
+		}
+		if (entity.items_effectOverTime[item]) {
+			Array<EffectOverTime> effects = entity.items_effectOverTime[item]!
+			for (integer i = count(effects) - 1; i >= 0; i--) {
+				if (effects[i].effectType == effectType) return effects[i]
+			}
+		}
+		return null
+	}
+
 	// Legacy aliases for backward compatibility
 	integer getCurrentHP(Entity entity) { return this.getHP(entity) }
 	integer getCurrentHPMissing(Entity entity) { return this.getHPMissing(entity) }

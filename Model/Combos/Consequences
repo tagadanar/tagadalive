@@ -628,6 +628,41 @@ class Consequences {
 	}
 
 	/*
+	 * Get existing effect of a specific type from same item on entity.
+	 * Used for non-stackable de-dupe: multi-component items (e.g. Doping, Prism)
+	 * apply several effects per cast, so the counter must match by effect type,
+	 * not just by item. Walks parent chain, then falls back to turn-start effects.
+	 */
+	EffectOverTime? getExistingItemEffectOfType(Entity entity, Item item, integer effectType) {
+		if (_shared != null) {
+			if (_shared.altEffects[entity] && _shared.altEffects[entity]![item]) {
+				Array<EffectOverTime> effects = _shared.altEffects[entity]![item]!
+				for (integer i = count(effects) - 1; i >= 0; i--) {
+					if (effects[i].effectType == effectType) return effects[i]
+				}
+			}
+		} else {
+			if (_altEffects[entity] && _altEffects[entity]![item]) {
+				Array<EffectOverTime> effects = _altEffects[entity]![item]!
+				for (integer i = count(effects) - 1; i >= 0; i--) {
+					if (effects[i].effectType == effectType) return effects[i]
+				}
+			}
+			if (_parent != null) {
+				return _parent.getExistingItemEffectOfType(entity, item, effectType)
+			}
+		}
+		// Check turn-start effects (last matching: real effects are in cast order)
+		if (entity.items_effectOverTime[item]) {
+			Array<EffectOverTime> effects = entity.items_effectOverTime[item]!
+			for (integer i = count(effects) - 1; i >= 0; i--) {
+				if (effects[i].effectType == effectType) return effects[i]
+			}
+		}
+		return null
+	}
+
+	/*
 	 * Check if entity has any altEffects (simulated effects from combo).
 	 * Walks parent chain.
 	 */
