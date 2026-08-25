@@ -183,33 +183,39 @@ class Fight {
 	 */
 	static void updateForSummon() {
 		integer selfId = getEntity()
-		boolean selfCreated = false
 
-		// Create summon entity if it doesn't exist yet
-		if (_aliveAll[selfId] == null) {
-			selfCreated = true
-			Entity entity = Entity(selfId)
-			_aliveAll[selfId] = entity
+		// Summon callbacks run after the summoner's combo, not in summon order:
+		// a sibling summoned this turn is alive and targetable but has no Entity
+		// yet, and Targets.getItemTargets() would put a null in the target set.
+		// Register every alive id the maps lack, not only self.
+		Array<integer> created = []
+		for (integer id in getAliveAllies()) if (_aliveAll[id] == null) push(created, id)
+		for (integer id in getAliveEnemies()) if (_aliveAll[id] == null) push(created, id)
+		for (integer id in created) {
+			Entity entity = Entity(id)
+			_aliveAll[id] = entity
 			push(allEntitiesId, entity.id)
 			if (entity.isFriend) {
-				_aliveAllies[selfId] = entity
+				_aliveAllies[id] = entity
 				if (entity.isBulb) {
-					_aliveAlliesBulbs[selfId] = entity
-					_aliveAllBulbs[selfId] = entity
+					_aliveAlliesBulbs[id] = entity
+					_aliveAllBulbs[id] = entity
 				} else {
-					_aliveAlliesLeeks[selfId] = entity
-					_aliveAllLeeks[selfId] = entity
+					_aliveAlliesLeeks[id] = entity
+					_aliveAllLeeks[id] = entity
 				}
 			} else {
-				_aliveEnemies[selfId] = entity
+				_aliveEnemies[id] = entity
 				if (entity.isBulb) {
-					_aliveEnemiesBulbs[selfId] = entity
-					_aliveAllBulbs[selfId] = entity
+					_aliveEnemiesBulbs[id] = entity
+					_aliveAllBulbs[id] = entity
 				} else {
-					_aliveEnemiesLeeks[selfId] = entity
-					_aliveAllLeeks[selfId] = entity
+					_aliveEnemiesLeeks[id] = entity
+					_aliveAllLeeks[id] = entity
 				}
 			}
+			// A sibling that already played may carry its own buffs
+			if (id != selfId) entity.loadEffects()
 		}
 
 		// Update Fight.self to the current playing entity
@@ -238,8 +244,8 @@ class Fight {
 		// refreshState() ensures entities have current HP/stats/effects after main leek's actions
 		for (integer id : Entity entity in _aliveAll) {
 			entity.updatePosition()
-			// Refresh state for existing entities (the newly created bulb is already fresh)
-			if (id != selfId || !selfCreated) {
+			// Refresh state for existing entities (the entities just created are fresh)
+			if (!inArray(created, id)) {
 				entity.refreshState()
 			}
 		}
