@@ -33,21 +33,6 @@ class Benchmark{
 	// and the dead branches are dropped from the generated code.
 	static final boolean DEBUG_VERBOSE = false
 
-	// Gates the danger-model probe at the end of `main`: one debug line per
-	// turn carrying the danger predicted for the cell we actually finish on.
-	// `final` + literal keeps the whole block out of the generated code while
-	// it is false. The probe harness (src/tools/dangerprobe.py) flips it in a
-	// throwaway copy of the tree, never here -- the shipped AI must not pay
-	// for it and must not spam the fight log.
-	static final boolean DEBUG_DANGER = false
-
-	// Gates the Texel probe right after init() in `main`: one debug line per
-	// turn with every living entity's stats as the eval sees them, so a fit
-	// can be done against fight outcomes offline (ml/TODO.md §2). Same
-	// contract as DEBUG_DANGER: false in the shipped AI, flipped only in a
-	// throwaway copy by src/tuning/texel.py.
-	static final boolean DEBUG_TUNE = false
-
 	// Gates the start()/stop() profiler. While false both methods fold to empty
 	// and every call site is erased at compile time (42 ops per pair saved).
 	// Flip to true to get the profiler section back in the Tampermonkey panel.

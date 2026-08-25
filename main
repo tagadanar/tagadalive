@@ -17,20 +17,6 @@ if (getMP() <= 0 || (getTotalTP() - getTP()) >= 10) {
 // Initialize game state
 init()
 
-// Texel probe (Benchmark.DEBUG_TUNE, off in the shipped AI): the state at the
-// moment we are asked to move, before any action. One entry per living
-// entity, side +1 ally / -1 enemy, max TP/MP rather than what is left.
-if (Benchmark.DEBUG_TUNE) {
-	string txl = "TXL|" + getTurn() + "|" + Fight.self.id
-	for (Entity e in Fight.getAllAlive()) {
-		txl += "|" + e.id + ":" + (e.isFriend ? 1 : -1) + ":" + (e.isBulb ? 1 : 0)
-			+ ":" + e.life + ":" + e.totalLife + ":" + e.absShield + ":" + e.relShield
-			+ ":" + e.dmgReturn + ":" + e.str + ":" + e.mgc + ":" + e.snc + ":" + e.rst
-			+ ":" + e.wsd + ":" + e.agi + ":" + getTotalTP(e.id) + ":" + getTotalMP(e.id)
-	}
-	debug(txl)
-}
-
 // Mark boss resurrection cell
 integer? resuCell = BossPotiMalef.getResurrectionCell()
 if (resuCell != null) mark(resuCell, getColor(255, 0, 255))
@@ -55,71 +41,6 @@ BossDalton.sayMaybe()
 if (!MapPath._teleportCacheComplete && MapPath._teleportMaxRange > 0
 	&& count(getSummons()) == 0) {
 	MapPath.warmupTeleportCache(MapPath._teleportMaxRange)
-}
-
-// Danger-model probe (Benchmark.DEBUG_DANGER, off in the shipped AI).
-// Logged after every move is played, so `getCell()` is the cell we really end
-// the turn on -- the one whose Danger the enemies get to act against.
-if (Benchmark.DEBUG_DANGER) {
-	Cell? endCell = Board.getCell(getCell())
-	if (endCell != null) {
-		Danger dngr = MapDanger.getCellDanger(endCell!, combo.getCurrentConsequences())
-		// Same cell, but ignoring what the combo believes it did to the enemies.
-		// A breach where this one is non-zero is a consequence-simulation
-		// problem (a kill or a TP shackle that did not really land), not a hole
-		// in the danger model itself.
-		Danger raw = MapDanger.getCellDanger(endCell!, null)
-		integer nearest = -1
-		integer enemyItems = 0
-		integer enemyMapped = 0
-		// The MP the danger map credited the closest enemy with, next to the MP
-		// it will actually have when it plays. `Entity.mp` is `getMP(id)`, the
-		// CURRENT value: an enemy that already moved this round looks stuck.
-		integer nearMP = -1
-		integer nearMaxMP = -1
-		// Enemies that got a liberation coverage map this turn.
-		integer libeMapped = 0
-		for (Entity e in Fight.getEnemiesAlive()) {
-			if (MapDanger._map_enemy_liberation[e] != null) libeMapped++
-		}
-		for (Entity e in Fight.getEnemiesAlive()) {
-			integer d = getCellDistance(endCell!.id, e.cell.id)
-			if (nearest < 0 || d < nearest) {
-				nearest = d
-				nearMP = e.mp
-				nearMaxMP = getTotalMP(e.id)
-			}
-			enemyItems += count(e.offensiveItems)
-			// How many of those items the round-robin in MapDanger.refresh()
-			// actually got to map before its 35%-of-budget cap. An item with no
-			// map is skipped by computeDanger, silently, and contributes 0.
-			Map<Item, Map<Cell, real>>? im = MapDanger._map_entity_item_danger[e]
-			if (im != null) enemyMapped += mapSize(im!)
-		}
-		debug("DNGP|" + getTurn() + "|" + endCell!.id + "|" + round(dngr.dmg) + "|"
-			+ round(dngr.psnDmg) + "|" + getLife() + "|" + getTotalLife() + "|"
-			+ getTP() + "|" + getMP() + "|" + mapSize(Fight.getEnemiesAlive()) + "|"
-			+ mapSize(Fight.getAlliesAlive()) + "|" + (Fight.self.isBulb ? 1 : 0) + "|"
-			+ nearest + "|" + round(raw.dmg) + "|" + round(raw.psnDmg) + "|"
-			// Our shields as the danger map saw them, and how many items it kept
-			// for the enemies. `Items.getOrderedOffensiveItems` DROPS any item
-			// whose damage does not survive our shields, so a high shield plus a
-			// short item list is the signature of an item filtered out of the
-			// worst case and then fired at us anyway.
-			+ Fight.self.absShield + "|" + Fight.self.relShield + "|" + enemyItems
-			+ "|" + enemyMapped + "|" + nearMP + "|" + nearMaxMP + "|"
-			// Damage-over-time ALREADY on us when the turn started (net of heal
-			// over time). It ticks wherever we stand, so it is not something a
-			// cell's Danger ever claimed to bound -- but it lands in the same
-			// action codes, and left in it swamps everything else.
-			+ Fight.self.psnTurn + "|" + Fight.self.psnTotal + "|"
-			// Which of the three liberation gates is open. The shields here are
-			// the ones computeDanger actually starts from -- post-combo, via the
-			// consequences -- not the start-of-turn fields.
-			+ Fight.self.getCurrentAbs(combo.getCurrentConsequences()) + "|"
-			+ Fight.self.getCurrentRel(combo.getCurrentConsequences()) + "|"
-			+ (BattleState.allyHasShield ? 1 : 0) + "|" + libeMapped)
-	}
 }
 
 // Collect cooldowns at END of turn (after actions)
