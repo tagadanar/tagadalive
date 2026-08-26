@@ -47,6 +47,7 @@ class Benchmark{
 	static final string MARKER = "##MARKER##"
 	static integer _turn = 0
 	static integer _startOps = 0
+	static integer lastDisplayOps = 0   // what display() cost last turn, for the warmup's margin
 	static string _name = ""
 	static integer _mctsIter = 0
 	static integer _mctsNodes = 0
@@ -446,6 +447,7 @@ class Benchmark{
 
 		// Display ops and final total
 		integer displayOps = getOperations() - displayStart
+		Benchmark.lastDisplayOps = displayOps
 		s += "|dops:" + displayOps
 		s += "|end:" + (getOperations() - _startOps)
 

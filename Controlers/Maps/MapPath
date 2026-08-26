@@ -361,7 +361,7 @@ class MapPath{
 	 * The cache is persistent per fight (walls don't change).
 	 */
 	static void warmupTeleportCache(integer maxRange) {
-		integer limit = getMaxOperations() - 150000  // Leave 150k buffer
+		integer limit = getMaxOperations() - 150000 - round(Benchmark.lastDisplayOps * 1.5)  // 150k plus what the end-of-turn display cost last turn
 		for (Cell cell in Board.cells) {
 			if (cell.isWall) continue
 			if (getOperations() > limit) return;

@@ -89,6 +89,9 @@ class ExplorationContext {
 
 	// Operation control
 	integer operationBuffer
+	integer lastCheckOps   // ops at the previous shouldStop()
+	integer lastUnitOps    // what the work between the last two checks cost
+	integer maxUnitOps
 
 	/*
 	 * Create fresh context from current Fight.self state
@@ -121,6 +124,9 @@ class ExplorationContext {
 		this.combosEvaluated = 0
 		this.bestPhase = ""
 
+		this.lastCheckOps = getOperations()
+		this.lastUnitOps = 0
+		this.maxUnitOps = 0
 		// Calculate operation buffer based on entity type
 		if (Fight.self.isBulb) {
 			this.operationBuffer = ExplorerConfig.OPERATION_BUFFER_BULB_SELF
@@ -139,7 +145,15 @@ class ExplorationContext {
 	 * Check if we should stop (operation budget exhausted)
 	 */
 	boolean shouldStop() {
-		return getOperations() > getMaxOperations() - this.operationBuffer
+		integer now = getOperations()
+		this.lastUnitOps = now - this.lastCheckOps
+		this.lastCheckOps = now
+		if (this.lastUnitOps > this.maxUnitOps) this.maxUnitOps = this.lastUnitOps
+		// The next unit of work is assumed to cost what the last one did, with margin: the check is per
+		// combo and one combo's position search outgrows a flat buffer in a 12-entity fight
+		integer margin = round(this.lastUnitOps * 1.5)
+		if (this.maxUnitOps > margin) margin = this.maxUnitOps
+		return now > getMaxOperations() - this.operationBuffer - margin
 	}
 
 	/*
