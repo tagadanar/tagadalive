@@ -203,6 +203,7 @@ class MapDanger {
 	 * Record operation cost for one getEnemiesDmgMap() call
 	 */
 	static void _recordItemCost(Item item, Entity enemy, integer cost) {
+		if (!Benchmark.DANGER_STATS) return;
 		string dims = MapDanger._buildDimsKey(getTurn(), enemy.mp,
 			enemy.jumpCD <= 1 && enemy.jumpItem != null,
 			enemy.reachableCellsTeleport != null)
@@ -214,19 +215,20 @@ class MapDanger {
 	}
 
 	/*
-	 * Flush accumulated danger stats to registers (append-only)
+	 * Flush accumulated danger stats to local debug output, one line per item:
+	 *   ##DANGER##<itemName>|<dims>:<kOps>,<samples>|<dims>:<kOps>,<samples>...
+	 * Read back from local fight logs by `python -m src.tools.dangerstats`.
+	 * Gated on Benchmark.DANGER_STATS (a compile-time `final` false), so a real
+	 * fight builds no string and makes no debug call.
 	 */
 	static void _flushDangerStats() {
+		if (!Benchmark.DANGER_STATS) return;
 		for (string itemName : Map<string, Array<integer>> dimsMap in _dangerStats) {
-			string regKey = "d_" + itemName
 			Array<string> parts = []
 			for (string dims : Array<integer> val in dimsMap) {
 				push(parts, dims + ":" + ((val[0] / 1000) as integer) + "," + val[1])
 			}
-			string newData = join(parts, "|")
-			var existing = getRegister(regKey)
-			string updated = existing != null ? existing + "|" + newData : newData
-			setRegister(regKey, updated)
+			debug(Benchmark.DANGER_MARKER + itemName + "|" + join(parts, "|"))
 		}
 	}
 

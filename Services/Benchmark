@@ -38,6 +38,14 @@ class Benchmark{
 	// Flip to true to get the profiler section back in the Tampermonkey panel.
 	static final boolean PROFILING = false
 
+	// Gates MapDanger's per-item operation-cost stats. While false the whole
+	// accumulation AND the flush fold away at compile time, so a website fight
+	// pays nothing for them. Flip to true, run local fights, and read them back
+	// with `python -m src.tools.dangerstats` (they go to debug output, never to
+	// registers: reading/appending a register that grows every fight cost real
+	// operations and perturbed the op-budget-truncated search).
+	static final boolean DANGER_STATS = false
+
 	static Map<string, integer> _count_func = [:]
 	static Map<string, integer> _cumul_func = [:]
 	static Map<string, integer> _laststart_func = [:]
@@ -45,6 +53,8 @@ class Benchmark{
 	static Map<string, string> _parent_func = [:]
 
 	static final string MARKER = "##MARKER##"
+	// Prefix of the MapDanger stats lines: ##DANGER##<item>|<dims>:<kOps>,<samples>|...
+	static final string DANGER_MARKER = "##DANGER##"
 	static integer _turn = 0
 	static integer _startOps = 0
 	static integer lastDisplayOps = 0   // what display() cost last turn, for the warmup's margin
