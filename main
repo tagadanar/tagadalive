@@ -33,6 +33,9 @@ combo.play()
 // Post-combo: jump/teleport to boss cell if self-plan needs it
 BossPotiMalef.executePostCombo()
 
+// Taunt when blocking the resurrection cell with leftover TP
+BossPotiMalef.sayIfBlocking()
+
 // Dalton brothers: themed say with leftover TP
 BossDalton.sayMaybe()
 
