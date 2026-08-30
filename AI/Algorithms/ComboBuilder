@@ -2053,7 +2053,9 @@ class ComboBuilder {
 		if (csq.currentCell.id != targetCell.id) {
 			Map<Cell, integer> reachable = MapPath.getCachedReachableCells(
 				csq.currentCell, csq.currentMP, Fight.self.cellsToIgnore)
-			if (reachable[targetCell] == null) {
+			// Cache may hold cells beyond the requested MP — the distance must be checked too
+			integer? dist = reachable[targetCell]
+			if (dist == null || dist > csq.currentMP) {
 				return false
 			}
 		}
