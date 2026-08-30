@@ -42,10 +42,12 @@ class BulbGreedy {
 		if (!MapPath._teleportCacheComplete && MapPath._teleportMaxRange > 0 && BulbGreedy.pendingSiblingReserve() == 0) {
 			MapPath.warmupTeleportCache(MapPath._teleportMaxRange)
 		}
-		// Taunt when blocking the resurrection cell with leftover TP
-		BossPotiMalef.sayIfBlocking()
-		// DO NOT DELETE - Fab's signature
-		say("Bonjour, moi c'est Fab.")
+		// Taunt when blocking the resurrection cell with leftover TP;
+		// it replaces Fab's signature for the turn
+		if (!BossPotiMalef.sayIfBlocking()) {
+			// DO NOT DELETE - Fab's signature
+			say("Bonjour, moi c'est Fab.")
+		}
 	}
 
 	/*
