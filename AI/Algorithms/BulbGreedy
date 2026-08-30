@@ -88,11 +88,15 @@ class BulbGreedy {
 		// Boss cell: reserve MP to walk there at end of turn (use actual path distance, not cell distance)
 		integer? bossCell = BossPotiMalef.getResurrectionCell()
 		integer reservedMP = 0
+		Map<Cell, integer>? bossReach = null
 		if (bossCell != null) {
 			Map<Cell, integer> fullReach = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, <>)
 			integer? pathDist = fullReach[Board.cells[bossCell]!]
-			if (pathDist != null) {
+			if (pathDist != null && pathDist <= currentMP) {
 				reservedMP = pathDist
+				// Reverse reach map (path distance is symmetric): used to keep every
+				// intermediate move on a cell from which the boss cell stays reachable
+				bossReach = MapPath.getCachedReachableCells(Board.cells[bossCell]!, currentMP, ignoreCells, <>)
 			}
 		}
 
@@ -110,6 +114,7 @@ class BulbGreedy {
 			}
 			if (psnTarget != null) {
 				Map<Cell, integer> reachCells = MapPath.getCachedReachableCells(currentCell, currentMP - reservedMP, ignoreCells, <>)
+				if (bossReach != null) reachCells = BulbGreedy.filterBossCompatible(reachCells, bossReach, currentMP)
 				for (integer chipId in [CHIP_TOXIN, CHIP_VENOM]) {
 					Item? item = null
 					for (Item i in Fight.self.items) { if (i.id == chipId) { item = i; break } }
@@ -126,6 +131,7 @@ class BulbGreedy {
 					currentTP = currentCsq!.currentTP
 					currentMP = currentCsq!.currentMP
 					reachCells = MapPath.getCachedReachableCells(currentCell, currentMP - reservedMP, ignoreCells, currentCsq!._newObstacles)
+					if (bossReach != null) reachCells = BulbGreedy.filterBossCompatible(reachCells, bossReach, currentMP)
 				}
 			}
 		}
@@ -139,6 +145,7 @@ class BulbGreedy {
 			Set<Cell> newObstacles = currentCsq != null ? currentCsq!._newObstacles : <>
 			integer availableMP = currentMP - reservedMP
 			Map<Cell, integer> reachableCells = MapPath.getCachedReachableCells(currentCell, availableMP, ignoreCells, newObstacles)
+			if (bossReach != null) reachableCells = BulbGreedy.filterBossCompatible(reachableCells, bossReach, currentMP)
 
 			// Find best action among all items and targets
 			Action? bestAction = BulbGreedy.findBestAction(
@@ -170,7 +177,8 @@ class BulbGreedy {
 			Set<Cell> newObstacles = currentCsq != null ? currentCsq!._newObstacles : <>
 			Map<Cell, integer> endReach = MapPath.getCachedReachableCells(currentCell, currentMP, ignoreCells, newObstacles)
 			Cell bossCellObj = Board.cells[bossCell]!
-			if (endReach[bossCellObj] != null) {
+			integer? endDist = endReach[bossCellObj]
+			if (endDist != null && endDist <= currentMP) {
 				Position pos = MapPosition.evaluatePosition(bossCellObj, currentCsq)
 				pos.score += 100000.0
 				combo.addFinalPosition(pos)
@@ -276,6 +284,21 @@ class BulbGreedy {
 		}
 
 		return bestAction
+	}
+
+	/*
+	 * Keep only cells from which the boss cell stays reachable: the MP spent moving
+	 * there (dist) plus the walk back to the boss cell (bossReach) must fit in totalMP.
+	 * A scalar MP reserve is not enough — moving away from the boss cell raises the
+	 * required MP faster than the reserve accounts for.
+	 */
+	static Map<Cell, integer> filterBossCompatible(Map<Cell, integer> reach, Map<Cell, integer> bossReach, integer totalMP) {
+		Map<Cell, integer> filtered = [:]
+		for (Cell c : integer dist in reach) {
+			integer? back = bossReach[c]
+			if (back != null && dist + back <= totalMP) filtered[c] = dist
+		}
+		return filtered
 	}
 
 	/*
