@@ -155,8 +155,17 @@ class MapAction {
 				// Per-brother target rules (e.g. William never poisons a covid-free enemy)
 				if (BossDalton.shouldSkipTarget(item, entity)) continue
 
-				// Compute score using direct hit on target
-				EffectSnapshot? snapshot = EffectCache.getOrCompute(item, entity.cell, Fight.selfCell)
+				// Compute score using direct hit on target.
+				// Self needs its own snapshot: Board.entityCells skips us (Board:47),
+				// so an aim-cell snapshot at our own cell finds no target and ranks
+				// every self-cast at 0 - last in line when pass 2 runs out of budget.
+				EffectSnapshot? snapshot
+				if (entity == Fight.self) {
+					if (!MapAction._canSelfCast(item)) continue
+					snapshot = EffectCache.computeSnapshotForTarget(item, entity, entity.cell)
+				} else {
+					snapshot = EffectCache.getOrCompute(item, entity.cell, Fight.selfCell)
+				}
 				real score = snapshot != null ? snapshot!.effectScore : 0
 
 				push(tuples, new ItemTarget(item, entity, score))
@@ -237,6 +246,17 @@ class MapAction {
 		string msg = entity + " T" + getTurn() + " MapAction early exit (" + phase + ") @" + Benchmark.format(getOperations())
 		msg += " | pass1:" + pass1 + " pass2:" + pass2 + "/" + total + " | actions:" + _actionsCreated
 		debugW(msg)
+	}
+
+	/*
+	 * True when an item can be aimed at ourselves.
+	 * Mirrors the self branches of _populatePointActions / _populateAoeActions
+	 * (laser never targets the caster).
+	 */
+	static boolean _canSelfCast(Item item) {
+		if (item.area == AREA_LASER_LINE) return false
+		if (item.minRange > 0) return false
+		return item.area == AREA_POINT || item.onCaster
 	}
 
 	/*
