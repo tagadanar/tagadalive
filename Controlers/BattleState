@@ -17,6 +17,7 @@ class BattleState {
 
 	// === Team Flags ===
 	static boolean enemyHasStr = false // any enemy has STR >= 100
+	static integer maxEnemyStr = 0     // highest STR among alive enemies (physical threat scale)
 	static boolean enemyHasMgc = false // any enemy has MGC >= 100 (for antidote value)
 	static boolean enemyHasSnc = false // any enemy has SNC >= 200 (for dmgReturn value)
 	static boolean enemyHasOTK = false // any enemy has STR >= 400, AGI >= 400, SNC >= 400
@@ -71,6 +72,7 @@ class BattleState {
 		allyHasShield = false
 		allyLeekMeanStr = 0
 		enemyHasStr = false
+		maxEnemyStr = 0
 		enemyHasMgc = false
 		enemyHasSnc = false
 		enemyHasOTK = false
@@ -174,6 +176,7 @@ class BattleState {
 			if (!enemyHasStr && entity.str >= 200) {
 				enemyHasStr = true
 			}
+			if (entity.str > maxEnemyStr) maxEnemyStr = entity.str
 			// Check for enemy with significant magic (for antidote value)
 			if (!enemyHasMgc && entity.mgc >= 200) {
 				enemyHasMgc = true
