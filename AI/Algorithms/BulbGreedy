@@ -25,6 +25,8 @@ class BulbGreedy {
 		MapPath.refresh()
 		integer t3 = getOperations()
 		Fight.self.init()
+		// Summon callbacks skip init(), so the puny lock plan is refreshed here instead
+		MapPosition.refreshPunyLock()
 		integer t4 = getOperations()
 		// MapAction.refresh() - skipped: BulbGreedy doesn't use action pool
 		AI.getCombo().play()

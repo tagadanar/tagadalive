@@ -25,6 +25,13 @@ class MapPosition {
 	static Entity? _nearest_enemy = null
 	static Cell? _lock_cell = null  // the unique walkable cell adjacent to nearest enemy (lock bonus target)
 
+	// === Puny lock plan (recomputed on every entity turn, bulbs included) ===
+	static boolean _punyLockActive = false
+	static integer _punyLockOwner = -1     // entity the plan was built for: the summon callback
+	                                       // runs in the summoner's VM, so a bare flag goes stale
+	static Entity? _punyLockTarget = null
+	static Set<Cell> _punyLockCells = <>   // free orthogonal neighbours of the target
+
 	// === Position cache (like MapDanger pattern) ===
 	static Map<Cell, Position> _position = [:]  // [cell: position]
 	static Map<integer, Map<Cell, Position>> _hash_position = [:]  // [hashcode: [cell: position]]
@@ -42,6 +49,9 @@ class MapPosition {
 		MapPosition._refreshNearestEnemyPathDist()
 		MapPosition._refreshThreatDetection()
 		MapPosition._refreshGravityCells()
+
+		// Must run before _precomputeGrid: the grid caches tactical scores
+		MapPosition.refreshPunyLock()
 
 		// Precompute position grid for fast MCTS lookups
 		MapPosition._precomputeGrid()
@@ -242,6 +252,83 @@ class MapPosition {
 	}
 
 	/*
+	 * Puny bulbs are body blockers. With PUNY_LOCK_MIN_COUNT of them alive they stop
+	 * hovering and go surround one enemy: the four orthogonal neighbours immobilise it
+	 * and cut every straight firing lane except the two diagonals, which the surplus
+	 * punies keep clear for our leeks (see _computeTacticalScore).
+	 *
+	 * CAREFUL: ENTITY_LEEK and BULB_PUNY are both 1, so extendedType == BULB_PUNY is
+	 * true for every non-bulb leek. Every test below sits inside a bulbs-only
+	 * collection. Counts from Fight, not BattleState.bulbCounts, which is one summon
+	 * stale inside a summon callback.
+	 */
+	static void refreshPunyLock() {
+		_punyLockActive = false
+		_punyLockOwner = -1
+		_punyLockTarget = null
+		_punyLockCells = <>
+
+		if (!Fight.self.isBulb || Fight.self.extendedType != BULB_PUNY) return;
+
+		integer punies = 0
+		for (Entity b in Fight.getAlliesBulbsAlive()) {
+			if (b.extendedType == BULB_PUNY) punies++
+		}
+		if (punies < ScoringConfig.PUNY_LOCK_MIN_COUNT) return;
+
+		Entity? target = MapPosition._pickPunyLockTarget()
+		if (target == null) return;
+
+		_punyLockActive = true
+		_punyLockOwner = Fight.self.id
+		_punyLockTarget = target
+
+		// Cell.neighbors is already wall-free, and Board.entityCells excludes self,
+		// so a puny keeps the bonus on the lock cell it already holds.
+		for (Cell c in target.cell.neighbors) {
+			if (Board.entityCells[c] == null) setPut(_punyLockCells, c)
+		}
+	}
+
+	/*
+	 * The enemy every puny converges on: the enemy closest to the puny group (lowest
+	 * total distance, lowest id on a tie), so each puny computing this independently
+	 * on its own turn picks the same one. Turrets never move, so locking one is wasted.
+	 */
+	static Entity? _pickPunyLockTarget() {
+		Entity? best = null
+		integer bestId = -1
+		integer bestSum = 999999
+		for (integer id : Entity e in Fight.getEnemiesLeeksAlive()) {
+			if (e.entityType == ENTITY_CHEST || e.entityType == ENTITY_TURRET || e.isInvincible) continue
+			integer sum = 0
+			for (Entity b in Fight.getAlliesBulbsAlive()) {
+				if (b.extendedType != BULB_PUNY) continue
+				integer d = getCellDistance(b.cell.id, e.cell.id)
+				sum += d
+			}
+			if (sum < bestSum || (sum == bestSum && id < bestId)) {
+				bestSum = sum
+				bestId = id
+				best = e
+			}
+		}
+		return best
+	}
+
+	/*
+	 * Distance to the lock target: the cached walls-aware path distance when the target
+	 * is the one that map was built for, plain cell distance otherwise.
+	 */
+	static integer _punyDistance(Cell cell) {
+		if (_nearest_enemy != null && _nearest_enemy_path_dist != null
+			&& _nearest_enemy.id == _punyLockTarget!.id) {
+			return _nearest_enemy_path_dist[cell] ?? 99
+		}
+		return getCellDistance(cell.id, _punyLockTarget!.cell.id)
+	}
+
+	/*
 	 * Get cached path distances from nearest enemy.
 	 */
 	static Map<Cell, integer>? getNearestEnemyPathDist() {
@@ -344,6 +431,11 @@ class MapPosition {
 	 * Uses path distance for nearest enemy (accounts for walls), cell distance for others
 	 */
 	static real _computeGravityScore(Cell cell) {
+		// Lock-mode punies answer to a single pull: get adjacent to the lock target
+		if (_punyLockActive && _punyLockOwner == Fight.self.id) {
+			return -(MapPosition._punyDistance(cell) - 1) * ScoringConfig.W_PUNY_APPROACH
+		}
+
 		real score = 0.0
 		boolean hasGravity = false
 		for (var x in _gravity_distance) { hasGravity = true; break; }
@@ -386,6 +478,18 @@ class MapPosition {
 		// Lock bonus (lock cell precomputed once per turn in _refreshLockCell)
 		if (_lock_cell != null && cell == _lock_cell) {
 			bonus += Scoring.W_LOCK_BONUS
+		}
+
+		// Puny lock: take a free neighbour of the target, and keep its diagonals -- the
+		// only firing lanes left once the four neighbours are ours -- clear for the leeks.
+		// Lock cells are never diagonal, so the two branches never fight.
+		if (_punyLockActive && _punyLockOwner == Fight.self.id) {
+			Cell tc = _punyLockTarget!.cell
+			if (setContains(_punyLockCells, cell)) {
+				bonus += ScoringConfig.W_PUNY_LOCK_CELL
+			} else if (abs(cell.x - tc.x) == abs(cell.y - tc.y)) {
+				bonus -= ScoringConfig.W_PUNY_DIAGONAL
+			}
 		}
 
 		// COVID positioning: when self has COVID effect, get close to enemies (spread) and away from allies (protect)
