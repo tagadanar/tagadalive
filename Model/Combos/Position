@@ -33,6 +33,9 @@ class Position extends Danger {
 	constructor(Danger danger) {
 		super(danger.cell, danger.dmg, danger.psnDmg, danger.combo, null)
 		this.score = danger.score
+		this.tpShackle = danger.tpShackle
+		this.mpShackle = danger.mpShackle
+		this.shackleScore = danger.shackleScore
 	}
 
 	/*
@@ -66,12 +69,25 @@ class Position extends Danger {
 	 */
 	void applyLifeScaling(Consequences? consequences) {
 		real totalDmg = this.dmg + this.psnDmg
+		real currentLife = Fight.self.getCurrentHP(consequences)
+
+		// Shackle exposure follows the damage rules: dropped where the damage is a scratch, halved
+		// below the critical ratio. Without this a 2-TP tranquilizer (440) outranked 299 HP of damage
+		// (0 once ignored) on a 3,000-HP leek, and the AI walked into the hit to dodge the chip.
+		if (this.shackleScore < 0) {
+			if (totalDmg < currentLife * ScoringConfig.getIgnoreDangerRatio(Fight.self)) {
+				this.score -= this.shackleScore
+				this.shackleScore = 0.0
+			} else if (totalDmg < currentLife * ScoringConfig.CRITICAL_DANGER_RATIO) {
+				this.score -= this.shackleScore * 0.5
+				this.shackleScore *= 0.5
+			}
+		}
 		if (totalDmg <= 0) return;
 
 		// Per-brother danger rules (Averell : aucune tolérance, Joe : bravade)
 		if (BossDalton.applyPositionDanger(this, consequences)) return;
 
-		real currentLife = Fight.self.getCurrentHP(consequences)
 
 		// Ignore small damage (scratches) - bulbs tolerate more (80%) than leeks (10%)
 		// Cancel the score penalty but keep dmg visible for debugging

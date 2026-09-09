@@ -34,6 +34,10 @@ class Damages {
 	static Danger computeDanger(Cell cell, Consequences? consequences) {
 		real dmg = 0.0      // HP damage (instant)
 		real psnDmg = 0.0   // HPTIME damage (poison over time)
+		real tpShk = 0.0    // TP the enemies can shackle on self (sum over casts)
+		real mpShk = 0.0    // MP idem
+		real tpShkTurns = 0.0  // the same x mitigated duration (what the shackle costs over its life)
+		real mpShkTurns = 0.0
 		string str = ""
 
 		// Track HP state for heal capping
@@ -237,6 +241,10 @@ class Damages {
 					// Calculate damage components separately (using current shield state)
 					real itemDmg = 0.0
 					real itemPsn = 0.0
+					real itemTp = 0.0
+					real itemMp = 0.0
+					real itemTpTurns = 0.0
+					real itemMpTurns = 0.0
 					for (ItemEffect ef in item.effects) {
 						if (ef.type == EFFECT_DAMAGE) {
 							real tmp = ef.avgmax * (1 + eStr / 100) * (1 + e.pwr / 100)
@@ -255,14 +263,29 @@ class Damages {
 							if (Fight.antidoteReady) duration = Scoring.durationMitigation(1)
 							itemPsn += ef.avgmax * (1 + eMgc / 100) * (1 + e.pwr / 100) * critFactor * ratioDmg! * duration
 						}
+						else if (ef.type == EFFECT_SHACKLE_TP) {
+							// Shackle on self: what our own cast formula gives the enemy (magic-scaled, AOE ratio)
+							real v = EffectCalc.shackle(ef.avgmax, eMgc, ratioDmg!)
+							itemTp += v
+							itemTpTurns += v * Scoring.durationMitigation(ef.duration)
+						}
+						else if (ef.type == EFFECT_SHACKLE_MP) {
+							real v = EffectCalc.shackle(ef.avgmax, eMgc, ratioDmg!)
+							itemMp += v
+							itemMpTurns += v * Scoring.durationMitigation(ef.duration)
+						}
 					}
 
-					if (itemDmg > 0 || itemPsn > 0) {
+					if (itemDmg > 0 || itemPsn > 0 || itemTp > 0 || itemMp > 0) {
 						integer uses = 0
 						while (item.cost <= tpLeft && uses < item.maxUse) {
 							if (Benchmark.DEBUG_VERBOSE) str += " " + item.name
 							dmg += itemDmg
 							psnDmg += itemPsn
+							tpShk += itemTp
+							mpShk += itemMp
+							tpShkTurns += itemTpTurns
+							mpShkTurns += itemMpTurns
 							tpLeft -= item.cost
 							uses++
 							if (item.haveCD) break
@@ -393,7 +416,9 @@ class Damages {
 		if (dmg < 0) dmg = 0
 		if (psnDmg < 0) psnDmg = 0
 
-		return Danger(cell, dmg, psnDmg, str, consequences)
+		Danger danger = Danger(cell, dmg, psnDmg, str, consequences)
+		danger.addShackle(tpShk, tpShkTurns, mpShk, mpShkTurns)
+		return danger
 	}
 
 	/*

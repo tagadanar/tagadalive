@@ -36,6 +36,8 @@ class MapDanger {
 	// Per-turn danger cost stats: itemName → dims → [totalOps, count]
 	// Reset each refresh(), flushed to registers at end
 	static Map<string, Map<string, Array<integer>>> _dangerStats = [:]
+	// Damage items per enemy before phase 2b appends the shackle chips (the early-exit stats' denominator)
+	static Map<Entity, integer> _dmgItemCount = [:]
 
 	/*
 	 * Actualise les informations en fonctions des enemies et alliés encore vivant.
@@ -48,6 +50,7 @@ class MapDanger {
 	static void refresh(){
 		// Reset caches (danger, support, and ally damage)
 		_dangerStats = [:]
+		_dmgItemCount = [:]
 		_danger = [:]
 		_hash_danger = [:]
 		_map_entity_item_danger = [:]
@@ -171,6 +174,28 @@ class MapDanger {
 		}
 
 		// ═══════════════════════════════════════════════════════════════════
+		// PHASE 2b: Enemy TP/MP shackle exposure - only once every damage item is
+		// mapped and the allies' support, and only while the danger budget holds. Each mapped chip joins the
+		// enemy's offensiveItems AFTER its damage items, so Damages fills it with the
+		// TP the enemy has left once its damage is spent.
+		// ═══════════════════════════════════════════════════════════════════
+		for (Entity e in enemies) _dmgItemCount[e] = count(e.offensiveItems)
+		for (Entity e in enemies) {
+			for (Item item in Items.getOrderedShackleItems(e)) {
+				integer opsBefore = getOperations()
+				_map_entity_item_danger[e]![item] = MapDanger.getEnemiesDmgMap(e, item)
+				MapDanger._recordItemCost(item, e, getOperations() - opsBefore)
+				push(e.offensiveItems, item)
+
+				if(getOperations() > dangerBudget){
+					MapDanger._logEarlyExit("Phase2b", enemyRound, maxEnemyItems, allySupportRound, maxAllySupport, allyDamageRound, maxAllyDamage, enemies)
+					MapDanger._flushDangerStats()
+					return
+				}
+			}
+		}
+
+		// ═══════════════════════════════════════════════════════════════════
 		// PHASE 4: Ally damage completion (lowest priority)
 		// ═══════════════════════════════════════════════════════════════════
 		for(integer i = 1; i < maxAllyDamage; i++){
@@ -267,9 +292,10 @@ class MapDanger {
 	static void _logEarlyExit(string phase, integer enemyRound, integer maxEnemy, integer allySupportRound, integer maxAllySupport, integer allyDamageRound, integer maxAllyDamage, Array<Entity> enemies){
 		string enemyStats = ""
 		for(Entity e in enemies){
-			integer done = min(enemyRound, count(e.offensiveItems))
+			integer total = _dmgItemCount[e] ?? count(e.offensiveItems)
+			integer done = min(enemyRound, total)
 			if(enemyStats != "") enemyStats += " "
-			enemyStats += e.name + ":" + done + "/" + count(e.offensiveItems)
+			enemyStats += e.name + ":" + done + "/" + total
 		}
 		// Round is 1-indexed (rounds completed), _buildExitStats expects 0-indexed (last round index)
 		string supportStats = allySupportRound > 0 ? MapDanger._buildExitStats(allySupportRound - 1, MapSupport._allies, MapSupport._ally_support_items) : ""

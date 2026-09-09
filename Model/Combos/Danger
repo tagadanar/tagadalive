@@ -10,6 +10,9 @@ class Danger {
 	Cell cell
 	real dmg      // HP damage (instant, from EFFECT_DAMAGE)
 	real psnDmg   // HPTIME damage (over time, from EFFECT_POISON)
+	real tpShackle = 0.0   // TP the enemies can shackle on self before its next turn (capped at self's TP)
+	real mpShackle = 0.0   // MP idem
+	real shackleScore = 0.0  // its price, already in score (see addShackle)
 	string combo
 	real score
 
@@ -26,9 +29,47 @@ class Danger {
 	}
 
 	/*
+	 * Price the TP/MP the enemies can shackle on self before its next turn (Damages fills their
+	 * shackle chips with the TP left after their damage items): the own-side TP/MP coefs x the
+	 * mitigated duration, the same rule that scores our own shackles on them, capped at what self
+	 * has. Two exceptions, both mirrors of the offensive side:
+	 *  - a shackle self can manumit next turn is worth at most the manumission (its TP + the
+	 *    cooldown spent): a shackle is preferred to damage, damage is permanent;
+	 *  - a shackle that locks self (TP at or below the manumission threshold, or 0 MP with no
+	 *    manumission) adds the lock bonus the offensive side pays for the same lock.
+	 * W_DANGER_SHACKLE_SCALE scales the whole term (1 = the own-cast prices as they stand).
+	 */
+	void addShackle(real tp, real tpTurns, real mp, real mpTurns) {
+		if (tp <= 0 && mp <= 0) return;
+		Entity me = Fight.self
+		// Next turn's TP/MP: the turn-start value minus the alterations on self. A shackle applied during
+		// the previous round expires at its caster's turn, before my next one, so me.tp under-states what
+		// the enemies will be taking from (and the lock test would fire on a leek one step from unshackled)
+		integer selfTP = me.tp - me.altTP
+		integer selfMP = me.mp - me.altMP
+		if (tp > selfTP) { tpTurns = tpTurns * selfTP / tp; tp = selfTP }
+		if (mp > selfMP) { mpTurns = mpTurns * selfMP / mp; mp = selfMP }
+		this.tpShackle = tp
+		this.mpShackle = mp
+		// The base coefs (the table value per point-turn), not the dynamic ones: the dynamic TP coef
+		// carries the damage-potential modifier (far larger on a strong build), the price of what WE do
+		// with a TP; exposure is priced at the table value, so a shackle stays cheaper than damage
+		real tpCoef = Scoring.getCoef(me, Stats.TP)
+		real mpCoef = Scoring.getCoef(me, Stats.MP)
+		real cost = tpTurns * tpCoef + mpTurns * mpCoef
+		boolean tpLocked = !me.isBulb && tp > 0 && selfTP - tp <= me.getTPLockThreshold()
+		boolean manumitNext = me.manumissionCD <= 1 && !tpLocked
+		if (manumitNext) cost = min(cost, ScoringConfig.DANGER_MANUMISSION_TP * tpCoef + ScoringConfig.W_DANGER_MANUMISSION_CD)
+		if (tpLocked) cost += ScoringConfig.W_TP_LOCK_BONUS_NORMAL
+		if (!me.isBulb && mp > 0 && selfMP - mp <= 0 && !manumitNext) cost += ScoringConfig.W_LOCK_BONUS_NORMAL
+		this.shackleScore = -cost * ScoringConfig.W_DANGER_SHACKLE_SCALE
+		this.score += this.shackleScore
+	}
+
+	/*
 	 * Format chaîne de caracteres utilisée pour des tests / debugs.
 	 */
 	string string() {
-		return '<Danger ' + this.cell + ':dmg=' + round(this.dmg) + ':psn=' + round(this.psnDmg) + ':' + this.combo + '>'
+		return '<Danger ' + this.cell + ':dmg=' + round(this.dmg) + ':psn=' + round(this.psnDmg) + ':shk=' + round(this.tpShackle) + 'tp/' + round(this.mpShackle) + 'mp=' + round(this.shackleScore) + ':' + this.combo + '>'
 	}
 }
