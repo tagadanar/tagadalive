@@ -16,15 +16,15 @@ class BattleState {
 	static integer allyLeekCount = 0 // alive ally leeks (non-bulb)
 
 	// === Team Flags ===
-	static boolean enemyHasStr = false // any enemy has STR >= 100
+	static boolean enemyHasStr = false // any enemy has STR >= 200
 	static integer maxEnemyStr = 0     // highest STR among alive enemies (physical threat scale)
-	static boolean enemyHasMgc = false // any enemy has MGC >= 100 (for antidote value)
-	static boolean enemyHasSnc = false // any enemy has SNC >= 200 (for dmgReturn value)
+	static boolean enemyHasMgc = false // any enemy has MGC >= 200 (for antidote value)
+	static boolean enemyHasSnc = false // any enemy has SNC >= 400 (for dmgReturn value)
 	static boolean enemyHasOTK = false // any enemy has STR >= 400, AGI >= 400, SNC >= 400
 	static boolean enemyHasHighAgi = false // any enemy has AGI >= 800 (bramble value in OTK)
 	static boolean allyHasStr = false  // any ally has STR >= 200 (for vuln value)
 	static boolean allyHasScience = false // any ally has SNC >= 400. Read only by getTeamCompModifier; see getShieldStatusModifier on why science does not gate shield-stripping
-	static boolean allyHasPsn = false  // any ally has MGC >= 100 (for enemy antidote map)
+	static boolean allyHasPsn = false  // any ally has MGC >= 200 (for enemy antidote map)
 	static boolean allyHasShield = false // any ally carries shields, or holds a shield chip
 	                                     // ready to raise them (for enemy liberation map)
 	static real allyLeekMeanStr = 0.0 // mean STR of ally leeks (for enemy vuln scaling)
