@@ -106,6 +106,7 @@ include('HiddenKnowledges/Scoring')
 include('HiddenKnowledges/BossFennel')
 include('HiddenKnowledges/BossPotiMalef')
 include('HiddenKnowledges/BossDalton')
+include('HiddenKnowledges/BossNasu')
 
 // ────────────────────────────────────────────────────────────────────────────
 // EFFECT CACHE: Caches EffectSnapshots for action pool creation
@@ -171,6 +172,9 @@ function init() {
 		BossFennel.refresh()
 	}
 	Benchmark.stop('BossFennel')
+
+	// BossNasu: samurai/ronin scoring alteration (no actions of its own)
+	BossNasu.refresh()
 
 	// BossPotiMalef: detect Potiron Maléfique, decode says, execute blocking plan
 	Benchmark.start('BossPotiMalef')

@@ -70,6 +70,7 @@ class Entity {
 	boolean isGraal = false      // Fennel King boss: graal that must NOT be moved
 	boolean isFennelKing = false // Fennel King boss: main boss (boosted TP/MP shackle coefs)
 	boolean isEvilPumpkin = false // PotiMalef boss: pumpkin (boosted relshield coefs)
+	boolean isNasuThreat = false // Nasu boss: samurai or ronin (doubled HP coef, drives the vuln assumption)
 	boolean hasCovid = false     // Has COVID effect active (propagates to nearby entities)
 	// Summon chips (excluding resurrection) weighted by remaining cooldown: how many
 	// STERILE would ACTUALLY lock, rather than how many are owned. Refreshed every turn
@@ -126,7 +127,7 @@ class Entity {
 		this.snc = getScience(id)!
 		this.tp = getTP(id)!
 		this.mp = getMP(id)!
-		this.relShield = getRelativeShield(id)!
+		this.relShield = getRelativeShield(id)! - BossNasu.getVulnPenalty(id)
 		this.absShield = getAbsoluteShield(id)!
 		this.dmgReturn = getDamageReturn(id)!
 		this.items = Items.getItems(id)
@@ -172,6 +173,7 @@ class Entity {
 		this.isGraal = mobType == MOB_GRAAL
 		this.isFennelKing = mobType == MOB_FENNEL_KING
 		this.isEvilPumpkin = mobType == MOB_EVIL_PUMPKIN
+		this.isNasuThreat = mobType == MOB_NASU_SAMURAI || mobType == MOB_NASU_RONIN
 		this.entityType = getType(id)!
 		// Cache extended type via getBulbType() API (15 ops, replaces name matching)
 		if (this.isBulb) {
@@ -222,7 +224,7 @@ class Entity {
 		this.mp = getMP(this.id)!
 
 		// Refresh shields and damage return
-		this.relShield = getRelativeShield(this.id)!
+		this.relShield = getRelativeShield(this.id)! - BossNasu.getVulnPenalty(this.id)
 		this.absShield = getAbsoluteShield(this.id)!
 		this.dmgReturn = getDamageReturn(this.id)!
 
