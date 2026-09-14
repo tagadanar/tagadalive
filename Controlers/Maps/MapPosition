@@ -101,7 +101,7 @@ class MapPosition {
 		}
 
 		_need_shields = (BattleState.enemyHasStr || _enemies_have_snc) &&
-						(Fight.self.absShield == 0 || Fight.self.relShield == 0)
+						(Fight.self.absShield <= 0 || Fight.self.relShield <= 0)
 
 		_is_cac = false
 		Item? currentWeapon = Fight.self.getWeaponInHand()
