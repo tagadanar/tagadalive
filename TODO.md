@@ -2,229 +2,74 @@
 
 Improvements, refactoring, and cleanup for the LeekScript combat AI.
 
-**Last Cleaned**: 2026-02-12
-**Total Files**: 62 LeekScript files (~12,000 lines)
+**Last Cleaned**: 2026-09-01
 
 ---
 
-## Phase 1: Quick Wins (Low Risk)
+## Quick Wins (Low Risk)
 
-### 1.1 Remove Unused Functions
+- [ ] **Remove `AI.getModeName()`** — `AI/AI:25`, never called
+- [ ] **Remove `MCTSNode.getBestChildByValue()`** — `MCTS:145`, never called
+- [ ] **Fix `/tatic` typo line** — `Controlers/Board:5`, commented-out variable
+- [ ] **Remove commented Jump include** — `auto`, references non-existent `Model/Combos/Jump`
+- [ ] **Extract life ratio constants in ScoringModifiers** — magic numbers (10/5 ally, 15/10 enemy) hardcoded
 
-- [ ] **Remove AI.getModeName()** (~6 lines) — `AI/AI:25-30`, never called
-- [ ] **Remove MCTSNode.getBestChildByValue()** (~14 lines) — `MCTS:145-158`, never called
+## Consolidation (Medium Risk)
 
-### 1.2 Fix Typo in Board
+- [ ] **Extract `shouldStop()` to a shared service** — identical op-budget check in MCTS, BeamSearch, ComboExplorer
+- [ ] **Consolidate `Hybrid.runMCTSFull`/`runBeamFull`** — 95% identical, only the algorithm call differs
+- [ ] **Centralize `SAFETY_BUFFER` constants** — duplicated in MCTS:167 and BeamSearch:133; move to ExplorerConfig
 
-- [ ] **Delete or fix typo line** — `Controlers/Board:5` has `/tatic` (comment typo of `static`), variable never used
+## Performance (Medium-High Risk)
 
-### 1.3 Remove Dead Include Reference
+- [ ] **Entity effect loading** — `Model/GameObject/Entity:~310`: per-effect `switch` over ~20 effect types runs for every effect of every entity each turn ("piste d'optimisation" comment in code). Profile before acting; may be cheap enough.
+- [ ] **Single map lookup pattern** — avoid `map[key] == null` then `map[key]!` double lookups (e.g. `Scoring:117`). Hot getters already done (MapDanger/MapDamage/MapSupport/MapAction).
 
-- [ ] **Remove commented Jump include** — `auto:69`, references non-existent `Model/Combos/Jump`
+### Held-back micro-optimizations (each needs verification first)
 
-### 1.4 Extract Named Constants for Magic Numbers
+- [ ] **`Combo.getUsageCount` scan → maintained count** — ~17 `push(combo.actions, …)` sites bypass `Combo.add()`; a counter desyncs unless all update it. Low value.
+- [ ] **`ComboExplorer.recordResult` sort+slice → sorted insert** — min-replace leaves `topResults` unsorted; trace consumers first.
+- [ ] **`Targets.getLazerCellsToUseItemOnCell` distance arithmetic** — axis-aligned identity valid but off-by-one-prone; laser-only benefit.
 
-- [ ] **Extract life ratio constants in ScoringModifiers** — magic numbers (10/5 ally, 15/10 enemy) still hardcoded
+## Architecture (High Risk)
 
-### 1.5 CANDIE ally boost only ever reaches mid-turn summons
+- [ ] **Consequences (~1000 lines)**: extract `ConsequencesStore` (COW), `ConsequencesScorer`, `PendingBulbManager`
+- [ ] **ComboBuilder (~2000 lines)**: extract `SingleCellBuilder` / `TargetFocusBuilder` / `MultiCellBuilder` / `MPBuffCalculator` (helpers already extracted, commit a3e029c)
+- [ ] **CombatContext pattern** — decouple algorithms from `Fight.self` / `MapAction.*` globals for testability
+- [ ] **COW improvements** — lazy shared-snapshot materialization; lazy-clone pending structures (bulbs, resurrect)
 
-- [ ] **The `isOtherAlly` canDie boost never applies to ally leeks** — `Scoring:248-252`
+## Known Scoring Gaps
 
-Corrected 2026-08-23. The previous entry claimed `CANDIE_MODIFIER` was dead code
-in static mode. It is not: perturbing it changes the fight, and perturbing that
-branch alone changes it too. The real defect is narrower and stranger.
-
-`Scoring.refresh()` caches every entity from `Fight.getAllAlive()` while
-`BattleState.allyDanger` is still empty (it was just cleared by
-`BattleState.refresh()`, and `computeAllAllyDanger()` does not run until
-`auto:211`). So for every entity alive at turn start, `canDie()` reads null and
-returns false, and the boost is skipped.
-
-But `getDynamicCoef()` (`Scoring:148-150`) lazily caches any entity missing from
-the map:
-
-```
-// If entity not in cache (e.g., just-summoned bulb), add it
-if (_cache_dynamic_coef[entity] == null) { _addEntityToCache(entity) }
-```
-
-By then `allyDanger` IS populated, so `canDie()` works. **The net effect: the
-ally-in-danger boost applies only to entities summoned after `Scoring.refresh()`
-ran this turn — bulbs — and never to ally leeks, who are always present at turn
-start.** Verified empirically: replacing the multiplier on that branch alone
-changes 212 marker lines in a single Claudios/Claudius fight.
-
-`CANDIE_MODIFIER` itself has three call sites and is live at all of them:
-`Scoring:206` (self at <= SELF_CRITICAL_HP_RATIO of max HP), `Scoring:251` (the
-branch above), and `EntityCoefs:176` (PotiMalef boss only, self, RELSHIELD).
-
-**Fix options**:
-- A) Move `computeAllAllyDanger()` before `Scoring.refresh()` (requires MapDanger to also move before, may be costly)
-- B) After `computeAllAllyDanger()`, re-patch the cached coefs for allies where `canDie=true`
-- C) Switch to `DYNAMIC_COEFS=true` (accurate but ~4x slower — not available, several builds run within 1-3% of their op budget)
-
-**Decide before any weight tuning** (see [../ml/TODO.md](../ml/TODO.md)). The
-sharing problem is gone — `CANDIE_MODIFIER` was split into
-`SELF_CRITICAL_MODIFIER`, `ALLY_CANDIE_MODIFIER` and
-`EC_POTIMALEF_SELF_RELSHIELD_MULT` (same values, no behaviour change), so each
-call site is now tunable on its own. What remains is the reachability defect
-above: a tuner fitting `ALLY_CANDIE_MODIFIER` today only ever sees the
-bulb path, so the value it lands on is fitted to summons. Fix the ordering
-first, or the fitted number quietly changes meaning the day it is fixed.
-
----
-
-## Phase 2: Code Consolidation (Medium Risk)
-
-### 2.1 Extract shouldStop() to OperationBudget
-
-- [ ] **Consolidate 3 duplicate implementations** (~12 lines saved)
-
-Identical operation budget check in MCTS:177-179, BeamSearch:144-146, ComboExplorer:117-119. Extract to `Services/OperationBudget.shouldStop(buffer)`.
-
-### 2.2 Consolidate Hybrid.runMCTSFull/runBeamFull
-
-- [ ] **Extract common logic** (~40 lines saved) — `Hybrid:11-124`, both methods 55 lines, 95% identical (only algorithm call differs)
-
-### 2.3 Centralize Operation Buffer Constants
-
-- [ ] **Consolidate buffer constants** — MCTS `SAFETY_BUFFER=200000`, BeamSearch `SAFETY_BUFFER=200000`, and ComboExplorer buffers. Move to ExplorerConfig.
-
----
-
-## Phase 3: Performance Optimization (Medium-High Risk)
-
-### 3.1 Optimize findBestCellAtDistance (CRITICAL)
-
-- [x] **Pre-bucket cells by distance** — DONE (commit f7ebc61). `findBestCellAtDistance`/`findBestCellAtExtendedDistance` now build a best-cell-per-distance map once per ExplorationContext (lazy) and look up, instead of rescanning `cellScores` per MP level. Behavior-preserving (same order, strict-> tie-break, sentinel).
-
-### 3.2 Optimize Entity Effect Loading
-
-- [ ] **Replace O(n) elseif chain with map lookup** — `Entity:293-315`, 10+ comparisons per effect. Group effect types into a map.
-
-### 3.3 Single Map Lookup Pattern
-
-- [ ] **Avoid double lookups throughout codebase** — e.g. `Scoring:117-122` checks `map[key] == null` then accesses `map[key]!`. Cache the first lookup. (Hot getters already done: MapDanger/MapDamage/MapSupport/MapAction, commits cb86fc6/6961157/b53a7fd.)
-
-### 3.4 Held-back micro-optimizations (low value, each needs a verification first)
-
-Reviewed during the 2026-07-24 ops-economy pass and deliberately deferred — the win is small and each has a specific correctness question that must be answered before acting. Not blind-safe.
-
-- [ ] **`Combo.getUsageCount` linear scan → maintained count map** — `Combo:36-42`. *Risk:* ~17 `push(combo.actions, …)` sites across ComboBuilder/BeamSearch/BulbGreedy bypass `Combo.add()`, so a maintained counter would desync unless every push site updates it. Low value (scan is over ≤~10 actions).
-- [ ] **`ComboExplorer.recordResult` sort+slice → track-min / replace-in-place** — `ComboExplorer:143-151`. *Risk:* min-replace leaves `topResults` unsorted, a behavior change unless every consumer re-sorts. Must trace all `topResults` consumers first (or do a sorted insert to preserve order).
-- [ ] **`Targets.getLazerCellsToUseItemOnCell` `getCellDistance` → integer arithmetic** — `Targets:56-94`. *Risk:* the axis-aligned identity (`dist = minRange + step`) is valid, but tracking `dist` across the 4 direction loops risks an off-by-one; benefit is laser-only. Verify with a fight after.
-
----
-
-## Phase 4: Architecture Refactoring (High Risk)
-
-### 4.1 Address God Class: Consequences (~1036 lines)
-
-Internal improvements done (COW, pending bulb methods, effect dispatch map). Remaining extractions:
-- [ ] Extract COW logic to `ConsequencesStore`
-- [ ] Move scoring to `ConsequencesScorer`
-- [ ] Create `PendingBulbManager` for bulb logic
-
-### 4.2 Address God Class: ComboBuilder (~2014 lines)
-
-Helpers extracted (commit a3e029c): `_getMPBuffs`, `_sumBuffTPCost`, `_findCellSequences`, `_poolFromCells`, `_partitionToCells`, unified `_tryAddActionImpl` with reserveTP param, `_addFinalPosition` used consistently. ~187 lines saved. Full builder pattern extraction remaining:
-- [ ] Extract `SingleCellBuilder`
-- [ ] Extract `TargetFocusBuilder`
-- [ ] Extract `MultiCellBuilder`
-- [ ] Extract `MPBuffCalculator`
-- [ ] Use builder pattern to reduce parameter explosion
-
-### 4.3 Introduce CombatContext Pattern
-
-- [ ] **Decouple algorithms from global state** — algorithms use `Fight.self`, `MapAction.*` etc. directly. Pass a `CombatContext` object instead for testability and cleaner data flow.
-
-### 4.4 Lazy Copy-on-Write Improvements
-
-Per-entity lazy COW is implemented. Remaining:
-- [ ] Make shared snapshot materialization lazy (currently marks ALL entities as local immediately)
-- [ ] Lazy-clone pending structures (bulbs, resurrect)
-
----
+- **MapDanger early exits under-count danger** — when Phase 4 exits early, ally danger (and thus `canDie`) is underestimated in exactly the crowded fights where it matters most (boss). Flagged 2026-08-31.
+- **shieldStatus diminishing returns** — within-turn shield stacking is not discounted; first and fifth shield chip score alike.
+- **Reachability-blind ranking** — MapAction Phase-1 tuples rank on raw snapshot score, ignoring whether the cast cell is reachable this turn.
+- `EFFECT_TELEPORT` — unscored (empty handler)
+- `EFFECT_ADD_STATE` — only `STATE_STERILE` scored; map other states to value (stunned ≈ enemy avg turn damage)
+- Push/attract target-position tracking after displacement still missing (see `applyRepel`'s `_movedTargetCells` for the pattern); repel crit distance (5) unmodelled
 
 ## Future Features
 
-### Turn Number Modifiers
+- **Turn-number modifiers** — late-game coef adjustments (turn > 55: HPMAX ×0.2; > 50 and > 58: RATIO_DANGER /2)
+- **Cooldown-based ally bulb modifiers** — ICED_BULB: ICEBERG/STALACTITE ready → STR +10 each, both → TP +6; FIRE_BULB: METEORITE ready && level < 240 → TP +4 (CD infra done)
+- **Interleaved movement** — move-attack-move-attack within a combo; consider when current cell has ≤1 valid offensive action
 
-Late-game coefficient adjustments in `Scoring.getDynamicCoef()`:
+## Unimplemented Passives
 
-| Turn | Effect | Rationale |
-|------|--------|-----------|
-| `> 55` | HPMAX *= 0.2 | Erosion less valuable late game |
-| `> 50` | RATIO_DANGER /= 2 | Less risk-averse late game |
-| `> 58` | RATIO_DANGER /= 2 again | Very aggressive in final turns |
+| Passive | Problem |
+|---------|---------|
+| `MOVED_TO_MP` | Triggers on movement, not item use |
+| `CRITICAL_TO_HEAL` | Requires crit simulation |
+| `ALLY_KILLED_TO_AGILITY` | Not feasible |
 
-### Cooldown-Based Modifiers
-
-Cooldown tracking infrastructure is implemented: `antidoteCD`, `liberationCD`, `manumissionCD`, `jumpCD` on Entity, with `nextAntidote`/`nextLiberation`/`nextManumission` computed by MapDanger coverage maps. Poison duration is capped by `nextAntidote`, MP shackle scoring accounts for manumission CD. Remaining:
-
-**Ally ICED_BULB**: ICEBERG/STALACTITE ready → STR +10 each, both ready → TP +6
-**Ally FIRE_BULB**: METEORITE ready && level < 240 → TP +4
-
-### Interleaved Movement in MCTS
-
-Multi-cell combos exist but execute ALL actions per cell before moving. True interleaved move-attack-move-attack not yet supported. Consider when current cell has ≤1 valid offensive action; prune to top 3 cells by score.
-
----
-
-## Reference: Unscored Effects
-
-### Movement Effects
-~~`EFFECT_INVERT`~~, ~~`EFFECT_PUSH`~~, ~~`EFFECT_ATTRACT`~~ — **now scored**, but NOT in their
-effect handlers: `ComboBuilder._applyTacticalBonus` applies the pre-computed
-`MovementCandidate` score to the actualized action. It cannot live in the handlers, which
-run inside the per-target loop that skips invincible enemies (`Consequences:356`). The
-handlers carry position tracking only. Target-position tracking after a push/attract is
-still missing (see `applyRepel`'s `_movedTargetCells` for the pattern).
-~~`EFFECT_REPEL`~~ — **now scored** in `Consequences.applyRepel`: whole-shot simulation
-(nearest-first victim order, mutable occupancy), positional delta only via
-`MapTactical.getRepelMoveScore`. Crit distance (5 instead of 4) is still unmodelled.
-`EFFECT_TELEPORT` — still unscored (empty handler).
-
-### Summoning Effects
-~~`EFFECT_SUMMON`~~ — **now scored** via `EffectHandlers.summon()` (level-based bulb value).
-~~`EFFECT_RESURRECT`~~ — **now scored** via `ScoringConfig.RESURRECT_VALUE` + dynamic modifiers (commits 89e015f, 7814079).
-
-### State Effects
-`EFFECT_ADD_STATE` — only `STATE_STERILE` is scored (`ScoringConfig.STERILE_VALUE` ×
-`Entity.summonPotential`, cooldown-weighted). The other states are still unevaluated;
-map state → value (stunned = enemy avg turn damage).
-
----
-
-## Reference: Passive Effects
-
-### Unimplemented Passives
-
-| Passive | Problem | Complexity |
-|---------|---------|------------|
-| `MOVED_TO_MP` | Triggers on movement, not item use | Medium |
-| `CRITICAL_TO_HEAL` | Requires crit simulation | Medium |
-| `ALLY_KILLED_TO_AGILITY` | Requires iterating all allies of killed entity | Not feasible |
-
-### Future: Enemy Passives in Danger Map
-
-Account for enemy passive bonuses (DAMAGE_TO_STRENGTH, KILL_TO_TP, DAMAGE_TO_ABSOLUTE_SHIELD) when calculating danger. High complexity — requires multi-turn sequence prediction.
-
----
+Enemy passives (DAMAGE_TO_STRENGTH, KILL_TO_TP, DAMAGE_TO_ABSOLUTE_SHIELD) not in danger map — needs multi-turn prediction.
 
 ## Notes
 
-### Naming Conventions
+- Naming: `_camelCase` private, `camelCase` public, `SCREAMING_SNAKE` constants, `_cache_*` computed / `_index_*` lookup maps
+- Abbreviations: `csq` (consequences), `pos`, `e` (loop entity); `damage` never abbreviated
 
-- Private fields: `_camelCase`
-- Public fields: `camelCase`
-- Constants: `SCREAMING_SNAKE`
-- Local variables: `camelCase`
-- Map caches: `_cache_*` for computed data, `_index_*` for lookup maps
+## Resolved (kept for context)
 
-### Variable Abbreviations
-
-- `consequences` → `csq`
-- `damage` → `damage` (not `dmg` or `dommage`)
-- `position` → `pos`
-- `entity` → `entity` in signatures, `e` in loops
+- **Self-cast rank zero** (2026-08-31, commit bebdd90) — `Board.entityCells` excludes self, so MapAction Phase-1 ranked every self-cast at 0; dropped under budget pressure (boss regime). Fixed via `computeSnapshotForTarget` + `_canSelfCast` guard.
+- **Ally canDie coefs never applied** (2026-09-01, commits 2c83c98 + HK 6fa8131) — `Scoring.refresh()` cached coefs before `allyDanger` existed, so `ALLY_CANDIE_MODIFIER` only ever reached mid-turn summons. Fixed via `Scoring.refreshAllyDangerCoefs()` after `computeAllAllyDanger()`; modifier re-tuned 5.0 → 2.0 (bulb-fitted value over-paid for leeks; preregistered bench farmer p=0.041).
+- `findBestCellAtDistance` pre-bucketing (commit f7ebc61); movement effects (invert/push/attract/repel), summon, resurrect all scored.
