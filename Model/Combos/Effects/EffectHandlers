@@ -121,6 +121,7 @@ class EffectHandlers {
 
 		integer value = EffectCalc.poisonDamage(effect.avg, srcMgc, srcPwr, ratio, duration)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, duration, effect.type)
+		eot.realTotal = EffectCalc.poisonDamage(effect.avg, srcMgc, srcPwr, ratio, effect.duration)
 		ctx.add(target, Stats.HPTIME, eot)
 
 		// Track per-turn poison for overkill detection
@@ -163,7 +164,9 @@ class EffectHandlers {
 			perTurnStart += entityEffect.value
 		}
 		for (EffectOverTime eot in comboPoisons) {
-			remaining += abs(eot.value)
+			// The real total: value is capped by the target's next antidote, which is right
+			// for scoring the poison but not for what the generator converts here.
+			remaining += eot.realTotal > 0 ? eot.realTotal : abs(eot.value)
 		}
 		if (remaining <= 0) return;
 
@@ -171,14 +174,10 @@ class EffectHandlers {
 		integer converted = round(convRatio * remaining)
 		if (converted <= 0) return;
 
-		// Worth its 5-turn cooldown ONLY when the conversion kills right now, or when
-		// the poison was going to be antidoted away before the target plays anyway
-		// (nextAntidote <= 1: at 1 a single tick lands, the rest is lost).
-		// Otherwise it just advances damage we already counted: no alteration at all,
-		// so the action scores 0 and MapAction filters it out, keeping the chip ready.
-		boolean kill = converted >= ctx.getHP(target)
-		boolean antidotable = target.nextAntidote <= 1
-		if (!kill && !antidotable) return;
+		// No target filter (user decision 2026-09-16): a plague + covid + superinfection
+		// chain is a burst worth the cooldown even without a kill or an enemy antidote.
+		// The score decides: the HP coef on the converted damage against the HPTIME
+		// share given back below.
 
 		integer damage = min(converted, ctx.getHP(target))
 		ctx.addEffectValue(damage)

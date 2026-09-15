@@ -3,6 +3,9 @@ class EffectOverTime{
 	integer value
 	integer duration
 	integer effectType  // EFFECT_POISON, EFFECT_BUFF_STRENGTH, etc.
+	// Poison only: the total over the REAL duration, unlike value which is capped by the
+	// target's next antidote (the 1-turn cap is right for scoring, wrong for superinfection)
+	integer realTotal = 0
 
 	constructor(Item item, integer value, integer duration, integer effectType){
 		this.item = item
