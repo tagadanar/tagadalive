@@ -46,6 +46,13 @@ EffectCache.registerHandlers([
 	EFFECT_AFTEREFFECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		if (snap.isKilled(entityTarget)) return;
 		EffectHandlers.aftereffect(effect, entitySource, entityTarget, ratioDmg, entitySource.snc, snap)
+	},
+
+	EFFECT_SUPERINFECTION: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
+		if (snap.isKilled(entityTarget)) return;
+		// Initial pool: no combo poison yet, only the target's turn-start poisons
+		Array<EffectOverTime> noComboPoisons = []
+		EffectHandlers.superinfection(effect, entitySource, entityTarget, ratioDmg, noComboPoisons, snap)
 	}
 ])
 

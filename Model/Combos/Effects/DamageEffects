@@ -28,5 +28,21 @@ Consequences.registerHandlers([
 
 	EFFECT_AFTEREFFECT: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		EffectHandlers.aftereffect(effect, entitySource, entityTarget, ratioDmg, entitySource.getCurrentSnc(conseq), conseq)
+	},
+
+	EFFECT_SUPERINFECTION: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
+		// Poisons added earlier in this combo (turn-start ones are read from
+		// entityTarget.effects by the handler). Collected before the handler adds
+		// anything, to avoid mutating altEffects while iterating them.
+		Array<EffectOverTime> comboPoisons = []
+		Map<Item, Array<EffectOverTime>>? entityEffects = conseq.getEntityAltEffects(entityTarget)
+		if (entityEffects != null) {
+			for (Array<EffectOverTime> effects in entityEffects) {
+				for (EffectOverTime eot in effects) {
+					if (eot.effectType == EFFECT_POISON) push(comboPoisons, eot)
+				}
+			}
+		}
+		EffectHandlers.superinfection(effect, entitySource, entityTarget, ratioDmg, comboPoisons, conseq)
 	}
 ])

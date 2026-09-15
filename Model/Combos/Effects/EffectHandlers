@@ -145,6 +145,68 @@ class EffectHandlers {
 
 	static void lifeDamage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcLife, integer srcPwr, integer tgtRel, integer tgtAbs, integer tgtDmgRet, ctx) {
 		real beforeShield = EffectCalc.lifeDamageRaw(srcLife, effect.avg, srcPwr)
+	/*
+	 * Superinfection: converts a share of the poisons already on the target into
+	 * immediate poison damage, and removes exactly as much from the poisons.
+	 * Total poison is conserved, only advanced - so it is NOT free damage.
+	 *
+	 * comboPoisons = poison EffectOverTime added by earlier actions of this combo
+	 * (already scored as HPTIME). Their value is a TOTAL; target.effects carries a
+	 * PER-TURN value, so the remaining total there is value x turns.
+	 */
+	static void superinfection(ItemEffect effect, Entity source, Entity target, real ratio, Array<EffectOverTime> comboPoisons, ctx) {
+		integer remaining = 0
+		for (EntityEffect entityEffect in target.effects) {
+			if (entityEffect.type != EFFECT_POISON || entityEffect.turns <= 0) continue
+			remaining += entityEffect.value * entityEffect.turns
+		}
+		for (EffectOverTime eot in comboPoisons) {
+			remaining += abs(eot.value)
+		}
+		if (remaining <= 0) return;
+
+		real convRatio = min(1.0, effect.avg / 100.0)
+		integer converted = round(convRatio * remaining)
+		if (converted <= 0) return;
+
+		// Worth its 5-turn cooldown ONLY when the conversion kills right now, or when
+		// the poison was going to be antidoted away before the target plays anyway
+		// (nextAntidote <= 1: at 1 a single tick lands, the rest is lost).
+		// Otherwise it just advances damage we already counted: no alteration at all,
+		// so the action scores 0 and MapAction filters it out, keeping the chip ready.
+		boolean kill = converted >= ctx.getHP(target)
+		boolean antidotable = target.nextAntidote <= 1
+		if (!kill && !antidotable) return;
+
+		integer damage = min(converted, ctx.getHP(target))
+		ctx.addEffectValue(damage)
+		ctx.add(target, Stats.HP, -damage)
+		if (ctx.getHP(target) <= 0) {
+			ctx.addKill(target)
+		}
+
+		// Erosion (poison erosion, on the whole immediate hit)
+		integer erosion = round(damage / Stats.PSN_EROSION_DIVISOR)
+		ctx.add(target, Stats.HPMAX, -erosion)
+		// Inline passive for nova/erosion (target's passives)
+		Map<integer, real> passives = target.passives
+		if (target.hasPassives && passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]) {
+			integer magicGain = round(erosion * passives[EFFECT_NOVA_DAMAGE_TO_MAGIC]!)
+			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
+		}
+
+		// Give back the converted share of the poisons THIS combo added - they were
+		// scored as future damage that will no longer happen. Turn-start poisons were
+		// never scored, so nothing to give back for them. Same duration as the
+		// original so both go through the same mitigation factor.
+		for (EffectOverTime eot in comboPoisons) {
+			integer cancelled = round(-eot.value * convRatio)
+			if (cancelled == 0) continue
+			ctx.add(target, Stats.HPTIME, EffectOverTime(eot.item, cancelled, eot.duration, EFFECT_POISON))
+		}
+		ctx.addPsnPerTurn(target, -round(ctx.getPsnPerTurn(target) * convRatio))
+	}
+
 		real value = EffectCalc.applyShields(beforeShield, tgtRel, tgtAbs)
 
 		// Track raw damage to enemies for Liberation combo detection
