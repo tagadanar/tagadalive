@@ -156,9 +156,11 @@ class EffectHandlers {
 	 */
 	static void superinfection(ItemEffect effect, Entity source, Entity target, real ratio, Array<EffectOverTime> comboPoisons, ctx) {
 		integer remaining = 0
+		integer perTurnStart = 0  // turn-start poison per tick (poison only, unlike target.psnTurn which nets HoT)
 		for (EntityEffect entityEffect in target.effects) {
 			if (entityEffect.type != EFFECT_POISON || entityEffect.turns <= 0) continue
 			remaining += entityEffect.value * entityEffect.turns
+			perTurnStart += entityEffect.value
 		}
 		for (EffectOverTime eot in comboPoisons) {
 			remaining += abs(eot.value)
@@ -204,7 +206,12 @@ class EffectHandlers {
 			if (cancelled == 0) continue
 			ctx.add(target, Stats.HPTIME, EffectOverTime(eot.item, cancelled, eot.duration, EFFECT_POISON))
 		}
-		ctx.addPsnPerTurn(target, -round(ctx.getPsnPerTurn(target) * convRatio))
+		// The poisons themselves are halved too: every later tick is smaller, so the
+		// poison-kill checks (checkPoisonKill, the overkill skip in Consequences, the
+		// dynamic life ratio) must see target.psnTurn + getPsnPerTurn at half strength.
+		// Turn-start poisons live in the fixed target.psnTurn, so their reduction is
+		// carried as a negative combo per-turn entry.
+		ctx.addPsnPerTurn(target, -round((perTurnStart + ctx.getPsnPerTurn(target)) * convRatio))
 	}
 
 	static void lifeDamage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcLife, integer srcPwr, integer tgtRel, integer tgtAbs, integer tgtDmgRet, ctx) {
