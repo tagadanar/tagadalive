@@ -86,6 +86,7 @@ class TargetType {
 		EFFECT_REPEL:					TargetType.ALL,
 		EFFECT_TOTAL_DEBUFF:			TargetType.ALL,
 		EFFECT_STEAL_LIFE:				TargetType.ENEMIES,
+		EFFECT_SUPERINFECTION:			TargetType.ENEMIES,
 
 		// Passive effects: caster-only, triggered by events/actions
 		// These don't determine item targeting - they apply bonuses to caster

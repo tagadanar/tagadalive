@@ -258,7 +258,7 @@ class Damages {
 							if (tmp > 0) itemDmg += tmp
 						}
 						else if (ef.type == EFFECT_POISON) {
-							real duration = Scoring.durationMitigation(ef.duration)
+							real duration = Scoring.durationMitigation(ef.duration == -1 ? Scoring.turnsLeft : ef.duration)
 							// If self can antidote, treat poison as 1-turn (can cure next turn)
 							if (Fight.antidoteReady) duration = Scoring.durationMitigation(1)
 							itemPsn += ef.avgmax * (1 + eMgc / 100) * (1 + e.pwr / 100) * critFactor * ratioDmg! * duration
@@ -267,12 +267,12 @@ class Damages {
 							// Shackle on self: what our own cast formula gives the enemy (magic-scaled, AOE ratio)
 							real v = EffectCalc.shackle(ef.avgmax, eMgc, ratioDmg!)
 							itemTp += v
-							itemTpTurns += v * Scoring.durationMitigation(ef.duration)
+							itemTpTurns += v * Scoring.durationMitigation(ef.duration == -1 ? Scoring.turnsLeft : ef.duration)
 						}
 						else if (ef.type == EFFECT_SHACKLE_MP) {
 							real v = EffectCalc.shackle(ef.avgmax, eMgc, ratioDmg!)
 							itemMp += v
-							itemMpTurns += v * Scoring.durationMitigation(ef.duration)
+							itemMpTurns += v * Scoring.durationMitigation(ef.duration == -1 ? Scoring.turnsLeft : ef.duration)
 						}
 					}
 
@@ -443,7 +443,7 @@ class Damages {
 				if (tmp > 0) dmg += tmp
 			}
 			else if (e.type == EFFECT_POISON) {
-				real duration = Scoring.durationMitigation(e.duration)
+				real duration = Scoring.durationMitigation(e.duration == -1 ? Scoring.turnsLeft : e.duration)
 				// If self can antidote, treat poison as 1-turn
 				if (Fight.antidoteReady) duration = Scoring.durationMitigation(1)
 				psn += e.avgmax * (1 + eSource.getCurrentMgc(conseq) / 100) * (1 + eSource.pwr / 100) * ratioDmg * duration

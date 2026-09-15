@@ -7,7 +7,9 @@ class EffectOverTime{
 	constructor(Item item, integer value, integer duration, integer effectType){
 		this.item = item
 		this.value = value
-		this.duration = duration
+		// -1 = infinite: ItemEffect durations are built once per fight, so the
+		// remaining-turns value can only be resolved here, at snapshot time.
+		this.duration = duration == -1 ? Scoring.turnsLeft : duration
 		this.effectType = effectType
 	}
 

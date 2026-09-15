@@ -141,7 +141,7 @@ class Items {
 			for (ItemEffect e in item.effects) {
 				if (e.type != EFFECT_SHACKLE_TP && e.type != EFFECT_SHACKLE_MP) continue
 				real coef = e.type == EFFECT_SHACKLE_TP ? tpCoef : mpCoef
-				value += EffectCalc.shackle(e.avgmax, entity.mgc, 1.0) * coef * Scoring.durationMitigation(e.duration)
+				value += EffectCalc.shackle(e.avgmax, entity.mgc, 1.0) * coef * Scoring.durationMitigation(e.duration == -1 ? Scoring.turnsLeft : e.duration)
 			}
 			if (value > 0) valuePerItem[item] = value / item.cost
 		}

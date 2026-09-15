@@ -73,6 +73,9 @@ class Item {
 		CHIP_PUNY_BULB: 2,
 		CHIP_TACTICIAN_BULB: 2,
 		CHIP_SAVANT_BULB: 2,
+		CHIP_CORN: 2,                // Plants (v3.00) are summons too
+		CHIP_CHILLI_PEPPER: 2,
+		CHIP_PROTOTAXITE: 2,
 		CHIP_RESURRECTION: 2,        // Resurrection early (like summons)
 		CHIP_REFLEXES: 3,            // Agility buffs (crits)
 		CHIP_STRETCHING: 3,
@@ -162,8 +165,10 @@ class Item {
 		WEAPON_FLAME_THROWER: 23,
 		CHIP_VENOM: 24,
 		WEAPON_REVOKED_M_LASER: 24,
+		CHIP_SUPERINFECTION: 25,     // After the poisons it converts (v3.00)
 		CHIP_BALL_AND_CHAIN: 25,     // Debuffs (after poison)
 		CHIP_SLOW_DOWN: 26,
+		CHIP_HEMORRHAGE: 26,         // Unhealable, after our damage so the missing-HP gap includes it (v3.00)
 		CHIP_SOPORIFIC: 27,          // Remaining debuffs
 		CHIP_TRANQUILIZER: 27,
 		WEAPON_PLUTONIUM_BAZOOKA: 27, // TP shackle
@@ -186,6 +191,7 @@ class Item {
 		CHIP_VACCINE: 36,
 		CHIP_ELEVATION: 37,          // Stat buffs (same)
 		CHIP_ARMORING: 37,
+		CHIP_MATURATION: 37,         // Vitality + permanent power (v3.00)
 		CHIP_FERTILIZER: 37,
 		CHIP_LOAM: 37,
 		CHIP_ALTERATION: 37,
@@ -213,6 +219,12 @@ class Item {
 		// chips (40); within-band ties break on score DESC, so sharing 39 would sort this
 		// high-scoring weapon AHEAD of jump/teleportation.
 		WEAPON_SUN_SPEAR: 41,
+		// Plant-only chips (v3.00): only a corn or chilli pepper casts them, order is moot
+		CHIP_PIQUANT: 42,
+		CHIP_CAPSAICIN: 42,
+		CHIP_SUGAR: 42,
+		CHIP_POPCORN: 42,
+
 	]
 			
 	constructor(integer id) {
