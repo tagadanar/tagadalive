@@ -14,7 +14,12 @@ class Entity {
 		BULB_ROCKY: "rocky",
 		BULB_PUNY: "puny",
 		BULB_TACTICIAN: "tactician",
-		BULB_SAVANT: "savant"
+		BULB_SAVANT: "savant",
+		// Plants (game v3.00) are summons too: isSummon() is true, getBulbType() is -1
+		// and getPlantType() gives the species (9, 10, 13 - no collision with bulbs 1-8/11/12)
+		PLANT_CORN: "corn",
+		PLANT_CHILLI_PEPPER: "chilli",
+		PLANT_PROTOTAXITE: "prototaxite"
 	]
 
 	/*
@@ -60,9 +65,12 @@ class Entity {
 	integer turnOrder
 	Array<Entity> entitiesWhoPlayBefore
 	Set<Cell> cellsToIgnore = <>
+	                             // raw heals, steal life, vampirism or vitality (max life still grows)
 	// booleans
 	boolean isFriend
 	boolean isBulb
+	boolean isPlant = false      // entityType == ENTITY_PLANT (corn, chilli pepper, prototaxite)
+	boolean isRooted = false     // ADD_STATE value STATE_ROOTED (9) - can't move, be pushed, pulled or repelled (inversion still works)
 	boolean isStatic = false     // ADD_STATE value 11 - no STATE_STATIC constant in leekwars api
 	boolean isInvincible = false // ADD_STATE value STATE_INVINCIBLE (3)
 	boolean isSterile = false    // ADD_STATE value STATE_STERILE (12) - cannot summon
@@ -177,9 +185,12 @@ class Entity {
 		this.entityType = getType(id)!
 		// Cache extended type via getBulbType() API (15 ops, replaces name matching)
 		if (this.isBulb) {
+		this.isPlant = this.entityType == ENTITY_PLANT
 			integer bt = getBulbType(id)
 			this.extendedType = bt != -1 ? bt : ENTITY_BULB
 		} else {
+			// Plants are summons with no bulb type: their species comes from getPlantType()
+			if (bt == -1 && this.isPlant) bt = getPlantType(id)
 			this.extendedType = this.entityType
 		}
 		/*
@@ -241,6 +252,7 @@ class Entity {
 		this.isStatic = false
 		this.isInvincible = false
 		this.isSterile = false
+		this.isRooted = false
 		this.hasCovid = false
 		this.antidoteCD = 5
 		this.liberationCD = 6
@@ -282,6 +294,7 @@ class Entity {
 	}
 
 	/*
+				else if(effect.value == STATE_ROOTED) this.isRooted = true
 	 * Loads effects from game state into entity fields.
 	 * Called by constructor and refreshState().
 	 * Assumes effect-related fields are already initialized/cleared.
@@ -357,6 +370,10 @@ class Entity {
 			this.cell,
 			this.mp,
 			this.cellsToIgnore
+			// cellsToIgnore marks cells that will be free by the time we walk there,
+			// because their owner plays before us and moves away. A rooted entity
+			// (plant) never moves: its cell stays an obstacle all turn long.
+			if (entity.isRooted) continue
 		)
 
 		// Compute jump-extended reach (walk + CHIP_JUMP teleport)

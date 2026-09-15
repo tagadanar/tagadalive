@@ -202,7 +202,7 @@ class MapPosition {
 	}
 
 	/*
-	 * Cache nearest enemy (leek, mob, or turret - not bulb or chest)
+	 * Cache nearest enemy (leek, mob, or turret - not bulb, plant or chest)
 	 * During Fennel puzzle: calculate from farthest crystal position instead of self
 	 */
 	static void _refreshNearestEnemy() {
@@ -220,7 +220,7 @@ class MapPosition {
 
 		for (Entity e in Fight.getEnemiesAlive()) {
 			// Only consider leeks, mobs, and turrets
-			if (e.entityType == ENTITY_BULB || e.entityType == ENTITY_CHEST) continue
+			if (e.entityType == ENTITY_BULB || e.entityType == ENTITY_PLANT || e.entityType == ENTITY_CHEST) continue
 
 			integer dist = getCellDistance(referenceCell.id, e.cell.id)
 			if (dist < nearestDist) {
@@ -293,7 +293,8 @@ class MapPosition {
 	/*
 	 * The enemy every puny converges on: the enemy closest to the puny group (lowest
 	 * total distance, lowest id on a tie), so each puny computing this independently
-	 * on its own turn picks the same one. Turrets never move, so locking one is wasted.
+	 * on its own turn picks the same one. Turrets and rooted entities never move,
+	 * so locking one is wasted.
 	 */
 	static Entity? _pickPunyLockTarget() {
 		Entity? best = null
@@ -301,6 +302,7 @@ class MapPosition {
 		integer bestSum = 999999
 		for (integer id : Entity e in Fight.getEnemiesLeeksAlive()) {
 			if (e.entityType == ENTITY_CHEST || e.entityType == ENTITY_TURRET || e.isInvincible) continue
+			if (e.isRooted) continue
 			integer sum = 0
 			for (Entity b in Fight.getAlliesBulbsAlive()) {
 				if (b.extendedType != BULB_PUNY) continue

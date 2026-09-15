@@ -907,6 +907,7 @@ class Consequences {
 			if (victim == Fight.self) continue      // the generator skips the caster
 			if (this.isKilled(victim)) continue     // killed by this same shot's damage
 			if (victim.isStatic) continue           // slideEntity refuses to move it
+			if (victim.isRooted) continue           // rooted (plant): slideEntity refuses it too
 
 			Cell from = cell
 			Cell dest = from

@@ -498,8 +498,8 @@ class MapTactical {
 		for (integer entityId : Entity entity in allEntities) {
 			// Skip self
 			if (entityId == Fight.self.id) continue
-			// Skip static entities (turrets) - can't be moved
-			if (entity.isStatic) continue
+			// Skip static entities (turrets) and rooted ones (plants) - can't be moved
+			if (entity.isStatic || entity.isRooted) continue
 			// Skip Fennel puzzle entities (crystals and graal while graal is alive)
 			if (BossFennel.shouldNotTarget(entity)) continue
 
@@ -577,8 +577,8 @@ class MapTactical {
 		for (integer entityId : Entity entity in allEntities) {
 			// Skip self
 			if (entityId == Fight.self.id) continue
-			// Skip static entities (turrets) - can't be moved
-			if (entity.isStatic) continue
+			// Skip static entities (turrets) and rooted ones (plants) - can't be moved
+			if (entity.isStatic || entity.isRooted) continue
 			// Skip Fennel puzzle entities (crystals and graal while graal is alive)
 			if (BossFennel.shouldNotTarget(entity)) continue
 
@@ -662,7 +662,7 @@ class MapTactical {
 
 		// Only process enemies (this combo repositions enemies toward our team)
 		for (Entity enemy in Fight.getEnemiesAlive()) {
-			if (enemy.isStatic) continue
+			if (enemy.isStatic || enemy.isRooted) continue
 			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy)) continue
 
 			// Get direction components to ally barycenter
@@ -839,7 +839,7 @@ class MapTactical {
 		Cell selfCell = Fight.self.cell
 
 		for (Entity enemy in Fight.getEnemiesAlive()) {
-			if (enemy.isStatic) continue
+			if (enemy.isStatic || enemy.isRooted) continue
 			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy)) continue
 
 			// Direction toward ally barycenter

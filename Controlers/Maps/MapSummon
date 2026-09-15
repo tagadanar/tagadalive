@@ -35,8 +35,28 @@ class MapSummon {
 		CHIP_METALLIC_BULB: BulbProfile(BULB_METALLIC, CHIP_METALLIC_BULB),
 		CHIP_WIZARD_BULB: BulbProfile(BULB_WIZARD, CHIP_WIZARD_BULB),
 		CHIP_SAVANT_BULB: BulbProfile(BULB_SAVANT, CHIP_SAVANT_BULB),
-		CHIP_TACTICIAN_BULB: BulbProfile(BULB_TACTICIAN, CHIP_TACTICIAN_BULB)
+		CHIP_TACTICIAN_BULB: BulbProfile(BULB_TACTICIAN, CHIP_TACTICIAN_BULB),
+		// Plants (game v3.00): ordinary summons with 0 MP, played by BulbGreedy on wake.
+		// No profile for CHIP_PROTOTAXITE: a pure wall we do not model yet, and refresh()
+		// skips unknown profiles silently (its 0 base value also keeps it out).
+		CHIP_CORN: BulbProfile(PLANT_CORN, CHIP_CORN),
+		CHIP_CHILLI_PEPPER: BulbProfile(PLANT_CHILLI_PEPPER, CHIP_CHILLI_PEPPER)
 	]
+
+	// Plant species (entity type ENTITY_PLANT): rooted, 0 MP, they never play a turn of
+	// their own - they wake when an entity enters their zone.
+	static Map<integer, boolean> PLANT_TYPES = [
+		PLANT_CORN: true,
+		PLANT_CHILLI_PEPPER: true,
+		PLANT_PROTOTAXITE: true
+	]
+
+	/*
+	 * True when this profile summons a plant rather than a bulb.
+	 */
+	static boolean isPlantProfile(BulbProfile profile) {
+		return PLANT_TYPES[profile.bulbType] ?? false
+	}
 
 	// Offensive chips per bulb type (for combo simulation)
 	// First chip determines attack range for positioning!
@@ -52,6 +72,10 @@ class MapSummon {
 		BULB_FIRE: [CHIP_METEORITE, CHIP_FLAME, CHIP_SPARK, CHIP_DEVIL_STRIKE],
 		BULB_ICED: [CHIP_STALACTITE, CHIP_ICEBERG, CHIP_ICE],
 		BULB_ROCKY: [CHIP_ROCKFALL, CHIP_ROCK, CHIP_PEBBLE],
+		// Plants: first chip drives placement, so the ranged one (1-3) comes first;
+		// the range-0 chips are self-centred AREA_CIRCLE_3 blasts around the plant.
+		PLANT_CHILLI_PEPPER: [CHIP_PIQUANT, CHIP_CAPSAICIN],
+		PLANT_CORN: [CHIP_SUGAR, CHIP_POPCORN],
 		// BULB_HEALER: [CHIP_VACCINE, CHIP_DRIP, CHIP_CURE, CHIP_BANDAGE],
 		// BULB_METALLIC: [CHIP_ARMOR, CHIP_SHIELD, CHIP_WALL],
 		// BULB_WIZARD: [CHIP_TOXIN, CHIP_VENOM]
@@ -64,7 +88,8 @@ class MapSummon {
 
 	static Map<integer, integer> BULB_TARGET_MODE = [
 		BULB_HEALER: TARGET_MODE_ALLY_HEAL,
-		BULB_METALLIC: TARGET_MODE_ALLY_SHIELD
+		BULB_METALLIC: TARGET_MODE_ALLY_SHIELD,
+		PLANT_CORN: TARGET_MODE_ALLY_HEAL
 	]
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -280,6 +305,10 @@ class MapSummon {
 		BulbProfile? profile = PROFILES[chipId]
 		if (profile == null) return false
 
+		// Plants never take the delayed far-spawn path: a 0-MP plant dumped at the
+		// farthest cell from our final position can never reach anything.
+		if (MapSummon.isPlantProfile(profile!)) return false
+
 		// Check if offensive chips are defined
 		Array<integer>? chipIds = BULB_OFFENSIVE_CHIPS[profile.bulbType]
 		if (chipIds == null || count(chipIds) == 0) {
@@ -468,7 +497,9 @@ class MapSummon {
 		BULB_METALLIC: "M",
 		BULB_WIZARD: "W",
 		BULB_SAVANT: "S",
-		BULB_TACTICIAN: "T"
+		BULB_TACTICIAN: "T",
+		PLANT_CORN: "C",
+		PLANT_CHILLI_PEPPER: "X"
 	]
 
 	/*
@@ -633,10 +664,15 @@ class MapSummon {
 			? Fight.getAlliesAlive()
 			: Fight.getEnemiesAlive()
 
+		// A plant is worth planting next to ourselves: it has no MP, so a corn we walk
+		// past heals US when an enemy pushes us back into its zone. Only mobile bulbs
+		// hand self-targeting over to the separate self-cast system.
+		boolean skipSelf = targetsAllies && !MapSummon.isPlantProfile(profile)
+
 		// Process each target (for-in on Map iterates values in LS4)
 		for (Entity target in targets) {
 			// Skip self for ally-targeting bulbs (defensive bulbs use separate self-cast system)
-			if (targetsAllies && target.id == Fight.self.id) continue
+			if (skipSelf && target.id == Fight.self.id) continue
 			// Skip invincible enemies and Fennel puzzle entities
 			if (!targetsAllies && target.isInvincible) continue
 			if (!targetsAllies && BossFennel.shouldNotTarget(target)) continue

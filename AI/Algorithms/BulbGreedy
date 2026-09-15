@@ -16,6 +16,16 @@ class BulbGreedy {
 	 */
 	static void runTurn() {
 		integer t0 = getOperations()
+		// A plant wake fires in the MIDDLE of somebody's turn - possibly our OWNER's own
+		// turn, when he walks into the zone of his own corn while Combo.play() is still
+		// running. updateForSummon() repoints Fight.self at the plant and hands
+		// Fight.selfCell a brand new sentinel object, so the owner would come back from
+		// the wake believing he is the plant, and every `action.to == Fight.selfCell`
+		// identity check left in his combo would compare against the wrong object.
+		// Save both statics and put them back when the run was a wake. A regular bulb
+		// turn runs AFTER the owner's combo, so nothing there needs restoring.
+		Entity prevSelf = Fight.self
+		Cell prevSelfCell = Fight.selfCell
 		Fight.updateForSummon()
 		integer t1 = getOperations()
 		Board.updateForSummon()
@@ -49,6 +59,11 @@ class BulbGreedy {
 		if (!BossPotiMalef.sayIfBlocking()) {
 			// DO NOT DELETE - Fab's signature
 			say("Bonjour, moi c'est Fab.")
+		}
+		// Wake: give the interrupted entity its identity back (see the top of this method)
+		if (getPlantTrigger() != -1) {
+			Fight.self = prevSelf
+			Fight.selfCell = prevSelfCell
 		}
 	}
 
@@ -247,6 +262,22 @@ class BulbGreedy {
 
 			// Get valid targets for this item
 			Map<integer, Entity> targets = item.targetSet()
+
+			// Self-centred AoE (capsaicin, popcorn, devil strike): range 0-0 with an
+			// area, so it is always cast on our own cell and hits whatever stands
+			// around it. The per-target loop below would ask getClosestUseCell for a
+			// free cell at distance 0 from the target and never find one, so these
+			// chips could never be cast at all. One action aimed at ourselves instead:
+			// Consequences resolves the victims around the simulated cell via
+			// Targets.getTargets, and Combo.play casts it on the cell we stand on.
+			if (item.minRange == 0 && item.maxRange == 0 && item.isAOE) {
+				Action aoeAction = BulbGreedy.createAction(item, currentCell, Fight.selfCell, parentCsq)
+				if (aoeAction.score != null && aoeAction.score! > bestScore) {
+					bestScore = aoeAction.score!
+					bestAction = aoeAction
+				}
+				continue
+			}
 
 			// Handle pure self-cast items (targetKey == NONE means movement/utility that targets empty cell or self)
 			// Note: items with onCaster=true but targeting enemies/allies (like devil_strike)
