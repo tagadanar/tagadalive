@@ -42,6 +42,8 @@ Consequences.registerHandlers([
 
 	EFFECT_STEAL_LIFE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
 		// Heals caster for total value of preceding effect (e.g., Quantum Rifle: NOVA_DAMAGE -> STEAL_LIFE)
+		// UNHEALABLE gains no HP (EffectStealLife.java:12)
+		if (entityTarget.isUnhealable) return;
 		integer totalValue = conseq.lastEffectTotalValue
 		if (totalValue <= 0) return;
 		integer hpMissing = conseq.getHPMissing(entityTarget)
@@ -50,8 +52,17 @@ Consequences.registerHandlers([
 	},
 
 	EFFECT_ADD_STATE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, Consequences conseq) => void {
-		// Only STERILE is scored so far. effect.min is value1 = the state id; effect.avg
-		// would be (12+0)/2 = 6, which is MAGNETIZED - a different state entirely.
+		// effect.min is value1 = the state id; effect.avg would be (12+0)/2 = 6, which is
+		// MAGNETIZED - a different state entirely.
+		if (effect.min == STATE_UNHEALABLE) {
+			// The hemorrhage mask is 31 (everyone), so allies really can be hit.
+			if (entityTarget.isFriend) return;
+			if (entityTarget.isUnhealable) return;
+			real allyDmgBefore = MapDamage.getDamageBeforeEnemy(entityTarget.cell, entityTarget, conseq)
+			// 0: at priority 26 our own damage is already inside conseq's missing HP
+			conseq.score += EffectHandlers.unhealableValue(entityTarget, allyDmgBefore, 0.0, conseq)
+			return;
+		}
 		if (effect.min != STATE_STERILE) return;
 		// The saber's target mask is 31 (everyone), so allies really can be hit.
 		if (entityTarget.isFriend) return;

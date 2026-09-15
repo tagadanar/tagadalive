@@ -91,9 +91,11 @@ class EffectHandlers {
 			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
 		}
 
-		// Life steal
-		integer lifeSteal = EffectCalc.lifeSteal(value, srcWsd, ctx.getHPMissing(source))
-		if (lifeSteal > 0) ctx.add(source, Stats.HP, lifeSteal)
+		// Life steal (UNHEALABLE blocks vampirism, EffectDamage.java:52)
+		if (!source.isUnhealable) {
+			integer lifeSteal = EffectCalc.lifeSteal(value, srcWsd, ctx.getHPMissing(source))
+			if (lifeSteal > 0) ctx.add(source, Stats.HP, lifeSteal)
+		}
 
 		// Damage return
 		real dmgReturn = EffectCalc.damageReturn(beforeShield, tgtDmgRet)
@@ -143,8 +145,6 @@ class EffectHandlers {
 		}
 	}
 
-	static void lifeDamage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcLife, integer srcPwr, integer tgtRel, integer tgtAbs, integer tgtDmgRet, ctx) {
-		real beforeShield = EffectCalc.lifeDamageRaw(srcLife, effect.avg, srcPwr)
 	/*
 	 * Superinfection: converts a share of the poisons already on the target into
 	 * immediate poison damage, and removes exactly as much from the poisons.
@@ -207,6 +207,8 @@ class EffectHandlers {
 		ctx.addPsnPerTurn(target, -round(ctx.getPsnPerTurn(target) * convRatio))
 	}
 
+	static void lifeDamage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcLife, integer srcPwr, integer tgtRel, integer tgtAbs, integer tgtDmgRet, ctx) {
+		real beforeShield = EffectCalc.lifeDamageRaw(srcLife, effect.avg, srcPwr)
 		real value = EffectCalc.applyShields(beforeShield, tgtRel, tgtAbs)
 
 		// Track raw damage to enemies for Liberation combo detection
@@ -294,6 +296,9 @@ class EffectHandlers {
 			ctx.add(target, Stats.HPTIME, eot)
 		} else {
 			// Instant heal - no de-dupe needed
+			// UNHEALABLE gains no HP (EffectHeal.java:18). Only the instant part is
+			// blocked: the state lasts one turn, later HoT ticks land normally.
+			if (target.isUnhealable) return;
 			integer value = EffectCalc.healCapped(effect.avg, srcWsd, ratio, tgtHPMiss) * targetsCount
 			if (value > 0) ctx.add(target, Stats.HP, value)
 		}
@@ -302,6 +307,8 @@ class EffectHandlers {
 	static void boostMaxLife(ItemEffect effect, Entity source, Entity target, real ratio, integer srcWsd, ctx) {
 		integer value = EffectCalc.boostMaxLife(effect.avg, srcWsd, ratio)
 		ctx.add(target, Stats.HPMAX, value)
+		// UNHEALABLE still grows the gauge, it just no longer fills it (EffectVitality.java:29)
+		if (target.isUnhealable) return;
 		ctx.add(target, Stats.HP, value)
 	}
 
@@ -311,8 +318,42 @@ class EffectHandlers {
 	}
 
 	static void rawHeal(ItemEffect effect, Entity source, Entity target, real ratio, integer tgtHPMiss, ctx) {
+		// UNHEALABLE gains no HP (EffectRawHeal.java:12)
+		if (target.isUnhealable) return;
 		integer value = EffectCalc.rawHealCapped(effect.avg, ratio, tgtHPMiss)
 		if (value > 0) ctx.add(target, Stats.HP, value)
+	}
+
+	/*
+	 * Value of making an enemy UNHEALABLE (CHIP_HEMORRHAGE): the heal its team could
+	 * still pour into it, bounded by what it could actually heal BACK - its missing HP,
+	 * the poison tick it is guaranteed to take before it plays, and the damage our
+	 * allies will land on it before it plays. Healing past full life is worth nothing.
+	 *
+	 * @param target        The entity the state is applied on
+	 * @param allyDmgBefore MapDamage.getDamageBeforeEnemy on the target's cell
+	 * @param selfDmgBefore Damage WE still land before it plays. The snapshot passes
+	 *                      BattleState.selfDamagePotential (an estimate: no combo exists
+	 *                      yet, and a 0 gap would get the action filtered out of the pool);
+	 *                      the combo path passes 0, because at priority 26 the damage
+	 *                      already dealt is inside ctx.getHPMissing(target).
+	 */
+	static real unhealableValue(Entity target, real allyDmgBefore, real selfDmgBefore, ctx) {
+		if (target.isFriend) return 0.0
+		// Never stacks (the generator replaces rather than merges ADD_STATE)
+		if (target.isUnhealable) return 0.0
+		real? potential = BattleState.enemyHealPotential[target]
+		if (potential == null || potential <= 0) return 0.0
+
+		real gap = ctx.getHPMissing(target) + allyDmgBefore + selfDmgBefore
+		// nextAntidote 0 means an enemy cures it before the tick lands
+		if (target.nextAntidote >= 1) gap += target.psnTurn
+		if (gap <= 0) return 0.0
+
+		real denied = min(potential!, gap)
+		// HP coef is negative on enemies (damage scores -dmg * coef), so a denied heal
+		// is worth the same as that much damage.
+		return denied * (-Scoring.getDynamicCoef(target, Stats.HP, null))
 	}
 
 	// ════════════════════════════════════════════════════════════════════════

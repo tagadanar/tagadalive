@@ -33,6 +33,10 @@ class MapDanger {
 	// Only populated when BattleState.allyHasShield is true
 	static Map<Entity, Map<Cell, real>> _map_enemy_liberation = [:]
 
+	// Enemy hemorrhage coverage: for each enemy with hemorrhage cd <= 1, which cells they can reach
+	// Only populated when BattleState.enemyHasHemorrhage is true
+	static Map<Entity, Map<Cell, real>> _map_enemy_hemorrhage = [:]
+
 	// Per-turn danger cost stats: itemName → dims → [totalOps, count]
 	// Reset each refresh(), flushed to registers at end
 	static Map<string, Map<string, Array<integer>>> _dangerStats = [:]
@@ -59,6 +63,7 @@ class MapDanger {
 		_map_entity_item_teleport = [:]
 		_map_enemy_antidote = [:]
 		_map_enemy_liberation = [:]
+		_map_enemy_hemorrhage = [:]
 		MapSupport.resetCaches()
 		MapDamage.resetCaches()
 
@@ -139,6 +144,11 @@ class MapDanger {
 		if (BattleState.enemyHasStr && BattleState.allyHasShield) {
 			MapDanger._buildEnemyCoverageMaps(CHIP_LIBERATION, (Entity e) => integer { return e.liberationCD }, _map_enemy_liberation)
 			MapDanger._computeEnemyNextChipTurn(6, (Entity e) => integer { return e.liberationCD }, _map_enemy_liberation, (Entity t, integer v) => void { t.nextLiberation = v })
+		}
+		// Build enemy hemorrhage maps (only when an enemy carries the chip): where they
+		// can make us unhealable before our allies get to heal us
+		if (BattleState.enemyHasHemorrhage) {
+			MapDanger._buildEnemyCoverageMaps(CHIP_HEMORRHAGE, (Entity e) => integer { return e.hemorrhageCD }, _map_enemy_hemorrhage)
 		}
 		// Compute enemy nextManumission (self-cast: E == T → max(1, cd))
 		for (Entity e in Fight.getEnemiesAlive()) {

@@ -65,7 +65,6 @@ class Entity {
 	integer turnOrder
 	Array<Entity> entitiesWhoPlayBefore
 	Set<Cell> cellsToIgnore = <>
-	                             // raw heals, steal life, vampirism or vitality (max life still grows)
 	// booleans
 	boolean isFriend
 	boolean isBulb
@@ -74,6 +73,8 @@ class Entity {
 	boolean isStatic = false     // ADD_STATE value 11 - no STATE_STATIC constant in leekwars api
 	boolean isInvincible = false // ADD_STATE value STATE_INVINCIBLE (3)
 	boolean isSterile = false    // ADD_STATE value STATE_STERILE (12) - cannot summon
+	boolean isUnhealable = false // ADD_STATE value STATE_UNHEALABLE (2) - gains no HP from heals,
+	                             // raw heals, steal life, vampirism or vitality (max life still grows)
 	boolean isCrystal = false    // Fennel King boss: crystal that must NOT be damaged
 	boolean isGraal = false      // Fennel King boss: graal that must NOT be moved
 	boolean isFennelKing = false // Fennel King boss: main boss (boosted TP/MP shackle coefs)
@@ -88,6 +89,7 @@ class Entity {
 	integer nextAntidote = 5     // Turns until enemy team can antidote this entity (0-5, set by MapDanger)
 	integer liberationCD = 6     // CHIP_LIBERATION cooldown (6 = no liberation chip, 0-5 = current cd)
 	integer nextLiberation = 6   // Turns until enemy team can liberate this entity (0-6, set by MapDanger)
+	integer hemorrhageCD = 6     // CHIP_HEMORRHAGE cooldown (6 = no hemorrhage chip, 0-5 = current cd)
 	integer manumissionCD = 6    // CHIP_MANUMISSION cooldown (6 = no manumission chip, 0-5 = current cd)
 	integer nextManumission = 6  // Turns until entity can self-manumission (0-6, set by MapDanger)
 	integer adrenalineCD = 8     // CHIP_ADRENALINE cooldown (8 = no adrenaline chip, 0-7 = current cd)
@@ -183,14 +185,14 @@ class Entity {
 		this.isEvilPumpkin = mobType == MOB_EVIL_PUMPKIN
 		this.isNasuThreat = mobType == MOB_NASU_SAMURAI || mobType == MOB_NASU_RONIN
 		this.entityType = getType(id)!
+		this.isPlant = this.entityType == ENTITY_PLANT
 		// Cache extended type via getBulbType() API (15 ops, replaces name matching)
 		if (this.isBulb) {
-		this.isPlant = this.entityType == ENTITY_PLANT
 			integer bt = getBulbType(id)
-			this.extendedType = bt != -1 ? bt : ENTITY_BULB
-		} else {
 			// Plants are summons with no bulb type: their species comes from getPlantType()
 			if (bt == -1 && this.isPlant) bt = getPlantType(id)
+			this.extendedType = bt != -1 ? bt : ENTITY_BULB
+		} else {
 			this.extendedType = this.entityType
 		}
 		/*
@@ -250,13 +252,15 @@ class Entity {
 		this.altTP = 0
 		this.altMP = 0
 		this.isStatic = false
+		this.isRooted = false
 		this.isInvincible = false
 		this.isSterile = false
-		this.isRooted = false
+		this.isUnhealable = false
 		this.hasCovid = false
 		this.antidoteCD = 5
 		this.liberationCD = 6
 		this.manumissionCD = 6
+		this.hemorrhageCD = 6
 		this.jumpCD = 4
 		this.jumpItem = null
 		this.teleportCD = 11
@@ -284,6 +288,7 @@ class Entity {
 			switch (item.id) {
 				case CHIP_ANTIDOTE: this.antidoteCD = getCooldown(item.id, this.id)!; break;
 				case CHIP_LIBERATION: this.liberationCD = getCooldown(item.id, this.id)!; break;
+				case CHIP_HEMORRHAGE: this.hemorrhageCD = getCooldown(item.id, this.id)!; break;
 				case CHIP_MANUMISSION: this.manumissionCD = getCooldown(item.id, this.id)!; break;
 				case CHIP_ADRENALINE: this.adrenalineCD = getCooldown(item.id, this.id)!; break;
 				case CHIP_JUMP: this.jumpCD = getCooldown(item.id, this.id)!; this.jumpItem = item; break;
@@ -294,7 +299,6 @@ class Entity {
 	}
 
 	/*
-				else if(effect.value == STATE_ROOTED) this.isRooted = true
 	 * Loads effects from game state into entity fields.
 	 * Called by constructor and refreshState().
 	 * Assumes effect-related fields are already initialized/cleared.
@@ -308,6 +312,8 @@ class Entity {
 			if(effect.type == EFFECT_ADD_STATE) {
 				if(effect.value == STATE_INVINCIBLE) this.isInvincible = true
 				else if(effect.value == STATE_STERILE) this.isSterile = true
+				else if(effect.value == STATE_UNHEALABLE) this.isUnhealable = true
+				else if(effect.value == STATE_ROOTED) this.isRooted = true
 				else if(effect.value == 11) this.isStatic = true // no STATE_STATIC constant in leekwars api
 				continue
 			}
@@ -364,16 +370,16 @@ class Entity {
 	void init(){
 		this.entitiesWhoPlayBefore = Fight.getEntitiesWhoPlayBefore(this)
 		for(Entity entity in this.entitiesWhoPlayBefore) {
+			// cellsToIgnore marks cells that will be free by the time we walk there,
+			// because their owner plays before us and moves away. A rooted entity
+			// (plant) never moves: its cell stays an obstacle all turn long.
+			if (entity.isRooted) continue
 			setPut(this.cellsToIgnore, entity.cell)
 		}
 		this.reachableCells = MapPath.getCachedReachableCells(
 			this.cell,
 			this.mp,
 			this.cellsToIgnore
-			// cellsToIgnore marks cells that will be free by the time we walk there,
-			// because their owner plays before us and moves away. A rooted entity
-			// (plant) never moves: its cell stays an obstacle all turn long.
-			if (entity.isRooted) continue
 		)
 
 		// Compute jump-extended reach (walk + CHIP_JUMP teleport)

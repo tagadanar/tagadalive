@@ -54,6 +54,9 @@ class Damages {
 		Map<integer, real> expiringAbs = Damages._expiringAbs
 		Map<integer, real> expiringRel = Damages._expiringRel
 		real libeFactor = 1.0
+		// Hemorrhage: while unhealable we gain no HP, so ally heals credit nothing.
+		// The state expires at its caster's next turn - treat it as the whole round.
+		boolean unhealableHere = Fight.self.isUnhealable
 
 		// Process entities in turn order (after self, wrapping around)
 		for (Entity e in Fight.getEntitiesAfterSelfInOrder()) {
@@ -102,6 +105,22 @@ class Damages {
 									absShield *= ScoringConfig.LIBE_DEBUFF_FACTOR
 									relShield *= ScoringConfig.LIBE_DEBUFF_FACTOR
 									libeFactor *= ScoringConfig.LIBE_DEBUFF_FACTOR
+								}
+								break
+							}
+						}
+					}
+				}
+
+				// Simulate this enemy hemorrhaging us: every ally healing after it is wasted
+				if (!unhealableHere && e.hemorrhageCD <= 1) {
+					Map<Cell, real>? hemoMap = MapDanger._map_enemy_hemorrhage[e]
+					if (hemoMap != null && hemoMap[cell] != null) {
+						for (Item item in e.items) {
+							if (item.id == CHIP_HEMORRHAGE) {
+								if (item.cost <= tpLeft) {
+									tpLeft -= item.cost
+									unhealableHere = true
 								}
 								break
 							}
@@ -318,6 +337,9 @@ class Damages {
 					// Calculate support for each effect type
 					for (ItemEffect ef in item.effects) {
 						if (ef.type == EFFECT_HEAL) {
+							// Unhealable: the heal lands for 0 HP, no danger relief
+							// (EFFECT_RAW_HEAL is not credited here in the first place)
+							if (unhealableHere) continue
 							// Skip non-stackable HoT already on self
 							if (ef.duration > 1 && Items.isEffectAlreadyOnSelf(item, ef)) continue
 
@@ -353,6 +375,8 @@ class Damages {
 							}
 						}
 						else if (ef.type == EFFECT_BOOST_MAX_LIFE) {
+							// Unhealable: vitality still grows the gauge, it no longer fills it
+							if (unhealableHere) continue
 							// Max life boost → reduces dmg (uncapped) and increases maxLife
 							real boostVal = ef.avgmax * (1 + eWsd / 100) * ratio
 							integer uses = 0

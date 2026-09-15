@@ -381,6 +381,8 @@ EffectCache.registerHandlers([
 
 	EFFECT_STEAL_LIFE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
 		// Heals caster for total value of preceding effect (e.g., Quantum Rifle: NOVA_DAMAGE -> STEAL_LIFE)
+		// UNHEALABLE gains no HP (EffectStealLife.java:12)
+		if (entityTarget.isUnhealable) return;
 		integer totalValue = snap.lastEffectTotalValue
 		if (totalValue <= 0) return;
 		integer hpMissing = snap.getHPMissing(entityTarget)
@@ -389,8 +391,16 @@ EffectCache.registerHandlers([
 	},
 
 	EFFECT_ADD_STATE: (ItemEffect effect, Entity entitySource, Entity entityTarget, real ratioDmg, EffectSnapshot snap) => void {
-		// State changes don't affect stats directly, but STERILE has strategic value.
+		// State changes don't affect stats directly, but STERILE and UNHEALABLE have
+		// strategic value.
 		// effect.min is value1 = the state id; effect.avg would be (12+0)/2 = 6, MAGNETIZED.
+		if (effect.min == STATE_UNHEALABLE) {
+			if (entityTarget.isFriend) return;       // hemorrhage mask is 31: allies can be hit
+			if (entityTarget.isUnhealable) return;   // never stacks
+			real allyDmgBefore = MapDamage.getDamageBeforeEnemy(entityTarget.cell, entityTarget, null)
+			snap.effectScore += EffectHandlers.unhealableValue(entityTarget, allyDmgBefore, BattleState.selfDamagePotential, snap)
+			return;
+		}
 		if (effect.min != STATE_STERILE) return;
 		if (entityTarget.isFriend) return;          // saber mask is 31: allies can be hit
 		if (entityTarget.isSterile) return;         // never stacks, refresh buys ~nothing
