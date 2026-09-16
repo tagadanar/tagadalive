@@ -22,11 +22,13 @@ the UNHEALABLE branch).
   `durationMitigation(ef.duration)` sites in Damages / Items / MapDamage got the same rule.
   Maturation's permanent PWR buff scored NEGATIVE before this.
 - [x] **Superinfection** (`EffectHandlers.superinfection`): converts 50 % of the remaining poison
-  (turn-start per-turn × turns + this combo's poison totals) into immediate HP damage with poison
-  erosion and the kill check; combo poisons get a half counter-entry so their future share is not
-  double-counted. Gated by the user's rule: scored ONLY when it kills now or when
-  `target.nextAntidote <= 1` (its team can cure it before/at its turn); otherwise no change, so
-  the chip keeps its cooldown. Probe: cast twice in 3 magic mirrors, both lethal.
+  (turn-start per-turn × turns + this combo's poisons at their REAL totals, `EffectOverTime.realTotal`)
+  into immediate HP damage with poison erosion and the kill check; combo poisons get a half
+  counter-entry, and the halved per-turn tick is carried into the poison-kill checks. No target
+  filter (user decision 2026-09-16). Pricing: a poison total is scored × durationMitigation(turns),
+  so the converted share carries the same multiplier as its source poison (option 2), else the
+  chain plague + covid + superinfection could never win. Probe: covid → venom → superinfection
+  lethal on turn 6.
 - [x] **Plants** as ordinary 0-MP summons on `BulbGreedy`: `Entity.isPlant`/`isRooted`,
   `extendedType` from `getPlantType`, rooted cells never in `cellsToIgnore`, rooted skipped by
   push/pull/repel and by the puny lock and nearest-enemy gravity (inversion still allowed).
@@ -66,8 +68,7 @@ the UNHEALABLE branch).
   cast it. Knobs: multiplier on `unhealableValue`, or count heals over more than one round.
   Lifesteal is skipped in `enemyHealPotential` (TODO in BattleState).
 - [ ] **Superinfection danger side**: an enemy superinfection on us turns our psnDmg into dmg;
-  `computeDanger` does not model it. Also the gate uses `nextAntidote <= 1`; `== 0` would be
-  the strict "cured before it plays" reading.
+  `computeDanger` does not model it.
 - [ ] **Critical repel** pushes `round(4 × 1.3) = 5` cells for the sun spear; `applyRepel` models 4.
 - [ ] **Colossus** (`EFFECT_MULTIPLY_STATS`): no handling by user decision.
 - [ ] **`getStats()`**: dropped — saves ~140 ops per entity construction, not worth the churn.

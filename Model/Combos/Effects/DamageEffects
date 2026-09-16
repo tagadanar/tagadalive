@@ -43,6 +43,6 @@ Consequences.registerHandlers([
 				}
 			}
 		}
-		EffectHandlers.superinfection(effect, entitySource, entityTarget, ratioDmg, comboPoisons, conseq)
+		conseq.score += EffectHandlers.superinfection(effect, entitySource, entityTarget, ratioDmg, comboPoisons, conseq)
 	}
 ])

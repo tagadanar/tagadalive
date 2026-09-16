@@ -6,6 +6,7 @@ class EffectOverTime{
 	// Poison only: the total over the REAL duration, unlike value which is capped by the
 	// target's next antidote (the 1-turn cap is right for scoring, wrong for superinfection)
 	integer realTotal = 0
+	integer realTurns = 0  // Poison only: the real duration that realTotal spans
 
 	constructor(Item item, integer value, integer duration, integer effectType){
 		this.item = item

@@ -52,7 +52,7 @@ EffectCache.registerHandlers([
 		if (snap.isKilled(entityTarget)) return;
 		// Initial pool: no combo poison yet, only the target's turn-start poisons
 		Array<EffectOverTime> noComboPoisons = []
-		EffectHandlers.superinfection(effect, entitySource, entityTarget, ratioDmg, noComboPoisons, snap)
+		snap.effectScore += EffectHandlers.superinfection(effect, entitySource, entityTarget, ratioDmg, noComboPoisons, snap)
 	}
 ])
 
