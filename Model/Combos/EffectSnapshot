@@ -14,6 +14,8 @@ class EffectSnapshot {
 	Map<Entity, Map<integer, integer>> effectTypeAlterations
 	Set<Entity> killed
 	Set<Entity> targets
+	Set<Entity> unhealable   // Targets this snapshot makes UNHEALABLE (hemorrhage)
+	Set<Entity> pendingKill  // Targets whose poison only kills at their SECOND tick
 
 	// Precomputed metadata
 	real effectScore          // Score from effects only (no CD penalty, no movement)
@@ -42,6 +44,8 @@ class EffectSnapshot {
 		this.effectTypeAlterations = [:]
 		this.killed = <>
 		this.targets = <>
+		this.unhealable = <>
+		this.pendingKill = <>
 		this.effectScore = 0.0
 		this.opportunityCost = 0.0
 		this.rawEnemyDamage = 0.0
@@ -154,7 +158,11 @@ class EffectSnapshot {
 		// ─────────────────────────────────────────────────────────────────────
 		// INLINE KILL SCORING
 		// ─────────────────────────────────────────────────────────────────────
-		this.effectScore += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, null)
+		// A second-tick death already paid for (addPendingKill) has only come forward:
+		// same kill, same value, so do not charge it twice.
+		if (!setContains(this.pendingKill, entity)) {
+			this.effectScore += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, null)
+		}
 
 		// Inline passive for kill
 		Map<integer, real> passives = Fight.self.passives
@@ -195,6 +203,41 @@ class EffectSnapshot {
 
 	integer getPsnPerTurn(Entity entity) { return 0 }
 	void addPsnPerTurn(Entity entity, integer value) { }
+	integer getPsnPerTurn2(Entity entity) { return 0 }
+	void addPsnPerTurn2(Entity entity, integer value) { }
+
+	/*
+	 * Mark a target as made UNHEALABLE by this snapshot.
+	 */
+	void markUnhealable(Entity entity) {
+		setPut(this.unhealable, entity)
+	}
+
+	/*
+	 * True when the target cannot be healed: already unhealable at turn start, or made so
+	 * by an effect of this snapshot.
+	 */
+	boolean isUnhealable(Entity entity) {
+		return entity.isUnhealable || setContains(this.unhealable, entity)
+	}
+
+	/*
+	 * True when this snapshot already paid for the target's second-tick poison death.
+	 */
+	boolean isPendingKill(Entity entity) {
+		return setContains(this.pendingKill, entity)
+	}
+
+	/*
+	 * Score a poison death that only lands at the target's SECOND tick. The target still
+	 * plays a full turn in between, so it must NOT be marked dead: no killed set, no
+	 * danger flag, no kill passives - only the value, once per target.
+	 */
+	void addPendingKill(Entity entity) {
+		if (setContains(this.pendingKill, entity)) return;
+		setPut(this.pendingKill, entity)
+		this.effectScore += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, null)
+	}
 
 	/*
 	 * Unified interface: Add alteration (alias for addAlteration).

@@ -31,14 +31,67 @@ class EffectHandlers {
 	}
 
 	/*
+	 * The poison tick at the START of the target's NEXT turn kills it, before it acts.
+	 * No antidote is in reach and no teammate heal lands before that tick: its own heals
+	 * come after the tick, so only enemies that play before it count
+	 * (BattleState.enemyHealBeforeTurn). A hemorrhage applied earlier in this chain
+	 * denies exactly those heals, hence ctx.isUnhealable().
+	 *
+	 * This is the only poison death that happens BEFORE the target gets to act, so it is
+	 * the only one that may count as "dead" (pools, danger, the overkill skip).
+	 */
+	static boolean poisonLethalNow(Entity target, ctx) {
+		if (target.isFriend || target.nextAntidote < 1) return false
+		integer left = ctx.getHP(target) - target.psnTurn - ctx.getPsnPerTurn(target)
+		if (left > 0) return false
+		// Heals only ever add HP, so they are all this branch has left to fear
+		if (ctx.isUnhealable(target)) return true
+		return left + (BattleState.enemyHealBeforeTurn[target] ?? 0.0) <= 0
+	}
+
+	/*
+	 * The target survives the next tick but dies on the one after it: no antidote for two
+	 * of its turns, the poisons still tick on the second one, and it cannot heal in
+	 * between. Between the ticks it gets a FULL TURN - its own heals matter there, and our
+	 * hemorrhage lasts only until our next turn, which covers that turn but not the
+	 * teammate turns after it, so the teammate heal has to be zero on its own.
+	 *
+	 * It also gets to act in that turn, so this is worth score but never counts as dead.
+	 */
+	static boolean poisonLethalNext(Entity target, ctx) {
+		if (target.isFriend || target.nextAntidote < 2) return false
+		integer tick1 = target.psnTurn + ctx.getPsnPerTurn(target)
+		// A target whose net per-turn poison is already <= 0 is not dying of poison
+		if (tick1 <= 0) return false
+		integer left = ctx.getHP(target) - tick1
+		if (left <= 0) return false  // dies on the first tick: poisonLethalNow's business
+		if ((BattleState.enemyHealBeforeTurn[target] ?? 0.0) > 0) return false
+		if (!ctx.isUnhealable(target)) {
+			real? ownHeal = BattleState.enemyOwnHealPotential[target]
+			// null = map not built this turn: assume it can heal
+			if (ownHeal == null || ownHeal! > 0) return false
+		}
+		integer tick2 = ctx.getPsnPerTurn2(target)
+		for (EntityEffect entityEffect in target.effects) {
+			if (entityEffect.turns < 2) continue
+			if (entityEffect.type == EFFECT_POISON) tick2 += entityEffect.value
+			else if (entityEffect.type == EFFECT_HEAL) tick2 -= entityEffect.value
+		}
+		return tick2 > 0 && left - tick2 <= 0
+	}
+
+	/*
 	 * Check if target will die from accumulated poison (guaranteed kill).
 	 * Called after damage or poison application to award KILL_VALUE
-	 * when the kill is certain (no antidote available).
+	 * when the kill is certain (no antidote, no heal in time).
+	 * A kill that only lands at the SECOND tick is scored but not marked dead.
 	 */
 	static void checkPoisonKill(Entity target, ctx) {
 		if (target.isFriend || ctx.isKilled(target)) return;
-		if (target.nextAntidote >= 1 && ctx.getHP(target) - target.psnTurn - ctx.getPsnPerTurn(target) <= 0) {
+		if (EffectHandlers.poisonLethalNow(target, ctx)) {
 			ctx.addKill(target)
+		} else if (EffectHandlers.poisonLethalNext(target, ctx)) {
+			ctx.addPendingKill(target)
 		}
 	}
 
@@ -126,6 +179,8 @@ class EffectHandlers {
 		// Track per-turn poison for overkill detection
 		integer perTurn = round(effect.avg * (1 + srcMgc / 100.0) * ratio * (1 + srcPwr / 100.0))
 		ctx.addPsnPerTurn(target, perTurn)
+		// Only a poison that outlives the target's next turn still ticks a second time
+		if (duration >= 2) ctx.addPsnPerTurn2(target, perTurn)
 		EffectHandlers.checkPoisonKill(target, ctx)
 
 		// Inline passive for poison taken (target's passives)
@@ -159,9 +214,11 @@ class EffectHandlers {
 	 */
 	static void superinfection(ItemEffect effect, Entity source, Entity target, real ratio, Array<EffectOverTime> comboPoisons, ctx) {
 		integer perTurnStart = 0
+		integer perTurnStart2 = 0
 		for (EntityEffect entityEffect in target.effects) {
 			if (entityEffect.type != EFFECT_POISON || entityEffect.turns <= 0) continue
 			perTurnStart += entityEffect.value
+			if (entityEffect.turns >= 2) perTurnStart2 += entityEffect.value
 		}
 		integer perTurnCombo = ctx.getPsnPerTurn(target)
 		integer perTurn = perTurnStart + perTurnCombo
@@ -188,6 +245,7 @@ class EffectHandlers {
 
 		// Every poison is gone: nothing ticks any more, whoever cast it.
 		ctx.addPsnPerTurn(target, -perTurn)
+		ctx.addPsnPerTurn2(target, -(perTurnStart2 + ctx.getPsnPerTurn2(target)))
 		// A dead target had no future anyway; on a survivor the poison we detonated is lost:
 		// give back the whole scored share of this combo's poisons, and charge the ticks the
 		// turn-start poisons still owed, capped by the target's next antidote like any poison

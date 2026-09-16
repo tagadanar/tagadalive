@@ -42,10 +42,16 @@ the UNHEALABLE branch).
   heal, vitality's HP half, steal-life and lifesteal; value = denied heal = `min(enemy heal
   potential on the target, missing HP + guaranteed poison tick + ally damage before it plays +
   own damage potential after the cast)` × |HP coef|; `BattleState.enemyHealPotential` /
-  `selfDamagePotential` computed only when an ally owns the chip (+0.01 % ops otherwise).
+  `selfDamagePotential` computed only when an ally owns the chip.
   Danger side: an enemy hemorrhage in range cancels our ally-heal credit in `computeDanger`.
-  Probe: offensive wisdom builds never choose it (10 TP of attacks outbid the denied heal);
-  low-damage builds cast it and the target healed 0 for the state's duration every time.
+- [x] **Heal-aware poison kills + hemorrhage as the kill** (2026-09-16): `EffectHandlers.poisonLethalNow`
+  (first tick kills, no antidote before it, and the target's teammates that play before it cannot
+  out-heal it: `BattleState.enemyHealBeforeTurn`) marks the target dead; `poisonLethalNext` (second
+  tick, antidote cd ≥ 2, poisons still ticking, no own heal or chain-unhealable, no teammate heal)
+  only CREDITS the kill (`addPendingKill`) because the target still plays a turn in between and
+  must stay a threat for the danger map. A hemorrhage cast makes the target chain-unhealable, so a
+  lethal poison whose only escape was a heal becomes the kill. `willBeDead` and the overkill skip use
+  the first-tick test only. Probe: 1v1 vs heals+antidote, 10 hemorrhage kills credited, all died.
 
 ### Item priorities (confirmed by the user 2026-09-15)
 
@@ -66,9 +72,9 @@ the UNHEALABLE branch).
   The real value is enemy traffic through the 3-cell zone and wakes per round; BulbSimulator
   values capsaicin/popcorn at full single-target value (optimistic, no AoE decay); a wake's
   `getPlantTrigger()` is not used as a target priority.
-- [ ] **Hemorrhage scale**: denied heal is valued 1:1 with damage, so offensive builds never
-  cast it. Knobs: multiplier on `unhealableValue`, or count heals over more than one round.
-  Lifesteal is skipped in `enemyHealPotential` (TODO in BattleState).
+- [ ] **Hemorrhage scale**: outside the poison-kill case the denied heal is valued 1:1 with
+  damage, so offensive builds rarely cast it. Knobs: multiplier on `unhealableValue`, more than
+  one round of heals. Lifesteal is skipped in the enemy heal maps (TODO in BattleState).
 - [ ] **Superinfection danger side**: an enemy superinfection on us turns our psnDmg into dmg;
   `computeDanger` does not model it.
 - [ ] **Critical repel** pushes `round(4 × 1.3) = 5` cells for the sun spear; `applyRepel` models 4.

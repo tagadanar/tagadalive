@@ -55,6 +55,15 @@ class BattleState {
 	// [enemy: HP its team could still pour into it this round] - what CHIP_HEMORRHAGE denies.
 	// Only populated when BattleState.allyHasHemorrhage is true.
 	static Map<Entity, real> enemyHealPotential = [:]
+	// [enemy: HP it can still receive BEFORE its own next turn] - only the other enemies
+	// that play before it, because the poison tick lands at its turn start, ahead of its
+	// own heals. This is what a poison kill has to outrun.
+	// Populated when BattleState.allyHasPsn or BattleState.allyHasHemorrhage is true.
+	static Map<Entity, real> enemyHealBeforeTurn = [:]
+	// [enemy: HP its OWN items could restore to it on its next turn]. Those heals land
+	// after the poison tick, so they never save it from the first tick - they do save it
+	// from the second one. Populated alongside enemyHealBeforeTurn.
+	static Map<Entity, real> enemyOwnHealPotential = [:]
 	// Damage self can still deal this turn AFTER paying for the hemorrhage cast. The
 	// snapshot scores an action before any combo damage exists, so without this estimate
 	// the gap against a healthy target is 0 and MapAction drops the action.
@@ -84,6 +93,8 @@ class BattleState {
 		allyHasHemorrhage = false
 		enemyHasHemorrhage = false
 		enemyHealPotential = [:]
+		enemyHealBeforeTurn = [:]
+		enemyOwnHealPotential = [:]
 		selfDamagePotential = 0.0
 		allyLeekMeanStr = 0
 		enemyHasStr = false
@@ -239,15 +250,25 @@ class BattleState {
 		}
 		enemyCount = pos
 
-		// Only pay for it when we actually hold the chip that denies those heals
-		if (allyHasHemorrhage) {
-			BattleState._computeEnemyHealPotential()
-			// The TP the cast itself eats can't also buy damage, so scale the estimate down
-			integer selfTP = Fight.self.tp
-			if (selfTP > 0) {
-				integer hemoCost = getChipCost(CHIP_HEMORRHAGE)!
-				selfDamagePotential = BattleState.computeAllyDamagePotential(Fight.self)
-					* max(0, selfTP - hemoCost) / selfTP
+		// Both enemy heal maps read the same per-enemy records, so build them once.
+		// Poison needs the "before its turn" half to know a tick really kills; hemorrhage
+		// needs the full potential to know what the state denies.
+		if (allyHasPsn || allyHasHemorrhage) {
+			Map<Entity, Array<Array<real>>> healItems = [:]
+			for (Entity e in Fight.getEnemiesAlive()) {
+				healItems[e] = BattleState._healItems(e)
+			}
+			BattleState._computeEnemyHealBeforeTurn(healItems)
+			// Only pay for it when we actually hold the chip that denies those heals
+			if (allyHasHemorrhage) {
+				BattleState._computeEnemyHealPotential(healItems)
+				// The TP the cast itself eats can't also buy damage, so scale the estimate down
+				integer selfTP = Fight.self.tp
+				if (selfTP > 0) {
+					integer hemoCost = getChipCost(CHIP_HEMORRHAGE)!
+					selfDamagePotential = BattleState.computeAllyDamagePotential(Fight.self)
+						* max(0, selfTP - hemoCost) / selfTP
+				}
 			}
 		}
 	}
@@ -306,13 +327,10 @@ class BattleState {
 	 * items plus every other enemy's heal items that can reach it (move + range, no
 	 * LOS check). This is the upper bound CHIP_HEMORRHAGE denies.
 	 */
-	static void _computeEnemyHealPotential() {
-		Map<Entity, Array<Array<real>>> healItems = [:]
-		for (Entity e in Fight.getEnemiesAlive()) {
-			healItems[e] = BattleState._healItems(e)
-		}
+	static void _computeEnemyHealPotential(Map<Entity, Array<Array<real>>> healItems) {
 		for (Entity target in Fight.getEnemiesAlive()) {
-			real total = BattleState._healPotentialFrom(healItems[target]!, target.tp, 0)
+			// Own heals: already computed by _computeEnemyHealBeforeTurn, which runs first
+			real total = enemyOwnHealPotential[target] ?? 0.0
 			for (Entity e in Fight.getEnemiesAlive()) {
 				if (e == target) continue
 				Array<Array<real>> items = healItems[e]!
@@ -322,6 +340,30 @@ class BattleState {
 				total += BattleState._healPotentialFrom(items, e.tp, minRange)
 			}
 			enemyHealPotential[target] = total
+		}
+	}
+
+	/*
+	 * HP each alive enemy can still receive BEFORE its own next turn, plus what its own
+	 * items could restore once it plays.
+	 *
+	 * The poison tick lands at the target's turn START, ahead of everything it does
+	 * itself, so only OTHER enemies that play between now and then can out-heal it.
+	 * Same records and same greedy-within-TP rule as _computeEnemyHealPotential.
+	 */
+	static void _computeEnemyHealBeforeTurn(Map<Entity, Array<Array<real>>> healItems) {
+		for (Entity target in Fight.getEnemiesAlive()) {
+			enemyOwnHealPotential[target] = BattleState._healPotentialFrom(healItems[target]!, target.tp, 0)
+			real total = 0.0
+			for (Entity e in target.entitiesWhoPlayBefore) {
+				if (e.isFriend || e.id == target.id) continue
+				Array<Array<real>>? items = healItems[e]
+				if (items == null || count(items!) == 0) continue
+				// Reachable when dist <= e.mp + item.maxRange
+				integer minRange = getCellDistance(e.cell.id, target.cell.id)! - e.mp
+				total += BattleState._healPotentialFrom(items!, e.tp, minRange)
+			}
+			enemyHealBeforeTurn[target] = total
 		}
 	}
 

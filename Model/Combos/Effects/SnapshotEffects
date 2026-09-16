@@ -397,6 +397,20 @@ EffectCache.registerHandlers([
 		if (effect.min == STATE_UNHEALABLE) {
 			if (entityTarget.isFriend) return;       // hemorrhage mask is 31: allies can be hit
 			if (entityTarget.isUnhealable) return;   // never stacks
+			snap.markUnhealable(entityTarget)
+			// The poison tick kills it and no antidote reaches it: the team heal this
+			// state denies was the only thing left, so it IS the kill. A second-tick
+			// death is only worth the score - the target still plays a turn first.
+			if (!snap.isKilled(entityTarget)) {
+				if (EffectHandlers.poisonLethalNow(entityTarget, snap)) {
+					snap.addKill(entityTarget)
+					return;
+				}
+				if (EffectHandlers.poisonLethalNext(entityTarget, snap)) {
+					snap.addPendingKill(entityTarget)
+					return;
+				}
+			}
 			real allyDmgBefore = MapDamage.getDamageBeforeEnemy(entityTarget.cell, entityTarget, null)
 			snap.effectScore += EffectHandlers.unhealableValue(entityTarget, allyDmgBefore, BattleState.selfDamagePotential, snap)
 			return;

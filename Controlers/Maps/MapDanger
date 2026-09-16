@@ -137,7 +137,11 @@ class MapDanger {
 			MapDanger._buildEnemyCoverageMaps(CHIP_ANTIDOTE, (Entity e) => integer { return e.antidoteCD }, _map_enemy_antidote)
 			MapDanger._computeEnemyNextChipTurn(5, (Entity e) => integer { return e.antidoteCD }, _map_enemy_antidote, (Entity t, integer v) => void { t.nextAntidote = v })
 			for (Entity e in Fight.getEnemiesAlive()) {
-				e.willBeDead = e.psnlife <= 0 && e.nextAntidote >= 1
+				// FIRST-tick deaths only (EffectHandlers.poisonLethalNow): a target that
+				// only dies at its second tick still plays a full turn and stays a threat.
+				// Teammates that play before it can still out-heal the tick (its own heals
+				// land after it), so the poison only really kills through that heal.
+				e.willBeDead = e.psnlife + (BattleState.enemyHealBeforeTurn[e] ?? 0.0) <= 0 && e.nextAntidote >= 1
 			}
 		}
 		// Build enemy liberation maps (only when enemies have STR and we have shields to lose)

@@ -28,6 +28,7 @@ class Consequences {
 	// True if any node in this chain has kills (avoids chain walks when empty)
 	boolean _anyKills = false
 	Map<Entity, integer> _psnPerTurn = [:]  // Accumulated per-turn poison from combo
+	Map<Entity, integer> _psnPerTurn2 = [:] // Same, restricted to poisons that still tick a 2nd time
 
 	// Track which entities have local data (for efficient iteration)
 	Map<Entity, boolean> _localEntities = [:]
@@ -70,6 +71,11 @@ class Consequences {
 	Set<Cell> _newObstacles = <>    // Cells blocked by swapped entities
 	Set<Cell> _freedCells = <>       // Cells freed (we moved there, now walkable)
 	Set<Cell> _movedTargetCells = <> // Cells vacated by a repel: aiming there is now stale
+
+	// Targets this chain made UNHEALABLE (hemorrhage) - COW, clone on first write
+	Set<Entity> _unhealable = <>
+	// Targets whose poison only kills at their SECOND tick: scored, NOT dead - COW
+	Set<Entity> _pendingKill = <>
 
 
 	// ════════════════════════════════════════════════════════════════════════
@@ -177,7 +183,19 @@ class Consequences {
 			for (Entity e : integer v in consequences._psnPerTurn) {
 				this._psnPerTurn[e] = v
 			}
+			for (Entity e : integer v in consequences._psnPerTurn2) {
+				this._psnPerTurn2[e] = v
+			}
 		}
+
+		// Propagate the chain's unhealable and second-tick-kill targets (reference -
+		// clone on write). A shared parent keeps them on the snapshot instead.
+		this._unhealable = (consequences._shared != null)
+			? consequences._shared!.unhealable
+			: consequences._unhealable
+		this._pendingKill = (consequences._shared != null)
+			? consequences._shared!.pendingKill
+			: consequences._pendingKill
 
 		// Propagate position swap data (reference - clone on write)
 		this._newObstacles = consequences._newObstacles
@@ -340,10 +358,10 @@ class Consequences {
 				// Per-effect target mask (e.g. CHIP_BURNING damage only hits bulbs)
 				if (!effect.appliesTo(target)) continue
 				// Skip enemy dying from poison overkill (except damage on chest/BR: secure the kill)
-				if (!target.isFriend && target.nextAntidote >= 1) {
-					integer epsl = this.getHP(target) - target.psnTurn - this.getPsnPerTurn(target)
-					if (epsl <= 0 && (!action.item.isDamage || (target.entityType != ENTITY_CHEST && !Fight.isBattleRoyale))) continue
-				}
+				// (only a first-tick death: a second-tick one still plays a turn, so
+				// killing it now is worth it - it removes that turn)
+				if (!target.isFriend && EffectHandlers.poisonLethalNow(target, this)
+					&& (!action.item.isDamage || (target.entityType != ENTITY_CHEST && !Fight.isBattleRoyale))) continue
 				// Skip invincible enemies unless item works on invincible (shackles)
 				if (!target.isFriend && target.isInvincible && !action.item.worksOnInvincible) continue
 				// For overrideTargets (simulated positions), use action.to as target cell
@@ -497,7 +515,11 @@ class Consequences {
 		setPut(this._killed, entity)
 		this._anyKills = true
 
-		this.score+= ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
+		// A second-tick death already paid for (addPendingKill) has only come forward:
+		// same kill, same value, so do not charge it twice.
+		if (!this.isPendingKill(entity)) {
+			this.score+= ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
+		}
 
 		// Inline passives
 		Map<integer, real> passives = Fight.self.passives
@@ -839,6 +861,46 @@ class Consequences {
 	}
 
 	/*
+	 * Mark a target as made UNHEALABLE by this chain (COW - clones on first write).
+	 */
+	void markUnhealable(Entity entity) {
+		if (setContains(this._unhealable, entity)) return;
+		this._unhealable = clone(this._unhealable) as Set<Entity>
+		setPut(this._unhealable, entity)
+	}
+
+	/*
+	 * True when the target cannot be healed: already unhealable at turn start, or made so
+	 * by an earlier action of this chain.
+	 */
+	boolean isUnhealable(Entity entity) {
+		if (entity.isUnhealable) return true
+		if (_shared != null) return _shared.isUnhealable(entity)
+		return setContains(this._unhealable, entity)
+	}
+
+	/*
+	 * True when this chain already paid for the target's second-tick poison death.
+	 */
+	boolean isPendingKill(Entity entity) {
+		if (_shared != null) return _shared.isPendingKill(entity)
+		return setContains(this._pendingKill, entity)
+	}
+
+	/*
+	 * Score a poison death that only lands at the target's SECOND tick (COW - clones on
+	 * first write). The target still plays a full turn in between, so it must NOT be
+	 * marked dead: no _killed, no danger flag, no kill passives - only the value, once
+	 * per target. addKill() then knows not to pay for the same kill twice.
+	 */
+	void addPendingKill(Entity entity) {
+		if (this.isPendingKill(entity)) return;
+		this._pendingKill = clone(this._pendingKill) as Set<Entity>
+		setPut(this._pendingKill, entity)
+		this.score += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
+	}
+
+	/*
 	 * Simulate EFFECT_REPEL for a whole shot and score the displacements.
 	 *
 	 * Mirrors the generator exactly: Attack.applyOnCell's repel branch, plus
@@ -989,6 +1051,14 @@ class Consequences {
 
 	void addPsnPerTurn(Entity entity, integer value) {
 		this._psnPerTurn[entity] = (this._psnPerTurn[entity] ?? 0) + value
+	}
+
+	integer getPsnPerTurn2(Entity entity) {
+		return _psnPerTurn2[entity] ?? 0
+	}
+
+	void addPsnPerTurn2(Entity entity, integer value) {
+		this._psnPerTurn2[entity] = (this._psnPerTurn2[entity] ?? 0) + value
 	}
 
 	real? getScore(){

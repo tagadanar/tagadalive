@@ -58,6 +58,20 @@ Consequences.registerHandlers([
 			// The hemorrhage mask is 31 (everyone), so allies really can be hit.
 			if (entityTarget.isFriend) return;
 			if (entityTarget.isUnhealable) return;
+			conseq.markUnhealable(entityTarget)
+			// The poison tick kills it and no antidote reaches it: the team heal this
+			// state denies was the only thing left, so it IS the kill. A second-tick
+			// death is only worth the score - the target still plays a turn first.
+			if (!conseq.isKilled(entityTarget)) {
+				if (EffectHandlers.poisonLethalNow(entityTarget, conseq)) {
+					conseq.addKill(entityTarget)
+					return;
+				}
+				if (EffectHandlers.poisonLethalNext(entityTarget, conseq)) {
+					conseq.addPendingKill(entityTarget)
+					return;
+				}
+			}
 			real allyDmgBefore = MapDamage.getDamageBeforeEnemy(entityTarget.cell, entityTarget, conseq)
 			// 0: at priority 26 our own damage is already inside conseq's missing HP
 			conseq.score += EffectHandlers.unhealableValue(entityTarget, allyDmgBefore, 0.0, conseq)
