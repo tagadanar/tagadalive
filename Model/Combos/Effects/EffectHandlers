@@ -121,8 +121,6 @@ class EffectHandlers {
 
 		integer value = EffectCalc.poisonDamage(effect.avg, srcMgc, srcPwr, ratio, duration)
 		EffectOverTime eot = EffectOverTime(effect.item, -value, duration, effect.type)
-		eot.realTotal = EffectCalc.poisonDamage(effect.avg, srcMgc, srcPwr, ratio, effect.duration)
-		eot.realTurns = effect.duration
 		ctx.add(target, Stats.HPTIME, eot)
 
 		// Track per-turn poison for overkill detection
@@ -148,54 +146,35 @@ class EffectHandlers {
 	}
 
 	/*
-	 * Superinfection: converts a share of the poisons already on the target into
-	 * immediate poison damage, and removes exactly as much from the poisons.
-	 * Total poison is conserved, only advanced - so it is NOT free damage.
+	 * Superinfection (generator f379d92, 2026-09-15): the poisons on the target DETONATE.
+	 * Every finite poison disappears and the target takes, once, ratio x the sum of their
+	 * current per-turn values - no remaining-turns factor. Poison damage: poison erosion,
+	 * no lifesteal, no damage return. The engine's own comment: the trade loses when done
+	 * too early, so the future poison we throw away is charged here.
 	 *
-	 * comboPoisons = poison EffectOverTime added by earlier actions of this combo
-	 * (already scored as HPTIME). Their value is a TOTAL; target.effects carries a
-	 * PER-TURN value, so the remaining total there is value x turns.
-	 *
-	 * Returns a score bonus the caller adds (Consequences.score / EffectSnapshot.effectScore):
-	 * a poison total is scored x durationMitigation(turns) on top of its coef, so the
-	 * converted share is priced with the same multiplier as the poison it came from
-	 * (user decision 2026-09-16, option 2), otherwise giving back half of a x5 term
-	 * could never be paid for by a x1 term and the chain plague + covid + superinfection
-	 * would never win the auction. The HP alteration itself stays the real damage.
+	 * comboPoisons = poison EffectOverTime added by earlier actions of this combo, already
+	 * scored as HPTIME (their value is the antidote-capped total, negative); the combo's
+	 * per-turn poison is ctx.getPsnPerTurn(target). Turn-start poisons come from
+	 * target.effects (per-turn value, remaining turns) and were never scored.
 	 */
-	static real superinfection(ItemEffect effect, Entity source, Entity target, real ratio, Array<EffectOverTime> comboPoisons, ctx) {
-		integer remaining = 0
-		real weighted = 0.0       // Σ total x durationMitigation(turns of that poison)
-		integer perTurnStart = 0  // turn-start poison per tick (poison only, unlike target.psnTurn which nets HoT)
+	static void superinfection(ItemEffect effect, Entity source, Entity target, real ratio, Array<EffectOverTime> comboPoisons, ctx) {
+		integer perTurnStart = 0
 		for (EntityEffect entityEffect in target.effects) {
 			if (entityEffect.type != EFFECT_POISON || entityEffect.turns <= 0) continue
-			integer total = entityEffect.value * entityEffect.turns
-			remaining += total
-			weighted += total * Scoring.durationMitigation(entityEffect.turns)
 			perTurnStart += entityEffect.value
 		}
-		for (EffectOverTime eot in comboPoisons) {
-			// The real total and duration: value/duration are capped by the target's next
-			// antidote, which is right for scoring the poison but not for what the
-			// generator converts here.
-			integer total = eot.realTotal > 0 ? eot.realTotal : abs(eot.value)
-			integer turns = eot.realTurns > 0 ? eot.realTurns : eot.duration
-			remaining += total
-			weighted += total * Scoring.durationMitigation(turns)
-		}
-		if (remaining <= 0) return 0.0
+		integer perTurnCombo = ctx.getPsnPerTurn(target)
+		integer perTurn = perTurnStart + perTurnCombo
+		if (perTurn <= 0) return;
 
 		real convRatio = min(1.0, effect.avg / 100.0)
-		integer converted = round(convRatio * remaining)
-		if (converted <= 0) return 0.0
+		integer damage = min(round(convRatio * perTurn), ctx.getHP(target))
+		if (damage <= 0) return;
 
-		// No target filter (user decision 2026-09-16): the score decides.
-		integer damage = min(converted, ctx.getHP(target))
 		ctx.addEffectValue(damage)
 		ctx.add(target, Stats.HP, -damage)
-		if (ctx.getHP(target) <= 0) {
-			ctx.addKill(target)
-		}
+		boolean killed = ctx.getHP(target) <= 0
+		if (killed) ctx.addKill(target)
 
 		// Erosion (poison erosion, on the whole immediate hit)
 		integer erosion = round(damage / Stats.PSN_EROSION_DIVISOR)
@@ -207,28 +186,23 @@ class EffectHandlers {
 			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
 		}
 
-		// Give back the converted share of the poisons THIS combo added - they were
-		// scored as future damage that will no longer happen. Turn-start poisons were
-		// never scored, so nothing to give back for them. Same duration as the
-		// original so both go through the same mitigation factor.
+		// Every poison is gone: nothing ticks any more, whoever cast it.
+		ctx.addPsnPerTurn(target, -perTurn)
+		// A dead target had no future anyway; on a survivor the poison we detonated is lost:
+		// give back the whole scored share of this combo's poisons, and charge the ticks the
+		// turn-start poisons still owed, capped by the target's next antidote like any poison
+		// we score, with the same mitigated-duration pricing (the same EOT path, sign flipped).
+		if (killed) return;
 		for (EffectOverTime eot in comboPoisons) {
-			integer cancelled = round(-eot.value * convRatio)
-			if (cancelled == 0) continue
-			ctx.add(target, Stats.HPTIME, EffectOverTime(eot.item, cancelled, eot.duration, EFFECT_POISON))
+			if (eot.value >= 0) continue
+			ctx.add(target, Stats.HPTIME, EffectOverTime(eot.item, -eot.value, eot.duration, EFFECT_POISON))
 		}
-		// The poisons themselves are halved too: every later tick is smaller, so the
-		// poison-kill checks (checkPoisonKill, the overkill skip in Consequences, the
-		// dynamic life ratio) must see target.psnTurn + getPsnPerTurn at half strength.
-		// Turn-start poisons live in the fixed target.psnTurn, so their reduction is
-		// carried as a negative combo per-turn entry.
-		ctx.addPsnPerTurn(target, -round((perTurnStart + ctx.getPsnPerTurn(target)) * convRatio))
-
-		// Duration bonus: the damage was scored x1 by ctx.add; the source poisons were
-		// scored x mitigation(turns). Add the difference, scaled by the kill cap.
-		real weightedDamage = convRatio * weighted * damage / converted
-		real bonus = weightedDamage - damage
-		if (bonus <= 0) return 0.0
-		return bonus * (-Scoring.getDynamicCoef(target, Stats.HP, null))
+		for (EntityEffect entityEffect in target.effects) {
+			if (entityEffect.type != EFFECT_POISON || entityEffect.turns <= 0) continue
+			integer turns = entityEffect.turns
+			if (!target.isFriend && target.nextAntidote < turns) turns = max(1, target.nextAntidote)
+			ctx.add(target, Stats.HPTIME, EffectOverTime(effect.item, entityEffect.value * turns, turns, EFFECT_POISON))
+		}
 	}
 
 	static void lifeDamage(ItemEffect effect, Entity source, Entity target, real ratio, integer srcLife, integer srcPwr, integer tgtRel, integer tgtAbs, integer tgtDmgRet, ctx) {

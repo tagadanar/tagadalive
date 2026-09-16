@@ -21,14 +21,16 @@ the UNHEALABLE branch).
 - [x] Infinite duration (-1) bug: `EffectOverTime` maps -1 to `Scoring.turnsLeft`; the raw
   `durationMitigation(ef.duration)` sites in Damages / Items / MapDamage got the same rule.
   Maturation's permanent PWR buff scored NEGATIVE before this.
-- [x] **Superinfection** (`EffectHandlers.superinfection`): converts 50 % of the remaining poison
-  (turn-start per-turn × turns + this combo's poisons at their REAL totals, `EffectOverTime.realTotal`)
-  into immediate HP damage with poison erosion and the kill check; combo poisons get a half
-  counter-entry, and the halved per-turn tick is carried into the poison-kill checks. No target
-  filter (user decision 2026-09-16). Pricing: a poison total is scored × durationMitigation(turns),
-  so the converted share carries the same multiplier as its source poison (option 2), else the
-  chain plague + covid + superinfection could never win. Probe: covid → venom → superinfection
-  lethal on turn 6.
+- [x] **Superinfection** (`EffectHandlers.superinfection`, engine rule of generator f379d92,
+  2026-09-15): the target's poisons DETONATE. All of them vanish and the target takes, once, 50 %
+  of the sum of their current per-turn values (no remaining-turns factor), as poison damage with
+  erosion and the kill check. The handler zeroes the per-turn poison for every later check and,
+  on a survivor, charges the poison thrown away: the whole scored share of this combo's poisons
+  and the antidote-capped remaining ticks of the turn-start ones. No target filter: the score
+  decides, which in practice means "secure a kill on a poisoned target that could still cure
+  or heal". Lesson from fight 53671908: the first model followed the pre-fix source
+  (half of total × turns), predicted a kill that never came, scored the end cell at danger 0
+  and teleported into range. Always `git fetch` the generator before modelling a new effect.
 - [x] **Plants** as ordinary 0-MP summons on `BulbGreedy`: `Entity.isPlant`/`isRooted`,
   `extendedType` from `getPlantType`, rooted cells never in `cellsToIgnore`, rooted skipped by
   push/pull/repel and by the puny lock and nearest-enemy gravity (inversion still allowed).
