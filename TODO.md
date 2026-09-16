@@ -21,16 +21,19 @@ the UNHEALABLE branch).
 - [x] Infinite duration (-1) bug: `EffectOverTime` maps -1 to `Scoring.turnsLeft`; the raw
   `durationMitigation(ef.duration)` sites in Damages / Items / MapDamage got the same rule.
   Maturation's permanent PWR buff scored NEGATIVE before this.
-- [x] **Superinfection** (`EffectHandlers.superinfection`, engine rule of generator f379d92,
-  2026-09-15): the target's poisons DETONATE. All of them vanish and the target takes, once, 50 %
-  of the sum of their current per-turn values (no remaining-turns factor), as poison damage with
-  erosion and the kill check. The handler zeroes the per-turn poison for every later check and,
-  on a survivor, charges the poison thrown away: the whole scored share of this combo's poisons
-  and the antidote-capped remaining ticks of the turn-start ones. No target filter: the score
-  decides, which in practice means "secure a kill on a poisoned target that could still cure
-  or heal". Lesson from fight 53671908: the first model followed the pre-fix source
-  (half of total × turns), predicted a kill that never came, scored the end cell at danger 0
-  and teleported into range. Always `git fetch` the generator before modelling a new effect.
+- [x] **Superinfection** (`EffectHandlers.superinfection`, engine rule of generator 3c04831,
+  2026-09-16): the target's poisons DETONATE. The target takes, once, 50 % of the sum of their
+  current per-turn values (no remaining-turns factor), as poison damage with erosion and the kill
+  check, and every finite poison loses ONE turn: one on its last turn vanishes, the others keep
+  ticking with their value intact (cleaning the target is Antidote's job). The handler drops the
+  last-turn poisons from the next tick and the 2-turn ones from the tick after, re-runs the
+  poison kill check on a survivor, and charges the lost tick of each poison through the same
+  EOT path (scored total out, the total one turn shorter back in; a tick past the next antidote
+  costs nothing). No target filter: the score decides. History: f379d92 (2026-09-15) removed
+  every poison, which made the trade never worth it; before that, half of total × turns. Lesson
+  from fight 53671908: the first model followed a stale source, predicted a kill that never came,
+  scored the end cell at danger 0 and teleported into range. Always `git fetch` the generator
+  before modelling a new effect.
 - [x] **Plants** as ordinary 0-MP summons on `BulbGreedy`: `Entity.isPlant`/`isRooted`,
   `extendedType` from `getPlantType`, rooted cells never in `cellsToIgnore`, rooted skipped by
   push/pull/repel and by the puny lock and nearest-enemy gravity (inversion still allowed).
@@ -83,8 +86,10 @@ the UNHEALABLE branch).
 - [ ] **Python side**: `src/scraper/metadata.py` and `src/localfight` know nothing of action ids
   17/18 (`PLANT_AWAKE`/`PLANT_ASLEEP`, payload `[17, plantId, triggerId, plantTP]`) nor
   `ENTITY_PLANT`; walkers attribute a plant's chips to the last `LEEK_TURN` entity. Probe
-  gotcha: `USE_CHIP` logs the chip TEMPLATE (hemorrhage = 101), not the chip id. CLAUDE.md
-  action table needs the two rows.
+  gotcha: `USE_CHIP` logs the chip TEMPLATE (hemorrhage = 101), not the chip id. Nor action
+  309 `UPDATE_EFFECT_TURNS` (`[309, effectLogId, turns]`, generator 3c04831: superinfection
+  took a turn off a poison outside the caster's countdown). CLAUDE.md action table needs the
+  three rows.
 - [ ] States: the enum has 12 (RESURRECTED 1, UNHEALABLE 2, INVINCIBLE 3, PACIFIST 4, HEAVY 5,
   DENSE 6, MAGNETIZED 7, CHAINED 8, ROOTED 9, PETRIFIED 10, STATIC 11, STERILE 12); the AI reads
   5. `SnapshotEffects` EFFECT_DEBUFF still scales `entityEffect.value` for ADD_STATE effects

@@ -201,11 +201,12 @@ class EffectHandlers {
 	}
 
 	/*
-	 * Superinfection (generator f379d92, 2026-09-15): the poisons on the target DETONATE.
-	 * Every finite poison disappears and the target takes, once, ratio x the sum of their
-	 * current per-turn values - no remaining-turns factor. Poison damage: poison erosion,
-	 * no lifesteal, no damage return. The engine's own comment: the trade loses when done
-	 * too early, so the future poison we throw away is charged here.
+	 * Superinfection (generator 3c04831, 2026-09-16): the poisons on the target DETONATE.
+	 * The target takes, once, ratio x the sum of their current per-turn values (no
+	 * remaining-turns factor), and every finite poison loses ONE turn: one on its last turn
+	 * disappears, the others keep ticking with their value intact. Poison damage: poison
+	 * erosion, no lifesteal, no damage return. The price is one tick of each poison whatever
+	 * the moment, so that lost tick is charged here.
 	 *
 	 * comboPoisons = poison EffectOverTime added by earlier actions of this combo, already
 	 * scored as HPTIME (their value is the antidote-capped total, negative); the combo's
@@ -214,11 +215,13 @@ class EffectHandlers {
 	 */
 	static void superinfection(ItemEffect effect, Entity source, Entity target, real ratio, Array<EffectOverTime> comboPoisons, ctx) {
 		integer perTurnStart = 0
-		integer perTurnStart2 = 0
+		integer perTurnStartLast = 0  // turn-start poisons on their last turn: they vanish
+		integer perTurnStartTwo = 0   // turn-start poisons with exactly 2 turns: they lose the 2nd tick
 		for (EntityEffect entityEffect in target.effects) {
 			if (entityEffect.type != EFFECT_POISON || entityEffect.turns <= 0) continue
 			perTurnStart += entityEffect.value
-			if (entityEffect.turns >= 2) perTurnStart2 += entityEffect.value
+			if (entityEffect.turns == 1) perTurnStartLast += entityEffect.value
+			else if (entityEffect.turns == 2) perTurnStartTwo += entityEffect.value
 		}
 		integer perTurnCombo = ctx.getPsnPerTurn(target)
 		integer perTurn = perTurnStart + perTurnCombo
@@ -243,23 +246,39 @@ class EffectHandlers {
 			if (magicGain > 0) ctx.add(target, Stats.MGC, magicGain)
 		}
 
-		// Every poison is gone: nothing ticks any more, whoever cast it.
-		ctx.addPsnPerTurn(target, -perTurn)
-		ctx.addPsnPerTurn2(target, -(perTurnStart2 + ctx.getPsnPerTurn2(target)))
-		// A dead target had no future anyway; on a survivor the poison we detonated is lost:
-		// give back the whole scored share of this combo's poisons, and charge the ticks the
-		// turn-start poisons still owed, capped by the target's next antidote like any poison
-		// we score, with the same mitigated-duration pricing (the same EOT path, sign flipped).
+		// Every poison lost a turn: the next tick keeps only those that had 2 turns or more
+		// (psnPerTurn2 for this combo's), the tick after only those that had 3 or more.
+		integer comboTwo = 0  // this combo's poisons of exactly 2 turns, per tick
+		for (EffectOverTime eot in comboPoisons) {
+			if (eot.value < 0 && eot.duration == 2) comboTwo += round(-eot.value / 2.0)
+		}
+		ctx.addPsnPerTurn(target, -perTurnStartLast - (perTurnCombo - ctx.getPsnPerTurn2(target)))
+		ctx.addPsnPerTurn2(target, -perTurnStartTwo - comboTwo)
 		if (killed) return;
+		// The poisons that remain may still finish a target the hit left low
+		EffectHandlers.checkPoisonKill(target, ctx)
+
+		// On a survivor, charge the lost tick through the same mitigated-duration path as any
+		// poison: remove the scored total, put back the total one turn shorter. A tick past
+		// the target's next antidote was never scored and costs nothing.
 		for (EffectOverTime eot in comboPoisons) {
 			if (eot.value >= 0) continue
-			ctx.add(target, Stats.HPTIME, EffectOverTime(eot.item, -eot.value, eot.duration, EFFECT_POISON))
+			integer realTurns = eot.duration
+			for (ItemEffect itemEffect in eot.item.effects) {
+				if (itemEffect.type == EFFECT_POISON) { realTurns = itemEffect.duration; break }
+			}
+			if (realTurns - 1 >= eot.duration) continue
+			integer d = eot.duration
+			ctx.add(target, Stats.HPTIME, EffectOverTime(eot.item, -eot.value, d, EFFECT_POISON))
+			if (d >= 2) ctx.add(target, Stats.HPTIME, EffectOverTime(eot.item, round(eot.value * (d - 1) / d), d - 1, EFFECT_POISON))
 		}
 		for (EntityEffect entityEffect in target.effects) {
 			if (entityEffect.type != EFFECT_POISON || entityEffect.turns <= 0) continue
 			integer turns = entityEffect.turns
 			if (!target.isFriend && target.nextAntidote < turns) turns = max(1, target.nextAntidote)
+			if (entityEffect.turns - 1 >= turns) continue
 			ctx.add(target, Stats.HPTIME, EffectOverTime(effect.item, entityEffect.value * turns, turns, EFFECT_POISON))
+			if (turns >= 2) ctx.add(target, Stats.HPTIME, EffectOverTime(effect.item, -entityEffect.value * (turns - 1), turns - 1, EFFECT_POISON))
 		}
 	}
 
