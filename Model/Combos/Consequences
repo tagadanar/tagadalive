@@ -519,6 +519,13 @@ class Consequences {
 		// same kill, same value, so do not charge it twice.
 		if (!this.isPendingKill(entity)) {
 			this.score+= ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
+			// Nasu chest hold: this kill leaves no mob standing, so it ends the fight and
+			// forfeits the chest. The mob that was alone already is priced through its
+			// KILL coef; this is the combo that takes the last two at once. Cancel the
+			// bonus just paid and charge the same coef, so both cases cost the same.
+			if (BossNasu.endsTheFight(entity, this) && !BossNasu.isFightEndingKill(entity)) {
+				this.score -= ScoringConfig.KILL_VALUE * (1.0 + ScoringConfig.EC_NASU_LOOT_KILL_COEF)
+			}
 		}
 
 		// Inline passives
@@ -898,6 +905,13 @@ class Consequences {
 		this._pendingKill = clone(this._pendingKill) as Set<Entity>
 		setPut(this._pendingKill, entity)
 		this.score += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
+		// Nasu chest hold: this kill leaves no mob standing, so it ends the fight and
+		// forfeits the chest. The mob that was alone already is priced through its
+		// KILL coef; this is the combo that takes the last two at once. Cancel the
+		// bonus just paid and charge the same coef, so both cases cost the same.
+		if (BossNasu.endsTheFight(entity, this) && !BossNasu.isFightEndingKill(entity)) {
+			this.score -= ScoringConfig.KILL_VALUE * (1.0 + ScoringConfig.EC_NASU_LOOT_KILL_COEF)
+		}
 	}
 
 	/*

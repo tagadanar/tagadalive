@@ -162,6 +162,13 @@ class EffectSnapshot {
 		// same kill, same value, so do not charge it twice.
 		if (!setContains(this.pendingKill, entity)) {
 			this.effectScore += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, null)
+			// Nasu chest hold: this kill leaves no mob standing, so it ends the fight and
+			// forfeits the chest. The mob that was alone already is priced through its
+			// KILL coef; this is the combo that takes the last two at once. Cancel the
+			// bonus just paid and charge the same coef, so both cases cost the same.
+			if (BossNasu.endsTheFightInSnapshot(entity, this.killed) && !BossNasu.isFightEndingKill(entity)) {
+				this.effectScore -= ScoringConfig.KILL_VALUE * (1.0 + ScoringConfig.EC_NASU_LOOT_KILL_COEF)
+			}
 		}
 
 		// Inline passive for kill

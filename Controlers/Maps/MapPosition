@@ -190,9 +190,10 @@ class MapPosition {
 			}
 		}
 
-		// Chests: gravity to collect loot (3x when winning hard)
+		// Chests: gravity to collect loot (3x when winning hard, or while the Nasu
+		// fight is being held open for that chest)
 		real chestGravity = ScoringConfig.W_GRAVITY_CHEST
-		if (ScoringModifiers.getWinningModifier() <= 0.75) chestGravity *= 3.0
+		if (BossNasu.isLootHold() || ScoringModifiers.getWinningModifier() <= 0.75) chestGravity *= 3.0
 		for (Entity enemy in Fight.getEnemiesAlive()) {
 			if (enemy.entityType == ENTITY_CHEST) {
 				_gravity_distance[enemy.cell] = 1  // Get adjacent to open
