@@ -7,11 +7,10 @@ A modular Tampermonkey userscript that provides AI debug visualization, profiler
 - **Turn-by-turn navigation**: Browse through each turn of your AI's execution
 - **Performance profiler**: See operation counts and percentages for each function, grouped by category
 - **Cooldown tracking**: View item cooldowns at start and end of each turn with visual progress bars
-- **Algorithm visualization**: Adapts to selected mode:
+- **Algorithm visualization**: Adapts to the mode the AI reports via `algo:` (`EXPLORER` = ComboExplorer, the default; `MCTS`; `BEAM`; `BULB` for bulbs):
   - **MCTS**: iterations, nodes explored, positions, best score
-  - **BeamSearch**: depth, candidates evaluated, positions, best score
-  - **PTS**: opportunities, actions, best score
-- **Hybrid mode comparison**: Shows algorithm banner with winner (PTS vs MCTS or PTS vs Beam)
+  - **BeamSearch**: depth, candidates, op split (expand/sort/positions), best score, budget-low flag
+- **Algorithm banner**: Shows the mode and winner reported by `Benchmark.setAlgo(mode, winner)`. The AI has no hybrid mode any more, so mode and winner are always the same; the PTS-vs-MCTS/Beam comparison UI only applies to old cached fights
 - **Combo analysis**: View top-scored combos with action scores and position breakdown
 - **Resource tracking**: Monitor HP, TP, MP, RAM, cell position, and entity counts
 - **Resource charts**: Visualize HP%, TP Used%, MP Used%, and RAM Used% over time
@@ -154,29 +153,31 @@ Where:
 | `e:` | Enemy count | `e:2` |
 | `a:` | Ally count | `a:1` |
 | `m:` | MCTS stats (iter,nodes,pos,best) | `m:100,500,50,1234` |
-| `p:` | PTS stats (opps,actions,best) | `p:45,5,890` |
-| `b:` | BeamSearch stats (depth,candidates,pos,best) | `b:6,120,8,1100` |
-| `algo:` | Algorithm mode and winner | `algo:HYBRID_GUIDED,MCTS` |
+| `b:` | BeamSearch stats (depth,candidates,opsExpand,opsSort,opsPos,opsTotal,best,budgetLow) | `b:6,120,9000,1500,4000,15000,1100,0` |
+| `algo:` | Algorithm mode and winner | `algo:EXPLORER,EXPLORER` |
+| `fc:` | Tracked function count (sanity check) | `fc:42` |
 | `cells:` | MCTS cells (seeds;explored;skipped) | `cells:123,456;123,456,789;234,567` |
 | `ch:` | Chosen combo (score,actions,desc) | `ch:850,3,Flash(81)->mv(256:...)` |
 | `cb:` | Top combo (score,actScore,posScore,desc) | `cb:900,600,300,Spark(120)->...` |
+| `mcb:` | MCTS best combo (score,actScore,posScore,desc) | `mcb:880,580,300,Flash(81)->...` |
 | `cds:` | Cooldowns at start of turn (name,current,max;...) | `cds:Flash,0,3;Shield,2,5` |
 | `cde:` | Cooldowns at end of turn (name,current,max;...) | `cde:Flash,3,3;Shield,2,5` |
 | `cat:` | Function category | `cat:MCTS` |
 | `f:` | Function stats (name,calls,total,pct,parent) | `f:AI.search,10,5000,11,` |
 | `l:` | Log entry | `l:Attack dealt 150 damage` |
+| `dops:` | Operations spent building this line | `dops:3200` |
+| `end:` | Total operations used this turn | `end:45000` |
 
 ### Function Categories
 
-The profiler groups functions into categories for easier analysis:
+The profiler groups functions into categories, defined by `Benchmark.CATEGORIES` in the AI (the AI emits `cat:`, the script only displays it):
 
 | Category | Functions |
 |----------|-----------|
 | INIT | `init`, `Map.init`, `Items.init` |
-| REFRESH | `MapPath.refresh`, `Fight.refresh`, `Map.refresh`, etc. |
-| PTS | `PTS.buildCombo`, `PTS.generateOpportunities` |
-| MCTS | `MCTS.search`, `Hybrid.runMCTSFull`, `Hybrid.runMCTSPrioritized` |
-| BEAM | `BeamSearch.search`, `Hybrid.runBeamFull`, `Hybrid.runBeamPrioritized` |
+| REFRESH | `MapPath.refresh`, `Fight.refresh`, `Scoring.refresh`, `MapDanger.refresh`, other `Map*.refresh` |
+| MCTS | `MCTS.iter`, `Hybrid.runMCTSFull` |
+| BEAM | `BeamSearch.search`, `Hybrid.runBeamFull` |
 | POSITION | `MP.evalPos`, `MP.findBest` |
 | ACTION | `addAction` |
 | CONSEQUENCES | `Consequences`, `Consequences.fromConseq` |
@@ -243,17 +244,17 @@ Color coding:
 // After MCTS search
 Benchmark.setMCTS(iterations, nodesExplored, positionsEvaluated, bestScore)
 
-// Track MCTS cell exploration (for HYBRID_GUIDED mode)
+// Track MCTS cell exploration
 Benchmark.setMCTSCells(seedCells, exploredCells, skippedCells)
 
-// After PTS search
-Benchmark.setPTS(opportunities, actionCount, bestScore)
+// MCTS best combo (shown separately as mcb:)
+Benchmark.setMCTSCombo(score, actionCount, description, positionScore, actionScore)
 
 // After BeamSearch (called automatically by BeamSearch.search())
 Benchmark.setBeam(depth, candidates, opsExpand, opsSort, opsPos, opsTotal, bestScore, budgetLow)
 
-// Set algorithm mode and winner (for hybrid modes)
-Benchmark.setAlgo(mode, winner)  // e.g., setAlgo("HYBRID_GUIDED", "MCTS")
+// Set algorithm mode and winner (AI/AI does this per mode)
+Benchmark.setAlgo(mode, winner)  // e.g., setAlgo("EXPLORER", "EXPLORER")
 
 // After choosing final action
 Benchmark.setChosen(score, actionCount, description)
