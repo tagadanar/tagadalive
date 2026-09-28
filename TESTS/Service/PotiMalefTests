@@ -1,31 +1,46 @@
 include('../includesTests')
 
-// Say log merge: an ally's log (complete when sent) + our says since our last turn
+// Say log merge: an ally's log (complete when sent) + our says since our last turn.
+// base = length of our own log at our last turn.
 
 function testMergeAliveNoLoss() {
 	// Alive all along: the ally's log ends with the first says we heard ourselves
-	Array<integer> merged = BossPotiMalef._mergeEvents([191, 697, -1, 12], [-1, 12, 45])
+	Array<integer> merged = BossPotiMalef._mergeEvents([191, 697, -1, 12], [-1, 12, 45], 2)
 	assertEquals("PotiMalefTests::mergeAlive", [191, 697, -1, 12, 45], merged)
 }
 
 function testMergeResurrected() {
 	// Dead through the block and two says: the ally fills the hole, we add the last say
-	Array<integer> merged = BossPotiMalef._mergeEvents([697, 422, -1, 305, 815], [719])
+	Array<integer> merged = BossPotiMalef._mergeEvents([697, 422, -1, 305, 815], [719], 2)
 	assertEquals("PotiMalefTests::mergeResurrected", [697, 422, -1, 305, 815, 719], merged)
 }
 
+function testMergeSplitByDeath() {
+	// Heard 153 before dying and 667 after the resurrection: both already in the log
+	// (fight 53847128, BlackFlag appended 153 a second time with a contiguous overlap)
+	Array<integer> merged = BossPotiMalef._mergeEvents([964, 756, -1, 659, 153, 998, -1, 149, 667], [153, 667], 4)
+	assertEquals("PotiMalefTests::mergeSplitByDeath", [964, 756, -1, 659, 153, 998, -1, 149, 667], merged)
+}
+
+function testMergeSplitByDeathWithNew() {
+	Array<integer> merged = BossPotiMalef._mergeEvents([964, 756, -1, 659, 153, 998], [153, 42], 4)
+	assertEquals("PotiMalefTests::mergeSplitByDeathWithNew", [964, 756, -1, 659, 153, 998, 42], merged)
+}
+
 function testMergeNothingHeard() {
-	assertEquals("PotiMalefTests::mergeNothingHeard", [5, -2, 7], BossPotiMalef._mergeEvents([5, -2, 7], []))
+	assertEquals("PotiMalefTests::mergeNothingHeard", [5, -2, 7], BossPotiMalef._mergeEvents([5, -2, 7], [], 1))
 }
 
 function testMergeHeardAfterMessage() {
-	// Everything we heard came after the ally's message: no overlap
-	assertEquals("PotiMalefTests::mergeNoOverlap", [5, 7, 9, 11], BossPotiMalef._mergeEvents([5, 7], [9, 11]))
+	// Everything we heard came after the ally's message
+	assertEquals("PotiMalefTests::mergeNoOverlap", [5, 7, 9, 11], BossPotiMalef._mergeEvents([5, 7], [9, 11], 2))
 }
 
 function checkPotiMalef() {
 	testMergeAliveNoLoss()
 	testMergeResurrected()
+	testMergeSplitByDeath()
+	testMergeSplitByDeathWithNew()
 	testMergeNothingHeard()
 	testMergeHeardAfterMessage()
 }
