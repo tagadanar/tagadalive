@@ -31,6 +31,60 @@ class EffectHandlers {
 	}
 
 	/*
+	 * An effect whose caster was killed earlier in this chain is gone (generator Entity.die
+	 * removes everything the dead cast). Free while the chain has no kill.
+	 */
+	static boolean isGone(EntityEffect ee, ctx) {
+		if (!ctx.hasKills()) return false
+		Entity? caster = Fight.getAllAlive()[ee.casterId]
+		return caster != null && ctx.isKilled(caster!)
+	}
+
+	/*
+	 * A death takes away what the dead cast, and its summons (generator Entity.die):
+	 *  - its summons die with it, recursively, with no killer: kill value, no kill passives;
+	 *  - each of its effects on a living entity is removed like liberation removes one (per-turn
+	 *    value, net of what this chain already stripped of that type), for the turns it still
+	 *    had to act (EntityEffect.left). The simulated stats change at once, so the rest of the
+	 *    combo and the danger see the victim's allies without its buffs, us without its poisons.
+	 * atTurnStart: a poison death at its own turn start. Whoever plays before it keeps one more
+	 * turn (or tick) under the effect; an exposure effect keeps the part of the round before it.
+	 * No effect-type bookkeeping: later handlers skip these effects through isGone(), so a
+	 * liberation of another caster's effect of the same type is not under-counted.
+	 * O(its summons + its effects), both indexed once per turn in Fight.indexEffects().
+	 */
+	static void onDeath(Entity dead, boolean atTurnStart, ctx) {
+		Array<Entity>? summons = Fight.summonsOf[dead.id]
+		if (summons != null) {
+			for (Entity summon in summons!) ctx.addCascadeKill(summon, atTurnStart)
+		}
+		Array<EntityEffect>? cast = Fight.effectsByCaster[dead.id]
+		if (cast == null) return;
+		integer deadRank = Fight.rankOf(dead)
+		for (EntityEffect ee in cast!) {
+			Entity? t = Fight.getAllAlive()[ee.targetId]
+			if (t == null || ctx.isKilled(t!)) continue
+			if (ee.item == null) continue
+			Entity target = t!
+			boolean playsFirst = atTurnStart && Fight.rankOf(target) < deadRank
+			integer lost = ee.left
+			if (playsFirst || (atTurnStart && ee.family == EntityEffect.FAMILY_EXPOSURE)) lost--
+			if (lost <= 0) continue
+			integer? stat = Stats.entityEffectType_to_stats[ee.type]
+			if (stat == null) continue
+			integer remaining = ee.value - ctx.getEffectTypeAlteration(target, ee.type)
+			if (remaining <= 0) continue
+			integer value = remaining * TargetType.CONVERTER[ee.type]
+			ctx.add(target, stat!, EffectOverTime(ee.item, -value, lost, ee.type))
+			// Its next tick goes too (psnTurn counted it), unless that tick lands before the death
+			if (ee.family == EntityEffect.FAMILY_TICK && !playsFirst) {
+				if (ee.type == EFFECT_POISON) ctx.addPsnPerTurn(target, -remaining)
+				else if (ee.type == EFFECT_HEAL) ctx.addPsnPerTurn(target, remaining)
+			}
+		}
+	}
+
+	/*
 	 * The poison tick at the START of the target's NEXT turn kills it, before it acts.
 	 * No antidote is in reach and no teammate heal lands before that tick: its own heals
 	 * come after the tick, so only enemies that play before it count
@@ -73,7 +127,8 @@ class EffectHandlers {
 		}
 		integer tick2 = ctx.getPsnPerTurn2(target)
 		for (EntityEffect entityEffect in target.effects) {
-			if (entityEffect.turns < 2) continue
+			// Ticks still to land (caster-driven expiry), minus effects of a caster killed in this chain
+			if (entityEffect.left < 2 || EffectHandlers.isGone(entityEffect, ctx)) continue
 			if (entityEffect.type == EFFECT_POISON) tick2 += entityEffect.value
 			else if (entityEffect.type == EFFECT_HEAL) tick2 -= entityEffect.value
 		}
@@ -89,7 +144,7 @@ class EffectHandlers {
 	static void checkPoisonKill(Entity target, ctx) {
 		if (target.isFriend || ctx.isKilled(target)) return;
 		if (EffectHandlers.poisonLethalNow(target, ctx)) {
-			ctx.addKill(target)
+			ctx.addKill(target, true)  // dies at its own turn start
 		} else if (EffectHandlers.poisonLethalNext(target, ctx)) {
 			ctx.addPendingKill(target)
 		}
@@ -218,10 +273,14 @@ class EffectHandlers {
 		integer perTurnStartLast = 0  // turn-start poisons on their last turn: they vanish
 		integer perTurnStartTwo = 0   // turn-start poisons with exactly 2 turns: they lose the 2nd tick
 		for (EntityEffect entityEffect in target.effects) {
+			// Every poison still ON the target detonates, even one its caster removes before
+			// the next tick; one of a caster killed earlier in this chain is gone already
 			if (entityEffect.type != EFFECT_POISON || entityEffect.turns <= 0) continue
+			if (EffectHandlers.isGone(entityEffect, ctx)) continue
 			perTurnStart += entityEffect.value
-			if (entityEffect.turns == 1) perTurnStartLast += entityEffect.value
-			else if (entityEffect.turns == 2) perTurnStartTwo += entityEffect.value
+			// Losing a turn loses a tick: left (ticks still to land) goes down by one
+			if (entityEffect.left == 1) perTurnStartLast += entityEffect.value
+			else if (entityEffect.left == 2) perTurnStartTwo += entityEffect.value
 		}
 		integer perTurnCombo = ctx.getPsnPerTurn(target)
 		integer perTurn = perTurnStart + perTurnCombo
@@ -273,10 +332,11 @@ class EffectHandlers {
 			if (d >= 2) ctx.add(target, Stats.HPTIME, EffectOverTime(eot.item, round(eot.value * (d - 1) / d), d - 1, EFFECT_POISON))
 		}
 		for (EntityEffect entityEffect in target.effects) {
-			if (entityEffect.type != EFFECT_POISON || entityEffect.turns <= 0) continue
-			integer turns = entityEffect.turns
+			if (entityEffect.type != EFFECT_POISON || entityEffect.left <= 0) continue
+			if (EffectHandlers.isGone(entityEffect, ctx)) continue
+			integer turns = entityEffect.left
 			if (!target.isFriend && target.nextAntidote < turns) turns = max(1, target.nextAntidote)
-			if (entityEffect.turns - 1 >= turns) continue
+			if (entityEffect.left - 1 >= turns) continue
 			ctx.add(target, Stats.HPTIME, EffectOverTime(effect.item, entityEffect.value * turns, turns, EFFECT_POISON))
 			if (turns >= 2) ctx.add(target, Stats.HPTIME, EffectOverTime(effect.item, -entityEffect.value * (turns - 1), turns - 1, EFFECT_POISON))
 		}

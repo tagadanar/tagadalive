@@ -1,0 +1,49 @@
+include('../includesTests')
+
+// Expiry follows the CASTER's turn start (generator Entity.startTurn): ranks are the
+// order of the next turn starts from now, the playing entity last.
+
+function testOwnTurns() {
+	assertEquals("EffectTimingTests::ownTurnsCasterStartsFirst", 0, EntityEffect.ownTurns(1, 0, 2))
+	assertEquals("EffectTimingTests::ownTurnsCasterStartsAfter", 1, EntityEffect.ownTurns(1, 3, 1))
+	assertEquals("EffectTimingTests::ownTurnsSelfCast", 1, EntityEffect.ownTurns(2, 4, 4))
+}
+
+function testTicks() {
+	assertEquals("EffectTimingTests::ticksCasterStartsFirst", 0, EntityEffect.ticks(1, 0, 2))
+	assertEquals("EffectTimingTests::ticksCasterStartsAfter", 1, EntityEffect.ticks(1, 3, 1))
+	// The target ticks before counting down what it cast itself
+	assertEquals("EffectTimingTests::ticksSelfCast", 1, EntityEffect.ticks(1, 4, 4))
+}
+
+function testFamilies() {
+	assertEquals("EffectTimingTests::familyPoison", EntityEffect.FAMILY_TICK, EntityEffect.familyOf(EFFECT_POISON))
+	assertEquals("EffectTimingTests::familyAftereffect", EntityEffect.FAMILY_TICK, EntityEffect.familyOf(EFFECT_AFTEREFFECT))
+	assertEquals("EffectTimingTests::familyHeal", EntityEffect.FAMILY_TICK, EntityEffect.familyOf(EFFECT_HEAL))
+	assertEquals("EffectTimingTests::familyBuffMP", EntityEffect.FAMILY_OWN, EntityEffect.familyOf(EFFECT_BUFF_MP))
+	assertEquals("EffectTimingTests::familyShackleTP", EntityEffect.FAMILY_OWN, EntityEffect.familyOf(EFFECT_SHACKLE_TP))
+	assertEquals("EffectTimingTests::familyShield", EntityEffect.FAMILY_EXPOSURE, EntityEffect.familyOf(EFFECT_ABSOLUTE_SHIELD))
+	assertEquals("EffectTimingTests::familyVulnerability", EntityEffect.FAMILY_EXPOSURE, EntityEffect.familyOf(EFFECT_VULNERABILITY))
+}
+
+function testRanks() {
+	integer n = mapSize(Fight.getAllAlive())
+	assertEquals("EffectTimingTests::rankSelfLast", n - 1, Fight.rankOf(Fight.self))
+	Map<integer, boolean> seen = [:]
+	boolean distinct = true
+	for (integer id : Entity e in Fight.getAllAlive()) {
+		integer? r = Fight.nextStartRank[id]
+		if (r == null || seen[r!]) distinct = false
+		else seen[r!] = true
+	}
+	assertEquals("EffectTimingTests::ranksDistinctForAll", true, distinct)
+	Array<Entity> order = Fight.getEntitiesAfterSelfInOrder()
+	if (count(order) > 0) assertEquals("EffectTimingTests::rankFirstAfterSelf", 0, Fight.rankOf(order[0]))
+}
+
+function checkEffectTiming() {
+	testOwnTurns()
+	testTicks()
+	testFamilies()
+	testRanks()
+}

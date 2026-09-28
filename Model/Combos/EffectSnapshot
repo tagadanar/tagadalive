@@ -149,8 +149,11 @@ class EffectSnapshot {
 	/*
 	 * Internal: Add a kill during snapshot construction.
 	 * Computes kill score inline.
+	 * atTurnStart: a poison death at the victim's own turn start (EffectHandlers.onDeath).
 	 */
-	void addKill(Entity entity) {
+	void addKill(Entity entity, boolean atTurnStart = false) {
+		// Damage return can report the same death twice: its consequences only once
+		boolean alreadyDead = setContains(this.killed, entity)
 		this.isAlteringDanger = true
 		this.hashcode = 31 * this.hashcode + entity.id
 		setPut(this.killed, entity)
@@ -189,6 +192,26 @@ class EffectSnapshot {
 			integer pwrGain = basePwr + round(entity.pwr * 0.5)
 			this.addAlteration(Fight.self, Stats.PWR, pwrGain)
 		}
+		if (!alreadyDead) EffectHandlers.onDeath(entity, atTurnStart, this)
+	}
+
+	/*
+	 * A summon dying with its summoner (generator Entity.die): no killer, so the kill value
+	 * without the kill passives (KILL_TO_TP, chest, Battle Royale power).
+	 */
+	void addCascadeKill(Entity entity, boolean atTurnStart) {
+		if (setContains(this.killed, entity)) return;
+		this.isAlteringDanger = true
+		this.hashcode = 31 * this.hashcode + entity.id
+		setPut(this.killed, entity)
+		if (!setContains(this.pendingKill, entity)) {
+			this.effectScore += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, null)
+		}
+		EffectHandlers.onDeath(entity, atTurnStart, this)
+	}
+
+	boolean hasKills() {
+		return setSize(this.killed) > 0
 	}
 
 	/*

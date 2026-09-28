@@ -42,11 +42,12 @@ class Danger {
 	void addShackle(real tp, real tpTurns, real mp, real mpTurns) {
 		if (tp <= 0 && mp <= 0) return;
 		Entity me = Fight.self
-		// Next turn's TP/MP: the turn-start value minus the alterations on self. A shackle applied during
-		// the previous round expires at its caster's turn, before my next one, so me.tp under-states what
-		// the enemies will be taking from (and the lock test would fire on a leek one step from unshackled)
-		integer selfTP = me.tp - me.altTP
-		integer selfMP = me.mp - me.altMP
+		// Next turn's TP/MP: the turn-start value minus the alterations on self that expire before my next
+		// turn. Every caster starts again before me, so exactly the ones on their last turn (turns == 1)
+		// go; longer ones stay. me.tp alone under-states what the enemies will be taking from (and the
+		// lock test would fire on a leek one step from unshackled)
+		integer selfTP = me.tp - me.expiringTP
+		integer selfMP = me.mp - me.expiringMP
 		if (tp > selfTP) { tpTurns = tpTurns * selfTP / tp; tp = selfTP }
 		if (mp > selfMP) { mpTurns = mpTurns * selfMP / mp; mp = selfMP }
 		this.tpShackle = tp

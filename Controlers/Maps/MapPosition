@@ -458,7 +458,8 @@ class MapPosition {
 			integer deviation = abs(idealDist - actualDist)
 
 			if (_is_cac && _nearest_enemy != null && targetCell == _nearest_enemy.cell) {
-				integer enemyMP = _nearest_enemy.mp - _nearest_enemy.altMP
+				// Its MP on its next turn (Entity.loadEffects drops what expires before then)
+				integer enemyMP = _nearest_enemy.mp
 				if (actualDist <= enemyMP + Fight.self.mp) {
 					score += ScoringConfig.W_CAC_IN_RANGE
 				}

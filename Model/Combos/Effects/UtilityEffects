@@ -28,6 +28,8 @@ Consequences.registerHandlers([
 				entityEffect.type != EFFECT_SHACKLE_WISDOM &&
 				entityEffect.type != EFFECT_SHACKLE_TP &&
 				entityEffect.type != EFFECT_SHACKLE_MP) continue
+			// Nothing to remove from a shackle that won't act again, or whose caster this chain killed
+			if (entityEffect.left <= 0 || EffectHandlers.isGone(entityEffect, conseq)) continue
 
 			integer alreadyAltered = conseq.getEffectTypeAlteration(entityTarget, entityEffect.type)
 			integer remaining = entityEffect.value - alreadyAltered
@@ -64,7 +66,7 @@ Consequences.registerHandlers([
 			// death is only worth the score - the target still plays a turn first.
 			if (!conseq.isKilled(entityTarget)) {
 				if (EffectHandlers.poisonLethalNow(entityTarget, conseq)) {
-					conseq.addKill(entityTarget)
+					conseq.addKill(entityTarget, true)  // dies at its own turn start
 					return;
 				}
 				if (EffectHandlers.poisonLethalNext(entityTarget, conseq)) {

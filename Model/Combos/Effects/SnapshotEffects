@@ -278,12 +278,14 @@ EffectCache.registerHandlers([
 		if (snap.isKilled(entityTarget)) return;
 		for (EntityEffect entityEffect in entityTarget.effects) {
 			if (entityEffect.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) continue
+			// Nothing to remove from an effect that won't act again, or whose caster this snapshot killed
+			if (entityEffect.left <= 0 || EffectHandlers.isGone(entityEffect, snap)) continue
 			integer reduction = round(entityEffect.value * (effect.avg/100.0))
 			if (reduction <= 0) continue
 
 			integer conv = 0 + TargetType.CONVERTER[entityEffect.type]
 			integer value = reduction * conv
-			EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.turns, entityEffect.type)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.left, entityEffect.type)
 			integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
 			if (stat != null) snap.addAlteration(entityTarget, stat, eot)
 		}
@@ -294,7 +296,8 @@ EffectCache.registerHandlers([
 		// Remove poison effects from start of turn
 		for (EntityEffect entityEffect in entityTarget.effects) {
 			if (entityEffect.type == EFFECT_POISON) {
-				EffectOverTime eot = EffectOverTime(effect.item, entityEffect.value, entityEffect.turns, entityEffect.type)
+				if (entityEffect.left <= 0 || EffectHandlers.isGone(entityEffect, snap)) continue
+				EffectOverTime eot = EffectOverTime(effect.item, entityEffect.value, entityEffect.left, entityEffect.type)
 				snap.addAlteration(entityTarget, Stats.HPTIME, eot)
 			}
 		}
@@ -367,6 +370,7 @@ EffectCache.registerHandlers([
 				entityEffect.type != EFFECT_SHACKLE_WISDOM &&
 				entityEffect.type != EFFECT_SHACKLE_TP &&
 				entityEffect.type != EFFECT_SHACKLE_MP) continue
+			if (entityEffect.left <= 0 || EffectHandlers.isGone(entityEffect, snap)) continue
 
 			integer alreadyAltered = snap.getEffectTypeAlteration(entityTarget, entityEffect.type)
 			integer remaining = entityEffect.value - alreadyAltered
@@ -403,7 +407,7 @@ EffectCache.registerHandlers([
 			// death is only worth the score - the target still plays a turn first.
 			if (!snap.isKilled(entityTarget)) {
 				if (EffectHandlers.poisonLethalNow(entityTarget, snap)) {
-					snap.addKill(entityTarget)
+					snap.addKill(entityTarget, true)  // dies at its own turn start
 					return;
 				}
 				if (EffectHandlers.poisonLethalNext(entityTarget, snap)) {

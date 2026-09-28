@@ -64,6 +64,8 @@ class BulbGreedy {
 		if (getPlantTrigger() != -1) {
 			Fight.self = prevSelf
 			Fight.selfCell = prevSelfCell
+			// Turn order and expiry ranks back to the owner's point of view
+			Fight.computeRanks()
 		}
 	}
 

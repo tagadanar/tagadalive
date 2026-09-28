@@ -506,8 +506,11 @@ class Consequences {
 
 	/*
 	 * Add kill with copy-on-write semantics.
+	 * atTurnStart: a poison death at the victim's own turn start (EffectHandlers.onDeath).
 	 */
-	void addKill(Entity entity){
+	void addKill(Entity entity, boolean atTurnStart = false){
+		// Damage return can report the same death twice: its consequences only once
+		boolean alreadyDead = this.isKilled(entity)
 		this.isAlteringDanger=true
 		this.hashcode = 31 * this.hashcode + entity.id
 
@@ -542,6 +545,27 @@ class Consequences {
 			integer pwrGain = basePwr + round(entity.pwr * 0.5)
 			this.add(Fight.self, Stats.PWR, pwrGain)
 		}
+		if (!alreadyDead) EffectHandlers.onDeath(entity, atTurnStart, this)
+	}
+
+	/*
+	 * A summon dying with its summoner (generator Entity.die): no killer, so the kill value
+	 * without the kill passives (KILL_TO_TP, chest, Battle Royale power).
+	 */
+	void addCascadeKill(Entity entity, boolean atTurnStart) {
+		if (this.isKilled(entity)) return;
+		this.isAlteringDanger = true
+		this.hashcode = 31 * this.hashcode + entity.id
+		setPut(this._killed, entity)
+		this._anyKills = true
+		if (!this.isPendingKill(entity)) {
+			this.score += ScoringConfig.KILL_VALUE * Scoring.getDynamicCoef(entity, Stats.KILL, this)
+		}
+		EffectHandlers.onDeath(entity, atTurnStart, this)
+	}
+
+	boolean hasKills() {
+		return this._anyKills
 	}
 
 	/*

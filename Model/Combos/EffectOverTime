@@ -16,7 +16,7 @@ class EffectOverTime{
 	constructor(EntityEffect effect){
 		this.item = effect.item
 		this.value = effect.value * TargetType.CONVERTER[effect.type] // so malus is negative
-		this.duration = effect.turns
+		this.duration = effect.left  // remaining turns that still matter (caster-driven expiry)
 		this.effectType = effect.type
 	}
 

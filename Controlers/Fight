@@ -45,8 +45,17 @@ class Fight {
 	static boolean canSummon = false
 
 	// Cached turn order: entities that play after self, sorted by turn order
-	// Reset in refresh(), computed lazily in getEntitiesAfterSelfInOrder()
+	// Reset with the ranks (refresh() and updateForSummon()), computed lazily in getEntitiesAfterSelfInOrder()
 	private static Array<Entity>? _entitiesAfterSelfInOrder = null
+
+	// Rank of each entity's NEXT turn start, counted from now: the entities after self
+	// 0, 1, 2..., then the ones before self, self last (everyone starts before it again).
+	// Effects count down at their caster's start, so this orders every expiry (EntityEffect).
+	static Map<integer, integer> nextStartRank = [:]
+	// Per turn: the effects each entity cast on the others (caster id -> effects), and its
+	// summons (summoner id -> summons). A death removes both at once (generator Entity.die).
+	static Map<integer, Array<EntityEffect>> effectsByCaster = [:]
+	static Map<integer, Array<Entity>> summonsOf = [:]
 
 	/*
 	 * Actualise les tableaux contenant les entités vivante alliée et ennemie ainsi que l'ensemble des entités alliées + ennemies
@@ -89,13 +98,15 @@ class Fight {
 			}
 		}
 		self = _aliveAll[getEntity()]!
+		Fight.computeRanks()
 
 		// Second pass: load effects now that all entities are in _aliveAll
-		// (EntityEffect.caster requires all entities to be registered)
+		// (EntityEffect.caster requires all entities to be registered, its expiry the ranks)
 		for (Entity entity in _aliveAll) {
 			entity.loadEffects()
 			entity.psnlife = entity.life - entity.psnTurn
 		}
+		Fight.indexEffects()
 
 		// Compute Liberation, Antidote, Inversion, movement chips, and summon availability
 		liberationReady = false
@@ -214,8 +225,6 @@ class Fight {
 					_aliveAllLeeks[id] = entity
 				}
 			}
-			// A sibling that already played may carry its own buffs
-			if (id != selfId) entity.loadEffects()
 		}
 
 		// Update Fight.self to the current playing entity
@@ -240,6 +249,17 @@ class Fight {
 			mapRemove(_aliveEnemiesBulbs, id)
 		}
 
+		// Ranks and turn order are relative to the entity now playing (the cached order
+		// was the summoner's). Created entities load their effects after that, the new self
+		// included: a fresh bulb may already carry its summoner's buffs.
+		Fight.computeRanks()
+		for (integer id in created) {
+			if (_aliveAll[id] == null) continue  // died since (removed above)
+			Entity entity = _aliveAll[id]!
+			entity.loadEffects()
+			entity.psnlife = entity.life - entity.psnTurn
+		}
+
 		// Update positions and state of all remaining alive entities from game state
 		// refreshState() ensures entities have current HP/stats/effects after main leek's actions
 		for (integer id : Entity entity in _aliveAll) {
@@ -249,11 +269,53 @@ class Fight {
 				entity.refreshState()
 			}
 		}
+		Fight.indexEffects()
 
 		// Ready-flags were computed from the summoner's items during its turn;
 		// bulbs carry no antidote, and a stale true here disables COVID spread
 		// positioning in MapPosition._computeTacticalScore for infected bulbs
 		antidoteReady = false
+	}
+
+	/*
+	 * Ranks of the next turn starts from the playing entity's point of view (see nextStartRank).
+	 * O(n log n) over the alive entities; resets the cached turn order.
+	 */
+	static void computeRanks() {
+		_entitiesAfterSelfInOrder = null
+		nextStartRank = [:]
+		integer rank = 0
+		for (Entity e in Fight.getEntitiesAfterSelfInOrder()) {
+			nextStartRank[e.id] = rank
+			rank++
+		}
+		nextStartRank[self.id] = rank
+	}
+
+	static integer rankOf(Entity entity) {
+		return nextStartRank[entity.id] ?? 0
+	}
+
+	/*
+	 * Index, once per refresh, what a death takes away: the effects each entity cast on the
+	 * others that still matter, and its summons. O(effects) + getSummoner (15 ops) per summon.
+	 */
+	static void indexEffects() {
+		effectsByCaster = [:]
+		summonsOf = [:]
+		for (integer id : Entity entity in _aliveAll) {
+			for (EntityEffect ee in entity.effects) {
+				if (ee.casterId == ee.targetId || ee.left <= 0) continue
+				if (effectsByCaster[ee.casterId] == null) effectsByCaster[ee.casterId] = []
+				push(effectsByCaster[ee.casterId]!, ee)
+			}
+			if (entity.isBulb) {
+				integer? summoner = getSummoner(id)
+				if (summoner == null || summoner! < 0) continue
+				if (summonsOf[summoner!] == null) summonsOf[summoner!] = []
+				push(summonsOf[summoner!]!, entity)
+			}
+		}
 	}
 
 	/*

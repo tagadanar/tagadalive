@@ -121,6 +121,8 @@ Consequences.registerHandlers([
 		for (EntityEffect entityEffect in entityTarget.effects) {
 			// Skip irreducible effects - Liberation can't reduce them
 			if (entityEffect.modifiers & EFFECT_MODIFIER_IRREDUCTIBLE) continue
+			// Nothing to remove from an effect that won't act again, or whose caster this chain killed
+			if (entityEffect.left <= 0 || EffectHandlers.isGone(entityEffect, conseq)) continue
 
 			// Check how much of this effect type has already been altered
 			integer alreadyAltered = conseq.getEffectTypeAlteration(entityTarget, entityEffect.type)
@@ -132,7 +134,7 @@ Consequences.registerHandlers([
 			// FIXME: for !stackable effects, should do -100% then + remaining after reduction
 			integer reduction = round(remaining * (effect.avg/100.0))
 			integer value = reduction * TargetType.CONVERTER[entityEffect.type]
-			EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.turns, entityEffect.type)
+			EffectOverTime eot = EffectOverTime(effect.item, -value, entityEffect.left, entityEffect.type)
 			integer? stat = Stats.entityEffectType_to_stats[entityEffect.type]
 			integer conv = TargetType.CONVERTER[entityEffect.type]
 			if (entityTarget.isFriend && (conv != 1 || stat == null)) {
@@ -151,11 +153,13 @@ Consequences.registerHandlers([
 		// If target has no poison, this produces zero score - which is correct (preemptive antidote = no value)
 		for (EntityEffect entityEffect in entityTarget.effects) {
 			if (entityEffect.type == EFFECT_POISON) {
+				// A poison that won't tick again, or whose caster this chain killed, is worth nothing to cure
+				if (entityEffect.left <= 0 || EffectHandlers.isGone(entityEffect, conseq)) continue
 				integer alreadyAltered = conseq.getEffectTypeAlteration(entityTarget, EFFECT_POISON)
 				integer remaining = entityEffect.value - alreadyAltered
 				if (remaining <= 0) continue  // Already fully countered by previous action
 
-				EffectOverTime eot = EffectOverTime(effect.item, remaining, entityEffect.turns, entityEffect.type)
+				EffectOverTime eot = EffectOverTime(effect.item, remaining, entityEffect.left, entityEffect.type)
 				conseq.add(entityTarget, Stats.HPTIME, eot)
 				conseq.addEffectTypeAlteration(entityTarget, EFFECT_POISON, remaining)
 			}

@@ -115,6 +115,10 @@ class Entity {
 	integer altAgi = 0
 	integer altTP = 0
 	integer altMP = 0
+	// Own-turn TP/MP alterations on the PLAYING entity that expire before its next turn
+	// (turns == 1: every caster starts again before it). Other entities have them removed.
+	integer expiringTP = 0
+	integer expiringMP = 0
 	// todo add more alt ?
 	Array<EntityEffect> launchedEffects
 	// passive effects from weapons (auras) - effect.type -> conversion rate
@@ -251,6 +255,8 @@ class Entity {
 		this.altAgi = 0
 		this.altTP = 0
 		this.altMP = 0
+		this.expiringTP = 0
+		this.expiringMP = 0
 		this.isStatic = false
 		this.isRooted = false
 		this.isInvincible = false
@@ -302,8 +308,14 @@ class Entity {
 	 * Loads effects from game state into entity fields.
 	 * Called by constructor and refreshState().
 	 * Assumes effect-related fields are already initialized/cleared.
+	 *
+	 * Another entity is seen as it will be on its NEXT turn: an own-turn effect whose caster
+	 * counts it down to 0 before then (EntityEffect.left) is taken out of its stats and alt*
+	 * sums, and is no longer a de-dupe candidate. The playing entity keeps its current stats.
+	 * psnTurn is the next tick (only what still ticks), psnTotal the ticks still to land.
 	 */
 	void loadEffects() {
+		boolean isSelf = this.id == Fight.self.id
 		for(Array<boolean|integer> e in getEffects(this.id)!) {
 			EntityEffect effect = EntityEffect(e)
 			// RAW_BUFF_POWER: skip, no item associated - use entity.pwr stat instead
@@ -318,21 +330,32 @@ class Entity {
 				continue
 			}
 			push(effects, effect)
-			if(!this.items_effectOverTime[effect.item]) this.items_effectOverTime[effect.item] = []
-			push(this.items_effectOverTime[effect.item]!, EffectOverTime(effect))
 			// COVID detection (propagates to nearby entities)
 			// item can be null for effects from unknown sources (logged in EntityEffect);
 			// the stat switch below must still run for them
 			if (effect.item != null && effect.item.id == CHIP_COVID) this.hasCovid = true
+			// Gone before this entity plays again: its stats already lack it next turn
+			if (!isSelf && effect.family == EntityEffect.FAMILY_OWN && effect.left <= 0) {
+				this._removeStat(effect)
+				continue
+			}
+			if (isSelf && effect.family == EntityEffect.FAMILY_OWN && effect.turns <= 1) {
+				integer? stat = Stats.entityEffectType_to_stats[effect.type]
+				integer delta = effect.value * TargetType.CONVERTER[effect.type]
+				if (stat == Stats.TP) this.expiringTP += delta
+				else if (stat == Stats.MP) this.expiringMP += delta
+			}
+			if(!this.items_effectOverTime[effect.item]) this.items_effectOverTime[effect.item] = []
+			push(this.items_effectOverTime[effect.item]!, EffectOverTime(effect))
 			// piste d'optimisation en ayant une meilleure structure pour les effets ici ?
 			switch (effect.type) {
 				case EFFECT_POISON:
-					this.psnTurn += effect.value
-					this.psnTotal += effect.value * effect.turns
+					if (effect.left > 0) this.psnTurn += effect.value
+					this.psnTotal += effect.value * effect.left
 					break;
 				case EFFECT_HEAL:
-					this.psnTurn += -effect.value
-					this.psnTotal += -effect.value * effect.turns
+					if (effect.left > 0) this.psnTurn += -effect.value
+					this.psnTotal += -effect.value * effect.left
 					break;
 				case EFFECT_SHACKLE_STRENGTH:
 					this.altStr += -effect.value
@@ -361,6 +384,23 @@ class Entity {
 					break;
 			}
 		}
+	}
+
+	/*
+	 * Take an expired own-turn effect out of the stat it alters (buffs add, shackles subtract).
+	 */
+	void _removeStat(EntityEffect effect) {
+		integer? stat = Stats.entityEffectType_to_stats[effect.type]
+		if (stat == null) return;
+		integer delta = effect.value * TargetType.CONVERTER[effect.type]
+		if (stat == Stats.STR) this.str -= delta
+		else if (stat == Stats.MGC) this.mgc -= delta
+		else if (stat == Stats.AGI) this.agi -= delta
+		else if (stat == Stats.WSD) this.wsd -= delta
+		else if (stat == Stats.RST) this.rst -= delta
+		else if (stat == Stats.SNC) this.snc -= delta
+		else if (stat == Stats.TP) this.tp -= delta
+		else if (stat == Stats.MP) this.mp -= delta
 	}
 
 	/*

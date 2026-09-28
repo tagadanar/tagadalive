@@ -1,12 +1,14 @@
 class Damages {
 	// Cached shields expiring when each caster plays (turns == 1). Depends only on
-	// Fight.self.effects (turn-start state), so it is computed once per turn.
+	// Fight.self.effects (turn-start state), so it is computed once per turn AND per
+	// playing entity: a bulb plays in the same turn as its summoner, with its own shields.
 	static integer _expiringTurn = -1
+	static integer _expiringSelf = -1
 	static Map<integer, real> _expiringAbs = [:]
 	static Map<integer, real> _expiringRel = [:]
 
 	static void _refreshExpiringShields() {
-		if (Damages._expiringTurn == getTurn()) return;
+		if (Damages._expiringTurn == getTurn() && Damages._expiringSelf == Fight.self.id) return;
 		Damages._expiringAbs = [:]
 		Damages._expiringRel = [:]
 		for (EntityEffect ef in Fight.self.effects) {
@@ -19,6 +21,7 @@ class Damages {
 			}
 		}
 		Damages._expiringTurn = getTurn()
+		Damages._expiringSelf = Fight.self.id
 	}
 
 	/*

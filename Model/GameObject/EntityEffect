@@ -1,17 +1,29 @@
 class EntityEffect {
+	// Families: when the effect acts, hence how its remaining turns translate into value
+	static integer FAMILY_OWN = 0       // stat buffs/shackles: act on the target's own turns
+	static integer FAMILY_TICK = 1      // poison, heal over time, aftereffect: tick at the target's turn start
+	static integer FAMILY_EXPOSURE = 2  // shields, vulnerability, damage return: act during the others' turns
+
 	integer type
 	integer value
 	Entity caster
+	integer casterId
 	integer turns
 	boolean critical
 	Item item
 	Entity target
+	integer targetId
 	integer modifiers
+	integer family
+	// Remaining turns that still matter, family-aware (see effectiveTurns). 0 = the effect is
+	// gone before it acts again: worthless to remove, invisible to the target's next turn.
+	integer left
 	constructor(Array<boolean|integer> effect){
 		// [type, value, caster_id, turns, critical, item_id, target_id, modifiers]
 		this.type = effect[0] as integer
 		this.value = effect[1] as integer
-		this.caster = Fight.getEntity(effect[2] as integer)
+		this.casterId = effect[2] as integer
+		this.caster = Fight.getEntity(this.casterId)
 		this.turns = effect[3] as integer
 		// Infinite duration (-1) → convert to remaining fight turns
 		if (this.turns < 0) this.turns = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
@@ -23,11 +35,81 @@ class EntityEffect {
 		if (knownItem == null && this.type != EFFECT_MULTIPLY_STATS && this.type != EFFECT_RAW_BUFF_POWER
 			&& this.type != EFFECT_ADD_STATE) debugW("Unknown effect item id:" + effect[5] + " type:" + effect[0] + " value:" + effect[1])
 		this.item = knownItem!
-		this.target = Fight.getEntity(effect[6] as integer)
+		this.targetId = effect[6] as integer
+		this.target = Fight.getEntity(this.targetId)
 		// pas sur d'avoir besoin des modifiers ici, je save ocazou
 		this.modifiers = effect[7] as integer
+		this.family = EntityEffect.familyOf(this.type)
+		this.left = this.effectiveTurns()
 	}
-	
+
+	/*
+	 * Remaining turns that still matter, from now. The generator counts an effect down at
+	 * its CASTER's turn start and removes it at 0 (Entity.startTurn), after the ticks of the
+	 * effects that entity carries itself. So:
+	 *  - own-turn effects on another entity lose a turn when the caster starts first (or is
+	 *    the target itself); on the playing entity they keep the full count (this turn counts);
+	 *  - ticks lose one when the caster starts strictly before the target;
+	 *  - exposure effects keep the round count: Damages expires the last one exactly.
+	 */
+	integer effectiveTurns() {
+		if (this.family == EntityEffect.FAMILY_EXPOSURE) return this.turns
+		// Ids, not objects: a caster outside the alive map (game-applied effect) has no rank
+		integer? casterRank = Fight.nextStartRank[this.casterId]
+		integer? targetRank = Fight.nextStartRank[this.targetId]
+		if (casterRank == null || targetRank == null) return this.turns
+		if (this.family == EntityEffect.FAMILY_TICK) return EntityEffect.ticks(this.turns, casterRank!, targetRank!)
+		if (this.targetId == Fight.self.id) return this.turns
+		return EntityEffect.ownTurns(this.turns, casterRank!, targetRank!)
+	}
+
+	/*
+	 * Own turns of the target still under the effect: the caster's start counts it down,
+	 * so a caster starting first (or the target itself) takes one off before the target acts.
+	 */
+	static integer ownTurns(integer remaining, integer casterRank, integer targetRank) {
+		return casterRank <= targetRank ? remaining - 1 : remaining
+	}
+
+	/*
+	 * Ticks still to land at the target's turn starts. The target's own start ticks before
+	 * it counts down what it cast, so only a caster starting strictly before takes one off.
+	 */
+	static integer ticks(integer remaining, integer casterRank, integer targetRank) {
+		return casterRank < targetRank ? remaining - 1 : remaining
+	}
+
+	static integer familyOf(integer type) {
+		switch (type) {
+			case EFFECT_POISON:
+			case EFFECT_HEAL:
+			case EFFECT_AFTEREFFECT:
+				return EntityEffect.FAMILY_TICK
+			case EFFECT_BUFF_STRENGTH:
+			case EFFECT_RAW_BUFF_STRENGTH:
+			case EFFECT_RAW_BUFF_MAGIC:
+			case EFFECT_BUFF_AGILITY:
+			case EFFECT_RAW_BUFF_AGILITY:
+			case EFFECT_BUFF_WISDOM:
+			case EFFECT_RAW_BUFF_WISDOM:
+			case EFFECT_BUFF_RESISTANCE:
+			case EFFECT_RAW_BUFF_RESISTANCE:
+			case EFFECT_RAW_BUFF_SCIENCE:
+			case EFFECT_BUFF_TP:
+			case EFFECT_RAW_BUFF_TP:
+			case EFFECT_BUFF_MP:
+			case EFFECT_RAW_BUFF_MP:
+			case EFFECT_SHACKLE_STRENGTH:
+			case EFFECT_SHACKLE_MAGIC:
+			case EFFECT_SHACKLE_AGILITY:
+			case EFFECT_SHACKLE_WISDOM:
+			case EFFECT_SHACKLE_TP:
+			case EFFECT_SHACKLE_MP:
+				return EntityEffect.FAMILY_OWN
+		}
+		return EntityEffect.FAMILY_EXPOSURE
+	}
+
 	string string(){
 		return "<EntityEffect type:"+ this.type +" |value:"+ this.value +">"
 	}
