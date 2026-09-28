@@ -61,6 +61,7 @@ include('Controlers/Targets')
 include('Controlers/Maps/MapAction')
 include('Controlers/Maps/MapSummon')
 include('Controlers/Maps/MapTactical')    // Tactical chips (Inversion, Repotting, etc.)
+include('Controlers/Maps/MapHop')         // Movement graph: walk chained with jump/teleport/inversion/repotting
 include('Controlers/Maps/MapCellScore')   // Cell-centric action aggregation (uses MapAction, Sort)
 
 // ────────────────────────────────────────────────────────────────────────────

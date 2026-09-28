@@ -1,0 +1,280 @@
+/*
+ * MapHop - Movement graph: walking chained with hop chips
+ *
+ * A hop is a 0-MP relocation chip: jump, teleportation, inversion (swap with
+ * any movable entity in line) or repotting (swap with one of our bulbs). Each
+ * hop chip can be used once, in any order, interleaved with walking.
+ *
+ * State = set of hop chips already used (bitmask, up to 16 states), pruned by
+ * TP. Cost-level BFS over MP like MapPath.getJumpTeleportReachableCells: at
+ * each MP level, hops fire first (free, into a larger mask, so masks are
+ * processed ascending and several hops can chain at the same level), then
+ * every state walks one step.
+ *
+ * Complexity: O(masks × reach × dests). Teleport dominates (~300 dests per
+ * frontier cell, once per mask that adds it); swaps are O(targets) per cell
+ * with precomputed launch-cell sets.
+ *
+ * Usage:
+ *   HopGraph g = MapHop.build(cell, mp, tp, ignore, <>, MapHop.hopItems())
+ *   integer? mp = g.mpTo(cell)            // null = unreachable
+ *   MapHop.play(g.route(cell), cell)      // walk + cast + walk, verified
+ */
+class HopStep {
+	Item item
+	integer launchCell   // walk here, then cast
+	integer destCell     // cell we land on (aimed cell for jump/teleport, swapped entity's cell)
+	integer targetId     // swapped entity (-1 for jump/teleport)
+
+	constructor(Item item, integer launchCell, integer destCell, integer targetId) {
+		this.item = item
+		this.launchCell = launchCell
+		this.destCell = destCell
+		this.targetId = targetId
+	}
+}
+
+class HopGraph {
+	Array<Item> items = []
+	Array<Map<Cell, integer>> dist = []          // per mask: cell -> MP walked
+	Array<Map<Cell, Cell>> entry = []            // per mask: cell -> landing cell of the hop that opened this walk
+	Array<Map<Cell, Array<integer>>> hopPar = [] // per mask: landing cell -> [prevMask, launchCellId, itemIdx, targetId]
+	Array<integer> maskTP = []
+	// Best over masks: fewest hop TP, then fewest MP
+	Map<Cell, integer> bestMP = [:]
+	Map<Cell, integer> bestTP = [:]
+	Map<Cell, integer> bestMask = [:]
+
+	integer? mpTo(Cell cell) {
+		return this.bestMP[cell]
+	}
+
+	integer? tpTo(Cell cell) {
+		return this.bestTP[cell]
+	}
+
+	/*
+	 * Hop steps leading to cell (empty = walk only, null = unreachable).
+	 */
+	Array<HopStep>? route(Cell cell) {
+		integer? m = this.bestMask[cell]
+		if (m == null) return null
+		integer mask = m
+		Array<HopStep> steps = []
+		Cell c = cell
+		while (mask != 0) {
+			Cell landing = this.entry[mask][c]!
+			Array<integer> par = this.hopPar[mask][landing]!
+			unshift(steps, HopStep(this.items[par[2]], par[1], landing.id, par[3]))
+			c = Board.cells[par[1]]!
+			mask = par[0]
+		}
+		return steps
+	}
+
+	/*
+	 * Whether the route to cell uses this chip.
+	 */
+	boolean routeUses(Cell cell, integer itemId) {
+		integer? m = this.bestMask[cell]
+		if (m == null) return false
+		for (integer i = 0; i < count(this.items); i++) {
+			if (this.items[i].id == itemId) return (m & (1 << i)) != 0
+		}
+		return false
+	}
+}
+
+class MapHop {
+
+	/*
+	 * Hop chips of the current entity that are off cooldown. Reads the
+	 * unfiltered item list (Entity may hold some chips back from combos).
+	 */
+	static Array<Item> hopItems() {
+		Array<Item> result = []
+		for (Item item in Items.getItems(getEntity())) {
+			if (item.id != CHIP_JUMP && item.id != CHIP_TELEPORTATION
+				&& item.id != CHIP_INVERSION && item.id != CHIP_REPOTTING) continue
+			if (getCooldown(item.id, getEntity()) > 0) continue
+			push(result, item)
+		}
+		return result
+	}
+
+	/*
+	 * Build the movement graph from start.
+	 * @param mp          MP available for walking (all legs together)
+	 * @param tp          TP available for hop chips
+	 * @param ignoreCells occupied cells to walk through (Entity.cellsToIgnore)
+	 * @param obstacles   extra blocked cells (entities moved there beforehand)
+	 * @param hops        candidate hop chips (MapHop.hopItems() or a subset)
+	 */
+	static HopGraph build(Cell start, integer mp, integer tp, Set<Cell> ignoreCells, Set<Cell> obstacles, Array<Item> hops) {
+		HopGraph g = HopGraph()
+		for (Item item in hops) {
+			if (item.cost <= tp) push(g.items, item)
+		}
+		integer n = count(g.items)
+		integer nMasks = 1 << n
+
+		// Swap chips: targets and, per target, the cells we can cast from
+		Array<Array<Entity>> swapTargets = []
+		Array<Array<Map<Cell, boolean>>> swapFrom = []
+		for (integer i = 0; i < n; i++) {
+			Array<Entity> targets = []
+			Array<Map<Cell, boolean>> froms = []
+			Item item = g.items[i]
+			if (item.id == CHIP_INVERSION || item.id == CHIP_REPOTTING) {
+				Map<integer, Entity> pool = item.id == CHIP_INVERSION ? Fight.getAllAlive() : Fight.getAlliesBulbsAlive()
+				for (integer id : Entity e in pool) {
+					if (id == getEntity() || e.isStatic) continue
+					if (item.id == CHIP_REPOTTING && MapHop._repottingKills(item, e)) continue
+					Map<Cell, boolean> from = [:]
+					for (Cell c in Targets.getCellsToUseItemOnCell(item, e.cell, [getEntity()])) from[c] = true
+					if (mapSize(from) == 0) continue
+					push(targets, e)
+					push(froms, from)
+				}
+			}
+			push(swapTargets, targets)
+			push(swapFrom, froms)
+		}
+
+		// Per-mask state
+		Array<Array<Array<Cell>>> front = []
+		for (integer m = 0; m < nMasks; m++) {
+			integer mtp = 0
+			for (integer i = 0; i < n; i++) {
+				if ((m & (1 << i)) != 0) mtp += g.items[i].cost
+			}
+			push(g.maskTP, mtp)
+			push(g.dist, [:])
+			push(g.entry, [:])
+			push(g.hopPar, [:])
+			Array<Array<Cell>> f = []
+			for (integer c = 0; c <= mp; c++) push(f, [])
+			push(front, f)
+		}
+		g.dist[0][start] = 0
+		g.entry[0][start] = start
+		push(front[0][0], start)
+
+		for (integer cost = 0; cost <= mp; cost++) {
+			// Hops (0 MP): ascending masks so chains fire within the same level
+			for (integer m = 0; m < nMasks; m++) {
+				Array<Cell> frontier = front[m][cost]
+				if (count(frontier) == 0) continue
+				for (integer i = 0; i < n; i++) {
+					integer bit = 1 << i
+					if ((m & bit) != 0) continue
+					integer nm = m | bit
+					if (g.maskTP[nm] > tp) continue
+					Item item = g.items[i]
+					Map<Cell, integer> dnm = g.dist[nm]
+					Map<Cell, integer> dm = g.dist[m]
+					if (item.id == CHIP_JUMP || item.id == CHIP_TELEPORTATION) {
+						for (Cell cell in frontier) {
+							Array<Cell> dests = item.id == CHIP_JUMP ? MapPath.getJumpDests(cell) : MapPath.getTeleportDests(cell, item.maxRange)
+							for (Cell d in dests) {
+								if (dnm[d] != null) continue
+								if (dm[d] != null && dm[d]! <= cost) continue
+								if (Board.entityCells[d] && !setContains(ignoreCells, d)) continue
+								if (setContains(obstacles, d)) continue
+								dnm[d] = cost
+								g.entry[nm][d] = d
+								g.hopPar[nm][d] = [m, cell.id, i, -1]
+								push(front[nm][cost], d)
+							}
+						}
+					} else {
+						Array<Entity> targets = swapTargets[i]
+						for (Cell cell in frontier) {
+							for (integer t = 0; t < count(targets); t++) {
+								if (!swapFrom[i][t][cell]) continue
+								Cell d = targets[t].cell
+								if (dnm[d] != null) continue
+								if (dm[d] != null && dm[d]! <= cost) continue
+								dnm[d] = cost
+								g.entry[nm][d] = d
+								g.hopPar[nm][d] = [m, cell.id, i, targets[t].id]
+								push(front[nm][cost], d)
+							}
+						}
+					}
+				}
+			}
+			// Walk one step from every state's frontier
+			if (cost == mp) break
+			integer next = cost + 1
+			for (integer m = 0; m < nMasks; m++) {
+				Map<Cell, integer> dm = g.dist[m]
+				Map<Cell, Cell> em = g.entry[m]
+				for (Cell cell in front[m][cost]) {
+					Cell e = em[cell]!
+					for (Cell nb in cell.neighbors) {
+						if (dm[nb] != null) continue
+						if (Board.entityCells[nb] && !setContains(ignoreCells, nb)) continue
+						if (setContains(obstacles, nb)) continue
+						dm[nb] = next
+						em[nb] = e
+						push(front[m][next], nb)
+					}
+				}
+			}
+		}
+
+		// Best route per cell: fewest hop TP, then fewest MP
+		for (integer m = 0; m < nMasks; m++) {
+			integer mtp = g.maskTP[m]
+			for (Cell c : integer d in g.dist[m]) {
+				integer? btp = g.bestTP[c]
+				if (btp == null || mtp < btp || (mtp == btp && d < g.bestMP[c]!)) {
+					g.bestTP[c] = mtp
+					g.bestMP[c] = d
+					g.bestMask[c] = m
+				}
+			}
+		}
+		return g
+	}
+
+	/*
+	 * Play a route: walk to each launch cell, cast, check the landing, then walk
+	 * to finalCell (null = stop after the last hop). Returns false on any mismatch.
+	 */
+	static boolean play(Array<HopStep> steps, Cell? finalCell) {
+		for (HopStep s in steps) {
+			if (getCell() != s.launchCell) moveTowardCell(s.launchCell)
+			if (getCell() != s.launchCell) {
+				debugW("[HOP] could not reach launch c" + s.launchCell + ", at c" + getCell())
+				return false
+			}
+			integer result = useChipOnCell(s.item.id, s.destCell)
+			if (result <= 0 || getCell() != s.destCell) {
+				debugW("[HOP] " + s.item.name + " c" + s.launchCell + "->c" + s.destCell + " failed: " + result + ", at c" + getCell())
+				return false
+			}
+			debug("[HOP] " + s.item.name + " c" + s.launchCell + "->c" + s.destCell)
+		}
+		if (finalCell != null && getCell() != finalCell.id) {
+			moveTowardCell(finalCell.id)
+			if (getCell() != finalCell.id) {
+				debugW("[HOP] could not reach c" + finalCell.id + ", at c" + getCell())
+				return false
+			}
+		}
+		return true
+	}
+
+	/*
+	 * Whether repotting's damage (max roll, caster strength) can kill the bulb.
+	 */
+	static boolean _repottingKills(Item item, Entity bulb) {
+		real dmg = 0
+		for (ItemEffect e in item.effects) {
+			if (e.type == EFFECT_DAMAGE) dmg += e.max * (1 + max(0, Fight.self.str) / 100.0)
+		}
+		return dmg >= bulb.life
+	}
+}
