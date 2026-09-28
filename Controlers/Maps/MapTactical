@@ -237,7 +237,7 @@ class MapTactical {
 			// Skip static entities (turrets) - can't swap positions
 			if (entity.isStatic) continue
 			// Skip Fennel puzzle entities
-			if (BossFennel.shouldNotTarget(entity)) continue
+			if (BossFennel.shouldNotTarget(entity) || BossPotiMalef.holdsBlockCell(entity)) continue
 
 			// Find best cast position
 			Array<any>? castResult = _findBestCastCell(invItem, entity.cell, reachable, selfCell)
@@ -315,6 +315,8 @@ class MapTactical {
 		for (integer entityId : Entity entity in Fight.getAlliesBulbsAlive()) {
 			// Skip self (shouldn't happen for bulbs, but safe)
 			if (entityId == Fight.self.id) continue
+			// Swapping the bulb on the resurrection cell would unblock it
+			if (BossPotiMalef.holdsBlockCell(entity)) continue
 
 			// Find best cast position (reuses helper from inversion)
 			Array<any>? castResult = _findBestCastCell(repItem, entity.cell, reachable, selfCell)
@@ -501,7 +503,7 @@ class MapTactical {
 			// Skip static entities (turrets) and rooted ones (plants) - can't be moved
 			if (entity.isStatic || entity.isRooted) continue
 			// Skip Fennel puzzle entities (crystals and graal while graal is alive)
-			if (BossFennel.shouldNotTarget(entity)) continue
+			if (BossFennel.shouldNotTarget(entity) || BossPotiMalef.holdsBlockCell(entity)) continue
 
 			// Get strategic cast directions (toward ally barycenter, away from enemy barycenter)
 			Array<integer> directions = _getStrategicCastDirections(entity.cell, true)
@@ -580,7 +582,7 @@ class MapTactical {
 			// Skip static entities (turrets) and rooted ones (plants) - can't be moved
 			if (entity.isStatic || entity.isRooted) continue
 			// Skip Fennel puzzle entities (crystals and graal while graal is alive)
-			if (BossFennel.shouldNotTarget(entity)) continue
+			if (BossFennel.shouldNotTarget(entity) || BossPotiMalef.holdsBlockCell(entity)) continue
 
 			// Get strategic cast directions (toward ally barycenter, away from enemy barycenter)
 			// For boxing glove, isGrapple=false flips the directions appropriately
@@ -663,7 +665,7 @@ class MapTactical {
 		// Only process enemies (this combo repositions enemies toward our team)
 		for (Entity enemy in Fight.getEnemiesAlive()) {
 			if (enemy.isStatic || enemy.isRooted) continue
-			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy)) continue
+			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy) || BossPotiMalef.holdsBlockCell(enemy)) continue
 
 			// Get direction components to ally barycenter
 			integer dx = _allyBarycentre.x - enemy.cell.x
@@ -840,7 +842,7 @@ class MapTactical {
 
 		for (Entity enemy in Fight.getEnemiesAlive()) {
 			if (enemy.isStatic || enemy.isRooted) continue
-			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy)) continue
+			if (enemy.isInvincible || BossFennel.shouldNotTarget(enemy) || BossPotiMalef.holdsBlockCell(enemy)) continue
 
 			// Direction toward ally barycenter
 			integer dirToAlly = _getCardinalDirection(enemy.cell, _allyBarycentre)
