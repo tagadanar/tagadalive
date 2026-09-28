@@ -405,6 +405,10 @@ class EffectHandlers {
 
 		if (ctx.getHP(target) <= 0) {
 			ctx.addKill(target)
+		} else if (target.isFriend && effect.duration >= 1 && ctx.getHP(target) - value <= 0) {
+			// It hits again at the target's turn start, which comes before our next turn:
+			// an ally (doping on a fresh bulb) survives the cast only to die before acting
+			ctx.addKill(target, true)
 		}
 
 		// Erosion
