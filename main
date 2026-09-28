@@ -36,6 +36,9 @@ BossPotiMalef.executePostCombo()
 // Taunt when blocking the resurrection cell with leftover TP
 BossPotiMalef.sayIfBlocking()
 
+// Share the boss say log with the team (resurrected allies missed part of it)
+BossPotiMalef.shareSays()
+
 // Dalton brothers: themed say with leftover TP
 BossDalton.sayMaybe()
 

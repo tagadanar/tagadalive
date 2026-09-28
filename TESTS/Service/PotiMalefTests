@@ -1,0 +1,31 @@
+include('../includesTests')
+
+// Say log merge: an ally's log (complete when sent) + our says since our last turn
+
+function testMergeAliveNoLoss() {
+	// Alive all along: the ally's log ends with the first says we heard ourselves
+	Array<integer> merged = BossPotiMalef._mergeEvents([191, 697, -1, 12], [-1, 12, 45])
+	assertEquals("PotiMalefTests::mergeAlive", [191, 697, -1, 12, 45], merged)
+}
+
+function testMergeResurrected() {
+	// Dead through the block and two says: the ally fills the hole, we add the last say
+	Array<integer> merged = BossPotiMalef._mergeEvents([697, 422, -1, 305, 815], [719])
+	assertEquals("PotiMalefTests::mergeResurrected", [697, 422, -1, 305, 815, 719], merged)
+}
+
+function testMergeNothingHeard() {
+	assertEquals("PotiMalefTests::mergeNothingHeard", [5, -2, 7], BossPotiMalef._mergeEvents([5, -2, 7], []))
+}
+
+function testMergeHeardAfterMessage() {
+	// Everything we heard came after the ally's message: no overlap
+	assertEquals("PotiMalefTests::mergeNoOverlap", [5, 7, 9, 11], BossPotiMalef._mergeEvents([5, 7], [9, 11]))
+}
+
+function checkPotiMalef() {
+	testMergeAliveNoLoss()
+	testMergeResurrected()
+	testMergeNothingHeard()
+	testMergeHeardAfterMessage()
+}

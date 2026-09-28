@@ -3,6 +3,7 @@ include('includesTests');
 if(getTurn()==1){
 	init()
 	checkEffectTiming()  // before CellTests, which currently aborts the run
+	checkPotiMalef()
 	checkMap()
 	checkCells()
 	checkFight()
