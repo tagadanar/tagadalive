@@ -229,7 +229,9 @@ class Combo {
 	 * conservative adjustments reserved extra TP). This method spends them greedily.
 	 */
 	void _postExecutionFallback() {
-		integer leftoverTP = getTP()
+		// TP held for the post-combo PotiMalef hop (jump/teleport) is not leftover
+		integer reservedTP = BossPotiMalef.getReservedTP()
+		integer leftoverTP = getTP() - reservedTP
 		if (leftoverTP <= 0) return;
 
 		// Build usage map from combo actions: item.id -> count
@@ -271,7 +273,7 @@ class Combo {
 		// Greedy execution
 		integer bonusCount = 0
 		for (Action a in valid) {
-			integer currentTP = getTP()
+			integer currentTP = getTP() - reservedTP
 			if (currentTP <= 0) break
 
 			integer switchCost = 0
@@ -297,7 +299,7 @@ class Combo {
 
 				// Loop repeatable items (no CD, maxUse > 1)
 				if (!a.item.haveCD && a.item.maxUse > 1) {
-					while (getTP() >= a.item.cost + switchCost) {
+					while (getTP() - reservedTP >= a.item.cost + switchCost) {
 						integer u = usedCounts[a.item.id] ?? 0
 						if (u >= a.item.maxUse) break
 						integer r2
