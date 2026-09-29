@@ -44,21 +44,20 @@ class EntityEffect {
 	}
 
 	/*
-	 * Remaining turns that still matter, from now. The generator counts an effect down at
-	 * its CASTER's turn start and removes it at 0 (Entity.startTurn), after the ticks of the
-	 * effects that entity carries itself. So:
-	 *  - own-turn effects on another entity lose a turn when the caster starts first (or is
-	 *    the target itself); on the playing entity they keep the full count (this turn counts);
-	 *  - ticks lose one when the caster starts strictly before the target;
+	 * Remaining turns that still matter, from now (generator Entity.startTurn):
+	 *  - ticks (PeriodicEffect) lose a turn at each hit, at the TARGET's turn start, and go
+	 *    at 0: turns is exactly the hits still to land, whatever the turn order;
+	 *  - other effects count down at their CASTER's turn start and go at 0: own-turn effects
+	 *    on another entity lose a turn when the caster starts first (or is the target itself);
+	 *    on the playing entity they keep the full count (this turn counts);
 	 *  - exposure effects keep the round count: Damages expires the last one exactly.
 	 */
 	integer effectiveTurns() {
-		if (this.family == EntityEffect.FAMILY_EXPOSURE) return this.turns
+		if (this.family != EntityEffect.FAMILY_OWN) return this.turns
 		// Ids, not objects: a caster outside the alive map (game-applied effect) has no rank
 		integer? casterRank = Fight.nextStartRank[this.casterId]
 		integer? targetRank = Fight.nextStartRank[this.targetId]
 		if (casterRank == null || targetRank == null) return this.turns
-		if (this.family == EntityEffect.FAMILY_TICK) return EntityEffect.ticks(this.turns, casterRank!, targetRank!)
 		if (this.targetId == Fight.self.id) return this.turns
 		return EntityEffect.ownTurns(this.turns, casterRank!, targetRank!)
 	}
@@ -69,14 +68,6 @@ class EntityEffect {
 	 */
 	static integer ownTurns(integer remaining, integer casterRank, integer targetRank) {
 		return casterRank <= targetRank ? remaining - 1 : remaining
-	}
-
-	/*
-	 * Ticks still to land at the target's turn starts. The target's own start ticks before
-	 * it counts down what it cast, so only a caster starting strictly before takes one off.
-	 */
-	static integer ticks(integer remaining, integer casterRank, integer targetRank) {
-		return casterRank < targetRank ? remaining - 1 : remaining
 	}
 
 	static integer familyOf(integer type) {

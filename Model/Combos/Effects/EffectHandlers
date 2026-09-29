@@ -127,7 +127,7 @@ class EffectHandlers {
 		}
 		integer tick2 = ctx.getPsnPerTurn2(target)
 		for (EntityEffect entityEffect in target.effects) {
-			// Ticks still to land (caster-driven expiry), minus effects of a caster killed in this chain
+			// Ticks still to land, minus effects of a caster killed in this chain
 			if (entityEffect.left < 2 || EffectHandlers.isGone(entityEffect, ctx)) continue
 			if (entityEffect.type == EFFECT_POISON) tick2 += entityEffect.value
 			else if (entityEffect.type == EFFECT_HEAL) tick2 -= entityEffect.value
