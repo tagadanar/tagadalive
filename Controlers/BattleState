@@ -23,6 +23,8 @@ class BattleState {
 	static boolean enemyHasOTK = false // any enemy has STR >= 400, AGI >= 400, SNC >= 400
 	static boolean enemyHasHighAgi = false // any enemy has AGI >= 800 (bramble value in OTK)
 	static boolean allyHasStr = false  // any ally has STR >= 200 (for vuln value)
+	static boolean allyHasMultiHit = false   // an ally carries MACHINE_GUN / ILLICIT_GRENADE_LAUNCHER: abs vuln on enemies pays per hit
+	static boolean enemyHasAbsThreat = false // an enemy carries MACHINE_GUN / ILLICIT_GRENADE_LAUNCHER / J_LASER: our abs shield pays per hit
 	static boolean allyHasScience = false // any ally has SNC >= 400. Read only by getTeamCompModifier; see getShieldStatusModifier on why science does not gate shield-stripping
 	static boolean allyHasPsn = false  // any ally has MGC >= 200 (for enemy antidote map)
 	static boolean allyHasShield = false // any ally carries shields, or holds a shield chip
@@ -30,6 +32,11 @@ class BattleState {
 	static boolean allyHasHemorrhage = false // any ally owns CHIP_HEMORRHAGE (gates enemyHealPotential)
 	static boolean enemyHasHemorrhage = false // any enemy owns CHIP_HEMORRHAGE (for the danger map)
 	static real allyLeekMeanStr = 0.0 // mean STR of ally leeks (for enemy vuln scaling)
+
+	// Weapons whose many hits each go through the target's abs shield
+	static Map<integer, boolean> MULTI_HIT_WEAPONS = [WEAPON_MACHINE_GUN: true, WEAPON_ILLICIT_GRENADE_LAUNCHER: true]
+	// ... plus the J-Laser, which strips our abs shield
+	static Map<integer, boolean> ABS_THREAT_WEAPONS = [WEAPON_MACHINE_GUN: true, WEAPON_ILLICIT_GRENADE_LAUNCHER: true, WEAPON_J_LASER: true]
 
 	// === Global State Ratios ===
 	static real ratioHP = 1.0    // sum(ally life) / sum(enemy life)
@@ -76,6 +83,18 @@ class BattleState {
 	static integer enemyLeekCount = 0
 
 	/*
+	 * True when the entity carries one of the weapons in `weaponIds`.
+	 * O(weapons): Items.getItems lists weapons first, so the scan stops at the first chip.
+	 */
+	static boolean _hasWeapon(Entity entity, Map<integer, boolean> weaponIds) {
+		for (Item item in entity.items) {
+			if (!item.isWeap) break
+			if (weaponIds[item.id]) return true
+		}
+		return false
+	}
+
+	/*
 	 * Refresh all battle state data.
 	 * Called once per turn before Scoring.refresh().
 	 *
@@ -87,6 +106,8 @@ class BattleState {
 		countStrBulbs = 0
 		allyLeekCount = 0
 		allyHasStr = false
+		allyHasMultiHit = false
+		enemyHasAbsThreat = false
 		allyHasScience = false
 		allyHasPsn = false
 		allyHasShield = false
@@ -125,6 +146,8 @@ class BattleState {
 				if (bt == BULB_FIRE || bt == BULB_ICED || bt == BULB_LIGHTNING || bt == BULB_ROCKY) {
 					countStrBulbs++
 				}
+			} else if (!allyHasMultiHit && BattleState._hasWeapon(entity, BattleState.MULTI_HIT_WEAPONS)) {
+				allyHasMultiHit = true
 			}
 
 			// Check for ally with significant strength
@@ -221,6 +244,9 @@ class BattleState {
 			}
 			if (!enemyHasHighAgi && entity.agi >= 800) {
 				enemyHasHighAgi = true
+			}
+			if (!enemyHasAbsThreat && !entity.isBulb && BattleState._hasWeapon(entity, BattleState.ABS_THREAT_WEAPONS)) {
+				enemyHasAbsThreat = true
 			}
 			// hemorrhageCD is loaded per turn by Entity._loadCooldowns (6 = no chip)
 			if (!enemyHasHemorrhage && entity.hemorrhageCD < 6) {
