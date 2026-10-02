@@ -18,7 +18,11 @@ class Scoring {
 
 	// === Dynamic Position Weights ===
 	static real W_LOCK_BONUS = 1000.0
+	static real W_TP_LOCK_BONUS = 1000.0
 	static integer IDEAL_DIST_RANGED = -1
+
+	// Turns left in the fight, refreshed each turn (stands in for an infinite duration)
+	static integer turnsLeft = ScoringConfig.MAX_FIGHT_TURNS
 
 	/*
 	 * Initialize all scoring data for the current turn.
@@ -31,7 +35,8 @@ class Scoring {
 		_cache_duration = [:]
 
 		// Compute dynamic position weights
-		W_LOCK_BONUS = 1000.0
+		W_LOCK_BONUS = ScoringConfig.W_LOCK_BONUS_NORMAL
+		W_TP_LOCK_BONUS = ScoringConfig.W_TP_LOCK_BONUS_NORMAL
 
 		if (IDEAL_DIST_RANGED == -1) {
 			integer longestRange = 0
@@ -45,7 +50,7 @@ class Scoring {
 		if (getTurn() % 5 == 0) IDEAL_DIST_RANGED--
 
 		// Pre-compute effective durations
-		integer turnsLeft = ScoringConfig.MAX_FIGHT_TURNS - getTurn()
+		turnsLeft = max(1, ScoringConfig.MAX_FIGHT_TURNS - getTurn())
 		for (integer raw = -1; raw <= ScoringConfig.MAX_DURATION; raw++) {
 			integer base = raw == -1 ? turnsLeft : min(raw, turnsLeft)
 			base = min(base, ScoringConfig.MAX_DURATION)
@@ -83,6 +88,25 @@ class Scoring {
 		for (integer stat in ScoringConfig.ALL_STATS) {
 			_cache_dynamic_coef[entity]![stat] = _computeDynamicCoef(entity, stat, null)
 		}
+	}
+
+	/*
+	 * PLACEHOLDER: no ally-danger adjustment of the cached coefficients
+	 */
+	static void refreshAllyDangerCoefs() {}
+
+	/*
+	 * PLACEHOLDER: an ally bulb is never worth sacrificing
+	 */
+	static boolean isAllyBulbFodder(Entity bulb) {
+		return false
+	}
+
+	/*
+	 * PLACEHOLDER: linear - an effect is worth its duration in turns
+	 */
+	static real durationMitigation(integer duration) {
+		return max(1.0, min(duration, ScoringConfig.MAX_DURATION))
 	}
 
 	/*

@@ -1,0 +1,20 @@
+/*
+ * BossNasu - Placeholder for Nasu boss fight handling
+ *
+ * This is a dummy implementation. The real version alters scoring against the
+ * Nasu mobs (threat priority, chest looting before the fight-ending kill).
+ *
+ * All methods return neutral/no-op values so the AI compiles and runs normally
+ * without boss fight support.
+ */
+class BossNasu {
+
+	static boolean isActive() { return false }
+	static void refresh() {}
+
+	static integer getVulnPenalty(integer id) { return 0 }
+	static boolean isLootHold() { return false }
+	static boolean isFightEndingKill(Entity entity) { return false }
+	static boolean endsTheFight(Entity entity, Consequences consequences) { return false }
+	static boolean endsTheFightInSnapshot(Entity entity, Set<Entity> killed) { return false }
+}

@@ -14,6 +14,7 @@ class BossFennel {
 	static boolean isActive() { return false }
 	static boolean isPuzzleSolved() { return false }
 	static Entity? getGraal() { return null }
+	static Entity? getFarthestCrystalFromGraal() { return null }
 	static boolean shouldNotTarget(Entity entity) { return false }
 
 	static void refresh() {}

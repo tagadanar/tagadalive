@@ -36,18 +36,26 @@ class ScoringConfig {
 	static real ALLY_SHIELD_MODIFIER = 1.0
 	static real ALLY_BUFF_MODIFIER = 1.0
 
+	// === Debuff Modeling (PLACEHOLDER - neutral) ===
+	static real MP_OVERSHACKLE_FACTOR = 1.0
+	static real LIBE_DEBUFF_FACTOR = 1.0
+
+	static boolean libeWorthCasting(real absShield, real relShield) {
+		return false
+	}
+
 	// === All Stats (for iteration) ===
 	static Array<integer> ALL_STATS = [
 		Stats.HP, Stats.HPTIME, Stats.HPMAX, Stats.DEBUFF, Stats.ANTIDOTE,
 		Stats.ABSSHIELD, Stats.RELSHIELD, Stats.DMGRETURN,
-		Stats.STR, Stats.MGC, Stats.RST, Stats.WSD, Stats.AGI,
+		Stats.STR, Stats.MGC, Stats.SNC, Stats.RST, Stats.WSD, Stats.AGI,
 		Stats.TP, Stats.MP, Stats.PWR, Stats.KILL
 	]
 
-	// === Chip Maps for WSD/RST/AGI Modifiers ===
-	static Map<integer, boolean> WSD_CHIPS = [CHIP_ELEVATION: true, CHIP_CURE: true, CHIP_VACCINE: true, CHIP_ARMORING: true, CHIP_REMISSION: true]
-	static Map<integer, boolean> RST_CHIPS = [CHIP_HELMET: true, CHIP_SHIELD: true, CHIP_ARMOR: true, CHIP_WALL: true, CHIP_FORTRESS: true]
-	static Map<integer, boolean> AGI_CHIPS = [CHIP_THORN: true, CHIP_MIRROR: true, CHIP_BRAMBLE: true]
+	// === Chip Maps for WSD/RST/AGI Modifiers (value = weight, PLACEHOLDER - all 1.0) ===
+	static Map<integer, real> WSD_CHIPS = [CHIP_ELEVATION: 1.0, CHIP_CURE: 1.0, CHIP_VACCINE: 1.0, CHIP_ARMORING: 1.0, CHIP_REMISSION: 1.0]
+	static Map<integer, real> RST_CHIPS = [CHIP_HELMET: 1.0, CHIP_SHIELD: 1.0, CHIP_ARMOR: 1.0, CHIP_WALL: 1.0, CHIP_FORTRESS: 1.0]
+	static Map<integer, real> AGI_CHIPS = [CHIP_THORN: 1.0, CHIP_MIRROR: 1.0, CHIP_BRAMBLE: 1.0]
 
 	// === Position Scoring Weights (PLACEHOLDER - all neutral) ===
 	static real W_DANGER_BASE = 1.0
@@ -72,6 +80,21 @@ class ScoringConfig {
 	static real W_GRAVITY_ALLY_BARYCENTRE = 1.0
 	static real W_GRAVITY_CHEST = 1.0
 
+	static integer PUNY_LOCK_MIN_COUNT = 1
+	static real W_PUNY_LOCK_CELL = 1.0
+	static real W_PUNY_DIAGONAL = 1.0
+	static real W_PUNY_APPROACH = 1.0
+
+	// === Lock / Shackle Exposure (PLACEHOLDER) ===
+	static real W_LOCK_BONUS_NORMAL = 1000.0
+	static real W_TP_LOCK_BONUS_NORMAL = 1000.0
+	static real W_DANGER_SHACKLE_SCALE = 1.0
+	static real W_DANGER_MANUMISSION_CD = 1.0
+	static integer DANGER_MANUMISSION_TP = 1
+
+	// === Boss Coefficients (PLACEHOLDER) ===
+	static real EC_NASU_LOOT_KILL_COEF = 1.0
+
 	static integer THREAT_SNC_THRESHOLD = 100
 
 	// === Distance Weights (PLACEHOLDER) ===
@@ -91,29 +114,36 @@ class ScoringConfig {
 	// === Summon Values (PLACEHOLDER - all equal) ===
 	static real SUMMON_VALUE_DEFAULT = 100.0
 	static Map<integer, real> SUMMON_VALUES = [
-		Entity.BULB_FIRE: 100.0,
-		Entity.BULB_HEALER: 100.0,
-		Entity.BULB_METALLIC: 100.0,
-		Entity.BULB_ICED: 100.0,
-		Entity.BULB_LIGHTNING: 100.0,
-		Entity.BULB_ROCKY: 100.0,
-		Entity.BULB_WIZARD: 100.0,
-		Entity.BULB_PUNY: 100.0,
-		Entity.BULB_TACTICIAN: 100.0,
-		Entity.BULB_SAVANT: 100.0,
+		BULB_FIRE: 100.0,
+		BULB_HEALER: 100.0,
+		BULB_METALLIC: 100.0,
+		BULB_ICED: 100.0,
+		BULB_LIGHTNING: 100.0,
+		BULB_ROCKY: 100.0,
+		BULB_WIZARD: 100.0,
+		BULB_PUNY: 100.0,
+		BULB_TACTICIAN: 100.0,
+		BULB_SAVANT: 100.0,
 	]
 
+	// === Sterile (PLACEHOLDER - every summon chip weighs the same) ===
+	static real STERILE_VALUE = 100.0
+
+	static real getSummonLockWeight(integer cooldown) {
+		return 1.0
+	}
+
 	static integer getBulbTypeFromChip(integer chipId) {
-		if (chipId == CHIP_FIRE_BULB) return Entity.BULB_FIRE
-		if (chipId == CHIP_HEALER_BULB) return Entity.BULB_HEALER
-		if (chipId == CHIP_METALLIC_BULB) return Entity.BULB_METALLIC
-		if (chipId == CHIP_ICED_BULB) return Entity.BULB_ICED
-		if (chipId == CHIP_LIGHTNING_BULB) return Entity.BULB_LIGHTNING
-		if (chipId == CHIP_ROCKY_BULB) return Entity.BULB_ROCKY
-		if (chipId == CHIP_WIZARD_BULB) return Entity.BULB_WIZARD
-		if (chipId == CHIP_PUNY_BULB) return Entity.BULB_PUNY
-		if (chipId == CHIP_TACTICIAN_BULB) return Entity.BULB_TACTICIAN
-		if (chipId == CHIP_SAVANT_BULB) return Entity.BULB_SAVANT
+		if (chipId == CHIP_FIRE_BULB) return BULB_FIRE
+		if (chipId == CHIP_HEALER_BULB) return BULB_HEALER
+		if (chipId == CHIP_METALLIC_BULB) return BULB_METALLIC
+		if (chipId == CHIP_ICED_BULB) return BULB_ICED
+		if (chipId == CHIP_LIGHTNING_BULB) return BULB_LIGHTNING
+		if (chipId == CHIP_ROCKY_BULB) return BULB_ROCKY
+		if (chipId == CHIP_WIZARD_BULB) return BULB_WIZARD
+		if (chipId == CHIP_PUNY_BULB) return BULB_PUNY
+		if (chipId == CHIP_TACTICIAN_BULB) return BULB_TACTICIAN
+		if (chipId == CHIP_SAVANT_BULB) return BULB_SAVANT
 		return ENTITY_BULB
 	}
 }

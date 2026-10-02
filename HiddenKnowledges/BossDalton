@@ -1,0 +1,23 @@
+/*
+ * BossDalton - Placeholder for the Dalton brothers handling
+ *
+ * This is a dummy implementation. The real version applies per-brother rules
+ * (forced casts, summon planning, target filters) when playing a Dalton leek.
+ *
+ * All methods return neutral/no-op values so the AI compiles and runs normally
+ * without boss fight support.
+ */
+class BossDalton {
+
+	static boolean _buffsPlanned = false
+
+	static void refresh() {}
+	static boolean execute() { return false }
+	static void sayMaybe() {}
+
+	static boolean applyPositionDanger(Position pos, Consequences? consequences) { return false }
+	static integer extraActionCost(Action action, integer availableTP) { return 0 }
+	static boolean handleSummonPlanning(Item item) { return false }
+	static boolean executeDelayedSummon(Action delayedAction, Cell currentCell) { return false }
+	static boolean shouldSkipTarget(Item item, Entity entity) { return false }
+}

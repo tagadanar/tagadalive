@@ -2,30 +2,39 @@
  * BossPotiMalef - Potiron Maléfique Boss Fight Handler (placeholder)
  *
  * Dummy placeholder for public repo. Real implementation decodes
- * Glagolitic alphabet messages to find the resurrection cell.
+ * Glagolitic alphabet messages to find the resurrection cell and plans
+ * who blocks it.
  *
- * Integration: Called from init() via refresh(). AI reads getResurrectionCell().
+ * All methods return neutral/no-op values so the AI compiles and runs normally
+ * without boss fight support.
  */
 class BossPotiMalef {
-	static boolean _active = false
-	static boolean _detected = false
 
-	static boolean isActive() {
-		return _active
-	}
+	// Who blocks the resurrection cell this turn
+	static integer PLAN_NONE = 0
+	static integer PLAN_SUMMON = 1
+	static integer PLAN_SELF = 2
+	static integer _planType = 0
+	static boolean _planUsesJump = false
+	static boolean _planUsesTeleport = false
+	static integer _planTurn = -1
 
-	static void refresh() {
-		if (!_detected) {
-			_active = false
-			_detected = true
-		}
-	}
+	static boolean isActive() { return false }
+	static integer? getResurrectionCell() { return null }
+	static integer getReservedMP() { return 0 }
+	static integer getReservedTP() { return 0 }
+	static boolean shouldHoldChips() { return false }
+	static boolean holdsBlockCell(Entity entity) { return false }
+	static boolean forceLaunchFinalPosition(Combo combo) { return false }
 
-	static boolean execute() {
-		return false
-	}
+	static void refresh() {}
+	static boolean execute() { return false }
+	static void executePostCombo() {}
+	static boolean sayIfBlocking() { return false }
+	static void shareSays() {}
 
-	static integer? getResurrectionCell() {
-		return null
+	// Real version merges the says heard by allies into the local log
+	static Array<integer> _mergeEvents(Array<integer> log, Array<integer> heard, integer base) {
+		return log
 	}
 }
